@@ -11,10 +11,18 @@ import {
   AlertTriangle, 
   Save,
   Loader2,
-  CheckCircle
+  CheckCircle,
+  X
 } from 'lucide-react';
 
-export default function MultiStepBustaForm() {
+// ✅ AGGIUNTA INTERFACCIA PROPS
+interface MultiStepBustaFormProps {
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}
+
+// ✅ AGGIUNTA DESTRUCTURING PROPS
+export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBustaFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -22,6 +30,7 @@ export default function MultiStepBustaForm() {
     cliente_cognome: '',
     cliente_nome: '',
     cliente_data_nascita: '',
+    cliente_genere: '' as '' | 'M' | 'F',
     cliente_telefono: '',
     cliente_email: '',
     tipo_lavorazione: '',
@@ -106,12 +115,14 @@ export default function MultiStepBustaForm() {
         clienteId = existingClient.id;
         console.log('✅ Cliente esistente trovato:', clienteId);
       } else {
+        // ✅ AGGIUNTO CAMPO GENERE NELLA CREAZIONE CLIENTE
         const { data: newClient, error: newClientError } = await supabase
           .from('clienti')
           .insert({
             cognome: formData.cliente_cognome,
             nome: formData.cliente_nome,
             data_nascita: formData.cliente_data_nascita,
+            genere: formData.cliente_genere || null,
             telefono: formData.cliente_telefono,
             email: formData.cliente_email || null,
           })
@@ -177,6 +188,9 @@ export default function MultiStepBustaForm() {
 
       // ✅ Success - show success screen
       setSuccess(true);
+      
+      // ✅ CHIAMA LA CALLBACK DI SUCCESSO
+      onSuccess?.();
 
     } catch (error: any) {
       setFormError(error.message);
@@ -185,6 +199,24 @@ export default function MultiStepBustaForm() {
       setIsSubmitting(false);
       isSubmittingRef.current = false;
     }
+  };
+
+  // ✅ FUNZIONE PER RESET FORM
+  const resetForm = () => {
+    setSuccess(false);
+    setFormData({
+      cliente_cognome: '',
+      cliente_nome: '',
+      cliente_data_nascita: '',
+      cliente_genere: '',
+      cliente_telefono: '',
+      cliente_email: '',
+      tipo_lavorazione: '',
+      priorita: 'normale',
+      note_generali: ''
+    });
+    setErrors({});
+    setFormError(null);
   };
 
   // Success screen
@@ -207,21 +239,7 @@ export default function MultiStepBustaForm() {
                 Vai alla Dashboard
               </button>
               <button 
-                onClick={() => {
-                  setSuccess(false);
-                  setFormData({
-                    cliente_cognome: '',
-                    cliente_nome: '',
-                    cliente_data_nascita: '',
-                    cliente_telefono: '',
-                    cliente_email: '',
-                    tipo_lavorazione: '',
-                    priorita: 'normale',
-                    note_generali: ''
-                  });
-                  setErrors({});
-                  setFormError(null);
-                }}
+                onClick={resetForm}
                 className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Crea Altra Busta
@@ -239,7 +257,19 @@ export default function MultiStepBustaForm() {
         
         {/* Header */}
         <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Nuova Busta</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-gray-900">Nuova Busta</h1>
+            {/* ✅ PULSANTE ANNULLA (se onCancel è presente) */}
+            {onCancel && (
+              <button
+                onClick={onCancel}
+                className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+                Annulla
+              </button>
+            )}
+          </div>
           <p className="text-gray-500 text-sm">Compila tutti i campi e clicca "Crea Busta"</p>
         </div>
 
@@ -300,6 +330,20 @@ export default function MultiStepBustaForm() {
                 )}
               </div>
 
+              {/* ✅ CAMPO GENERE */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Genere</label>
+                <select 
+                  value={formData.cliente_genere}
+                  onChange={(e) => handleInputChange('cliente_genere', e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Non specificato</option>
+                  <option value="M">👨 Maschio</option>
+                  <option value="F">👩 Femmina</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Telefono *</label>
                 <input 
@@ -354,7 +398,7 @@ export default function MultiStepBustaForm() {
                 >
                   <option value="">-- Seleziona --</option>
                   <option value="OCV">👓 OCV - Occhiale completo</option>
-                  <option value="OV">👓 OV - Occhiale vista</option>
+                  <option value="OV">👓 OV - Montatura</option>
                   <option value="OS">🕶️ OS - Occhiale sole</option>
                   <option value="LV">🔍 LV - Lenti vista</option>
                   <option value="LS">🌅 LS - Lenti sole</option>
@@ -362,10 +406,10 @@ export default function MultiStepBustaForm() {
                   <option value="ACC">🔧 ACC - Accessori</option>
                   <option value="RIC">🔄 RIC - Ricambio</option>
                   <option value="RIP">🔨 RIP - Riparazione</option>
-                  <option value="SA">📐 SA - Sagomatura</option>
-                  <option value="SG">🧵 SG - Stringatura</option>
-                  <option value="CT">👁️ CT - Controllo vista</option>
-                  <option value="ES">🔬 ES - Esame</option>
+                  <option value="SA">📐 SA - Sostituzione anticipata</option>
+                  <option value="SG">🧵 SG - Sostituzione in garanzia</option>
+                  <option value="CT">👁️ CT - Controllo tecnico</option>
+                  <option value="ES">🔬 ES - Esercizi oculari</option>
                   <option value="REL">📋 REL - Relazione</option>
                   <option value="FT">🧾 FT - Fattura</option>
                 </select>

@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instanciate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "12.2.3 (519615d)"
+  }
   public: {
     Tables: {
       buste: {
@@ -105,6 +110,7 @@ export type Database = {
           created_at: string | null
           data_nascita: string | null
           email: string | null
+          genere: string | null
           id: string
           nome: string
           note_cliente: string | null
@@ -116,6 +122,7 @@ export type Database = {
           created_at?: string | null
           data_nascita?: string | null
           email?: string | null
+          genere?: string | null
           id?: string
           nome: string
           note_cliente?: string | null
@@ -127,6 +134,7 @@ export type Database = {
           created_at?: string | null
           data_nascita?: string | null
           email?: string | null
+          genere?: string | null
           id?: string
           nome?: string
           note_cliente?: string | null
@@ -135,26 +143,303 @@ export type Database = {
         }
         Relationships: []
       }
-      fornitori: {
+      comunicazioni: {
         Row: {
-          categoria: string | null
+          busta_id: string
+          canale_invio: string | null
           created_at: string | null
+          data_invio: string
+          destinatario_contatto: string | null
+          destinatario_nome: string
+          destinatario_tipo: string
           id: string
-          nome: string
+          inviato_da: string
+          nome_operatore: string
+          stato_invio: string | null
+          testo_messaggio: string
+          tipo_messaggio: string
+          updated_at: string | null
         }
         Insert: {
-          categoria?: string | null
+          busta_id: string
+          canale_invio?: string | null
           created_at?: string | null
+          data_invio?: string
+          destinatario_contatto?: string | null
+          destinatario_nome: string
+          destinatario_tipo: string
           id?: string
-          nome: string
+          inviato_da: string
+          nome_operatore: string
+          stato_invio?: string | null
+          testo_messaggio: string
+          tipo_messaggio: string
+          updated_at?: string | null
         }
         Update: {
-          categoria?: string | null
+          busta_id?: string
+          canale_invio?: string | null
           created_at?: string | null
+          data_invio?: string
+          destinatario_contatto?: string | null
+          destinatario_nome?: string
+          destinatario_tipo?: string
+          id?: string
+          inviato_da?: string
+          nome_operatore?: string
+          stato_invio?: string | null
+          testo_messaggio?: string
+          tipo_messaggio?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comunicazioni_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: false
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fornitori_lac: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          nome: string
+          note: string | null
+          telefono: string | null
+          tempi_consegna_medi: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
           id?: string
           nome?: string
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+          updated_at?: string | null
         }
         Relationships: []
+      }
+      fornitori_lenti: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          nome: string
+          note: string | null
+          telefono: string | null
+          tempi_consegna_medi: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      fornitori_montature: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          nome: string
+          note: string | null
+          telefono: string | null
+          tempi_consegna_medi: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      fornitori_sport: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          nome: string
+          note: string | null
+          telefono: string | null
+          tempi_consegna_medi: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      info_pagamenti: {
+        Row: {
+          busta_id: string
+          created_at: string | null
+          data_acconto: string | null
+          data_saldo: string | null
+          ha_acconto: boolean | null
+          id: string
+          is_saldato: boolean | null
+          modalita_saldo: string
+          note_pagamento: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          busta_id: string
+          created_at?: string | null
+          data_acconto?: string | null
+          data_saldo?: string | null
+          ha_acconto?: boolean | null
+          id?: string
+          is_saldato?: boolean | null
+          modalita_saldo?: string
+          note_pagamento?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          busta_id?: string
+          created_at?: string | null
+          data_acconto?: string | null
+          data_saldo?: string | null
+          ha_acconto?: boolean | null
+          id?: string
+          is_saldato?: boolean | null
+          modalita_saldo?: string
+          note_pagamento?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "info_pagamenti_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: true
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lavorazioni: {
+        Row: {
+          busta_id: string
+          created_at: string
+          data_completamento: string | null
+          data_fallimento: string | null
+          data_inizio: string
+          id: string
+          note: string | null
+          responsabile_id: string
+          stato: string
+          tentativo: number
+          tipo_montaggio_id: number
+          updated_at: string
+        }
+        Insert: {
+          busta_id: string
+          created_at?: string
+          data_completamento?: string | null
+          data_fallimento?: string | null
+          data_inizio?: string
+          id?: string
+          note?: string | null
+          responsabile_id: string
+          stato?: string
+          tentativo?: number
+          tipo_montaggio_id: number
+          updated_at?: string
+        }
+        Update: {
+          busta_id?: string
+          created_at?: string
+          data_completamento?: string | null
+          data_fallimento?: string | null
+          data_inizio?: string
+          id?: string
+          note?: string | null
+          responsabile_id?: string
+          stato?: string
+          tentativo?: number
+          tipo_montaggio_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lavorazioni_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: false
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lavorazioni_tipo_montaggio_id_fkey"
+            columns: ["tipo_montaggio_id"]
+            isOneToOne: false
+            referencedRelation: "tipi_montaggio"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       materiali: {
         Row: {
@@ -208,13 +493,6 @@ export type Database = {
             columns: ["busta_id"]
             isOneToOne: false
             referencedRelation: "buste"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "materiali_fornitore_id_fkey"
-            columns: ["fornitore_id"]
-            isOneToOne: false
-            referencedRelation: "fornitori"
             referencedColumns: ["id"]
           },
           {
@@ -302,6 +580,137 @@ export type Database = {
           },
         ]
       }
+      ordini_materiali: {
+        Row: {
+          alert_ritardo_inviato: boolean | null
+          busta_id: string
+          categoria_fornitore: string | null
+          comunicazione_automatica_inviata: boolean | null
+          created_at: string | null
+          creato_da: string | null
+          da_ordinare: boolean | null
+          data_consegna_effettiva: string | null
+          data_consegna_prevista: string
+          data_ordine: string
+          descrizione_prodotto: string
+          fornitore_id: string | null
+          fornitore_lac_id: string | null
+          fornitore_lenti_id: string | null
+          fornitore_montature_id: string | null
+          fornitore_sport_id: string | null
+          giorni_consegna_medi: number | null
+          giorni_ritardo: number | null
+          id: string
+          note: string | null
+          stato: Database["public"]["Enums"]["ordine_status"] | null
+          tipo_lenti_id: string | null
+          tipo_ordine_id: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          alert_ritardo_inviato?: boolean | null
+          busta_id: string
+          categoria_fornitore?: string | null
+          comunicazione_automatica_inviata?: boolean | null
+          created_at?: string | null
+          creato_da?: string | null
+          da_ordinare?: boolean | null
+          data_consegna_effettiva?: string | null
+          data_consegna_prevista: string
+          data_ordine?: string
+          descrizione_prodotto: string
+          fornitore_id?: string | null
+          fornitore_lac_id?: string | null
+          fornitore_lenti_id?: string | null
+          fornitore_montature_id?: string | null
+          fornitore_sport_id?: string | null
+          giorni_consegna_medi?: number | null
+          giorni_ritardo?: number | null
+          id?: string
+          note?: string | null
+          stato?: Database["public"]["Enums"]["ordine_status"] | null
+          tipo_lenti_id?: string | null
+          tipo_ordine_id?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          alert_ritardo_inviato?: boolean | null
+          busta_id?: string
+          categoria_fornitore?: string | null
+          comunicazione_automatica_inviata?: boolean | null
+          created_at?: string | null
+          creato_da?: string | null
+          da_ordinare?: boolean | null
+          data_consegna_effettiva?: string | null
+          data_consegna_prevista?: string
+          data_ordine?: string
+          descrizione_prodotto?: string
+          fornitore_id?: string | null
+          fornitore_lac_id?: string | null
+          fornitore_lenti_id?: string | null
+          fornitore_montature_id?: string | null
+          fornitore_sport_id?: string | null
+          giorni_consegna_medi?: number | null
+          giorni_ritardo?: number | null
+          id?: string
+          note?: string | null
+          stato?: Database["public"]["Enums"]["ordine_status"] | null
+          tipo_lenti_id?: string | null
+          tipo_ordine_id?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordini_materiali_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: false
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_lac_id_fkey"
+            columns: ["fornitore_lac_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_lac"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_lenti_id_fkey"
+            columns: ["fornitore_lenti_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_lenti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_montature_id_fkey"
+            columns: ["fornitore_montature_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_montature"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_sport_id_fkey"
+            columns: ["fornitore_sport_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_sport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_tipo_lenti_id_fkey"
+            columns: ["tipo_lenti_id"]
+            isOneToOne: false
+            referencedRelation: "tipi_lenti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_tipo_ordine_id_fkey"
+            columns: ["tipo_ordine_id"]
+            isOneToOne: false
+            referencedRelation: "tipi_ordine"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -331,6 +740,53 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      rate_pagamenti: {
+        Row: {
+          busta_id: string
+          created_at: string | null
+          data_pagamento: string | null
+          data_scadenza: string
+          id: string
+          is_pagata: boolean | null
+          numero_rata: number
+          reminder_attivo: boolean | null
+          ultimo_reminder: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          busta_id: string
+          created_at?: string | null
+          data_pagamento?: string | null
+          data_scadenza: string
+          id?: string
+          is_pagata?: boolean | null
+          numero_rata: number
+          reminder_attivo?: boolean | null
+          ultimo_reminder?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          busta_id?: string
+          created_at?: string | null
+          data_pagamento?: string | null
+          data_scadenza?: string
+          id?: string
+          is_pagata?: boolean | null
+          numero_rata?: number
+          reminder_attivo?: boolean | null
+          ultimo_reminder?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_pagamenti_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: false
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       status_history: {
         Row: {
@@ -451,9 +907,104 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_ordini_materiali_completi: {
+        Row: {
+          alert_ritardo_inviato: boolean | null
+          busta_id: string | null
+          categoria_fornitore: string | null
+          comunicazione_automatica_inviata: boolean | null
+          created_at: string | null
+          creato_da: string | null
+          data_consegna_effettiva: string | null
+          data_consegna_prevista: string | null
+          data_ordine: string | null
+          descrizione_prodotto: string | null
+          fornitore_email: string | null
+          fornitore_id: string | null
+          fornitore_lac_id: string | null
+          fornitore_lenti_id: string | null
+          fornitore_montature_id: string | null
+          fornitore_nome: string | null
+          fornitore_sport_id: string | null
+          fornitore_telefono: string | null
+          fornitore_tempi_medi: number | null
+          giorni_consegna_medi: number | null
+          giorni_ritardo: number | null
+          id: string | null
+          note: string | null
+          stato: Database["public"]["Enums"]["ordine_status"] | null
+          tipo_lenti_giorni: number | null
+          tipo_lenti_id: string | null
+          tipo_lenti_nome: string | null
+          tipo_ordine_id: number | null
+          tipo_ordine_nome: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordini_materiali_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: false
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_lac_id_fkey"
+            columns: ["fornitore_lac_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_lac"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_lenti_id_fkey"
+            columns: ["fornitore_lenti_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_lenti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_montature_id_fkey"
+            columns: ["fornitore_montature_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_montature"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_sport_id_fkey"
+            columns: ["fornitore_sport_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_sport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_tipo_lenti_id_fkey"
+            columns: ["tipo_lenti_id"]
+            isOneToOne: false
+            referencedRelation: "tipi_lenti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_tipo_ordine_id_fkey"
+            columns: ["tipo_ordine_id"]
+            isOneToOne: false
+            referencedRelation: "tipi_ordine"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      calcola_giorni_ritardo: {
+        Args: {
+          p_data_consegna_prevista: string
+          p_data_consegna_effettiva?: string
+        }
+        Returns: number
+      }
+      delete_busta_completa: {
+        Args: { busta_uuid: string }
+        Returns: boolean
+      }
       generate_numero_busta: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -477,6 +1028,14 @@ export type Database = {
         | "in_lavorazione"
         | "pronto_ritiro"
         | "consegnato_pagato"
+      ordine_status:
+        | "ordinato"
+        | "in_arrivo"
+        | "in_ritardo"
+        | "consegnato"
+        | "accettato_con_riserva"
+        | "rifiutato"
+        | "da_ordinare"
       work_type:
         | "OCV"
         | "OV"
@@ -500,21 +1059,25 @@ export type Database = {
   }
 }
 
-type DefaultSchema = Database[Extract<keyof Database, "public">]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
@@ -532,14 +1095,16 @@ export type Tables<
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
@@ -555,14 +1120,16 @@ export type TablesInsert<
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
@@ -578,14 +1145,16 @@ export type TablesUpdate<
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
@@ -593,14 +1162,16 @@ export type Enums<
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof Database },
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
-    schema: keyof Database
+    schema: keyof DatabaseWithoutInternals
   }
-    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
@@ -617,6 +1188,15 @@ export const Constants = {
         "in_lavorazione",
         "pronto_ritiro",
         "consegnato_pagato",
+      ],
+      ordine_status: [
+        "ordinato",
+        "in_arrivo",
+        "in_ritardo",
+        "consegnato",
+        "accettato_con_riserva",
+        "rifiutato",
+        "da_ordinare",
       ],
       work_type: [
         "OCV",

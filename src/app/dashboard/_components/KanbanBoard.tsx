@@ -1,5 +1,4 @@
 // app/dashboard/_components/KanbanBoard.tsx
-// app/dashboard/_components/KanbanBoard.tsx
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
@@ -36,11 +35,7 @@ import {
 } from './WorkflowLogic';
 import { CheckCircle, XCircle, Info, Loader2, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
-
-// Tipo per le buste con cliente
-type BustaWithCliente = Database['public']['Tables']['buste']['Row'] & {
-  clienti: Pick<Database['public']['Tables']['clienti']['Row'], 'nome' | 'cognome'> | null;
-};
+import { BustaWithCliente } from '@/types/shared.types';
 
 interface KanbanBoardProps {
   buste: BustaWithCliente[];
@@ -265,7 +260,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     };
   }, []);
 
-  // ✅ FETCH FUNZIONE
+  // ✅ FETCH FUNZIONE - AGGIORNATA PER INCLUDERE PAGAMENTI
   const fetchBuste = useCallback(async (showToast = false): Promise<void> => {
     if (!isOnline) {
       if (showToast) toast.error('Impossibile sincronizzare - Offline');
@@ -276,13 +271,35 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
       setIsLoading(true);
       console.log('🔍 Fetching buste from database...');
       
+      // ✅ Query aggiornata per includere ordini materiali + dati pagamenti
       const { data, error } = await supabase
         .from('buste')
         .select(`
           *,
           clienti:cliente_id (
             nome,
-            cognome
+            cognome,
+            telefono,
+            email,
+            data_nascita,
+            genere
+          ),
+          ordini_materiali (
+            id,
+            descrizione_prodotto,
+            stato,
+            note
+          ),
+          rate_pagamenti (
+            id,
+            numero_rata,
+            data_scadenza,
+            is_pagata,
+            reminder_attivo
+          ),
+          info_pagamenti (
+            is_saldato,
+            modalita_saldo
           )
         `)
         .order('data_apertura', { ascending: false })
@@ -295,7 +312,8 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
       }
 
       console.log('✅ Fetched', data?.length || 0, 'buste');
-      setBuste(data || []);
+      // ✅ FIX: Il cast è sicuro perché la query è allineata con il tipo
+      setBuste((data as BustaWithCliente[]) || []);
       setLastSync(new Date());
       
       if (showToast) {

@@ -1,4 +1,4 @@
-// app/dashboard/page.tsx
+// app/dashboard/page.tsx - RIPRISTINO ESATTO DA GITHUB
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { Database } from '@/types/database.types';
@@ -7,11 +7,7 @@ import StatsBar from './_components/StatsBar';
 import UserProfileHeader from './_components/UserProfileHeader';
 import { Plus, Search, Filter } from 'lucide-react';
 import Link from 'next/link';
-
-// Definiamo il tipo per le buste con cliente
-type BustaWithCliente = Database['public']['Tables']['buste']['Row'] & {
-  clienti: Pick<Database['public']['Tables']['clienti']['Row'], 'nome' | 'cognome'> | null;
-};
+import { BustaWithCliente } from '@/types/shared.types';
 
 // ✅ FIX: Forza il dynamic rendering e disabilita la cache
 export const dynamic = 'force-dynamic';
@@ -55,7 +51,7 @@ export default async function DashboardPage() {
     console.error('🔍 Dashboard - User error:', userError);
   }
 
-  // ✅ FIX: Fetch delle buste con timestamp aggiornato per evitare cache
+  // ✅ FIX: Fetch delle buste con TUTTI i campi cliente necessari
   console.log('🔍 Dashboard - Fetching buste...');
   const { data: buste, error } = await supabase
     .from('buste')
@@ -63,7 +59,29 @@ export default async function DashboardPage() {
       *,
       clienti:cliente_id (
         nome,
-        cognome
+        cognome,
+        telefono,
+        email,
+        data_nascita,
+        genere
+      ),
+      ordini_materiali (
+        id,
+        descrizione_prodotto,
+        stato,
+        da_ordinare,
+        note
+      ),
+      rate_pagamenti (
+        id,
+        numero_rata,
+        data_scadenza,
+        is_pagata,
+        reminder_attivo
+      ),
+      info_pagamenti (
+        is_saldato,
+        modalita_saldo
       )
     `)
     .order('data_apertura', { ascending: false })
@@ -123,11 +141,14 @@ export default async function DashboardPage() {
               />
             </div>
             
-            {/* Filtri */}
-            <button className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
+            {/* Filtri - LINK ALLA TUA PAGINA FILTRI */}
+            <Link
+              href="/dashboard/filtri-ordini"
+              className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+            >
               <Filter className="h-4 w-4" />
               <span>Filtri</span>
-            </button>
+            </Link>
             
             {/* Nuova busta */}
             <Link

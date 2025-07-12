@@ -111,7 +111,7 @@ export default function StatsBar({ buste }: StatsBarProps) {
 
   const statCards = [
     {
-      name: 'Totale Buste',
+      name: 'Totale',
       value: stats.totaleBuste,
       icon: Package,
       color: 'bg-blue-500',
@@ -127,7 +127,7 @@ export default function StatsBar({ buste }: StatsBarProps) {
       bgColor: 'bg-green-50'
     },
     {
-      name: 'In Lavorazione',
+      name: 'In Corso',
       value: stats.inLavorazione,
       icon: Users,
       color: 'bg-yellow-500',
@@ -135,7 +135,7 @@ export default function StatsBar({ buste }: StatsBarProps) {
       bgColor: 'bg-yellow-50'
     },
     {
-      name: 'Pronte Ritiro',
+      name: 'Pronte',
       value: stats.pronteRitiro,
       icon: CheckCircle,
       color: 'bg-purple-500',
@@ -167,7 +167,7 @@ export default function StatsBar({ buste }: StatsBarProps) {
       bgColor: 'bg-indigo-50'
     },
     {
-      name: 'Media Giorni',
+      name: 'Media gg',
       value: stats.mediaGiorni,
       icon: Clock,
       color: 'bg-gray-500',
@@ -177,32 +177,32 @@ export default function StatsBar({ buste }: StatsBarProps) {
   ];
 
   return (
-    <div className="bg-white shadow-sm border-b border-gray-200 p-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+    <div className="bg-white shadow-sm border-b border-gray-200 py-3 px-4">
+      <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
         {statCards.map((stat) => (
-          <div key={stat.name} className={`${stat.bgColor} rounded-lg p-3 transition-all hover:shadow-md`}>
+          <div key={stat.name} className={`${stat.bgColor} rounded-lg p-2.5 transition-all hover:shadow-md`}>
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide truncate">
                   {stat.name}
                 </p>
-                <p className={`text-2xl font-bold ${stat.textColor}`}>
+                <p className={`text-xl font-bold ${stat.textColor} leading-tight`}>
                   {stat.value}
                 </p>
               </div>
-              <div className={`${stat.color} p-2 rounded-md`}>
-                <stat.icon className="h-4 w-4 text-white" />
+              <div className={`${stat.color} p-1.5 rounded-md flex-shrink-0`}>
+                <stat.icon className="h-3 w-3 text-white" />
               </div>
             </div>
           </div>
         ))}
       </div>
       
-      {/* Indicatore di connessione real-time */}
-      <div className="mt-3 flex items-center justify-end">
-        <div className="flex items-center space-x-2 text-xs text-gray-500">
-          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-          <span>Aggiornamenti in tempo reale attivi</span>
+      {/* Indicatore di connessione real-time - più piccolo */}
+      <div className="mt-2 flex items-center justify-end">
+        <div className="flex items-center space-x-1 text-xs text-gray-500">
+          <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
+          <span className="text-xs">Real-time attivo</span>
         </div>
       </div>
     </div>
