@@ -1,0 +1,27 @@
+{
+  "css.validate": false,
+  "scss.validate": false,
+  "less.validate": false,
+  "tailwindCSS.includeLanguages": {
+    "typescript": "typescript",
+    "typescriptreact": "typescriptreact",
+    "javascript": "javascript",
+    "javascriptreact": "javascriptreact"
+  },
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "css.customData": [
+    ".vscode/css_custom_data.json"
+  ],
+  // --- INIZIO SEZIONE DENO CORRETTA E FORZATA ---
+  "deno.enable": true,
+  "deno.lint": true,
+  "deno.unstable": ["kv", "ffi", "fs", "net", "worker-options"],
+  "deno.enablePaths": [
+    "supabase/functions"
+  ],
+  "deno.path": "/Users/timoteoair/.deno/bin/deno", // <--- INCOLLA QUI IL TUO PERCORSO!
+  // --- FINE SEZIONE DENO ---
+  "typescript.tsdk": "node_modules/typescript/lib"
+}

@@ -132,14 +132,6 @@ export default async function DashboardPage() {
           
           <div className="flex items-center space-x-3">
             {/* Barra di ricerca */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <input
-                type="text"
-                placeholder="Cerca buste, clienti..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
             
             {/* Filtri - LINK ALLA TUA PAGINA FILTRI */}
             <Link
@@ -147,7 +139,7 @@ export default async function DashboardPage() {
               className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
             >
               <Filter className="h-4 w-4" />
-              <span>Filtri</span>
+              <span>Ordini</span>
             </Link>
             
             {/* Nuova busta */}
