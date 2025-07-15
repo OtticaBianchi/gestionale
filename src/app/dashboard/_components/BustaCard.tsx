@@ -46,7 +46,6 @@ const getStatoOrdineEmoji = (stato: string | null) => {
   const stati = {
     'da_ordinare': '🛒',
     'ordinato': '📦',
-    'in_arrivo': '🚚',
     'in_ritardo': '⏰',
     'accettato_con_riserva': '🔄',
     'rifiutato': '❌',

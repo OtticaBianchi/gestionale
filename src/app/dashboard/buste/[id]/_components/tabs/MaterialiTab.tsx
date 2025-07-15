@@ -41,6 +41,7 @@ type OrdineMateriale = Database['public']['Tables']['ordini_materiali']['Row'] &
   fornitori_lenti?: { nome: string } | null;
   fornitori_lac?: { nome: string } | null;
   fornitori_montature?: { nome: string } | null;
+  fornitori_lab_esterno?: { nome: string } | null;
   fornitori_sport?: { nome: string } | null;
   tipi_lenti?: { nome: string; giorni_consegna_stimati: number | null } | null;
   tipi_ordine?: { nome: string } | null;
@@ -59,7 +60,7 @@ interface MaterialiTabProps {
   busta: BustaDettagliata;
 }
 
-export default function MaterialiTab({ busta }: MaterialiTabProps) {
+     export default function MaterialiTab({ busta }: MaterialiTabProps) {
   // ===== STATE =====
   const [ordiniMateriali, setOrdiniMateriali] = useState<OrdineMateriale[]>([]);
   const [tipiOrdine, setTipiOrdine] = useState<TipoOrdine[]>([]);
@@ -69,6 +70,7 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
   const [fornitoriLenti, setFornitoriLenti] = useState<Fornitore[]>([]);
   const [fornitoriLac, setFornitoriLac] = useState<Fornitore[]>([]);
   const [fornitoriMontature, setFornitoriMontature] = useState<Fornitore[]>([]);
+  const [fornitoriLabEsterno, setFornitoriLabEsterno] = useState<Fornitore[]>([]);
   const [fornitoriSport, setFornitoriSport] = useState<Fornitore[]>([]);
   
   const [showNuovoOrdineForm, setShowNuovoOrdineForm] = useState(false);
@@ -77,7 +79,7 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
 
   // Nuovo ordine form con categorie
   const [nuovoOrdineForm, setNuovoOrdineForm] = useState({
-    categoria_prodotto: '' as 'lenti' | 'lac' | 'montature' | 'sport' | '',
+    categoria_prodotto: '' as 'lenti' | 'lac' | 'montature' | 'lab.esterno' | 'sport' | '',
     fornitore_id: '',
     tipo_lenti: '',
     tipo_ordine_id: '',
@@ -111,6 +113,7 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
           fornitori_lenti:fornitori_lenti(nome),
           fornitori_lac:fornitori_lac(nome), 
           fornitori_montature:fornitori_montature(nome),
+          fornitori_lab_esterno:fornitori_lab_esterno(nome),
           fornitori_sport:fornitori_sport(nome),
           tipi_lenti:tipi_lenti(nome, giorni_consegna_stimati),
           tipi_ordine:tipi_ordine(nome)
@@ -128,11 +131,31 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
       const ordiniTipizzati = (ordiniData || []).map(ordine => ({
         ...ordine,
         stato: ordine.stato || 'da_ordinare',
-        da_ordinare: ordine.da_ordinare ?? true, // ✅ Default true se null
-        tipi_lenti: ordine.tipi_lenti ? {
-          ...ordine.tipi_lenti,
-          giorni_consegna_stimati: ordine.tipi_lenti.giorni_consegna_stimati || 5
-        } : null
+        da_ordinare: ordine.da_ordinare ?? true,
+        tipi_lenti: ordine.tipi_lenti && typeof ordine.tipi_lenti === 'object' && 'nome' in ordine.tipi_lenti
+          ? {
+              ...ordine.tipi_lenti,
+              giorni_consegna_stimati: ordine.tipi_lenti.giorni_consegna_stimati || 5
+            }
+          : null,
+        fornitori_lab_esterno: ordine.fornitori_lab_esterno && typeof ordine.fornitori_lab_esterno === 'object' && 'nome' in ordine.fornitori_lab_esterno
+          ? ordine.fornitori_lab_esterno
+          : null,
+        fornitori_lenti: ordine.fornitori_lenti && typeof ordine.fornitori_lenti === 'object' && 'nome' in ordine.fornitori_lenti
+          ? ordine.fornitori_lenti
+          : null,
+        fornitori_lac: ordine.fornitori_lac && typeof ordine.fornitori_lac === 'object' && 'nome' in ordine.fornitori_lac
+          ? ordine.fornitori_lac
+          : null,
+        fornitori_montature: ordine.fornitori_montature && typeof ordine.fornitori_montature === 'object' && 'nome' in ordine.fornitori_montature
+          ? ordine.fornitori_montature
+          : null,
+        fornitori_sport: ordine.fornitori_sport && typeof ordine.fornitori_sport === 'object' && 'nome' in ordine.fornitori_sport
+          ? ordine.fornitori_sport
+          : null,
+        tipi_ordine: ordine.tipi_ordine && typeof ordine.tipi_ordine === 'object' && 'nome' in ordine.tipi_ordine
+          ? ordine.tipi_ordine
+          : null,
       })) as OrdineMateriale[];
       
       setOrdiniMateriali(ordiniTipizzati);
@@ -148,16 +171,18 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
         if (tipiLentiData.data) setTipiLenti(tipiLentiData.data);
 
         // ===== CARICA FORNITORI DALLE TABELLE SPECIALIZZATE =====
-        const [fornitoriLentiData, fornitoriLacData, fornitoriMontaturaData, fornitoriSportData] = await Promise.all([
+        const [fornitoriLentiData, fornitoriLacData, fornitoriMontaturaData, fornitoriLabEsternoData, fornitoriSportData] = await Promise.all([
           supabase.from('fornitori_lenti').select('*'),
           supabase.from('fornitori_lac').select('*'),
           supabase.from('fornitori_montature').select('*'),
+          supabase.from('fornitori_lab_esterno').select('*'),
           supabase.from('fornitori_sport').select('*')
         ]);
 
         if (fornitoriLentiData.data) setFornitoriLenti(fornitoriLentiData.data);
         if (fornitoriLacData.data) setFornitoriLac(fornitoriLacData.data);
         if (fornitoriMontaturaData.data) setFornitoriMontature(fornitoriMontaturaData.data);
+        if (fornitoriLabEsternoData.data) setFornitoriLabEsterno(fornitoriLabEsternoData.data);
         if (fornitoriSportData.data) setFornitoriSport(fornitoriSportData.data);
       }
     } catch (error) {
@@ -174,6 +199,7 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
       case 'lenti': return fornitoriLenti;
       case 'lac': return fornitoriLac;
       case 'montature': return fornitoriMontature;
+      case 'lab.esterno': return fornitoriLabEsterno;
       case 'sport': return fornitoriSport;
       default: return [];
     }
@@ -192,6 +218,7 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
       'lac': 3,
       'montature': 4,
       'sport': 5,
+      'lab.esterno': 5,
       'lenti': 5
     };
     
@@ -253,6 +280,9 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
           case 'montature':
             fornitoreTableField = { fornitore_montature_id: nuovoOrdineForm.fornitore_id };
             break;
+          case 'lab.esterno':
+            fornitoreTableField = { fornitore_lab_esterno_id: nuovoOrdineForm.fornitore_id };
+            break;
           case 'sport':
             fornitoreTableField = { fornitore_sport_id: nuovoOrdineForm.fornitore_id };
             break;
@@ -286,6 +316,7 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
           fornitori_lenti:fornitori_lenti(nome),
           fornitori_lac:fornitori_lac(nome), 
           fornitori_montature:fornitori_montature(nome),
+          fornitori_lab_esterno:fornitori_lab_esterno(nome),
           fornitori_sport:fornitori_sport(nome),
           tipi_lenti:tipi_lenti(nome, giorni_consegna_stimati),
           tipi_ordine:tipi_ordine(nome)
@@ -302,11 +333,31 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
       const ordineConTipiCorretti = {
         ...ordineCreato,
         stato: ordineCreato.stato || 'ordinato',
-        da_ordinare: ordineCreato.da_ordinare ?? true, // ✅ Gestisce null
-        tipi_lenti: ordineCreato.tipi_lenti ? {
-          ...ordineCreato.tipi_lenti,
-          giorni_consegna_stimati: ordineCreato.tipi_lenti.giorni_consegna_stimati || 5
-        } : null
+        da_ordinare: ordineCreato.da_ordinare ?? true,
+        tipi_lenti: ordineCreato.tipi_lenti && typeof ordineCreato.tipi_lenti === 'object' && 'nome' in ordineCreato.tipi_lenti
+          ? {
+              ...ordineCreato.tipi_lenti,
+              giorni_consegna_stimati: ordineCreato.tipi_lenti.giorni_consegna_stimati || 5
+            }
+          : null,
+        fornitori_lab_esterno: ordineCreato.fornitori_lab_esterno && typeof ordineCreato.fornitori_lab_esterno === 'object' && 'nome' in ordineCreato.fornitori_lab_esterno
+          ? ordineCreato.fornitori_lab_esterno
+          : null,
+        fornitori_lenti: ordineCreato.fornitori_lenti && typeof ordineCreato.fornitori_lenti === 'object' && 'nome' in ordineCreato.fornitori_lenti
+          ? ordineCreato.fornitori_lenti
+          : null,
+        fornitori_lac: ordineCreato.fornitori_lac && typeof ordineCreato.fornitori_lac === 'object' && 'nome' in ordineCreato.fornitori_lac
+          ? ordineCreato.fornitori_lac
+          : null,
+        fornitori_montature: ordineCreato.fornitori_montature && typeof ordineCreato.fornitori_montature === 'object' && 'nome' in ordineCreato.fornitori_montature
+          ? ordineCreato.fornitori_montature
+          : null,
+        fornitori_sport: ordineCreato.fornitori_sport && typeof ordineCreato.fornitori_sport === 'object' && 'nome' in ordineCreato.fornitori_sport
+          ? ordineCreato.fornitori_sport
+          : null,
+        tipi_ordine: ordineCreato.tipi_ordine && typeof ordineCreato.tipi_ordine === 'object' && 'nome' in ordineCreato.tipi_ordine
+          ? ordineCreato.tipi_ordine
+          : null,
       } as OrdineMateriale;
 
       // Aggiorna la lista locale
@@ -496,9 +547,10 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
               </label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti da vista/sole' },
+                  { value: 'lenti', label: '🔍 Lent  i', desc: 'Lenti da vista/sole' },
                   { value: 'lac', label: '👁️ LAC', desc: 'Lenti a Contatto' },
                   { value: 'montature', label: '👓 Montature', desc: 'Occhiali/Sole' },
+                  { value: 'lab.esterno', label: '🏭 Lab.Esterno', desc: 'Lavorazioni Esterne' },
                   { value: 'sport', label: '🏃 Sport', desc: 'Articoli Sportivi' }
                 ].map(categoria => (
                   <button
@@ -750,6 +802,7 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
               if (ordine.fornitori_lenti?.nome) nomeFornitore = ordine.fornitori_lenti.nome;
               else if (ordine.fornitori_lac?.nome) nomeFornitore = ordine.fornitori_lac.nome;
               else if (ordine.fornitori_montature?.nome) nomeFornitore = ordine.fornitori_montature.nome;
+              else if (ordine.fornitori_lab_esterno?.nome) nomeFornitore = ordine.fornitori_lab_esterno.nome;
               else if (ordine.fornitori_sport?.nome) nomeFornitore = ordine.fornitori_sport.nome;
               
               return (
@@ -784,20 +837,21 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
                         </button>
                         
                         <div className="flex items-center space-x-2">
-                          <span className="text-xl" title={
-                            isArrivato ? 'Arrivato' :
-                            giorniRitardo > 2 ? `${giorniRitardo}gg di ritardo` :
-                            giorniRitardo > 0 ? 'In ritardo' : 'In tempo'
-                          }>
-                            {isArrivato ? '✅' :
-                             giorniRitardo > 2 ? '🚨' :
-                             giorniRitardo > 0 ? '⚠️' : '⏰'}
-                          </span>
+                          {/* Nessuna icona se tutto ok */}
+                          {statoOrdine === 'ordinato' && giorniRitardo > 0 && giorniRitardo <= 2 && (
+                            <span className="text-yellow-500 text-xl ml-2" title={`${giorniRitardo} giorno${giorniRitardo > 1 ? 'i' : ''} di ritardo`}>
+                              ⚠️
+                            </span>
+                          )}
+                          {statoOrdine === 'ordinato' && giorniRitardo > 2 && (
+                            <span className="text-red-600 text-xl ml-2" title={`${giorniRitardo} giorni di ritardo grave`}>
+                              🚨
+                            </span>
+                          )}
                           
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             statoOrdine === 'consegnato' ? 'bg-green-100 text-green-800' :
                             statoOrdine === 'in_ritardo' ? 'bg-red-100 text-red-800' :
-                            statoOrdine === 'in_arrivo' ? 'bg-yellow-100 text-yellow-800' :
                             statoOrdine === 'ordinato' ? 'bg-blue-100 text-blue-800' :
                             statoOrdine === 'da_ordinare' ? 'bg-purple-100 text-purple-800' :
                             statoOrdine === 'rifiutato' ? 'bg-gray-100 text-gray-800' :
@@ -882,7 +936,6 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
                       >
                         <option value="da_ordinare">🛒 Da Ordinare</option>
                         <option value="ordinato">📦 Ordinato</option>
-                        <option value="in_arrivo">🚚 In Arrivo</option>
                         <option value="in_ritardo">⏰ In Ritardo</option>
                         <option value="accettato_con_riserva">🔄 Con Riserva</option>
                         <option value="rifiutato">❌ Rifiutato</option>
@@ -909,7 +962,7 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
       {ordiniMateriali.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Riepilogo</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
                 {ordiniMateriali.length}
@@ -927,12 +980,6 @@ export default function MaterialiTab({ busta }: MaterialiTabProps) {
                 {ordiniMateriali.filter(o => (o.stato || 'ordinato') === 'consegnato').length}
               </div>
               <div className="text-sm text-gray-500">Arrivati</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-600">
-                {ordiniMateriali.filter(o => (o.stato || 'ordinato') === 'in_arrivo').length}
-              </div>
-              <div className="text-sm text-gray-500">In Arrivo</div>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-red-600">

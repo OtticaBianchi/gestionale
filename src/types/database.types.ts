@@ -202,6 +202,36 @@ export type Database = {
           },
         ]
       }
+      fornitori_lab_esterno: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          nome: string
+          note: string | null
+          telefono: string | null
+          tempi_consegna_medi: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+        }
+        Relationships: []
+      }
       fornitori_lac: {
         Row: {
           created_at: string | null
@@ -594,6 +624,7 @@ export type Database = {
           data_ordine: string
           descrizione_prodotto: string
           fornitore_id: string | null
+          fornitore_lab_esterno_id: string | null
           fornitore_lac_id: string | null
           fornitore_lenti_id: string | null
           fornitore_montature_id: string | null
@@ -620,6 +651,7 @@ export type Database = {
           data_ordine?: string
           descrizione_prodotto: string
           fornitore_id?: string | null
+          fornitore_lab_esterno_id?: string | null
           fornitore_lac_id?: string | null
           fornitore_lenti_id?: string | null
           fornitore_montature_id?: string | null
@@ -646,6 +678,7 @@ export type Database = {
           data_ordine?: string
           descrizione_prodotto?: string
           fornitore_id?: string | null
+          fornitore_lab_esterno_id?: string | null
           fornitore_lac_id?: string | null
           fornitore_lenti_id?: string | null
           fornitore_montature_id?: string | null
@@ -665,6 +698,13 @@ export type Database = {
             columns: ["busta_id"]
             isOneToOne: false
             referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_lab_esterno_id_fkey"
+            columns: ["fornitore_lab_esterno_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_lab_esterno"
             referencedColumns: ["id"]
           },
           {
