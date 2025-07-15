@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { UserProvider } from '@/context/UserContext'
 import { Toaster } from 'sonner' // ← Import OK
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -38,6 +39,7 @@ export default function RootLayout({
             expand={true}
             visibleToasts={3}
           />
+          <SpeedInsights />
         </UserProvider>
       </body>
     </html>
