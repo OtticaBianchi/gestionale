@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
+import { mutate } from 'swr';
 import { 
   User, 
   Calendar, 
@@ -166,6 +167,9 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
       };
 
       onBustaUpdate(updatedBusta);
+
+      // ✅ SWR: Invalidate cache after busta update
+      await mutate('/api/buste');
 
       // ✅ SUCCESS
       setSaveSuccess(true);

@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
+import { mutate } from 'swr';
 import { 
   ShoppingCart,
   Plus,
@@ -363,6 +364,9 @@ interface MaterialiTabProps {
       // Aggiorna la lista locale
       setOrdiniMateriali(prev => [ordineConTipiCorretti, ...prev]);
 
+      // ✅ SWR: Invalidate cache after creating new order
+      await mutate('/api/buste');
+
       // Reset form
       setNuovoOrdineForm({
         categoria_prodotto: '',
@@ -422,6 +426,9 @@ interface MaterialiTabProps {
             }
           : ordine
       ));
+
+      // ✅ SWR: Invalidate cache after order state change
+      await mutate('/api/buste');
   
     } catch (error: any) {
       console.error('❌ Error toggle da_ordinare:', error);
@@ -463,6 +470,9 @@ interface MaterialiTabProps {
           : ordine
       ));
 
+      // ✅ SWR: Invalidate cache after order status update
+      await mutate('/api/buste');
+
     } catch (error: any) {
       console.error('❌ Error updating ordine:', error);
       alert(`Errore aggiornamento: ${error.message}`);
@@ -492,6 +502,9 @@ interface MaterialiTabProps {
 
       // Rimuovi dalla lista locale
       setOrdiniMateriali(prev => prev.filter(ordine => ordine.id !== ordineId));
+
+      // ✅ SWR: Invalidate cache after order deletion
+      await mutate('/api/buste');
 
     } catch (error: any) {
       console.error('❌ Error deleting ordine:', error);

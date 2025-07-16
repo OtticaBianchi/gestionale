@@ -16,10 +16,23 @@ export async function POST(request: Request) {
     return new NextResponse('Unauthorized', { status: 401 })
   }
 
-  const { duration } = await request.json()
+  // ✅ SECURITY: Validazione input più robusta
+  let duration: number;
+  
+  try {
+    const body = await request.json();
+    duration = body.duration;
+  } catch (error) {
+    return new NextResponse('Invalid JSON payload', { status: 400 });
+  }
 
-  if (typeof duration !== 'number' || duration <= 0) {
-    return new NextResponse('Invalid input', { status: 400 })
+  // Validazione tipo e range
+  if (typeof duration !== 'number' || 
+      duration <= 0 || 
+      duration > 86400 || // Massimo 24 ore
+      !Number.isFinite(duration) || // Esclude NaN e Infinity
+      duration % 1 !== 0) { // Solo numeri interi
+    return new NextResponse('Invalid duration: must be a positive integer between 1 and 86400 seconds', { status: 400 });
   }
 
   try {
@@ -32,7 +45,15 @@ export async function POST(request: Request) {
 
     return new NextResponse('OK', { status: 200 })
   } catch (error: any) {
-    console.error('Error invoking Supabase function:', error)
-    return new NextResponse(error.message, { status: 500 })
+    // ✅ SECURITY: Log dettagliato server-side, messaggio generico client-side
+    console.error('Error invoking Supabase function:', {
+      error: error.message,
+      userId: session.user.id,
+      timestamp: new Date().toISOString(),
+      duration
+    });
+    
+    // Non esporre dettagli interni al client
+    return new NextResponse('Internal server error occurred while tracking time', { status: 500 });
   }
 }

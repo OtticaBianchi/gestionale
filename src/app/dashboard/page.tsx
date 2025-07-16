@@ -5,9 +5,8 @@ import { Database } from '@/types/database.types';
 import KanbanBoard from './_components/KanbanBoard';
 import StatsBar from './_components/StatsBar';
 import UserProfileHeader from './_components/UserProfileHeader';
-import { Plus, Search, Filter } from 'lucide-react';
-import Link from 'next/link';
 import { BustaWithCliente } from '@/types/shared.types';
+import DashboardActions from './_components/DashboardActions';
 
 // ✅ FIX: Forza il dynamic rendering e disabilita la cache
 export const dynamic = 'force-dynamic';
@@ -94,13 +93,47 @@ export default async function DashboardPage() {
   }
 
   if (error) {
-    console.error('Errore nel caricamento delle buste:', error);
+    // ✅ SECURITY: Log dettagliato server-side, messaggio generico per utente
+    console.error('Errore nel caricamento delle buste:', {
+      error: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      timestamp: new Date().toISOString(),
+      userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'SSR'
+    });
+    
     return (
       <div className="p-8">
         <div className="bg-red-50 border border-red-200 rounded-md p-4">
           <h2 className="text-red-800 font-medium">Errore nel caricamento</h2>
-          <p className="text-red-700 text-sm mt-1">{error.message}</p>
-          <pre className="text-xs text-red-600 mt-2 overflow-auto">{JSON.stringify(error, null, 2)}</pre>
+          <p className="text-red-700 text-sm mt-1">
+            Si è verificato un errore durante il caricamento dei dati. 
+            Riprova tra qualche istante o contatta il supporto se il problema persiste.
+          </p>
+          <div className="mt-3 flex space-x-2">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
+            >
+              Ricarica Pagina
+            </button>
+            <button
+              onClick={() => window.location.href = '/login'}
+              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
+            >
+              Torna al Login
+            </button>
+          </div>
+          {/* Solo in sviluppo, mostra dettagli tecnici */}
+          {process.env.NODE_ENV === 'development' && (
+            <details className="mt-3">
+              <summary className="text-xs text-red-600 cursor-pointer">Dettagli Tecnici (Solo Dev)</summary>
+              <pre className="text-xs text-red-600 mt-2 overflow-auto bg-red-100 p-2 rounded">
+                {JSON.stringify(error, null, 2)}
+              </pre>
+            </details>
+          )}
         </div>
       </div>
     );
@@ -130,27 +163,7 @@ export default async function DashboardPage() {
             )}
           </div>
           
-          <div className="flex items-center space-x-3">
-            {/* Barra di ricerca */}
-            
-            {/* Filtri - LINK ALLA TUA PAGINA FILTRI */}
-            <Link
-              href="/dashboard/filtri-ordini"
-              className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              <Filter className="h-4 w-4" />
-              <span>Ordini</span>
-            </Link>
-            
-            {/* Nuova busta */}
-            <Link
-              href="/dashboard/buste/new"
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              <span>Nuova Busta</span>
-            </Link>
-          </div>
+          <DashboardActions totalBuste={busteWithCliente.length} />
         </div>
       </div>
 

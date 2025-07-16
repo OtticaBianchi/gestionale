@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
 import { useRouter } from 'next/navigation';
+import { mutate } from 'swr';
+import { useBuste } from '@/hooks/useBuste';
 import { 
   User, 
   Calendar, 
@@ -57,9 +59,27 @@ interface BustaDetailClientProps {
 }
 
 export default function BustaDetailClient({ busta: initialBusta }: BustaDetailClientProps) {
-  // ===== STATE MANAGEMENT =====
+  // ===== SWR INTEGRATION =====
+  const { data: busteData } = useBuste();
+  
+  // ✅ Find current busta from SWR data and update only stato_attuale
+  const swrBusta = busteData?.find(b => b.id === initialBusta.id);
+  
+  // ✅ Use SWR data only to sync stato_attuale, keep full detail structure
   const [busta, setBusta] = useState(initialBusta);
   const [activeTab, setActiveTab] = useState('anagrafica');
+  
+  // ✅ Update only stato_attuale when SWR data changes
+  useEffect(() => {
+    if (swrBusta && swrBusta.stato_attuale !== busta.stato_attuale) {
+      console.log('🔄 Updating busta state from SWR:', swrBusta.stato_attuale);
+      setBusta(prevBusta => ({
+        ...prevBusta,
+        stato_attuale: swrBusta.stato_attuale,
+        updated_at: swrBusta.updated_at
+      }));
+    }
+  }, [swrBusta, busta.stato_attuale]);
   
   // Delete modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -102,6 +122,10 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       console.log('✅ Busta cancellata con successo');
+      
+      // ✅ SWR: Invalidate cache after deletion
+      await mutate('/api/buste');
+      
       router.push('/dashboard');
       router.refresh();
       
@@ -325,7 +349,10 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
             {activeTab === 'anagrafica' && (
               <AnagraficaTab 
                 busta={busta} 
-                onBustaUpdate={setBusta}
+                onBustaUpdate={(updatedBusta) => {
+                  setBusta(updatedBusta);
+                  // SWR cache will be updated by the tab component
+                }}
               />
             )}
 

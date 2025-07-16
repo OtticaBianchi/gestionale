@@ -47,7 +47,7 @@ type OrdineConFornitore = {
   
   // Fornitore (normalizzato dai campi esistenti)
   fornitore_nome: string | null;
-  fornitore_tipo: 'lenti' | 'lac' | 'montature' | 'sport' | null;
+  fornitore_tipo: 'lenti' | 'lac' | 'montature' | 'sport' | 'lab_esterno' | null;
   fornitore_telefono: string | null;
   fornitore_email: string | null;
   fornitore_note: string | null;
@@ -64,7 +64,7 @@ type OrdineConFornitore = {
 
 type FornitoreRaggruppato = {
   nome: string;
-  tipo: 'lenti' | 'lac' | 'montature' | 'sport';
+  tipo: 'lenti' | 'lac' | 'montature' | 'sport' | 'lab_esterno';
   telefono: string | null;
   email: string | null;
   note: string | null;
@@ -121,6 +121,7 @@ export default function FiltriOrdiniDashboard() {
           fornitori_lac(nome, telefono, email, note, tempi_consegna_medi),
           fornitori_montature(nome, telefono, email, note, tempi_consegna_medi),
           fornitori_sport(nome, telefono, email, note, tempi_consegna_medi),
+          fornitori_lab_esterno(nome, telefono, email, note, tempi_consegna_medi),
           tipi_lenti(nome),
           tipi_ordine(nome)
         `)
@@ -138,7 +139,7 @@ export default function FiltriOrdiniDashboard() {
       const ordiniNormalizzati: OrdineConFornitore[] = (ordiniData || []).map(ordine => {
         // Determina fornitore attivo e dati di contatto
         let fornitore_nome: string | null = null;
-        let fornitore_tipo: 'lenti' | 'lac' | 'montature' | 'sport' | null = null;
+        let fornitore_tipo: 'lenti' | 'lac' | 'montature' | 'sport' | 'lab_esterno' | null = null;
         let fornitore_telefono: string | null = null;
         let fornitore_email: string | null = null;
         let fornitore_note: string | null = null;
@@ -173,6 +174,14 @@ export default function FiltriOrdiniDashboard() {
           const f = ordine.fornitori_sport;
           fornitore_nome = f.nome;
           fornitore_tipo = 'sport';
+          fornitore_telefono = f.telefono;
+          fornitore_email = f.email;
+          fornitore_note = f.note;
+          fornitore_tempi_medi = f.tempi_consegna_medi;
+        } else if (ordine.fornitori_lab_esterno?.nome) {
+          const f = ordine.fornitori_lab_esterno;
+          fornitore_nome = f.nome;
+          fornitore_tipo = 'lab_esterno';
           fornitore_telefono = f.telefono;
           fornitore_email = f.email;
           fornitore_note = f.note;

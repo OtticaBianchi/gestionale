@@ -4,6 +4,7 @@ import './globals.css'
 import { UserProvider } from '@/context/UserContext'
 import { Toaster } from 'sonner' // ← Import OK
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import SessionManager from '@/components/SessionManager'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -30,6 +31,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <UserProvider>
           {children}
+          <SessionManager />
           {/* ✅ AGGIUNGI QUESTO - Era mancante! */}
           <Toaster 
             position="top-right" 

@@ -189,8 +189,9 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
       // ✅ Success - show success screen
       setSuccess(true);
       
-      // ✅ CHIAMA LA CALLBACK DI SUCCESSO
-      onSuccess?.();
+      // ❌ RIMOSSO: Non chiamare onSuccess automaticamente
+      // L'utente deve scegliere cosa fare dalla pagina di successo
+      // onSuccess?.();
 
     } catch (error: any) {
       setFormError(error.message);
@@ -231,8 +232,13 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
             <div className="space-y-3">
               <button 
                 onClick={() => {
-                  router.push('/dashboard');
-                  router.refresh();
+                  // ✅ USA LA CALLBACK SE DISPONIBILE, altrimenti fallback al router
+                  if (onSuccess) {
+                    onSuccess();
+                  } else {
+                    router.push('/dashboard');
+                    router.refresh();
+                  }
                 }}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >

@@ -9,6 +9,12 @@ import { useRouter } from 'next/navigation';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
+// ✅ FIX: Create supabase client outside component to prevent recreations
+const supabase = createBrowserClient<Database>(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 export default function UserProfileHeader() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -17,14 +23,19 @@ export default function UserProfileHeader() {
   const [error, setError] = useState<string | null>(null);
   
   const router = useRouter();
-  const supabase = createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
 
   useEffect(() => {
     // ✅ INTEGRAZIONE: TUO pattern isMounted + BUSINESS LOGIC esistente
     let isMounted = true;
+    
+    // ✅ FIX: Add timeout to prevent infinite loading
+    const timeoutId = setTimeout(() => {
+      if (isMounted) {
+        console.log('⏱️ Profile loading timeout - redirecting to login');
+        setError('Timeout caricamento profilo');
+        router.push('/login');
+      }
+    }, 10000); // 10 seconds timeout
     
     const getProfile = async () => {
       try {
@@ -100,6 +111,7 @@ export default function UserProfileHeader() {
         // ✅ TUO PATTERN: Protected finally block
         if (isMounted) {
           setIsLoading(false);
+          clearTimeout(timeoutId); // Clear timeout on successful load
         }
       }
     };
@@ -119,8 +131,7 @@ export default function UserProfileHeader() {
           router.push('/login');
         } else if (event === 'SIGNED_IN' && session?.user) {
           setUser(session.user);
-          // Re-fetch profile for new user
-          getProfile();
+          // Don't re-fetch profile - let the initial load handle it
         } else if (event === 'TOKEN_REFRESHED' && session?.user) {
           // Handle token refresh - just log, don't re-fetch
           console.log('🔄 Token refreshed for user:', session.user.email);
@@ -131,9 +142,10 @@ export default function UserProfileHeader() {
     // ✅ TUO PATTERN: Cleanup function with subscription cleanup
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId); // Clear timeout on unmount
       subscription.unsubscribe();
     };
-  }, [supabase]); // ✅ TUO FIX: Removed router dependency
+  }, []); // ✅ FIX: Remove supabase dependency to prevent infinite loop
 
   const handleSignOut = async () => {
     try {
@@ -176,7 +188,7 @@ export default function UserProfileHeader() {
     );
   }
 
-  // ✅ EXISTING LOGIC: Error state
+  // ✅ IMPROVED: Better error/logout state messaging
   if (error || !user) {
     return (
       <div className="bg-white border-b border-gray-200 px-6 py-3">
@@ -186,14 +198,21 @@ export default function UserProfileHeader() {
             <span className="text-sm text-gray-500">Gestionale</span>
           </div>
           
-          <div className="flex items-center space-x-2 text-red-600">
-            <AlertCircle className="h-4 w-4" />
-            <span className="text-sm">{error || 'Errore di autenticazione'}</span>
+          <div className="flex items-center space-x-3">
+            <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-2">
+              <div className="flex items-center space-x-2 text-orange-700">
+                <AlertCircle className="h-4 w-4" />
+                <span className="text-sm font-medium">
+                  Tempo di inattività superiore ai 5 minuti - Logout automatico
+                </span>
+              </div>
+            </div>
+            
             <button
-              onClick={() => window.location.reload()}
-              className="text-xs px-2 py-1 bg-red-50 rounded hover:bg-red-100"
+              onClick={() => window.location.href = '/login'}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Ricarica
+              <span className="text-sm">Accedi di nuovo</span>
             </button>
           </div>
         </div>

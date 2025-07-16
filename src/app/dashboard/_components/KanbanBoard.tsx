@@ -36,6 +36,8 @@ import {
 import { CheckCircle, XCircle, Info, Loader2, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { BustaWithCliente } from '@/types/shared.types';
+import { useBuste } from '@/hooks/useBuste';
+import { mutate } from 'swr';
 
 interface KanbanBoardProps {
   buste: BustaWithCliente[];
@@ -203,10 +205,15 @@ function DroppableColumn({
 }
 
 export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
-  const [buste, setBuste] = useState<BustaWithCliente[]>(initialBuste);
+  // ✅ SWR Integration - Replace useState with SWR
+  const { data: buste, error: swrError, isLoading: swrLoading, mutate: revalidate } = useBuste();
+  
+  // Use SWR data if available, fallback to initial data
+  const currentBuste = buste || initialBuste || [];
+  
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [lastSync, setLastSync] = useState<Date>(new Date());
   const [dragFeedback, setDragFeedback] = useState<{
@@ -217,6 +224,9 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
   }>({ show: false, allowed: false, message: '' });
 
   const supabase = createClient();
+  
+  // ✅ Derived loading state
+  const isLoading = swrLoading || isUpdating;
 
   // ✅ FIX: Custom collision detection that prioritizes columns over cards
   const customCollisionDetection: CollisionDetection = useCallback((args) => {
@@ -243,7 +253,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     const handleOnline = () => {
       setIsOnline(true);
       toast.success('Connessione ripristinata', { duration: 2000 });
-      fetchBuste();
+      revalidate(); // ✅ Use SWR revalidate instead of fetchBuste
     };
     
     const handleOffline = () => {
@@ -258,81 +268,32 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []);
+  }, [revalidate]);
 
-  // ✅ FETCH FUNZIONE - AGGIORNATA PER INCLUDERE PAGAMENTI
-  const fetchBuste = useCallback(async (showToast = false): Promise<void> => {
+  // ✅ SWR replaces fetchBuste - now we have revalidate function
+  const handleManualRefresh = useCallback(async () => {
     if (!isOnline) {
-      if (showToast) toast.error('Impossibile sincronizzare - Offline');
+      toast.error('Impossibile sincronizzare - Offline');
       return;
     }
 
     try {
-      setIsLoading(true);
-      console.log('🔍 Fetching buste from database...');
-      
-      // ✅ Query aggiornata per includere ordini materiali + dati pagamenti
-      const { data, error } = await supabase
-        .from('buste')
-        .select(`
-          *,
-          clienti:cliente_id (
-            nome,
-            cognome,
-            telefono,
-            email,
-            data_nascita,
-            genere
-          ),
-          ordini_materiali (
-            id,
-            descrizione_prodotto,
-            stato,
-            note
-          ),
-          rate_pagamenti (
-            id,
-            numero_rata,
-            data_scadenza,
-            is_pagata,
-            reminder_attivo
-          ),
-          info_pagamenti (
-            is_saldato,
-            modalita_saldo
-          )
-        `)
-        .order('data_apertura', { ascending: false })
-        .order('updated_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ Fetch error:', error);
-        toast.error('Errore nel caricamento delle buste');
-        return;
-      }
-
-      console.log('✅ Fetched', data?.length || 0, 'buste');
-      // ✅ FIX: Il cast è sicuro perché la query è allineata con il tipo
-      setBuste((data as BustaWithCliente[]) || []);
       setLastSync(new Date());
-      
-      if (showToast) {
-        toast.success(`Sincronizzate ${data?.length || 0} buste`);
-      }
+      await revalidate();
+      toast.success(`Sincronizzate ${currentBuste.length} buste`);
     } catch (error) {
-      console.error('❌ Fetch error:', error);
-      if (showToast) toast.error('Errore di rete durante la sincronizzazione');
-    } finally {
-      setIsLoading(false);
+      console.error('❌ Manual refresh error:', error);
+      toast.error('Errore durante la sincronizzazione');
     }
-  }, [supabase, isOnline]);
+  }, [isOnline, revalidate, currentBuste.length]);
 
-  // ✅ LOAD INIZIALE
+  // ✅ Handle SWR errors
   useEffect(() => {
-    if (!initialBuste || initialBuste.length === 0) {
-      fetchBuste();
+    if (swrError) {
+      console.error('❌ SWR Error:', swrError);
+      toast.error(`Errore caricamento: ${swrError.message}`);
     }
-  }, [initialBuste, fetchBuste]);
+  }, [swrError]);
 
   // Sensori drag
   const sensors = useSensors(
@@ -348,12 +309,12 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
 
   // Raggruppa le buste per stato
   const groupedBuste = useMemo(() => {
-    console.log('🔍 GROUPING BUSTE:', buste.map(b => ({ id: b.readable_id || b.id, stato: b.stato_attuale })));
+    console.log('🔍 GROUPING BUSTE:', currentBuste.map(b => ({ id: b.readable_id || b.id, stato: b.stato_attuale })));
     
     const groups: { [key: string]: BustaWithCliente[] } = {};
     columns.forEach(col => groups[col] = []);
     
-    buste.forEach(busta => {
+    currentBuste.forEach(busta => {
       if (groups[busta.stato_attuale]) {
         groups[busta.stato_attuale].push(busta);
       }
@@ -367,7 +328,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     });
     
     return groups;
-  }, [buste, lastSync]);
+  }, [currentBuste, lastSync]);
 
   // ✅ DATABASE UPDATE
   const updateBustaStatus = useCallback(async (
@@ -452,7 +413,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     
     // ✅ FIX: Estrai l'ID reale della busta
     const realBustaId = (event.active.id as string).replace('busta-', '');
-    const bustaToDrag = buste?.find(b => b.id === realBustaId);
+    const bustaToDrag = currentBuste?.find(b => b.id === realBustaId);
     
     if (bustaToDrag) {
       const clienteNome = bustaToDrag.clienti 
@@ -466,7 +427,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
         businessRule: bustaToDrag.tipo_lavorazione || 'Tipo da specificare'
       });
     }
-  }, [buste]);
+  }, [currentBuste]);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
     const { active, over } = event;
@@ -499,7 +460,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
 
     // ✅ FIX: Estrai l'ID reale della busta
     const realBustaId = (active.id as string).replace('busta-', '');
-    const bustaToDrag = buste?.find(b => b.id === realBustaId);
+    const bustaToDrag = currentBuste?.find(b => b.id === realBustaId);
     if (!bustaToDrag) return;
 
     const oldStatus = bustaToDrag.stato_attuale as WorkflowState;
@@ -513,7 +474,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
       allowed: workflowAllowed,
       message: workflowAllowed ? `✅ ${reason}` : `❌ ${reason}`,
     }));
-  }, [buste]);
+  }, [currentBuste]);
 
   // ✅ DRAG END CORRETTO - FIX PER UUID CONFLICTS
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
@@ -524,8 +485,8 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     setDragFeedback({ show: false, allowed: false, message: '' });
 
     const { active, over } = event;
-    if (!over || !buste) {
-      console.log('❌ DRAG END: Missing over or buste');
+    if (!over || !currentBuste) {
+      console.log('❌ DRAG END: Missing over or currentBuste');
       return;
     }
 
@@ -560,7 +521,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
       return;
     }
 
-    const bustaDaAggiornare = buste.find(b => b.id === bustaId);
+    const bustaDaAggiornare = currentBuste.find(b => b.id === bustaId);
     if (!bustaDaAggiornare) {
       console.log('❌ DRAG END: Busta not found');
       toast.error('Busta non trovata');
@@ -591,7 +552,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     }
 
     try {
-      setIsLoading(true);
+      setIsUpdating(true);
       
       const success = await updateBustaStatus(
         bustaId, 
@@ -601,49 +562,34 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
       );
       
       if (success) {
-        // ✅ FORCE LOCAL UPDATE IMMEDIATELY
-        setBuste(prevBuste => 
-          prevBuste.map(b => 
+        // ✅ SWR: Optimistic update + revalidation
+        await mutate('/api/buste', 
+          currentBuste.map(b => 
             b.id === bustaId 
               ? { ...b, stato_attuale: newStatus as any, updated_at: new Date().toISOString() }
               : b
-          )
+          ),
+          false // Don't revalidate immediately
         );
         
-        // ✅ Refresh dati dal server
-        setTimeout(() => fetchBuste(false), 500);
+        // ✅ Refresh dati dal server dopo un breve delay
+        setTimeout(() => revalidate(), 500);
       }
       
     } catch (error: any) {
       console.error('❌ DRAG END: Error', error);
       toast.error(`Errore: ${error.message}`);
     } finally {
-      setIsLoading(false);
+      setIsUpdating(false);
     }
-  }, [buste, updateBustaStatus, fetchBuste]);
+  }, [currentBuste, updateBustaStatus, revalidate]);
 
   // Trova la busta attiva per la drag overlay
-  const activeBusta = activeId && buste ? buste.find(b => `busta-${b.id}` === activeId) : null;
+  const activeBusta = activeId && currentBuste ? currentBuste.find(b => `busta-${b.id}` === activeId) : null;
 
   return (
     <div className="h-full overflow-x-auto relative">
-      {/* Status bar */}
-      <div className="fixed top-4 right-4 z-40 flex items-center gap-2">
-        <div className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs ${
-          isOnline ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-        }`}>
-          {isOnline ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-          {isOnline ? 'Online' : 'Offline'}
-        </div>
-        
-        <button
-          onClick={() => fetchBuste(true)}
-          disabled={isLoading || !isOnline}
-          className="bg-blue-600 disabled:bg-gray-400 text-white p-2 rounded-md hover:bg-blue-700 transition-colors"
-        >
-          <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
+      {/* Removed overlapping status bar - functionality moved to main actions */}
 
       {/* Loading indicator */}
       {isLoading && (

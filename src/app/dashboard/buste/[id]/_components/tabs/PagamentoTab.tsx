@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
+import { mutate } from 'swr';
 import {
   Bell,
   BellOff, 
@@ -459,6 +460,53 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
     }
   };
 
+  // ===== SEGNA SINGOLA RATA COME PAGATA =====
+  const handlePagaRata = async (rata: RataPagamento) => {
+    if (!rata.id) return;
+    
+    const conferma = confirm(
+      `Confermi il pagamento della rata ${rata.numero_rata} del ${new Date(rata.data_scadenza).toLocaleDateString('it-IT')}?`
+    );
+    
+    if (!conferma) return;
+
+    try {
+      const oggi = new Date().toISOString().split('T')[0];
+      
+      // Aggiorna la rata come pagata e disabilita il reminder
+      const { error: rataError } = await supabase
+        .from('rate_pagamenti')
+        .update({
+          is_pagata: true,
+          data_pagamento: oggi,
+          reminder_attivo: false
+        })
+        .eq('id', rata.id);
+
+      if (rataError) throw rataError;
+
+      // Ricarica le rate aggiornate
+      const { data: rateAggiornate, error: fetchError } = await supabase
+        .from('rate_pagamenti')
+        .select('*')
+        .eq('busta_id', busta.id)
+        .order('numero_rata');
+
+      if (fetchError) throw fetchError;
+
+      setRate(convertRateFromDatabase(rateAggiornate || []));
+      
+      // ✅ SWR: Invalida cache dopo pagamento rata
+      await mutate('/api/buste');
+      
+      alert(`Rata ${rata.numero_rata} marcata come pagata!`);
+      
+    } catch (error: any) {
+      console.error('❌ Error marking installment as paid:', error);
+      alert(`Errore nel pagamento: ${error.message}`);
+    }
+  };
+
   // ===== VERIFICA SE BUSTA È CONSEGNATA =====
   const isBustaConsegnata = busta.stato_attuale === 'consegnato_pagato' || busta.stato_attuale === 'pronto_ritiro';
 
@@ -812,6 +860,18 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                             </button>
                           )}
                           
+                          {/* ✅ NUOVO: Pulsante Paga Rata SOLO per rate 2+ non pagate */}
+                          {!isPrimaRata && !isRataPagata && !safeBooleanValue(formData.is_saldato) && (
+                            <button
+                              onClick={() => handlePagaRata(rata)}
+                              className="flex items-center space-x-1 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
+                              title="Segna questa rata come pagata"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              <span>Paga Rata</span>
+                            </button>
+                          )}
+                          
                           {/* ✅ NUOVO: Stato reminder disattivato (solo rate 2+) */}
                           {!isPrimaRata && !isRataPagata && !isReminderAttivo && (
                             <span className="text-xs text-gray-500 flex items-center">
@@ -825,6 +885,14 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                             <span className="text-xs text-blue-600 flex items-center">
                               <Clock className="w-3 h-3 mr-1" />
                               Nessun reminder necessario
+                            </span>
+                          )}
+                          
+                          {/* ✅ NUOVO: Info rata pagata */}
+                          {isRataPagata && rata.data_pagamento && (
+                            <span className="text-xs text-green-600 flex items-center">
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Pagata il {new Date(rata.data_pagamento).toLocaleDateString('it-IT')}
                             </span>
                           )}
                         </div>
