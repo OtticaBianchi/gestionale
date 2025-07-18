@@ -33,7 +33,7 @@ const LiveClock = () => {
   }
 
 // test deploy automatico
-// belin checss
+// belin che casino sto vercel
 
   const formattedDate = time.toLocaleDateString('it-IT', {
     weekday: 'long',
