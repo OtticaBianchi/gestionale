@@ -945,6 +945,54 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_notes: {
+        Row: {
+          id: string
+          audio_blob: string
+          transcription: string | null
+          addetto_nome: string
+          cliente_riferimento: string | null
+          note_aggiuntive: string | null
+          stato: "pending" | "processing" | "completed" | "failed"
+          created_at: string
+          updated_at: string | null
+          processed_at: string | null
+          processed_by: string | null
+          file_size: number | null
+          duration_seconds: number | null
+        }
+        Insert: {
+          id?: string
+          audio_blob: string
+          transcription?: string | null
+          addetto_nome: string
+          cliente_riferimento?: string | null
+          note_aggiuntive?: string | null
+          stato?: "pending" | "processing" | "completed" | "failed"
+          created_at?: string
+          updated_at?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          file_size?: number | null
+          duration_seconds?: number | null
+        }
+        Update: {
+          id?: string
+          audio_blob?: string
+          transcription?: string | null
+          addetto_nome?: string
+          cliente_riferimento?: string | null
+          note_aggiuntive?: string | null
+          stato?: "pending" | "processing" | "completed" | "failed"
+          created_at?: string
+          updated_at?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          file_size?: number | null
+          duration_seconds?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       v_ordini_materiali_completi: {
