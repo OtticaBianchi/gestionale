@@ -32,6 +32,8 @@ const LiveClock = () => {
     )
   }
 
+// test deploy automatico
+
   const formattedDate = time.toLocaleDateString('it-IT', {
     weekday: 'long',
     year: 'numeric',
