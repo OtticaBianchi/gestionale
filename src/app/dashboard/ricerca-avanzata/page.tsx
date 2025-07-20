@@ -34,6 +34,7 @@ interface SearchResult {
     categoria?: string;
     fornitore?: string;
     note?: string;
+    stato?: string;
   };
   categoria?: string;
   fornitore?: {
