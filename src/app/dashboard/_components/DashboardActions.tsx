@@ -1,9 +1,10 @@
 'use client';
 
-import { RefreshCw, Filter, Plus } from 'lucide-react';
+import { RefreshCw, Filter, Plus, Mic } from 'lucide-react';
 import Link from 'next/link';
 import { useBuste } from '@/hooks/useBuste';
 import { toast } from 'sonner';
+import { useEffect, useState } from 'react';
 
 interface DashboardActionsProps {
   totalBuste: number;
@@ -11,6 +12,7 @@ interface DashboardActionsProps {
 
 export default function DashboardActions({ totalBuste }: DashboardActionsProps) {
   const { mutate: revalidate, isLoading } = useBuste();
+  const [voiceNotesCount, setVoiceNotesCount] = useState(0);
 
   const handleRefresh = async () => {
     try {
@@ -23,6 +25,25 @@ export default function DashboardActions({ totalBuste }: DashboardActionsProps) 
       toast.error('Errore durante l\'aggiornamento');
     }
   };
+
+  const fetchVoiceNotesCount = async () => {
+    try {
+      const response = await fetch('/api/voice-notes');
+      if (response.ok) {
+        const data = await response.json();
+        setVoiceNotesCount(data.notes?.length || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching voice notes count:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchVoiceNotesCount();
+    // Refresh count every 30 seconds
+    const interval = setInterval(fetchVoiceNotesCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="flex items-center space-x-3">
@@ -37,6 +58,20 @@ export default function DashboardActions({ totalBuste }: DashboardActionsProps) 
         <span>Aggiorna</span>
       </button>
       
+      {/* Note vocali */}
+      <Link
+        href="/dashboard/voice-notes"
+        className="relative flex items-center space-x-2 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
+      >
+        <Mic className="h-4 w-4" />
+        <span>Note Vocali</span>
+        {voiceNotesCount > 0 && (
+          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+            {voiceNotesCount > 99 ? '99+' : voiceNotesCount}
+          </span>
+        )}
+      </Link>
+
       {/* Filtri - LINK ALLA TUA PAGINA FILTRI - ROSSO */}
       <Link
         href="/dashboard/filtri-ordini"

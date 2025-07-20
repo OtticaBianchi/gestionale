@@ -8,16 +8,11 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const audioFile = formData.get('audio') as File;
     const addetto_nome = formData.get('addetto_nome') as string;
-    const cliente_riferimento = formData.get('cliente_riferimento') as string;
     const note_aggiuntive = formData.get('note_aggiuntive') as string;
     const duration_seconds = formData.get('duration_seconds') as string;
 
     if (!audioFile) {
       return NextResponse.json({ error: 'File audio mancante' }, { status: 400 });
-    }
-
-    if (!addetto_nome) {
-      return NextResponse.json({ error: 'Nome addetto richiesto' }, { status: 400 });
     }
 
     // Validate file size (max 5MB)
@@ -43,11 +38,13 @@ export async function POST(request: NextRequest) {
       .insert({
         audio_blob: base64Audio,
         addetto_nome,
-        cliente_riferimento: cliente_riferimento || null,
+        cliente_riferimento: null,
         note_aggiuntive: note_aggiuntive || null,
         stato: 'pending',
         file_size: audioFile.size,
-        duration_seconds: duration
+        duration_seconds: duration,
+        cliente_id: null,
+        busta_id: null
       })
       .select()
       .single();
@@ -75,9 +72,32 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') as 'pending' | 'processing' | 'completed' | 'failed' | null;
 
+    // Delete COMPLETED notes older than 1 week
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    
+    await supabase
+      .from('voice_notes')
+      .delete()
+      .eq('stato', 'completed')
+      .lt('created_at', oneWeekAgo.toISOString());
+
+    // Build query with related data
     let query = supabase
       .from('voice_notes')
-      .select('*')
+      .select(`
+        *,
+        clienti:cliente_id (
+          id,
+          nome,
+          cognome
+        ),
+        buste:busta_id (
+          id,
+          readable_id,
+          stato_attuale
+        )
+      `)
       .order('created_at', { ascending: false });
 
     if (status) {
