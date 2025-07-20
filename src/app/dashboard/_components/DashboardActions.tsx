@@ -1,6 +1,6 @@
 'use client';
 
-import { RefreshCw, Filter, Plus, Mic } from 'lucide-react';
+import { RefreshCw, Filter, Plus, Mic, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useBuste } from '@/hooks/useBuste';
 import { toast } from 'sonner';
@@ -70,6 +70,15 @@ export default function DashboardActions({ totalBuste }: DashboardActionsProps) 
             {voiceNotesCount > 99 ? '99+' : voiceNotesCount}
           </span>
         )}
+      </Link>
+
+      {/* Ricerca Avanzata */}
+      <Link
+        href="/dashboard/ricerca-avanzata"
+        className="flex items-center space-x-2 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+      >
+        <Search className="h-4 w-4" />
+        <span>Ricerca Avanzata</span>
       </Link>
 
       {/* Filtri - LINK ALLA TUA PAGINA FILTRI - ROSSO */}

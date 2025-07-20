@@ -285,6 +285,14 @@ export default function VoiceNotesPage() {
     return stato !== 'consegnato_pagato';
   };
 
+  const isBustaArchived = (busta: BustaSearchResult) => {
+    if (busta.stato_attuale !== 'consegnato_pagato') return false;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const updatedAt = new Date(busta.data_apertura); // Usando data_apertura come proxy per updated_at
+    return updatedAt < sevenDaysAgo;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}

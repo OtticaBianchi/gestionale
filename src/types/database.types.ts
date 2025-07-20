@@ -947,51 +947,72 @@ export type Database = {
       }
       voice_notes: {
         Row: {
-          id: string
-          audio_blob: string
-          transcription: string | null
           addetto_nome: string
+          audio_blob: string
+          busta_id: string | null
+          cliente_id: string | null
           cliente_riferimento: string | null
+          created_at: string | null
+          duration_seconds: number | null
+          file_size: number | null
+          id: string
           note_aggiuntive: string | null
-          stato: "pending" | "processing" | "completed" | "failed"
-          created_at: string
-          updated_at: string | null
           processed_at: string | null
           processed_by: string | null
-          file_size: number | null
-          duration_seconds: number | null
+          stato: string
+          transcription: string | null
+          updated_at: string | null
         }
         Insert: {
-          id?: string
-          audio_blob: string
-          transcription?: string | null
           addetto_nome: string
+          audio_blob: string
+          busta_id?: string | null
+          cliente_id?: string | null
           cliente_riferimento?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_size?: number | null
+          id?: string
           note_aggiuntive?: string | null
-          stato?: "pending" | "processing" | "completed" | "failed"
-          created_at?: string
-          updated_at?: string | null
           processed_at?: string | null
           processed_by?: string | null
-          file_size?: number | null
-          duration_seconds?: number | null
+          stato?: string
+          transcription?: string | null
+          updated_at?: string | null
         }
         Update: {
-          id?: string
-          audio_blob?: string
-          transcription?: string | null
           addetto_nome?: string
+          audio_blob?: string
+          busta_id?: string | null
+          cliente_id?: string | null
           cliente_riferimento?: string | null
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_size?: number | null
+          id?: string
           note_aggiuntive?: string | null
-          stato?: "pending" | "processing" | "completed" | "failed"
-          created_at?: string
-          updated_at?: string | null
           processed_at?: string | null
           processed_by?: string | null
-          file_size?: number | null
-          duration_seconds?: number | null
+          stato?: string
+          transcription?: string | null
+          updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "voice_notes_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: false
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_notes_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clienti"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -1034,6 +1055,97 @@ export type Database = {
             columns: ["busta_id"]
             isOneToOne: false
             referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_lac_id_fkey"
+            columns: ["fornitore_lac_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_lac"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_lenti_id_fkey"
+            columns: ["fornitore_lenti_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_lenti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_montature_id_fkey"
+            columns: ["fornitore_montature_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_montature"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_sport_id_fkey"
+            columns: ["fornitore_sport_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_sport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_tipo_lenti_id_fkey"
+            columns: ["tipo_lenti_id"]
+            isOneToOne: false
+            referencedRelation: "tipi_lenti"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_tipo_ordine_id_fkey"
+            columns: ["tipo_ordine_id"]
+            isOneToOne: false
+            referencedRelation: "tipi_ordine"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_ordini_materiali_con_fornitori: {
+        Row: {
+          alert_ritardo_inviato: boolean | null
+          busta_id: string | null
+          categoria_fornitore: string | null
+          comunicazione_automatica_inviata: boolean | null
+          created_at: string | null
+          creato_da: string | null
+          da_ordinare: boolean | null
+          data_consegna_effettiva: string | null
+          data_consegna_prevista: string | null
+          data_ordine: string | null
+          descrizione_prodotto: string | null
+          email_fornitore: string | null
+          fornitore_id: string | null
+          fornitore_lab_esterno_id: string | null
+          fornitore_lac_id: string | null
+          fornitore_lenti_id: string | null
+          fornitore_montature_id: string | null
+          fornitore_sport_id: string | null
+          giorni_consegna_medi: number | null
+          giorni_ritardo: number | null
+          id: string | null
+          nome_fornitore: string | null
+          note: string | null
+          stato: Database["public"]["Enums"]["ordine_status"] | null
+          telefono_fornitore: string | null
+          tempi_consegna_fornitore: number | null
+          tipo_lenti_id: string | null
+          tipo_ordine_id: number | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ordini_materiali_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: false
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_fornitore_lab_esterno_id_fkey"
+            columns: ["fornitore_lab_esterno_id"]
+            isOneToOne: false
+            referencedRelation: "fornitori_lab_esterno"
             referencedColumns: ["id"]
           },
           {

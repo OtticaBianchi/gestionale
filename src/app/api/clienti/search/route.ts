@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       clienti.map(async (cliente) => {
         const { data: buste, error: busteError } = await supabase
           .from('buste')
-          .select('id, readable_id, stato_attuale, data_apertura')
+          .select('id, readable_id, stato_attuale, data_apertura, updated_at')
           .eq('cliente_id', cliente.id)
           .order('data_apertura', { ascending: false });
 
