@@ -40,7 +40,9 @@ type InfoPagamento = {
   id?: string;
   busta_id: string;
   ha_acconto: boolean | null;
+  importo_acconto: number | null;
   data_acconto: string | null;
+  prezzo_finale: number | null;
   modalita_saldo: 'saldo_unico' | 'due_rate' | 'tre_rate' | 'finanziamento';
   is_saldato: boolean | null;
   data_saldo: string | null;
@@ -53,6 +55,7 @@ type RataPagamento = {
   id?: string;
   busta_id: string;
   numero_rata: number;
+  importo_rata: number | null;
   data_scadenza: string;
   is_pagata: boolean | null;
   data_pagamento: string | null;
@@ -99,12 +102,16 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false); // ✅ NUOVO: Loading per eliminazione
   const [currentUser, setCurrentUser] = useState<{ id: string; full_name: string } | null>(null);
+  const [isEditingImporti, setIsEditingImporti] = useState(false); // ✅ NUOVO: Modalità editing importi
+  const [importiTemp, setImportiTemp] = useState<{ [key: string]: number }>({}); // ✅ NUOVO: Importi temporanei
 
   // Form state con valori di default sicuri
   const [formData, setFormData] = useState<InfoPagamento>({
     busta_id: busta.id,
     ha_acconto: false,
+    importo_acconto: null,
     data_acconto: null,
+    prezzo_finale: null,
     modalita_saldo: 'saldo_unico',
     is_saldato: false,
     data_saldo: null,
@@ -236,7 +243,27 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
     }
   };
 
-  // ✅ FIX: GENERA DATE RATE CORRETTE
+  // ✅ CORRETTO: Calcola importi rate automaticamente
+  const calcolaImportiRate = (prezzoFinale: number, importoAcconto: number, numeroRate: number) => {
+    const restoDaPagare = prezzoFinale - importoAcconto;
+    const importoRataBase = Math.floor(restoDaPagare / numeroRate);
+    const resto = restoDaPagare % numeroRate;
+    
+    const importi: number[] = [];
+    
+    // Le rate sono TUTTE dal resto da pagare, non includono l'acconto
+    for (let i = 0; i < numeroRate; i++) {
+      if (i === 0 && resto > 0) {
+        importi.push(importoRataBase + resto); // Prima rata prende il resto
+      } else {
+        importi.push(importoRataBase);
+      }
+    }
+    
+    return importi;
+  };
+
+  // ✅ FIX: GENERA DATE E IMPORTI RATE CORRETTE
   const generaDateRate = (modalita: string, dataInizio: string = new Date().toISOString().split('T')[0]) => {
     const date: string[] = [];
     const start = new Date(dataInizio);
@@ -294,6 +321,54 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
     }
   };
 
+  // ✅ NUOVO: Gestione modifica importi manuali
+  const handleStartEditImporti = () => {
+    const temp: { [key: string]: number } = {};
+    rate.forEach(rata => {
+      if (rata.id && rata.importo_rata) {
+        temp[rata.id] = rata.importo_rata;
+      }
+    });
+    setImportiTemp(temp);
+    setIsEditingImporti(true);
+  };
+
+  const handleSaveImporti = async () => {
+    try {
+      setIsSaving(true);
+      
+      // Aggiorna ogni rata con il nuovo importo
+      for (const [rataId, importo] of Object.entries(importiTemp)) {
+        const { error } = await supabase
+          .from('rate_pagamenti')
+          .update({ 
+            importo_rata: importo,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', rataId);
+
+        if (error) throw error;
+      }
+
+      // Ricarica i dati
+      await loadPagamentoData();
+      setIsEditingImporti(false);
+      setImportiTemp({});
+      alert('✅ Importi aggiornati con successo!');
+      
+    } catch (error: any) {
+      console.error('❌ Error updating amounts:', error);
+      alert(`Errore nell'aggiornamento: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEditImporti = () => {
+    setIsEditingImporti(false);
+    setImportiTemp({});
+  };
+
   // ===== SAVE PAGAMENTO =====
   const handleSave = async () => {
     if (!currentUser) {
@@ -318,9 +393,18 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
       // Se modalità con rate e non esistono ancora, crea le rate
       if ((formData.modalita_saldo === 'due_rate' || formData.modalita_saldo === 'tre_rate') && rate.length === 0) {
         const dateRate = generaDateRate(formData.modalita_saldo);
+        const numeroRate = formData.modalita_saldo === 'due_rate' ? 2 : 3;
+        
+        // Calcola importi automaticamente se abbiamo prezzo finale e acconto
+        let importiRate: number[] = [];
+        if (formData.prezzo_finale && formData.importo_acconto) {
+          importiRate = calcolaImportiRate(formData.prezzo_finale, formData.importo_acconto, numeroRate);
+        }
+        
         const nuoveRate = dateRate.map((data, index) => ({
           busta_id: busta.id,
           numero_rata: index + 1,
+          importo_rata: importiRate.length > 0 ? importiRate[index] : null,
           data_scadenza: data,
           is_pagata: index === 0 ? true : false, // ✅ Prima rata già pagata alla consegna
           data_pagamento: index === 0 ? new Date().toISOString().split('T')[0] : null,
@@ -435,7 +519,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
           destinatario_tipo: 'cliente',
           destinatario_nome: `${busta.clienti.cognome} ${busta.clienti.nome}`,
           destinatario_contatto: busta.clienti.telefono,
-          canale_invio: 'sms',
+          canale_invio: 'whatsapp',
           stato_invio: 'inviato',
           inviato_da: currentUser.id,
           nome_operatore: currentUser.full_name
@@ -566,13 +650,31 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
 
             {isEditing ? (
               <div className="space-y-4">
+                {/* Prezzo Finale */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">💰 Prezzo Finale</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">€</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.prezzo_finale || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, prezzo_finale: e.target.value ? parseFloat(e.target.value) : null }))}
+                      className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Prezzo totale del lavoro (per reportistica)</p>
+                </div>
+
                 {/* Acconto */}
                 <div>
                   <label className="flex items-center space-x-2">
                     <input
                       type="checkbox"
                       checked={safeBooleanValue(formData.ha_acconto)}
-                      onChange={(e) => setFormData(prev => ({ ...prev, ha_acconto: e.target.checked }))}
+                      onChange={(e) => setFormData(prev => ({ ...prev, ha_acconto: e.target.checked, importo_acconto: e.target.checked ? prev.importo_acconto : null }))}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     <span className="font-medium text-gray-700">Ha versato acconto</span>
@@ -580,14 +682,32 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                 </div>
 
                 {safeBooleanValue(formData.ha_acconto) && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Data acconto</label>
-                    <input
-                      type="date"
-                      value={formData.data_acconto || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, data_acconto: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Importo acconto</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">€</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max={formData.prezzo_finale || undefined}
+                          value={formData.importo_acconto || ''}
+                          onChange={(e) => setFormData(prev => ({ ...prev, importo_acconto: e.target.value ? parseFloat(e.target.value) : null }))}
+                          className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Data acconto</label>
+                      <input
+                        type="date"
+                        value={formData.data_acconto || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, data_acconto: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -637,7 +757,9 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                       setFormData(infoPagamento || {
                         busta_id: busta.id,
                         ha_acconto: false,
+                        importo_acconto: null,
                         data_acconto: null,
+                        prezzo_finale: null,
                         modalita_saldo: 'saldo_unico',
                         is_saldato: false,
                         data_saldo: null,
@@ -672,12 +794,21 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
               <div className="space-y-3">
                 {infoPagamento ? (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <span className="text-sm text-gray-500">Prezzo finale:</span>
+                        <p className="font-medium text-lg">
+                          {infoPagamento.prezzo_finale ? 
+                            `€ ${infoPagamento.prezzo_finale.toFixed(2)}` : 
+                            '💰 Non specificato'
+                          }
+                        </p>
+                      </div>
                       <div>
                         <span className="text-sm text-gray-500">Acconto:</span>
                         <p className="font-medium">
                           {safeBooleanValue(infoPagamento.ha_acconto) ? 
-                            `✅ Sì (${infoPagamento.data_acconto ? new Date(infoPagamento.data_acconto).toLocaleDateString('it-IT') : 'data non spec.'})` : 
+                            `✅ €${infoPagamento.importo_acconto?.toFixed(2) || '0.00'} (${infoPagamento.data_acconto ? new Date(infoPagamento.data_acconto).toLocaleDateString('it-IT') : 'data non spec.'})` : 
                             '❌ No'
                           }
                         </p>
@@ -714,8 +845,19 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                 <h3 className="text-lg font-semibold text-gray-900">Gestione Rate</h3>
                 
                 <div className="flex items-center space-x-2">
+                  {/* ✅ NUOVO: Pulsante modifica importi */}
+                  {!safeBooleanValue(formData.is_saldato) && rate.some(r => r.importo_rata) && !isEditingImporti && (
+                    <button
+                      onClick={handleStartEditImporti}
+                      className="flex items-center space-x-1 px-3 py-1 bg-orange-50 text-orange-600 rounded-md hover:bg-orange-100 transition-colors text-sm border border-orange-200"
+                    >
+                      <Euro className="w-4 h-4" />
+                      <span>Modifica Importi</span>
+                    </button>
+                  )}
+
                   {/* ✅ AGGIORNATO: Pulsanti controllo reminder globale - solo per rate 2+ */}
-                  {!safeBooleanValue(formData.is_saldato) && rate.some(r => r.numero_rata > 1 && !safeBooleanValue(r.is_pagata)) && (
+                  {!safeBooleanValue(formData.is_saldato) && rate.some(r => r.numero_rata > 1 && !safeBooleanValue(r.is_pagata)) && !isEditingImporti && (
                     <div className="flex items-center space-x-2 mr-4">
                       <button
                         onClick={() => toggleAllReminders(true)}
@@ -734,8 +876,34 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                     </div>
                   )}
 
+                  {/* Pulsanti modifica importi */}
+                  {isEditingImporti && (
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={handleCancelEditImporti}
+                        disabled={isSaving}
+                        className="flex items-center space-x-1 px-3 py-1 bg-gray-50 text-gray-600 rounded-md hover:bg-gray-100 transition-colors text-sm border border-gray-200 disabled:opacity-50"
+                      >
+                        <X className="w-4 h-4" />
+                        <span>Annulla</span>
+                      </button>
+                      <button
+                        onClick={handleSaveImporti}
+                        disabled={isSaving}
+                        className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm disabled:opacity-50"
+                      >
+                        {isSaving ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        <span>Salva Importi</span>
+                      </button>
+                    </div>
+                  )}
+
                   {/* Pulsante Elimina Rate */}
-                  {!safeBooleanValue(formData.is_saldato) && (
+                  {!safeBooleanValue(formData.is_saldato) && !isEditingImporti && (
                     <button
                       onClick={handleEliminaRate}
                       disabled={isDeleting}
@@ -750,7 +918,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                     </button>
                   )}
                   
-                  {!safeBooleanValue(formData.is_saldato) && (
+                  {!safeBooleanValue(formData.is_saldato) && !isEditingImporti && (
                     <button
                       onClick={handleSaldato}
                       disabled={isSaving}
@@ -795,6 +963,32 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                         <div className="flex-1">
                           <h4 className="font-medium text-gray-900">
                             Rata {rata.numero_rata} - {new Date(rata.data_scadenza).toLocaleDateString('it-IT')}
+                            {/* ✅ NUOVO: Importo rata modificabile */}
+                            {isEditingImporti && rata.id ? (
+                              <div className="inline-block ml-2">
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-sm text-gray-500">€</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={importiTemp[rata.id] || ''}
+                                    onChange={(e) => setImportiTemp(prev => ({
+                                      ...prev,
+                                      [rata.id!]: e.target.value ? parseFloat(e.target.value) : 0
+                                    }))}
+                                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              rata.importo_rata && (
+                                <span className="ml-2 text-sm font-semibold text-green-600">
+                                  €{rata.importo_rata.toFixed(2)}
+                                </span>
+                              )
+                            )}
                             {/* ✅ MIGLIORATO: Indicatore prima rata più chiaro */}
                             {isPrimaRata && (
                               <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">

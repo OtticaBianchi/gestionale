@@ -372,9 +372,11 @@ export type Database = {
           data_saldo: string | null
           ha_acconto: boolean | null
           id: string
+          importo_acconto: number | null
           is_saldato: boolean | null
           modalita_saldo: string
           note_pagamento: string | null
+          prezzo_finale: number | null
           updated_at: string | null
         }
         Insert: {
@@ -384,9 +386,11 @@ export type Database = {
           data_saldo?: string | null
           ha_acconto?: boolean | null
           id?: string
+          importo_acconto?: number | null
           is_saldato?: boolean | null
           modalita_saldo?: string
           note_pagamento?: string | null
+          prezzo_finale?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -396,9 +400,11 @@ export type Database = {
           data_saldo?: string | null
           ha_acconto?: boolean | null
           id?: string
+          importo_acconto?: number | null
           is_saldato?: boolean | null
           modalita_saldo?: string
           note_pagamento?: string | null
+          prezzo_finale?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -788,6 +794,7 @@ export type Database = {
           data_pagamento: string | null
           data_scadenza: string
           id: string
+          importo_rata: number | null
           is_pagata: boolean | null
           numero_rata: number
           reminder_attivo: boolean | null
@@ -800,6 +807,7 @@ export type Database = {
           data_pagamento?: string | null
           data_scadenza: string
           id?: string
+          importo_rata?: number | null
           is_pagata?: boolean | null
           numero_rata: number
           reminder_attivo?: boolean | null
@@ -812,6 +820,7 @@ export type Database = {
           data_pagamento?: string | null
           data_scadenza?: string
           id?: string
+          importo_rata?: number | null
           is_pagata?: boolean | null
           numero_rata?: number
           reminder_attivo?: boolean | null

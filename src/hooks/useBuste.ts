@@ -5,6 +5,29 @@ import { BustaWithCliente } from '@/types/shared.types';
 
 const SWR_KEY = '/api/buste';
 
+// Funzione helper per determinare se una busta è archiviata
+const isArchived = (busta: any): boolean => {
+  if (busta.stato_attuale !== 'consegnato_pagato') return false;
+  
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const updatedAt = new Date(busta.updated_at);
+  
+  return updatedAt < sevenDaysAgo;
+};
+
+// Controllo archiviazione una volta al giorno
+const shouldCheckArchiving = (): boolean => {
+  const today = new Date().toDateString();
+  const lastCheck = localStorage.getItem('lastArchiveCheck');
+  
+  if (lastCheck !== today) {
+    localStorage.setItem('lastArchiveCheck', today);
+    return true;
+  }
+  return false;
+};
+
 const fetcher = async (): Promise<BustaWithCliente[]> => {
   const supabase = createClient();
   
@@ -49,8 +72,25 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
     throw new Error(`Database error: ${error.message}`);
   }
 
-  console.log('✅ SWR Fetcher - Success:', data?.length || 0, 'buste');
-  return (data as BustaWithCliente[]) || [];
+  const allBuste = (data as BustaWithCliente[]) || [];
+
+  // ✅ CONTROLLO ARCHIVIAZIONE - Solo una volta al giorno
+  if (shouldCheckArchiving()) {
+    const activeBuste = allBuste.filter(busta => !isArchived(busta));
+    const archivedCount = allBuste.length - activeBuste.length;
+    
+    if (archivedCount > 0) {
+      console.log('📁 ARCHIVING CHECK - Nascondendo', archivedCount, 'buste archiviate dalla Kanban (controllo giornaliero)');
+    }
+    
+    return activeBuste;
+  }
+
+  // ✅ CONTROLLO GIÀ FATTO OGGI - Usa cache locale per performance
+  const cachedFilteredBuste = allBuste.filter(busta => !isArchived(busta));
+  console.log('✅ SWR Fetcher - Success:', cachedFilteredBuste.length, 'active buste (archiving già controllato oggi)');
+  
+  return cachedFilteredBuste;
 };
 
 export function useBuste() {
