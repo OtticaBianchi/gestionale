@@ -251,12 +251,10 @@ export default function UserProfileHeader() {
           <div className="flex items-center space-x-2">
             <button
               onClick={() => {
-                // ✅ EXISTING LOGIC: Navigate to settings (will create page later)
-                alert('Pagina impostazioni in costruzione');
-                // router.push('/settings'); // Will work once we create the page
+                router.push('/profile');
               }}
               className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-              title="Impostazioni"
+              title="Profilo Utente"
             >
               <Settings className="h-4 w-4" />
             </button>

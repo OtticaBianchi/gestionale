@@ -15,6 +15,7 @@ import {
   Loader2,
   Phone,
 } from 'lucide-react';
+import { useUser } from '@/context/UserContext';
 
 // ===== TYPES =====
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
@@ -43,6 +44,9 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
   const [isLoadingComunicazioni, setIsLoadingComunicazioni] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [currentUser, setCurrentUser] = useState<{ id: string; full_name: string } | null>(null);
+  
+  // User context for role checking
+  const { profile } = useUser();
 
   // Stato per editing messaggi
   const [editingMessageType, setEditingMessageType] = useState<'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente' | null>(null);
@@ -313,14 +317,16 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
                   {generaMessaggio('ordine_pronto')}
                 </p>
               </div>
-              <button
-                onClick={() => avviaEditingMessaggio('ordine_pronto')}
-                disabled={isSendingMessage}
-                className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <MessageCircle className="w-4 h-4 mr-2" />
-                Personalizza e Invia
-              </button>
+              {profile?.role !== 'operatore' && (
+                <button
+                  onClick={() => avviaEditingMessaggio('ordine_pronto')}
+                  disabled={isSendingMessage}
+                  className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  Personalizza e Invia
+                </button>
+              )}
             </div>
 
             {/* Messaggio Sollecito */}
@@ -337,14 +343,16 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
                   {generaMessaggio('sollecito_ritiro')}
                 </p>
               </div>
-              <button
-                onClick={() => avviaEditingMessaggio('sollecito_ritiro')}
-                disabled={isSendingMessage}
-                className="w-full flex items-center justify-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Clock className="w-4 h-4 mr-2" />
-                Personalizza e Invia
-              </button>
+              {profile?.role !== 'operatore' && (
+                <button
+                  onClick={() => avviaEditingMessaggio('sollecito_ritiro')}
+                  disabled={isSendingMessage}
+                  className="w-full flex items-center justify-center px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Clock className="w-4 h-4 mr-2" />
+                  Personalizza e Invia
+                </button>
+              )}
             </div>
 
             {/* Nota Interna */}
@@ -361,14 +369,16 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
                   Es: "È passato il marito", "Avvertito via WhatsApp personale", "Cliente chiamato telefonicamente"
                 </p>
               </div>
-              <button
-                onClick={avviaNotaLibera}
-                disabled={isSendingMessage}
-                className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <User className="w-4 h-4 mr-2" />
-                Aggiungi Nota
-              </button>
+              {profile?.role !== 'operatore' && (
+                <button
+                  onClick={avviaNotaLibera}
+                  disabled={isSendingMessage}
+                  className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <User className="w-4 h-4 mr-2" />
+                  Aggiungi Nota
+                </button>
+              )}
             </div>
           </div>
         )}

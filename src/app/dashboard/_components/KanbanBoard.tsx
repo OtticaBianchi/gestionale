@@ -38,6 +38,7 @@ import { toast } from 'sonner';
 import { BustaWithCliente } from '@/types/shared.types';
 import { useBuste } from '@/hooks/useBuste';
 import { mutate } from 'swr';
+import { useUser } from '@/context/UserContext';
 
 interface KanbanBoardProps {
   buste: BustaWithCliente[];
@@ -210,6 +211,9 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
   
   // Use SWR data if available, fallback to initial data
   const currentBuste = buste || initialBuste || [];
+  
+  // User context for role checking
+  const { profile } = useUser();
   
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -636,7 +640,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
               status={status}
               buste={groupedBuste[status] || []}
               isOver={overId === `column-${status}`}
-              isDragEnabled={!isLoading && isOnline}
+              isDragEnabled={!isLoading && isOnline && profile?.role !== 'operatore'}
               isLoading={isLoading}
             />
           ))}

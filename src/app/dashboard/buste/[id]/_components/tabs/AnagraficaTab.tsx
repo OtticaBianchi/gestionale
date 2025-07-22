@@ -20,6 +20,7 @@ import {
   Loader2
 } from 'lucide-react';
 import PrintBustaButton from 'src/app/dashboard/_components/PrintBustaButton'; // ✅ IMPORT AGGIUNTO
+import { useUser } from '@/context/UserContext';
 
 // ===== TYPES LOCALI =====
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
@@ -45,6 +46,9 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  
+  // User context for role checking
+  const { profile } = useUser();
   
   const [editForm, setEditForm] = useState({
     // ✅ Dati busta
@@ -396,7 +400,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
             Dettagli Lavorazione
           </h2>
           
-          {!isEditing ? (
+          {!isEditing && profile?.role !== 'operatore' ? (
             <button
               onClick={() => setIsEditing(true)}
               className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors"
@@ -404,7 +408,9 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
               <Edit3 className="h-4 w-4" />
               <span>Modifica</span>
             </button>
-          ) : (
+          ) : null}
+          
+          {isEditing && (
             <div className="flex items-center space-x-2">
               <button
                 onClick={handleSave}

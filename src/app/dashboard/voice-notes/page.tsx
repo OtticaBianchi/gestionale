@@ -63,8 +63,10 @@ export default function VoiceNotesPage() {
   const [showDuplicateMenu, setShowDuplicateMenu] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Check if user can delete voice notes (only amministratore)
-  const canDeleteNotes = profile?.role === 'amministratore';
+  // UI permissions (RLS handles database security)
+  const canDeleteNotes = profile?.role === 'admin';
+  const canCreateNotes = profile?.role === 'admin' || profile?.role === 'manager';
+  const isReadOnly = profile?.role === 'operatore';
 
   const fetchVoiceNotes = async () => {
     try {
@@ -419,7 +421,7 @@ export default function VoiceNotesPage() {
                             </div>
                             
                             <div className="flex items-center gap-2">
-                              {isBustaOpen(busta.stato_attuale) ? (
+                              {isBustaOpen(busta.stato_attuale) && !isReadOnly ? (
                                 <Link
                                   href={`/dashboard/buste/${busta.id}?returnTo=/dashboard/voice-notes`}
                                   className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
@@ -437,33 +439,35 @@ export default function VoiceNotesPage() {
                                 </Link>
                               )}
                               
-                              <div className="relative">
-                                <button
-                                  onClick={() => setShowDuplicateMenu(showDuplicateMenu === busta.id ? null : busta.id)}
-                                  className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition-colors"
-                                >
-                                  <Copy className="w-3 h-3" />
-                                  Duplica
-                                  <ChevronDown className="w-3 h-3" />
-                                </button>
-                                
-                                {showDuplicateMenu === busta.id && (
-                                  <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10">
-                                    <button
-                                      onClick={() => duplicateBusta(busta.id, false)}
-                                      className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
-                                    >
-                                      Solo Anagrafica
-                                    </button>
-                                    <button
-                                      onClick={() => duplicateBusta(busta.id, true)}
-                                      className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
-                                    >
-                                      Anagrafica + Materiali
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
+                              {!isReadOnly && (
+                                <div className="relative">
+                                  <button
+                                    onClick={() => setShowDuplicateMenu(showDuplicateMenu === busta.id ? null : busta.id)}
+                                    className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition-colors"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                    Duplica
+                                    <ChevronDown className="w-3 h-3" />
+                                  </button>
+                                  
+                                  {showDuplicateMenu === busta.id && (
+                                    <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                                      <button
+                                        onClick={() => duplicateBusta(busta.id, false)}
+                                        className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+                                      >
+                                        Solo Anagrafica
+                                      </button>
+                                      <button
+                                        onClick={() => duplicateBusta(busta.id, true)}
+                                        className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+                                      >
+                                        Anagrafica + Materiali
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}

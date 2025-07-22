@@ -24,6 +24,7 @@ import {
   Trash2, // ✅ NUOVO: Icona per eliminazione
   RefreshCw // ✅ NUOVO: Icona per rigenera
 } from 'lucide-react';
+import { useUser } from '@/context/UserContext';
 
 // ===== TYPES LOCALI - GESTISCONO NULL DAL DATABASE =====
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
@@ -96,6 +97,9 @@ interface PagamentoTabProps {
 export default function PagamentoTab({ busta }: PagamentoTabProps) {
   // ===== STATE =====
   const [infoPagamento, setInfoPagamento] = useState<InfoPagamento | null>(null);
+  
+  // User context for role checking
+  const { profile } = useUser();
   const [rate, setRate] = useState<RataPagamento[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -658,7 +662,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Configurazione Pagamento</h3>
               
-              {!isEditing && !isEffettivamenteSaldato && (
+              {!isEditing && !isEffettivamenteSaldato && profile?.role !== 'operatore' && (
                 <button
                   onClick={() => setIsEditing(true)}
                   className="flex items-center space-x-2 px-3 py-2 text-sm bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors"
@@ -867,7 +871,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                 
                 <div className="flex items-center space-x-2">
                   {/* ✅ NUOVO: Pulsante modifica importi */}
-                  {!isEffettivamenteSaldato && rate.some(r => r.importo_rata) && !isEditingImporti && (
+                  {!isEffettivamenteSaldato && rate.some(r => r.importo_rata) && !isEditingImporti && profile?.role !== 'operatore' && (
                     <button
                       onClick={handleStartEditImporti}
                       className="flex items-center space-x-1 px-3 py-1 bg-orange-50 text-orange-600 rounded-md hover:bg-orange-100 transition-colors text-sm border border-orange-200"
@@ -878,7 +882,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                   )}
 
                   {/* ✅ AGGIORNATO: Pulsanti controllo reminder globale - solo per rate 2+ */}
-                  {!isEffettivamenteSaldato && rate.some(r => r.numero_rata > 1 && !safeBooleanValue(r.is_pagata)) && !isEditingImporti && (
+                  {!isEffettivamenteSaldato && rate.some(r => r.numero_rata > 1 && !safeBooleanValue(r.is_pagata)) && !isEditingImporti && profile?.role !== 'operatore' && (
                     <div className="flex items-center space-x-2 mr-4">
                       <button
                         onClick={() => toggleAllReminders(true)}
@@ -924,7 +928,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                   )}
 
                   {/* Pulsante Elimina Rate */}
-                  {!isEffettivamenteSaldato && !isEditingImporti && (
+                  {!isEffettivamenteSaldato && !isEditingImporti && profile?.role !== 'operatore' && (
                     <button
                       onClick={handleEliminaRate}
                       disabled={isDeleting}
@@ -939,7 +943,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                     </button>
                   )}
                   
-                  {!isEffettivamenteSaldato && !isEditingImporti && (
+                  {!isEffettivamenteSaldato && !isEditingImporti && profile?.role !== 'operatore' && (
                     <button
                       onClick={handleSaldato}
                       disabled={isSaving}
@@ -1132,7 +1136,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
           )}
 
           {/* ✅ NUOVO: Sezione per rigenerare rate se necessario */}
-          {infoPagamento && (infoPagamento.modalita_saldo === 'due_rate' || infoPagamento.modalita_saldo === 'tre_rate') && rate.length === 0 && !isEffettivamenteSaldato && (
+          {infoPagamento && (infoPagamento.modalita_saldo === 'due_rate' || infoPagamento.modalita_saldo === 'tre_rate') && rate.length === 0 && !isEffettivamenteSaldato && profile?.role !== 'operatore' && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
                 <div>

@@ -309,8 +309,8 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                 </p>
               </div>
 
-              {/* ===== PULSANTE DELETE - SOLO PER AMMINISTRATORE ===== */}
-              {userRole === 'amministratore' && (
+              {/* ===== PULSANTE DELETE - SOLO PER ADMIN ===== */}
+              {userRole === 'admin' && (
                 <button
                   onClick={() => setShowDeleteModal(true)}
                   className="flex items-center space-x-2 px-3 py-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors border border-red-200 shadow-sm"

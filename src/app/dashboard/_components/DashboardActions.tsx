@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useBuste } from '@/hooks/useBuste';
 import { toast } from 'sonner';
 import { useEffect, useState } from 'react';
+import { useUser } from '@/context/UserContext';
 
 interface DashboardActionsProps {
   totalBuste: number;
@@ -13,6 +14,7 @@ interface DashboardActionsProps {
 export default function DashboardActions({ totalBuste }: DashboardActionsProps) {
   const { mutate: revalidate, isLoading } = useBuste();
   const [voiceNotesCount, setVoiceNotesCount] = useState(0);
+  const { profile } = useUser();
 
   const handleRefresh = async () => {
     try {
@@ -90,14 +92,16 @@ export default function DashboardActions({ totalBuste }: DashboardActionsProps) 
         <span>Ordini</span>
       </Link>
       
-      {/* Nuova busta */}
-      <Link
-        href="/dashboard/buste/new"
-        className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-      >
-        <Plus className="h-4 w-4" />
-        <span>Nuova Busta</span>
-      </Link>
+      {/* Nuova busta - nascosto per operatori */}
+      {profile?.role !== 'operatore' && (
+        <Link
+          href="/dashboard/buste/new"
+          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Nuova Busta</span>
+        </Link>
+      )}
     </div>
   );
 }
