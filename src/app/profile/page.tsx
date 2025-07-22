@@ -1,9 +1,10 @@
+// app/profile/page.tsx - Admin-managed avatars version
 "use client"
 
 import { useState, useRef, ChangeEvent } from 'react'
 import { useUser } from '@/context/UserContext'
 import Link from 'next/link'
-import { ArrowLeft, User, Camera, Save, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, User, Camera, Save, AlertTriangle, CheckCircle, Loader2, Shield, Mail, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -11,8 +12,10 @@ export default function ProfilePage() {
   const { user, profile, refreshProfile, isLoading } = useUser()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setSaving] = useState(false)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [error, setError] = useState<string>('')
   const [success, setSuccess] = useState<string>('')
+  const [showAvatarRequest, setShowAvatarRequest] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -23,6 +26,8 @@ export default function ProfilePage() {
     role: profile?.role || 'operatore'
   })
 
+  // Check if current user is admin
+  const isAdmin = profile?.role === 'admin'
 
   // Redirect if not authenticated
   if (!isLoading && !user) {
@@ -46,7 +51,6 @@ export default function ProfilePage() {
     setFormData(prev => ({ ...prev, [name]: value }))
     setError('')
   }
-
 
   const handleSaveProfile = async () => {
     if (!user || !profile) return
@@ -76,60 +80,127 @@ export default function ProfilePage() {
     }
   }
 
-
-  const handleAvatarClick = () => {
-    fileInputRef.current?.click()
+  const handleAvatarRequest = () => {
+    setShowAvatarRequest(true)
   }
 
-  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !user) return
+  const sendAvatarRequestEmail = () => {
+    const subject = encodeURIComponent(`[Gestionale Ottica] Richiesta cambio avatar - ${profile?.full_name}`)
+    const body = encodeURIComponent(`Ciao,
 
-    // Validate file type and size
+Vorrei cambiare il mio avatar nel gestionale.
+
+Dettagli utente:
+- Nome: ${profile?.full_name}
+- Email: ${user?.email}
+- Ruolo: ${profile?.role}
+
+Per favore, dimmi come procedere per inviarti la nuova foto.
+
+Grazie!`)
+
+    window.open(`mailto:admin@example.com?subject=${subject}&body=${body}`, '_blank')
+    setShowAvatarRequest(false)
+    setSuccess('Email di richiesta preparata! Invia la tua foto all\'amministratore.')
+  }
+
+  // Admin-only avatar upload function
+  const handleAdminAvatarUpload = async (file: File, targetUserId: string = user?.id || '') => {
+    if (!isAdmin) {
+      setError('Solo gli amministratori possono caricare avatar')
+      return
+    }
+
+    // Validate file
     if (!file.type.startsWith('image/')) {
       setError('Seleziona un\'immagine valida')
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      setError('L\'immagine non può superare i 5MB')
+    // Admin can upload larger files but should be warned
+    if (file.size > 2 * 1024 * 1024) { // 2MB warning
+      if (!confirm(`L'immagine è ${(file.size / 1024 / 1024).toFixed(1)}MB. Continuare? (Consigliato: <2MB)`)) {
+        return
+      }
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB hard limit
+      setError('Immagine troppo grande. Massimo 10MB consentiti.')
       return
     }
 
-    setSaving(true)
+    setIsUploadingAvatar(true)
     setError('')
+    setSuccess('')
 
     try {
-      // Upload to Supabase storage
+      console.log('📤 Admin uploading avatar for user:', targetUserId)
+      
       const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}/avatar.${fileExt}`
+      const fileName = `${targetUserId}/avatar.${fileExt}`
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('avatars')
         .upload(fileName, file, { upsert: true })
 
-      if (uploadError) throw uploadError
+      if (uploadError) {
+        console.error('❌ Upload error:', uploadError)
+        if (uploadError.message.includes('Policy')) {
+          setError('Errore: Solo gli amministratori possono caricare avatar. Verifica i tuoi permessi.')
+        } else if (uploadError.message.includes('Bucket not found')) {
+          setError('Bucket avatar non configurato. Contatta l\'amministratore.')
+        } else {
+          setError(`Errore upload: ${uploadError.message}`)
+        }
+        return
+      }
+
+      console.log('✅ Upload successful:', uploadData)
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(fileName)
 
-      // Update profile with avatar URL
+      // Update target user's profile
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', user.id)
+        .update({ 
+          avatar_url: publicUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', targetUserId)
 
-      if (updateError) throw updateError
+      if (updateError) {
+        setError(`Errore aggiornamento profilo: ${updateError.message}`)
+        return
+      }
 
       await refreshProfile()
-      setSuccess('Avatar aggiornato con successo!')
+      setSuccess(`Avatar aggiornato con successo! Dimensione: ${(file.size / 1024).toFixed(0)}KB`)
+      
+      setTimeout(() => setSuccess(''), 5000)
+      
     } catch (err: any) {
-      setError('Errore durante il caricamento dell\'avatar: ' + err.message)
+      console.error('❌ Unexpected error:', err)
+      setError('Errore imprevisto: ' + err.message)
     } finally {
-      setSaving(false)
+      setIsUploadingAvatar(false)
     }
+  }
+
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+
+    if (isAdmin) {
+      await handleAdminAvatarUpload(file)
+    } else {
+      setError('Solo gli amministratori possono caricare avatar direttamente')
+    }
+    
+    // Reset file input
+    e.target.value = ''
   }
 
   return (
@@ -148,6 +219,12 @@ export default function ProfilePage() {
               </Link>
               <div className="h-6 w-px bg-gray-300" />
               <h1 className="text-xl font-semibold text-gray-900">Profilo Utente</h1>
+              {isAdmin && (
+                <div className="flex items-center space-x-1 bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs">
+                  <Shield className="w-3 h-3" />
+                  <span>Admin</span>
+                </div>
+              )}
             </div>
             <div className="flex items-center space-x-3">
               {!isEditing ? (
@@ -178,7 +255,7 @@ export default function ProfilePage() {
                     disabled={isSaving}
                     className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
                   >
-                    <Save className="h-4 w-4" />
+                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     <span>{isSaving ? 'Salvataggio...' : 'Salva'}</span>
                   </button>
                 </div>
@@ -196,9 +273,10 @@ export default function ProfilePage() {
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-4">
               <div className="flex">
-                <AlertTriangle className="h-5 w-5 text-red-400" />
+                <AlertTriangle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
                 <div className="ml-3">
-                  <p className="text-sm text-red-800">{error}</p>
+                  <h3 className="text-sm font-medium text-red-800">Errore</h3>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
                 </div>
               </div>
             </div>
@@ -206,7 +284,12 @@ export default function ProfilePage() {
 
           {success && (
             <div className="bg-green-50 border border-green-200 rounded-md p-4">
-              <p className="text-sm text-green-800">{success}</p>
+              <div className="flex">
+                <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-green-800">{success}</p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -215,42 +298,138 @@ export default function ProfilePage() {
             <h2 className="text-lg font-semibold text-gray-900 mb-6">Foto Profilo</h2>
             <div className="flex items-center space-x-6">
               <div className="relative">
-                <div className="h-24 w-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+              <div className="h-24 w-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden border-4 border-gray-200">
                   {profile?.avatar_url ? (
                     <img
                       src={profile.avatar_url}
                       alt="Avatar"
                       className="h-full w-full object-cover"
+                      onError={(e) => {
+                        // FIX: Evita loop infinito
+                        const img = e.target as HTMLImageElement;
+                        if (!img.src.includes('ui-avatars.com')) {
+                          console.error('❌ Avatar failed, using fallback');
+                          img.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.full_name || 'User')}&background=random&size=128`;
+                        }
+                      }}
                     />
                   ) : (
                     <User className="h-12 w-12 text-gray-400" />
                   )}
                 </div>
-                <button
-                  onClick={handleAvatarClick}
-                  disabled={isSaving}
-                  className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  <Camera className="h-4 w-4" />
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="image/*"
-                  className="hidden"
-                />
+                
+                {/* Admin can upload directly */}
+                {isAdmin ? (
+                  <>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingAvatar || isSaving}
+                      className="absolute -bottom-2 -right-2 bg-purple-600 text-white p-2 rounded-full hover:bg-purple-700 transition-colors disabled:opacity-50"
+                      title="Upload avatar (Admin)"
+                    >
+                      {isUploadingAvatar ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Camera className="h-4 w-4" />
+                      )}
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      onChange={handleFileChange}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                  </>
+                ) : (
+                  /* Regular users can only request */
+                  <button
+                    onClick={handleAvatarRequest}
+                    className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors"
+                    title="Richiedi cambio avatar"
+                  >
+                    <Mail className="h-4 w-4" />
+                  </button>
+                )}
               </div>
-              <div>
-                <p className="text-sm text-gray-600 mb-2">
-                  Clicca sull'icona della fotocamera per cambiare la foto profilo
-                </p>
-                <p className="text-xs text-gray-500">
-                  Formati supportati: JPG, PNG, GIF (max 5MB)
-                </p>
+              
+              <div className="flex-1">
+                {isAdmin ? (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-purple-700 flex items-center space-x-1">
+                      <Shield className="w-4 h-4" />
+                      <span>Modalità Amministratore</span>
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Puoi caricare avatar direttamente. Raccomandato: &lt;2MB per prestazioni ottimali.
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Formati: JPG, PNG, WebP | Limite: 10MB | Consigliato: 200x200px
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-600">
+                      Per cambiare il tuo avatar, invia una richiesta all'amministratore.
+                    </p>
+                    <button
+                      onClick={handleAvatarRequest}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors text-sm flex items-center space-x-2"
+                    >
+                      <Mail className="w-4 h-4" />
+                      <span>Richiedi Cambio Avatar</span>
+                    </button>
+                    <p className="text-xs text-gray-500">
+                      L'amministratore ottimizzerà la tua foto per le migliori prestazioni.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>
+
+          {/* Avatar Request Modal */}
+          {showAvatarRequest && !isAdmin && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div className="flex items-center space-x-3 mb-4">
+                  <Info className="w-6 h-6 text-blue-600" />
+                  <h3 className="text-lg font-semibold">Richiesta Cambio Avatar</h3>
+                </div>
+                
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Per cambiare il tuo avatar, invia la tua foto all'amministratore che la ottimizzerà per il sistema.
+                  </p>
+                  
+                  <div className="bg-blue-50 p-3 rounded-md">
+                    <p className="text-xs text-blue-800">
+                      <strong>Suggerimenti:</strong><br/>
+                      • Foto quadrata (es. 400x400px)<br/>
+                      • Formato JPG o PNG<br/>
+                      • Volto ben visibile<br/>
+                      • Dimensione ragionevole (&lt;5MB)
+                    </p>
+                  </div>
+
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={sendAvatarRequestEmail}
+                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      Invia Email di Richiesta
+                    </button>
+                    <button
+                      onClick={() => setShowAvatarRequest(false)}
+                      className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      Annulla
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Profile Information */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -260,6 +439,7 @@ export default function ProfilePage() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* FIX #3: Nome sempre editabile */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Nome Completo</label>
                 <input
@@ -286,12 +466,19 @@ export default function ProfilePage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Ruolo</label>
-                <input
-                  type="text"
-                  value={formData.role}
-                  disabled
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
-                />
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={formData.role}
+                    disabled
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
+                  />
+                  {isAdmin && (
+                    <div className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-medium">
+                      ADMIN
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-gray-500 mt-1">Il ruolo può essere modificato solo da un amministratore</p>
               </div>
 
@@ -316,18 +503,16 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Profilo Creato</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Profilo Aggiornato</label>
                 <input
                   type="text"
-                  value={profile?.created_at ? new Date(profile.created_at).toLocaleString('it-IT') : 'N/A'}
+                  value={profile?.updated_at ? new Date(profile.updated_at).toLocaleString('it-IT') : 'N/A'}
                   disabled
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500"
                 />
               </div>
             </div>
           </div>
-
-
         </div>
       </div>
     </div>

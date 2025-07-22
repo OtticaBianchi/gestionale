@@ -233,8 +233,22 @@ export default function UserProfileHeader() {
         <div className="flex items-center space-x-4">
           {/* Info Utente */}
           <div className="flex items-center space-x-3">
-            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-              <User className="h-4 w-4 text-blue-600" />
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+              {profile?.avatar_url ? (
+                <img 
+                  src={profile.avatar_url} 
+                  alt="Avatar" 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    if (!img.src.includes('ui-avatars.com')) {
+                      img.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.full_name || 'User')}&background=random&size=32`;
+                    }
+                  }}
+                />
+              ) : (
+                <User className="h-4 w-4 text-blue-600" />
+              )}
             </div>
             
             <div className="text-right">

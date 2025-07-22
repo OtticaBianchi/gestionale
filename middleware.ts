@@ -62,8 +62,42 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  // ===== PROTEZIONE ADMIN ROUTES =====
+  // 🔐 NUOVO: Protezione per rotte admin (solo admin possono accedere)
+  const adminPaths = ['/admin']
+  const isAdminPath = adminPaths.some(path => pathname.startsWith(path))
+
+  if (isAdminPath) {
+    console.log('🔍 MIDDLEWARE - ADMIN PATH DETECTED:', pathname);
+    
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    if (!session) {
+      console.log('🔍 MIDDLEWARE - ADMIN PATH - No session, redirecting to login');
+      const redirectUrl = new URL('/login', request.url)
+      redirectUrl.searchParams.set('redirectTo', pathname)
+      return NextResponse.redirect(redirectUrl)
+    }
+
+    // Check if user is admin
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single()
+
+    console.log('🔍 MIDDLEWARE - ADMIN CHECK - Profile role:', profile?.role);
+
+    if (profileError || profile?.role !== 'admin') {
+      console.log('🔍 MIDDLEWARE - ACCESS DENIED - User is not admin, redirecting to dashboard');
+      return NextResponse.redirect(new URL('/dashboard?error=admin_required', request.url))
+    }
+
+    console.log('🔍 MIDDLEWARE - ADMIN ACCESS GRANTED');
+  }
+
   // Proteggi le rotte che richiedono autenticazione
-  const protectedPaths = ['/dashboard', '/buste', '/clienti', '/settings', '/onboarding']
+  const protectedPaths = ['/dashboard', '/buste', '/clienti', '/settings', '/onboarding', '/profilo']
   const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path))
 
   console.log('🔍 MIDDLEWARE - isProtectedPath:', isProtectedPath);
