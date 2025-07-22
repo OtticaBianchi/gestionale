@@ -264,3 +264,155 @@ const handleOrderUpdate = async () => {
    - Enhance reporting and analytics
    - Mobile app optimization
 5. **Documentation**: Maintain claude.md with latest patterns and voice notes usage
+
+Ecco la tua **relazione tecnica** nello stile del project plan che mi hai fornito,
+relativa all’**integrazione delle note di comunicazione cliente** nel gestionale:
+
+---
+
+# Project Plan: Comunicazione Cliente – Note Interne su Busta
+
+## Problem Analysis
+
+La funzionalità richiesta era la **possibilità di registrare una nota libera sulla busta** che tracciasse modalità e contenuto delle comunicazioni avvenute con il cliente (es: contatto informale, avviso fatto fuori app, reminder gestito manualmente).
+Il flusso richiesto:
+
+1. ✅ Messaggi al cliente (avviso ordine pronto, sollecito) già funzionanti
+2. ❌ **Nota manuale (“nota interna”/“comunicazione cliente”) non salvabile causa errore su constraint**
+3. ✅ Esigenza di differenziare queste note rispetto ai messaggi “ufficiali” inviati tramite app
+
+---
+
+## Root Cause Analysis
+
+### Architettura Attuale
+
+* **Frontend**: Next.js 14, TypeScript, Tailwind CSS
+* **Backend**: Supabase (PostgreSQL + Auth + RLS)
+* **Gestione tipi**: `database.types.ts` generato da schema live
+
+### Problema Identificato
+
+1. **Constraint su campo `tipo_messaggio`**:
+   La tabella `comunicazioni` accettava solo un set limitato di valori (`ordine_pronto`, `sollecito_ritiro`, ecc.), impedendo il salvataggio di nuovi tipi (“nota interna”).
+2. **Typing frontend non allineato**:
+   Anche TypeScript impediva l’uso di valori diversi da quelli previsti dal constraint generato.
+3. **Logica UI da semplificare**:
+   Il codice aveva gestito i tipi note in modo poco robusto e non scalabile.
+
+---
+
+## Solution Strategy
+
+### Fasi operative
+
+* **Modifica database**:
+  Estensione del constraint `comunicazioni_tipo_messaggio_check` per accettare anche `'nota_comunicazione_cliente'`.
+* **Rigenerazione tipi TypeScript**:
+  Aggiornamento di `database.types.ts` tramite Supabase Studio o CLI per riflettere i nuovi valori accettati dal DB.
+* **Refactor Frontend**:
+  Adeguamento dei tipi e della logica di invio per gestire sia i messaggi standard sia le nuove note interne.
+* **Pulizia logica UI**:
+  Uniformata la gestione e la visualizzazione delle note nelle storicizzazioni.
+
+---
+
+## Implementation Plan
+
+### Step 1: Modifica Constraint DB
+
+* [x] Rimozione e ricreazione del constraint con aggiunta di `'nota_comunicazione_cliente'`
+* [x] Verifica SQL:
+
+  ```sql
+  ALTER TABLE comunicazioni
+    DROP CONSTRAINT comunicazioni_tipo_messaggio_check;
+
+  ALTER TABLE comunicazioni
+    ADD CONSTRAINT comunicazioni_tipo_messaggio_check
+      CHECK (
+        tipo_messaggio = ANY (
+          ARRAY[
+            'ordine_pronto',
+            'sollecito_ritiro',
+            'sollecito_fornitore',
+            'avviso_ritardo',
+            'conferma_appuntamento',
+            'reminder_appuntamento',
+            'reminder_rata',
+            'nota_comunicazione_cliente'
+          ]::text[]
+        )
+      );
+  ```
+
+### Step 2: Rigenerazione Tipi
+
+* [x] Aggiornamento tipi TypeScript (`database.types.ts`) via Supabase Studio > API > Generate types
+* [x] Verifica corrispondenza nuovo valore tra i tipi accettati in TypeScript
+
+### Step 3: Refactor Frontend
+
+* [x] Estensione tipi TS per editing messaggi/nota (`'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente'`)
+* [x] Refactor funzione di invio:
+
+  * Invio nota con `tipo_messaggio: 'nota_comunicazione_cliente'`
+  * Validazione lato frontend aggiornata
+* [x] UI aggiornata:
+
+  * Label e badge coerenti per il nuovo tipo nota/comunicazione
+  * Placeholder specifico nelle textarea delle note
+
+---
+
+## Technical Implementation Details
+
+### Modifica logica frontend:
+
+* **generaMessaggio** mantiene solo i tipi previsti per messaggi standard
+* **avviaEditingMessaggio** gestisce separatamente l’apertura di una nota
+* **Visualizzazione storico**: Badge e colore distinti per note di comunicazione cliente
+
+### Aggiornamento constraint e tipi:
+
+* **Constraint SQL** sempre allineato alle esigenze di business
+* **Tipi TypeScript** generati da schema reale: zero errori di typing e massima robustezza
+
+---
+
+## Expected Outcomes
+
+✅ **Bug storico risolto**: Nessun errore su constraint o tipi quando si salva una nota
+✅ **Nota personalizzabile** e storicizzata assieme alle comunicazioni inviate
+✅ **Codice frontend pulito** e facilmente estendibile per altri tipi di comunicazione in futuro
+✅ **Migliore tracciabilità delle interazioni con il cliente**, anche quelle fatte fuori app
+
+---
+
+## Solution Validation
+
+### Test di flusso ✅
+
+1. Messaggi standard: funzionano come prima
+2. Nota “comunicazione cliente”:
+
+   * Modal/textarea dedicata
+   * Salvataggio senza errori
+   * Visualizzazione corretta nello storico
+3. Build OK, deploy su Vercel OK, nessun errore in produzione
+
+---
+
+## Next Steps
+
+1. ✅ **Repository update:** Commit e push su GitHub, deploy su Vercel
+2. **User training:** Operatori informati sulla nuova funzione
+3. **Future Enhancements:**
+
+   * Possibilità di allegare file/immagini alle note
+   * Tagging/separazione tra “note interne” e “note visibili al cliente”
+   * Statistiche e reportistica su comunicazioni manuali vs automatiche
+
+---
+
+**Project completed (21 July 2025).**

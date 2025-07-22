@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Mic, Play, Pause, Calendar, Clock, User, ArrowLeft, Download, Trash2, CheckCircle, FolderOpen, ExternalLink, Search, Eye, Copy, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
+import { useUser } from '@/context/UserContext';
 
 interface VoiceNote {
   id: string;
@@ -50,6 +51,7 @@ interface ClientSearchResult {
 }
 
 export default function VoiceNotesPage() {
+  const { profile } = useUser();
   const [voiceNotes, setVoiceNotes] = useState<VoiceNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -60,6 +62,9 @@ export default function VoiceNotesPage() {
   const [selectedNote, setSelectedNote] = useState<VoiceNote | null>(null);
   const [showDuplicateMenu, setShowDuplicateMenu] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Check if user can delete voice notes (only amministratore)
+  const canDeleteNotes = profile?.role === 'amministratore';
 
   const fetchVoiceNotes = async () => {
     try {
@@ -613,13 +618,15 @@ export default function VoiceNotesPage() {
                     >
                       <Search className="h-4 w-4" />
                     </button>
-                    <button
-                      onClick={() => deleteNote(note.id)}
-                      className="p-2 text-red-500 hover:text-red-700 transition-colors"
-                      title="Elimina nota"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {canDeleteNotes && (
+                      <button
+                        onClick={() => deleteNote(note.id)}
+                        className="p-2 text-red-500 hover:text-red-700 transition-colors"
+                        title="Elimina nota (solo amministratore)"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -33,6 +33,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     cliente_genere: '' as '' | 'M' | 'F',
     cliente_telefono: '',
     cliente_email: '',
+    cliente_note: '',
     tipo_lavorazione: '',
     priorita: 'normale' as 'normale' | 'urgente' | 'critica',
     note_generali: ''
@@ -115,7 +116,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
         clienteId = existingClient.id;
         console.log('✅ Cliente esistente trovato:', clienteId);
       } else {
-        // ✅ AGGIUNTO CAMPO GENERE NELLA CREAZIONE CLIENTE
+        // ✅ AGGIUNTO CAMPO GENERE E NOTE CLIENTE NELLA CREAZIONE CLIENTE
         const { data: newClient, error: newClientError } = await supabase
           .from('clienti')
           .insert({
@@ -125,6 +126,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
             genere: formData.cliente_genere || null,
             telefono: formData.cliente_telefono,
             email: formData.cliente_email || null,
+            note_cliente: formData.cliente_note || null,
           })
           .select('id')
           .single();
@@ -138,7 +140,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
       // ✅ Gestione tipo_lavorazione
       const validWorkTypes = [
         'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'ACC', 'RIC', 'RIP', 
-        'SA', 'SG', 'CT', 'ES', 'REL', 'FT'
+        'SA', 'SG', 'CT', 'ES', 'REL', 'FT', 'SPRT'
       ] as const;
       
       let tipoLavorazioneValue: Database['public']['Enums']['work_type'] | null = null;
@@ -212,6 +214,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
       cliente_genere: '',
       cliente_telefono: '',
       cliente_email: '',
+      cliente_note: '',
       tipo_lavorazione: '',
       priorita: 'normale',
       note_generali: ''
@@ -381,6 +384,18 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   <p className="text-red-600 text-xs mt-1">{errors.cliente_email}</p>
                 )}
               </div>
+
+              {/* Note Cliente */}
+              <div className="md:col-span-3">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Note Cliente</label>
+                <textarea 
+                  value={formData.cliente_note}
+                  onChange={(e) => handleInputChange('cliente_note', e.target.value)}
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Note aggiuntive sul cliente..."
+                />
+              </div>
             </div>
           </div>
 
@@ -418,6 +433,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   <option value="ES">🔬 ES - Esercizi oculari</option>
                   <option value="REL">📋 REL - Relazione</option>
                   <option value="FT">🧾 FT - Fattura</option>
+                  <option value="SPRT">🚴 SPRT - Sport</option>
                 </select>
               </div>
 

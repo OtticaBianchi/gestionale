@@ -1,7 +1,11 @@
 // src/app/api/assemblyai-transcribe/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { strictRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
+  // Apply rate limiting
+  const rateLimitResult = await strictRateLimit(request);
+  if (rateLimitResult) return rateLimitResult;
   try {
     const { audioUrl, wordBoost } = await request.json();
     
@@ -13,7 +17,7 @@ export async function POST(request: NextRequest) {
     const transcribeResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
-        'authorization': 'f953eb82c80c4797a6bd2f8d3a08855b',
+        'authorization': process.env.ASSEMBLYAI_API_KEY!,
         'content-type': 'application/json'
       },
       body: JSON.stringify({

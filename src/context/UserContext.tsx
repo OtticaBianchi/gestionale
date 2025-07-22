@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { User, Session } from '@supabase/supabase-js'
-import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react'
+import { createContext, useContext, useEffect, useState, ReactNode, useRef, useCallback } from 'react'
 
 // 1. Importiamo i tipi dal nostro file generato
 import { Database } from '@/types/database.types'
@@ -22,31 +22,38 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined)
 
-// Hook per il timer di inattività
+// Hook per il timer di inattività (FIXED per memory leaks)
 const useIdleTimer = (onIdle: () => void, idleTimeout: number) => {
   const timeoutId = useRef<NodeJS.Timeout | null>(null)
+  const onIdleRef = useRef(onIdle)
+  
+  // Aggiorna la ref per evitare stale closures
+  useEffect(() => {
+    onIdleRef.current = onIdle
+  }, [onIdle])
 
-  const resetTimer = () => {
+  const resetTimer = useCallback(() => {
     if (timeoutId.current) {
       clearTimeout(timeoutId.current)
     }
-    timeoutId.current = setTimeout(onIdle, idleTimeout)
-  }
+    timeoutId.current = setTimeout(() => onIdleRef.current(), idleTimeout)
+  }, [idleTimeout])
 
   useEffect(() => {
     const events = ['mousemove', 'keydown', 'mousedown', 'touchstart']
-    const handleActivity = () => resetTimer()
+    const handleActivity = resetTimer
 
-    events.forEach(event => window.addEventListener(event, handleActivity))
+    events.forEach(event => window.addEventListener(event, handleActivity, { passive: true }))
     resetTimer()
 
     return () => {
       if (timeoutId.current) {
         clearTimeout(timeoutId.current)
+        timeoutId.current = null
       }
       events.forEach(event => window.removeEventListener(event, handleActivity))
     }
-  }, [onIdle, idleTimeout])
+  }, [resetTimer])
 }
 
 
@@ -139,22 +146,27 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, 3 * 60 * 1000) // 3 minuti
 
   useEffect(() => {
+    // Flag per prevenire state updates dopo unmount
+    let isMounted = true
+    
     // Carica la sessione e il profilo all'avvio
     const getInitialSession = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession()
+
+        if (!isMounted) return // Evita state update se component è unmounted
 
         setSession(initialSession)
         setUser(initialSession?.user ?? null)
 
         if (initialSession?.user) {
           const profileData = await loadProfile(initialSession.user.id)
-          setProfile(profileData)
+          if (isMounted) setProfile(profileData)
         }
       } catch (error) {
         console.error('Error getting initial session:', error)
       } finally {
-        setIsLoading(false)
+        if (isMounted) setIsLoading(false)
       }
     }
     getInitialSession()
@@ -163,12 +175,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       console.log('Auth state changed:', event)
       
+      if (!isMounted) return // Evita state update se component è unmounted
+      
       setSession(newSession)
       setUser(newSession?.user ?? null)
 
       if (newSession?.user && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
         const profileData = await loadProfile(newSession.user.id)
-        setProfile(profileData)
+        if (isMounted) setProfile(profileData)
         
         if (!sessionStartTimeRef.current) { // Avvia il tracking se non già attivo
           sessionStartTimeRef.current = Date.now()
@@ -177,7 +191,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }
 
       } else if (event === 'SIGNED_OUT') {
-        setProfile(null)
+        if (isMounted) setProfile(null)
         
         // Resetta i contatori per sicurezza (dovrebbe essere già fatto in signOut)
         sessionStartTimeRef.current = null
@@ -185,7 +199,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         lastActivityTimeRef.current = null
       }
       
-      setIsLoading(false)
+      if (isMounted) setIsLoading(false)
     })
 
     // Listeners per la visibilità della pagina e la chiusura della finestra
@@ -210,11 +224,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
     window.addEventListener('beforeunload', handleBeforeUnload)
 
     return () => {
+      // Cleanup flag per prevenire memory leaks
+      isMounted = false
+      
+      // Cleanup subscription (CRITICO per memory leaks)
       subscription.unsubscribe()
+      
+      // Cleanup event listeners
       window.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [supabase.auth])
+  }, []) // Rimosso supabase.auth per evitare re-render infiniti
 
   const value: UserContextType = {
     user,

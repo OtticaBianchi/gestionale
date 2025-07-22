@@ -90,7 +90,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
       // ✅ Gestione tipo_lavorazione
       const validWorkTypes = [
         'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'ACC', 'RIC', 'RIP', 
-        'SA', 'SG', 'CT', 'ES', 'REL', 'FT'
+        'SA', 'SG', 'CT', 'ES', 'REL', 'FT', 'SPRT'
       ] as const;
       
       let tipoLavorazioneValue: Database['public']['Enums']['work_type'] | null = null;
@@ -459,6 +459,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
                 <option value="ES">🔬 ES - Esercizi oculari</option>
                 <option value="REL">📋 REL - Relazione</option>
                 <option value="FT">🧾 FT - Fattura</option>
+                <option value="SPRT">🚴 SPRT - Sport</option>
                 </select>
             ) : (
               <p className="text-gray-900">{busta.tipo_lavorazione || 'Da specificare'}</p>

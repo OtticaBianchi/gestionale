@@ -50,6 +50,7 @@ type OrdineConFornitore = {
   fornitore_tipo: 'lenti' | 'lac' | 'montature' | 'sport' | 'lab_esterno' | null;
   fornitore_telefono: string | null;
   fornitore_email: string | null;
+  fornitore_web_address: string | null;
   fornitore_note: string | null;
   fornitore_tempi_medi: number | null;
   
@@ -67,6 +68,7 @@ type FornitoreRaggruppato = {
   tipo: 'lenti' | 'lac' | 'montature' | 'sport' | 'lab_esterno';
   telefono: string | null;
   email: string | null;
+  web_address: string | null;
   note: string | null;
   tempi_medi: number | null;
   metodo_ordine_derivato: 'telefono' | 'email' | 'misto';
@@ -117,11 +119,11 @@ export default function FiltriOrdiniDashboard() {
             )
           ),
           
-          fornitori_lenti(nome, telefono, email, note, tempi_consegna_medi),
-          fornitori_lac(nome, telefono, email, note, tempi_consegna_medi),
-          fornitori_montature(nome, telefono, email, note, tempi_consegna_medi),
-          fornitori_sport(nome, telefono, email, note, tempi_consegna_medi),
-          fornitori_lab_esterno(nome, telefono, email, note, tempi_consegna_medi),
+          fornitori_lenti(nome, telefono, email, web_address, note, tempi_consegna_medi),
+          fornitori_lac(nome, telefono, email, web_address, note, tempi_consegna_medi),
+          fornitori_montature(nome, telefono, email, web_address, note, tempi_consegna_medi),
+          fornitori_sport(nome, telefono, email, web_address, note, tempi_consegna_medi),
+          fornitori_lab_esterno(nome, telefono, email, web_address, note, tempi_consegna_medi),
           tipi_lenti(nome),
           tipi_ordine(nome)
         `)
@@ -142,6 +144,7 @@ export default function FiltriOrdiniDashboard() {
         let fornitore_tipo: 'lenti' | 'lac' | 'montature' | 'sport' | 'lab_esterno' | null = null;
         let fornitore_telefono: string | null = null;
         let fornitore_email: string | null = null;
+        let fornitore_web_address: string | null = null;
         let fornitore_note: string | null = null;
         let fornitore_tempi_medi: number | null = null;
 
@@ -152,6 +155,8 @@ export default function FiltriOrdiniDashboard() {
           fornitore_tipo = 'lenti';
           fornitore_telefono = f.telefono;
           fornitore_email = f.email;
+          fornitore_web_address = f.web_address;
+          fornitore_web_address = f.web_address;
           fornitore_note = f.note;
           fornitore_tempi_medi = f.tempi_consegna_medi;
         } else if (ordine.fornitori_lac?.nome) {
@@ -160,6 +165,7 @@ export default function FiltriOrdiniDashboard() {
           fornitore_tipo = 'lac';
           fornitore_telefono = f.telefono;
           fornitore_email = f.email;
+          fornitore_web_address = f.web_address;
           fornitore_note = f.note;
           fornitore_tempi_medi = f.tempi_consegna_medi;
         } else if (ordine.fornitori_montature?.nome) {
@@ -168,6 +174,7 @@ export default function FiltriOrdiniDashboard() {
           fornitore_tipo = 'montature';
           fornitore_telefono = f.telefono;
           fornitore_email = f.email;
+          fornitore_web_address = f.web_address;
           fornitore_note = f.note;
           fornitore_tempi_medi = f.tempi_consegna_medi;
         } else if (ordine.fornitori_sport?.nome) {
@@ -176,6 +183,7 @@ export default function FiltriOrdiniDashboard() {
           fornitore_tipo = 'sport';
           fornitore_telefono = f.telefono;
           fornitore_email = f.email;
+          fornitore_web_address = f.web_address;
           fornitore_note = f.note;
           fornitore_tempi_medi = f.tempi_consegna_medi;
         } else if (ordine.fornitori_lab_esterno?.nome) {
@@ -184,6 +192,7 @@ export default function FiltriOrdiniDashboard() {
           fornitore_tipo = 'lab_esterno';
           fornitore_telefono = f.telefono;
           fornitore_email = f.email;
+          fornitore_web_address = f.web_address;
           fornitore_note = f.note;
           fornitore_tempi_medi = f.tempi_consegna_medi;
         }
@@ -217,6 +226,7 @@ export default function FiltriOrdiniDashboard() {
           fornitore_tipo,
           fornitore_telefono,
           fornitore_email,
+          fornitore_web_address,
           fornitore_note,
           fornitore_tempi_medi,
           
@@ -302,6 +312,7 @@ export default function FiltriOrdiniDashboard() {
         tipo: ordine.fornitore_tipo || 'lenti',
         telefono: ordine.fornitore_telefono,
         email: ordine.fornitore_email,
+        web_address: ordine.fornitore_web_address,
         note: ordine.fornitore_note,
         tempi_medi: ordine.fornitore_tempi_medi,
         // Deriva metodo ordine preferito dai campi disponibili
@@ -616,6 +627,17 @@ export default function FiltriOrdiniDashboard() {
                             >
                               <Mail className="w-3 h-3" />
                               <span>Email</span>
+                            </a>
+                          )}
+                          {fornitore.web_address && (
+                            <a 
+                              href={fornitore.web_address}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center space-x-1 px-3 py-1 bg-purple-100 text-purple-700 rounded text-sm hover:bg-purple-200 transition-colors"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              <span>sito {fornitore.nome}</span>
                             </a>
                           )}
                         </div>

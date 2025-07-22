@@ -69,6 +69,24 @@ export async function DELETE(
     const supabase = createServerSupabaseClient();
     const { id } = params;
 
+    // Check user role - only amministratore can delete voice notes
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || profile.role !== 'amministratore') {
+      return NextResponse.json({ 
+        error: 'Solo gli amministratori possono eliminare le note vocali' 
+      }, { status: 403 });
+    }
+
     const { error } = await supabase
       .from('voice_notes')
       .delete()

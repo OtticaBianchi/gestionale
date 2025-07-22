@@ -65,7 +65,7 @@ export async function GET(request: Request) {
             .insert({
               id: data.user.id,
               full_name: data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || 'Utente',
-              role: 'operatore' // Ruolo default
+              role: 'operatore' // Ruolo default (operatore nel nuovo sistema)
             })
 
           if (insertError) {

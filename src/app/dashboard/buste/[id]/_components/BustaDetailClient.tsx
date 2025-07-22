@@ -118,8 +118,22 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
     try {
       console.log('🗑️ Cancellazione busta:', busta.id);
       
-      // Per ora simuliamo la cancellazione
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Utente non autenticato");
+      
+      // ✅ Chiama la funzione database per eliminare completamente la busta
+      const { data, error } = await supabase.rpc('delete_busta_completa', {
+        busta_uuid: busta.id
+      });
+      
+      if (error) {
+        console.error('❌ Errore database:', error);
+        throw new Error(error.message);
+      }
+      
+      if (!data) {
+        throw new Error('Errore durante la cancellazione della busta');
+      }
       
       console.log('✅ Busta cancellata con successo');
       
@@ -295,12 +309,12 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                 </p>
               </div>
 
-              {/* ===== PULSANTE DELETE - SOLO PER ADMIN ===== */}
-              {userRole === 'admin' && (
+              {/* ===== PULSANTE DELETE - SOLO PER AMMINISTRATORE ===== */}
+              {userRole === 'amministratore' && (
                 <button
                   onClick={() => setShowDeleteModal(true)}
                   className="flex items-center space-x-2 px-3 py-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors border border-red-200 shadow-sm"
-                  title="Cancella busta (solo admin)"
+                  title="Cancella busta (solo amministratore)"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span className="text-sm font-medium">Elimina</span>

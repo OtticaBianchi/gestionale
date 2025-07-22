@@ -211,6 +211,7 @@ export type Database = {
           note: string | null
           telefono: string | null
           tempi_consegna_medi: number | null
+          web_address: string | null
         }
         Insert: {
           created_at?: string | null
@@ -220,6 +221,7 @@ export type Database = {
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null
+          web_address?: string | null
         }
         Update: {
           created_at?: string | null
@@ -229,6 +231,7 @@ export type Database = {
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null
+          web_address?: string | null
         }
         Relationships: []
       }
@@ -242,6 +245,7 @@ export type Database = {
           telefono: string | null
           tempi_consegna_medi: number | null
           updated_at: string | null
+          web_address: string | null
         }
         Insert: {
           created_at?: string | null
@@ -252,6 +256,7 @@ export type Database = {
           telefono?: string | null
           tempi_consegna_medi?: number | null
           updated_at?: string | null
+          web_address?: string | null
         }
         Update: {
           created_at?: string | null
@@ -262,6 +267,7 @@ export type Database = {
           telefono?: string | null
           tempi_consegna_medi?: number | null
           updated_at?: string | null
+          web_address?: string | null
         }
         Relationships: []
       }
@@ -275,6 +281,7 @@ export type Database = {
           telefono: string | null
           tempi_consegna_medi: number | null
           updated_at: string | null
+          web_address: string | null
         }
         Insert: {
           created_at?: string | null
@@ -285,6 +292,7 @@ export type Database = {
           telefono?: string | null
           tempi_consegna_medi?: number | null
           updated_at?: string | null
+          web_address?: string | null
         }
         Update: {
           created_at?: string | null
@@ -295,6 +303,7 @@ export type Database = {
           telefono?: string | null
           tempi_consegna_medi?: number | null
           updated_at?: string | null
+          web_address?: string | null
         }
         Relationships: []
       }
@@ -308,6 +317,7 @@ export type Database = {
           telefono: string | null
           tempi_consegna_medi: number | null
           updated_at: string | null
+          web_address: string | null
         }
         Insert: {
           created_at?: string | null
@@ -318,6 +328,7 @@ export type Database = {
           telefono?: string | null
           tempi_consegna_medi?: number | null
           updated_at?: string | null
+          web_address?: string | null
         }
         Update: {
           created_at?: string | null
@@ -328,6 +339,7 @@ export type Database = {
           telefono?: string | null
           tempi_consegna_medi?: number | null
           updated_at?: string | null
+          web_address?: string | null
         }
         Relationships: []
       }
@@ -341,6 +353,7 @@ export type Database = {
           telefono: string | null
           tempi_consegna_medi: number | null
           updated_at: string | null
+          web_address: string | null
         }
         Insert: {
           created_at?: string | null
@@ -351,6 +364,7 @@ export type Database = {
           telefono?: string | null
           tempi_consegna_medi?: number | null
           updated_at?: string | null
+          web_address?: string | null
         }
         Update: {
           created_at?: string | null
@@ -361,6 +375,7 @@ export type Database = {
           telefono?: string | null
           tempi_consegna_medi?: number | null
           updated_at?: string | null
+          web_address?: string | null
         }
         Relationships: []
       }
@@ -1261,6 +1276,7 @@ export type Database = {
         | "ES"
         | "REL"
         | "FT"
+        | "SPRT"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1423,6 +1439,7 @@ export const Constants = {
         "ES",
         "REL",
         "FT",
+        "SPRT",
       ],
     },
   },

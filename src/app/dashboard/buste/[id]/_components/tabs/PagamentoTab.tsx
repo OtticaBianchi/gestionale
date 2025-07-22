@@ -429,6 +429,23 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
       setInfoPagamento(convertedSaved);
       setIsEditing(false);
       
+      // ✅ NUOVO: Se modalità è finanziamento, aggiorna stato busta a "consegnato_pagato"
+      if (formData.modalita_saldo === 'finanziamento' && busta.stato_attuale !== 'consegnato_pagato') {
+        const { error: statoError } = await supabase
+          .from('buste')
+          .update({
+            stato_attuale: 'consegnato_pagato',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', busta.id);
+          
+        if (statoError) {
+          console.error('❌ Errore aggiornamento stato busta:', statoError);
+        } else {
+          console.log('✅ Stato busta aggiornato a "consegnato_pagato" per finanziamento');
+        }
+      }
+      
       console.log('✅ Pagamento salvato con successo');
 
     } catch (error: any) {
@@ -593,6 +610,10 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
 
   // ===== VERIFICA SE BUSTA È CONSEGNATA =====
   const isBustaConsegnata = busta.stato_attuale === 'consegnato_pagato' || busta.stato_attuale === 'pronto_ritiro';
+  
+  // ===== VERIFICA SE PAGAMENTO È CONSIDERATO SALDATO =====
+  // Finanziamento è equivalente a saldato
+  const isEffettivamenteSaldato = safeBooleanValue(formData.is_saldato) || formData.modalita_saldo === 'finanziamento';
 
   // ===== RENDER =====
   return (
@@ -613,13 +634,13 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
           
           {/* Status indicator */}
           <div className={`px-3 py-2 rounded-lg text-sm font-medium ${
-            safeBooleanValue(formData.is_saldato)
+            isEffettivamenteSaldato
               ? 'bg-green-100 text-green-800' 
               : isBustaConsegnata
               ? 'bg-yellow-100 text-yellow-800'
               : 'bg-gray-100 text-gray-600'
           }`}>
-            {safeBooleanValue(formData.is_saldato) ? '✅ Saldato' : 
+            {isEffettivamenteSaldato ? (formData.modalita_saldo === 'finanziamento' ? '🏦 Finanziato' : '✅ Saldato') : 
              isBustaConsegnata ? '⏳ In attesa pagamento' : '📋 Da configurare'}
           </div>
         </div>
@@ -637,7 +658,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Configurazione Pagamento</h3>
               
-              {!isEditing && !safeBooleanValue(formData.is_saldato) && (
+              {!isEditing && !isEffettivamenteSaldato && (
                 <button
                   onClick={() => setIsEditing(true)}
                   className="flex items-center space-x-2 px-3 py-2 text-sm bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors"
@@ -846,7 +867,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                 
                 <div className="flex items-center space-x-2">
                   {/* ✅ NUOVO: Pulsante modifica importi */}
-                  {!safeBooleanValue(formData.is_saldato) && rate.some(r => r.importo_rata) && !isEditingImporti && (
+                  {!isEffettivamenteSaldato && rate.some(r => r.importo_rata) && !isEditingImporti && (
                     <button
                       onClick={handleStartEditImporti}
                       className="flex items-center space-x-1 px-3 py-1 bg-orange-50 text-orange-600 rounded-md hover:bg-orange-100 transition-colors text-sm border border-orange-200"
@@ -857,7 +878,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                   )}
 
                   {/* ✅ AGGIORNATO: Pulsanti controllo reminder globale - solo per rate 2+ */}
-                  {!safeBooleanValue(formData.is_saldato) && rate.some(r => r.numero_rata > 1 && !safeBooleanValue(r.is_pagata)) && !isEditingImporti && (
+                  {!isEffettivamenteSaldato && rate.some(r => r.numero_rata > 1 && !safeBooleanValue(r.is_pagata)) && !isEditingImporti && (
                     <div className="flex items-center space-x-2 mr-4">
                       <button
                         onClick={() => toggleAllReminders(true)}
@@ -903,7 +924,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                   )}
 
                   {/* Pulsante Elimina Rate */}
-                  {!safeBooleanValue(formData.is_saldato) && !isEditingImporti && (
+                  {!isEffettivamenteSaldato && !isEditingImporti && (
                     <button
                       onClick={handleEliminaRate}
                       disabled={isDeleting}
@@ -918,7 +939,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                     </button>
                   )}
                   
-                  {!safeBooleanValue(formData.is_saldato) && !isEditingImporti && (
+                  {!isEffettivamenteSaldato && !isEditingImporti && (
                     <button
                       onClick={handleSaldato}
                       disabled={isSaving}
@@ -1016,7 +1037,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
 
                         <div className="flex items-center space-x-3">
                           {/* ✅ NUOVO: Toggle reminder SOLO per rate 2+ */}
-                          {!isPrimaRata && !isRataPagata && !safeBooleanValue(formData.is_saldato) && (
+                          {!isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && (
                             <button
                               onClick={() => rata.id && toggleReminderRata(rata.id, isReminderAttivo)}
                               className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors border ${
@@ -1041,7 +1062,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                           )}
 
                           {/* ✅ NUOVO: Pulsante Invia Reminder SOLO per rate 2+ in scadenza */}
-                          {!isPrimaRata && !isRataPagata && !safeBooleanValue(formData.is_saldato) && isReminderAttivo && (isRataInScadenza || isRataRitardo) && (
+                          {!isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && isReminderAttivo && (isRataInScadenza || isRataRitardo) && (
                             <button
                               onClick={() => handleInviaReminderRata(rata)}
                               className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${
@@ -1055,7 +1076,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                           )}
                           
                           {/* ✅ NUOVO: Pulsante Paga Rata SOLO per rate 2+ non pagate */}
-                          {!isPrimaRata && !isRataPagata && !safeBooleanValue(formData.is_saldato) && (
+                          {!isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && (
                             <button
                               onClick={() => handlePagaRata(rata)}
                               className="flex items-center space-x-1 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
@@ -1111,7 +1132,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
           )}
 
           {/* ✅ NUOVO: Sezione per rigenerare rate se necessario */}
-          {infoPagamento && (infoPagamento.modalita_saldo === 'due_rate' || infoPagamento.modalita_saldo === 'tre_rate') && rate.length === 0 && !safeBooleanValue(formData.is_saldato) && (
+          {infoPagamento && (infoPagamento.modalita_saldo === 'due_rate' || infoPagamento.modalita_saldo === 'tre_rate') && rate.length === 0 && !isEffettivamenteSaldato && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
                 <div>

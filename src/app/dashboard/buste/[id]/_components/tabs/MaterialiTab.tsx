@@ -560,7 +560,7 @@ interface MaterialiTabProps {
               </label>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
-                  { value: 'lenti', label: '🔍 Lent  i', desc: 'Lenti da vista/sole' },
+                  { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti da vista/sole' },
                   { value: 'lac', label: '👁️ LAC', desc: 'Lenti a Contatto' },
                   { value: 'montature', label: '👓 Montature', desc: 'Occhiali/Sole' },
                   { value: 'lab.esterno', label: '🏭 Lab.Esterno', desc: 'Lavorazioni Esterne' },
