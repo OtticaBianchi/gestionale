@@ -24,6 +24,7 @@ export default function SignupPage() {
         email,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
           // Passiamo i dati extra che verranno salvati in user_metadata
           // e usati dal nostro trigger per creare il profilo
           data: {

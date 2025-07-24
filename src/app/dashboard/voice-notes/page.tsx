@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Mic, Play, Pause, Calendar, Clock, User, ArrowLeft, Download, Trash2, CheckCircle, FolderOpen, ExternalLink, Search, Eye, Copy, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/context/UserContext';
+import { toast } from 'sonner';
 
 interface VoiceNote {
   id: string;
@@ -164,6 +165,11 @@ export default function VoiceNotesPage() {
             ? { ...note, stato: 'completed' as const }
             : note
         ));
+        toast.success('Nota marcata come completata');
+      } else {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        toast.error(`Errore: ${errorData.error || 'Impossibile aggiornare la nota'}`);
       }
     } catch (error) {
       console.error('Error updating note status:', error);
