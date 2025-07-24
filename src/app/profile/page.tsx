@@ -19,6 +19,8 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isUploadingRequest, setIsUploadingRequest] = useState(false)
   
   const [formData, setFormData] = useState({
     fullName: profile?.full_name || '',
@@ -102,6 +104,63 @@ Grazie!`)
     window.open(`mailto:admin@example.com?subject=${subject}&body=${body}`, '_blank')
     setShowAvatarRequest(false)
     setSuccess('Email di richiesta preparata! Invia la tua foto all\'amministratore.')
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+  
+    // Validate file
+    if (!file.type.startsWith('image/')) {
+      setError('Seleziona un\'immagine valida')
+      return
+    }
+  
+    if (file.size > 10 * 1024 * 1024) { // 10MB
+      setError('Immagine troppo grande (max 10MB)')
+      return
+    }
+  
+    setSelectedFile(file)
+    setError('')
+  }
+  
+  const handleSendAvatarRequest = async () => {
+    if (!selectedFile) {
+      setError('Seleziona prima un\'immagine')
+      return
+    }
+  
+    setIsUploadingRequest(true)
+    setError('')
+  
+    try {
+      const formData = new FormData()
+      formData.append('avatar', selectedFile)
+      formData.append('userName', profile?.full_name || '')
+      formData.append('userEmail', user?.email || '')
+      formData.append('userRole', profile?.role || '')
+  
+      const response = await fetch('/api/send-avatar-request', {
+        method: 'POST',
+        body: formData
+      })
+  
+      const data = await response.json()
+  
+      if (!response.ok) {
+        throw new Error(data.error || 'Errore invio richiesta')
+      }
+  
+      setSuccess('✅ Richiesta avatar inviata con successo! L\'amministratore processerà la tua immagine.')
+      setSelectedFile(null)
+      setShowAvatarRequest(false)
+      
+    } catch (err: any) {
+      setError(`Errore: ${err.message}`)
+    } finally {
+      setIsUploadingRequest(false)
+    }
   }
 
   // Admin-only avatar upload function
@@ -390,46 +449,77 @@ Grazie!`)
 
           {/* Avatar Request Modal */}
           {showAvatarRequest && !isAdmin && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <Info className="w-6 h-6 text-blue-600" />
-                  <h3 className="text-lg font-semibold">Richiesta Cambio Avatar</h3>
-                </div>
-                
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-600">
-                    Per cambiare il tuo avatar, invia la tua foto all'amministratore che la ottimizzerà per il sistema.
-                  </p>
-                  
-                  <div className="bg-blue-50 p-3 rounded-md">
-                    <p className="text-xs text-blue-800">
-                      <strong>Suggerimenti:</strong><br/>
-                      • Foto quadrata (es. 400x400px)<br/>
-                      • Formato JPG o PNG<br/>
-                      • Volto ben visibile<br/>
-                      • Dimensione ragionevole (&lt;5MB)
-                    </p>
-                  </div>
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+      <div className="flex items-center space-x-3 mb-4">
+        <Camera className="w-6 h-6 text-blue-600" />
+        <h3 className="text-lg font-semibold">Richiesta Cambio Avatar</h3>
+      </div>
+      
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Seleziona la tua foto per l'avatar:
+          </label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+        </div>
 
-                  <div className="flex space-x-3">
-                    <button
-                      onClick={sendAvatarRequestEmail}
-                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-                    >
-                      Invia Email di Richiesta
-                    </button>
-                    <button
-                      onClick={() => setShowAvatarRequest(false)}
-                      className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                    >
-                      Annulla
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+        {selectedFile && (
+          <div className="bg-green-50 border border-green-200 rounded-md p-3">
+            <p className="text-sm text-green-800">
+              ✅ <strong>{selectedFile.name}</strong> ({(selectedFile.size / 1024).toFixed(1)} KB)
+            </p>
+          </div>
+        )}
+
+        <div className="bg-blue-50 p-3 rounded-md">
+          <p className="text-xs text-blue-800">
+            <strong>Suggerimenti:</strong><br/>
+            • Foto quadrata (es. 400x400px)<br/>
+            • Volto ben visibile e centrato<br/>
+            • Formato JPG o PNG<br/>
+            • Dimensione ragionevole (&lt;5MB)
+          </p>
+        </div>
+
+        <div className="flex space-x-3">
+          <button
+            onClick={handleSendAvatarRequest}
+            disabled={!selectedFile || isUploadingRequest}
+            className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+          >
+            {isUploadingRequest ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Invio in corso...</span>
+              </>
+            ) : (
+              <>
+                <Mail className="w-4 h-4" />
+                <span>Invia Richiesta Avatar</span>
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => {
+              setShowAvatarRequest(false)
+              setSelectedFile(null)
+              setError('')
+            }}
+            className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            Annulla
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
           {/* Profile Information */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

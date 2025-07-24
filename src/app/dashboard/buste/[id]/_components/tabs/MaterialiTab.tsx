@@ -1,5 +1,5 @@
 // ===== FILE: buste/[id]/_components/tabs/MaterialiTab.tsx =====
-// 🔥 VERSIONE AGGIORNATA - CON CAMPO da_ordinare
+// 🔥 VERSIONE AGGIORNATA - CON CAMPO da_ordinare + READ-ONLY MODE
 
 'use client';
 
@@ -59,9 +59,10 @@ type TipoLenti = Database['public']['Tables']['tipi_lenti']['Row'];
 // Props del componente
 interface MaterialiTabProps {
   busta: BustaDettagliata;
-}
+  isReadOnly?: boolean; // ✅ AGGIUNTO
+}                                                                                                            
 
-     export default function MaterialiTab({ busta }: MaterialiTabProps) {
+export default function MaterialiTab({ busta, isReadOnly = false }: MaterialiTabProps) {
   // ===== STATE =====
   const [ordiniMateriali, setOrdiniMateriali] = useState<OrdineMateriale[]>([]);
   const [tipiOrdine, setTipiOrdine] = useState<TipoOrdine[]>([]);
@@ -77,6 +78,9 @@ interface MaterialiTabProps {
   const [showNuovoOrdineForm, setShowNuovoOrdineForm] = useState(false);
   const [isLoadingOrdini, setIsLoadingOrdini] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // ✅ AGGIUNTO: Helper per controlli
+  const canEdit = !isReadOnly;
 
   // Nuovo ordine form con categorie
   const [nuovoOrdineForm, setNuovoOrdineForm] = useState({
@@ -516,6 +520,21 @@ interface MaterialiTabProps {
   return (
     <div className="space-y-6">
       
+      {/* ✅ READ-ONLY BANNER - NUOVO */}
+      {isReadOnly && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <Eye className="h-5 w-5 text-orange-600" />
+            <div>
+              <h3 className="text-sm font-medium text-orange-800">Modalità Sola Visualizzazione</h3>
+              <p className="text-sm text-orange-700">
+                Gli ordini possono essere visualizzati ma non modificati.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Header con pulsante nuovo ordine */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
@@ -528,19 +547,24 @@ interface MaterialiTabProps {
               Gestione ordini presso fornitori per questa busta
             </p>
           </div>
-          <button
-            onClick={() => setShowNuovoOrdineForm(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nuovo Ordine</span>
-          </button>
+          
+          {/* ✅ MODIFICA: PULSANTE NUOVO ORDINE - NASCOSTO PER OPERATORI */}
+          {canEdit && (
+            <button
+              onClick={() => setShowNuovoOrdineForm(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nuovo Ordine</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Form Nuovo Ordine */}
-      {showNuovoOrdineForm && (
+      {/* ✅ MODIFICA: Form Nuovo Ordine - NASCOSTO PER OPERATORI */}
+      {canEdit && showNuovoOrdineForm && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          {/* ... tutto il form esistente rimane uguale ... */}
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Nuovo Ordine Materiale</h3>
             <button
@@ -788,15 +812,18 @@ interface MaterialiTabProps {
             <Package className="w-12 h-12 mx-auto text-gray-300 mb-4" />
             <h4 className="text-lg font-medium text-gray-900 mb-2">Nessun ordine ancora</h4>
             <p className="text-gray-500 mb-4">
-              Inizia creando il primo ordine per questa busta
+              {canEdit ? 'Inizia creando il primo ordine per questa busta' : 'Non ci sono ordini per questa busta'}
             </p>
-            <button
-              onClick={() => setShowNuovoOrdineForm(true)}
-              className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Crea Primo Ordine
-            </button>
+            {/* ✅ MODIFICA: PULSANTE SOLO SE canEdit */}
+            {canEdit && (
+              <button
+                onClick={() => setShowNuovoOrdineForm(true)}
+                className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Crea Primo Ordine
+              </button>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
@@ -827,27 +854,51 @@ interface MaterialiTabProps {
                           {ordine.descrizione_prodotto}
                         </h4>
                         
-                        <button
-                          onClick={() => handleToggleDaOrdinare(ordine.id, daOrdinare)}
-                          className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                        {/* ✅ MODIFICA: Toggle da_ordinare - NASCOSTO PER OPERATORI */}
+                        {canEdit && (
+                          <button
+                            onClick={() => handleToggleDaOrdinare(ordine.id, daOrdinare)}
+                            className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                              daOrdinare 
+                                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' 
+                                : 'bg-green-100 text-green-700 hover:bg-green-200'
+                            }`}
+                            title={daOrdinare ? 'Click per marcare come ordinato' : 'Click per marcare come da ordinare'}
+                          >
+                            {daOrdinare ? (
+                              <>
+                                <Clock className="w-3 h-3" />
+                                <span>Da Ordinare</span>
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-3 h-3" />
+                                <span>Ordinato</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        
+                        {/* ✅ Per operatori, mostra solo lo stato senza possibilità di cambiarlo */}
+                        {!canEdit && (
+                          <span className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium ${
                             daOrdinare 
-                              ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' 
-                              : 'bg-green-100 text-green-700 hover:bg-green-200'
-                          }`}
-                          title={daOrdinare ? 'Click per marcare come ordinato' : 'Click per marcare come da ordinare'}
-                        >
-                          {daOrdinare ? (
-                            <>
-                              <Clock className="w-3 h-3" />
-                              <span>Da Ordinare</span>
-                            </>
-                          ) : (
-                            <>
-                              <Check className="w-3 h-3" />
-                              <span>Ordinato</span>
-                            </>
-                          )}
-                        </button>
+                              ? 'bg-orange-100 text-orange-700' 
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {daOrdinare ? (
+                              <>
+                                <Clock className="w-3 h-3" />
+                                <span>Da Ordinare</span>
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-3 h-3" />
+                                <span>Ordinato</span>
+                              </>
+                            )}
+                          </span>
+                        )}
                         
                         <div className="flex items-center space-x-2">
                           {/* Nessuna icona se tutto ok */}
@@ -941,29 +992,32 @@ interface MaterialiTabProps {
                       )}
                     </div>
 
-                    <div className="flex flex-col items-end space-y-2 ml-4">
-                      <select
-                        value={statoOrdine}
-                        onChange={(e) => handleAggiornaStatoOrdine(ordine.id, e.target.value)}
-                        className="px-2 py-1 text-xs rounded border border-gray-300 focus:border-blue-500"
-                      >
-                        <option value="da_ordinare">🛒 Da Ordinare</option>
-                        <option value="ordinato">📦 Ordinato</option>
-                        <option value="in_ritardo">⏰ In Ritardo</option>
-                        <option value="accettato_con_riserva">🔄 Con Riserva</option>
-                        <option value="rifiutato">❌ Rifiutato</option>
-                        <option value="consegnato">✅ Consegnato</option>
-                      </select>
+                    {/* ✅ MODIFICA: AZIONI - NASCOSTE PER OPERATORI */}
+                    {canEdit && (
+                      <div className="flex flex-col items-end space-y-2 ml-4">
+                        <select
+                          value={statoOrdine}
+                          onChange={(e) => handleAggiornaStatoOrdine(ordine.id, e.target.value)}
+                          className="px-2 py-1 text-xs rounded border border-gray-300 focus:border-blue-500"
+                        >
+                          <option value="da_ordinare">🛒 Da Ordinare</option>
+                          <option value="ordinato">📦 Ordinato</option>
+                          <option value="in_ritardo">⏰ In Ritardo</option>
+                          <option value="accettato_con_riserva">🔄 Con Riserva</option>
+                          <option value="rifiutato">❌ Rifiutato</option>
+                          <option value="consegnato">✅ Consegnato</option>
+                        </select>
                   
-                      <button
-                        onClick={() => handleDeleteOrdine(ordine.id)}
-                        className="px-3 py-2 text-sm text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors border border-red-200"
-                        title="Elimina ordine"
-                      >
-                        <span className="hidden md:block">Elimina</span>
-                        <Trash2 className="w-4 h-4 md:hidden" />
-                      </button>
-                    </div>
+                        <button
+                          onClick={() => handleDeleteOrdine(ordine.id)}
+                          className="px-3 py-2 text-sm text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors border border-red-200"
+                          title="Elimina ordine"
+                        >
+                          <span className="hidden md:block">Elimina</span>
+                          <Trash2 className="w-4 h-4 md:hidden" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -972,6 +1026,7 @@ interface MaterialiTabProps {
         )}
       </div>
 
+      {/* Riepilogo - SEMPRE VISIBILE */}
       {ordiniMateriali.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Riepilogo</h3>

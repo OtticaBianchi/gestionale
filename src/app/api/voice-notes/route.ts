@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import { apiRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
@@ -10,7 +11,11 @@ export async function POST(request: NextRequest) {
   const rateLimitResult = await apiRateLimit(request);
   if (rateLimitResult) return rateLimitResult;
   try {
-    const supabase = createServerSupabaseClient();
+    // Use service role client for anonymous inserts to bypass RLS
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
     
     const formData = await request.formData();
     const audioFile = formData.get('audio') as File;
@@ -39,7 +44,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
     const base64Audio = buffer.toString('base64');
 
-    // Save to database
+    // Save to database with service role to bypass RLS temporarily
     const { data, error } = await supabase
       .from('voice_notes')
       .insert({
@@ -58,7 +63,12 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Database error:', error);
-      return NextResponse.json({ error: 'Errore salvataggio database' }, { status: 500 });
+      console.error('Error details:', JSON.stringify(error, null, 2));
+      return NextResponse.json({ 
+        error: 'Errore salvataggio database', 
+        details: error.message,
+        code: error.code 
+      }, { status: 500 });
     }
 
     return NextResponse.json({ 

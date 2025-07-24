@@ -354,11 +354,11 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
         </div>
       </div>
 
-      {/* Tab Content */}
+      {/* Tab Content - CORREZIONE LAYOUT */}
       <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Contenuto Principale Tab - 2/3 dello spazio */}
+          {/* Area principale tabs - 2/3 dello spazio */}
           <div className="lg:col-span-2">
             {activeTab === 'anagrafica' && (
               <AnagraficaTab 
@@ -367,28 +367,44 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                   setBusta(updatedBusta);
                   // SWR cache will be updated by the tab component
                 }}
+                isReadOnly={userRole === 'operatore'} // ✅ AGGIUNTO
               />
             )}
 
             {activeTab === 'materiali' && (
-              <MaterialiTab busta={busta} />
+              <MaterialiTab 
+                busta={busta}
+                isReadOnly={userRole === 'operatore'} // ✅ AGGIUNTO
+              />
             )}
 
             {activeTab === 'lavorazione' && (
-              <LavorazioneTab busta={busta} />
+              <LavorazioneTab 
+                busta={busta}
+                isReadOnly={userRole === 'operatore'} // ✅ AGGIUNTO
+              />
             )}
 
             {activeTab === 'notifiche' && (
-              <NotificheTab busta={busta} />
+              <NotificheTab 
+                busta={busta}
+                isReadOnly={userRole === 'operatore'} // ✅ AGGIUNTO
+              />
             )}
 
             {activeTab === 'pagamento' && (
-              <PagamentoTab busta={busta} />
+              <PagamentoTab 
+                busta={busta}
+                isReadOnly={userRole === 'operatore'} // ✅ AGGIUNTO
+              />
             )}
           </div>
 
           {/* Sidebar Globale - 1/3 dello spazio - SEMPRE VISIBILE */}
-          <BustaInfoSidebar busta={busta} />
+          <div className="lg:col-span-1">
+            <BustaInfoSidebar busta={busta} />
+          </div>
+          
         </div>
       </div>
     </div>

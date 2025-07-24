@@ -17,7 +17,8 @@ import {
   Mail,
   AlertTriangle,
   CheckCircle,
-  Loader2
+  Loader2,
+  Eye // ✅ AGGIUNTO per banner read-only
 } from 'lucide-react';
 import PrintBustaButton from 'src/app/dashboard/_components/PrintBustaButton'; // ✅ IMPORT AGGIUNTO
 import { useUser } from '@/context/UserContext';
@@ -39,9 +40,10 @@ type GenereCliente = 'M' | 'F' | null;
 interface AnagraficaTabProps {
   busta: BustaDettagliata;
   onBustaUpdate: (updatedBusta: BustaDettagliata) => void;
+  isReadOnly?: boolean; // ✅ AGGIUNTO
 }
 
-export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabProps) {
+export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false }: AnagraficaTabProps) {
   // ===== STATE =====
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -49,6 +51,9 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
   
   // User context for role checking
   const { profile } = useUser();
+  
+  // ✅ AGGIUNTO: Helper per controlli
+  const canEdit = !isReadOnly;
   
   const [editForm, setEditForm] = useState({
     // ✅ Dati busta
@@ -213,6 +218,22 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
   // ===== RENDER =====
   return (
     <div className="space-y-6">
+      
+      {/* ✅ READ-ONLY BANNER - NUOVO */}
+      {isReadOnly && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <Eye className="h-5 w-5 text-orange-600" />
+            <div>
+              <h3 className="text-sm font-medium text-orange-800">Modalità Sola Visualizzazione</h3>
+              <p className="text-sm text-orange-700">
+                Come operatore puoi visualizzare i dettagli ma non effettuare modifiche.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Success Message */}
       {saveSuccess && (
         <div className="fixed top-4 right-4 z-50 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg shadow-lg flex items-center space-x-2">
@@ -230,7 +251,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
           </h2>
           
           <div className="flex items-center space-x-2">
-            {/* ✅ PULSANTE STAMPA AGGIUNTO */}
+            {/* ✅ PULSANTE STAMPA - SEMPRE VISIBILE */}
             {busta.clienti && (
               <PrintBustaButton
                 bustaData={{
@@ -244,7 +265,8 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
               />
             )}
             
-            {isEditing && (
+            {/* ✅ MODIFICA: Indicatore modalità editing - SOLO SE canEdit */}
+            {canEdit && isEditing && (
               <span className="text-sm text-blue-600 font-medium">Ora modificabile!</span>
             )}
           </div>
@@ -254,7 +276,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-500">Nome *</label>
-              {isEditing ? (
+              {canEdit && isEditing ? (
                 <input
                   type="text"
                   value={editForm.cliente_nome}
@@ -269,7 +291,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
             
             <div>
               <label className="block text-sm font-medium text-gray-500">Cognome *</label>
-              {isEditing ? (
+              {canEdit && isEditing ? (
                 <input
                   type="text"
                   value={editForm.cliente_cognome}
@@ -284,7 +306,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
             
             <div>
               <label className="block text-sm font-medium text-gray-500">Data di Nascita</label>
-              {isEditing ? (
+              {canEdit && isEditing ? (
                 <input
                   type="date"
                   value={editForm.cliente_data_nascita}
@@ -304,7 +326,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
             {/* ✅ NUOVO CAMPO GENERE */}
             <div>
               <label className="block text-sm font-medium text-gray-500">Genere</label>
-              {isEditing ? (
+              {canEdit && isEditing ? (
                 <select
                   value={editForm.cliente_genere || ''}
                   onChange={(e) => setEditForm(prev => ({ 
@@ -328,7 +350,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
             
             <div>
               <label className="block text-sm font-medium text-gray-500">Telefono</label>
-              {isEditing ? (
+              {canEdit && isEditing ? (
                 <input
                   type="tel"
                   value={editForm.cliente_telefono}
@@ -350,7 +372,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
             
             <div>
               <label className="block text-sm font-medium text-gray-500">Email</label>
-              {isEditing ? (
+              {canEdit && isEditing ? (
                 <input
                   type="email"
                   value={editForm.cliente_email}
@@ -372,7 +394,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
             
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-500">Note Cliente</label>
-              {isEditing ? (
+              {canEdit && isEditing ? (
                 <textarea
                   value={editForm.cliente_note}
                   onChange={(e) => setEditForm(prev => ({ ...prev, cliente_note: e.target.value }))}
@@ -400,7 +422,8 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
             Dettagli Lavorazione
           </h2>
           
-          {!isEditing && profile?.role !== 'operatore' ? (
+          {/* ✅ MODIFICA: PULSANTE MODIFICA - NASCOSTO PER OPERATORI */}
+          {canEdit && !isEditing && (
             <button
               onClick={() => setIsEditing(true)}
               className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors"
@@ -408,9 +431,10 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
               <Edit3 className="h-4 w-4" />
               <span>Modifica</span>
             </button>
-          ) : null}
+          )}
           
-          {isEditing && (
+          {/* ✅ MODIFICA: PULSANTI SALVA/ANNULLA - SOLO SE canEdit E isEditing */}
+          {canEdit && isEditing && (
             <div className="flex items-center space-x-2">
               <button
                 onClick={handleSave}
@@ -443,7 +467,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-500">Tipo Lavorazione</label>
-            {isEditing ? (
+            {canEdit && isEditing ? (
               <select
                 value={editForm.tipo_lavorazione}
                 onChange={(e) => setEditForm(prev => ({ ...prev, tipo_lavorazione: e.target.value }))}
@@ -474,7 +498,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
           
           <div>
             <label className="block text-sm font-medium text-gray-500">Priorità</label>
-            {isEditing ? (
+            {canEdit && isEditing ? (
               <select
                 value={editForm.priorita}
                 onChange={(e) => setEditForm(prev => ({ ...prev, priorita: e.target.value as any }))}
@@ -495,7 +519,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
             )}
           </div>
           
-          {isEditing && (
+          {canEdit && isEditing && (
             <div className="md:col-span-2">
               <label className="flex items-center space-x-2">
                 <input
@@ -514,7 +538,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate }: AnagraficaTabPro
           
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-500">Note Generali</label>
-            {isEditing ? (
+            {canEdit && isEditing ? (
               <textarea
                 value={editForm.note_generali}
                 onChange={(e) => setEditForm(prev => ({ ...prev, note_generali: e.target.value }))}

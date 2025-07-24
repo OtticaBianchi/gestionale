@@ -1,4 +1,5 @@
 // ===== FILE: buste/[id]/_components/tabs/NotificheTab.tsx =====
+// 🔥 VERSIONE FIXED v2 - READ-ONLY CON STORICO COMPLETO VISIBILE
 
 'use client';
 
@@ -14,6 +15,7 @@ import {
   AlertTriangle,
   Loader2,
   Phone,
+  Eye,
 } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 
@@ -37,9 +39,10 @@ type Comunicazione = Database['public']['Tables']['comunicazioni']['Row'];
 
 interface NotificheTabProps {
   busta: BustaDettagliata;
+  isReadOnly?: boolean;
 }
 
-export default function NotificheTab({ busta }: NotificheTabProps) {
+export default function NotificheTab({ busta, isReadOnly = false }: NotificheTabProps) {
   const [comunicazioni, setComunicazioni] = useState<Comunicazione[]>([]);
   const [isLoadingComunicazioni, setIsLoadingComunicazioni] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
@@ -47,6 +50,9 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
   
   // User context for role checking
   const { profile } = useUser();
+
+  // ✅ AGGIORNATO: Helper per controlli - solo le azioni sono limitate
+  const canEdit = !isReadOnly && profile?.role !== 'operatore';
 
   // Stato per editing messaggi
   const [editingMessageType, setEditingMessageType] = useState<'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente' | null>(null);
@@ -120,7 +126,7 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
     if (tipo === 'ordine_pronto' || tipo === 'sollecito_ritiro') {
       setCustomMessage(generaMessaggio(tipo));
     } else {
-      setCustomMessage(''); // O una frase tipo: 'Es: Contattato via WhatsApp personale...'
+      setCustomMessage('');
     }
   };
   const avviaNotaLibera = () => {
@@ -153,7 +159,7 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
           tipo_messaggio: tipo,
           testo_messaggio: testoFinale,
           data_invio: new Date().toISOString(),
-          destinatario_tipo: "cliente", // <--- SEMPLIFICATO! Anche per la nota
+          destinatario_tipo: "cliente",
           destinatario_nome: busta.clienti ? `${busta.clienti.cognome} ${busta.clienti.nome}` : "",
           destinatario_contatto: busta.clienti?.telefono ?? "",
           canale_invio: 'whatsapp',
@@ -189,6 +195,21 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
   return (
     <div className="space-y-6">
 
+      {/* ✅ READ-ONLY BANNER - Solo se isReadOnly (non per operatori) */}
+      {isReadOnly && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <Eye className="h-5 w-5 text-orange-600" />
+            <div>
+              <h3 className="text-sm font-medium text-orange-800">Modalità Sola Visualizzazione</h3>
+              <p className="text-sm text-orange-700">
+                Le comunicazioni possono essere visualizzate ma non è possibile inviare nuovi messaggi.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
@@ -198,7 +219,10 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
               Notifiche & Ritiro
             </h2>
             <p className="text-gray-600 text-sm mt-1">
-              Comunicazioni con il cliente per ritiro prodotti (e note interne)
+              {canEdit 
+                ? 'Comunicazioni con il cliente per ritiro prodotti (e note interne)'
+                : 'Visualizza storico comunicazioni con il cliente'
+              }
             </p>
           </div>
           <div className={`px-3 py-2 rounded-lg text-sm font-medium ${
@@ -211,113 +235,113 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
         </div>
       </div>
 
-      {/* Azioni Invio Messaggi */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Azioni Comunicazione
-        </h3>
+      {/* ✅ MODIFICA: Azioni Invio Messaggi - Solo per chi può editare */}
+      {canEdit && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Azioni Comunicazione
+          </h3>
 
-        {!isBustaReadyForNotification ? (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-600" />
-              <p className="text-yellow-800 font-medium">
-                La busta deve essere nello stato "Pronto Ritiro" per inviare notifiche
+          {!isBustaReadyForNotification ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                <p className="text-yellow-800 font-medium">
+                  La busta deve essere nello stato "Pronto Ritiro" per inviare notifiche
+                </p>
+              </div>
+              <p className="text-yellow-700 text-sm mt-2">
+                Trascina prima la busta nella colonna "Pronto Ritiro" nel Kanban
               </p>
             </div>
-            <p className="text-yellow-700 text-sm mt-2">
-              Trascina prima la busta nella colonna "Pronto Ritiro" nel Kanban
-            </p>
-          </div>
-        ) : editingMessageType ? (
-          <div className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-medium text-blue-900 mb-2">
-                {editingMessageType === 'ordine_pronto' ? '📝 Modifica Messaggio - Ordine Pronto' :
-                  editingMessageType === 'sollecito_ritiro' ? '📝 Modifica Messaggio - Sollecito' :
-                    '📝 Aggiungi Nota Interna'}
-              </h4>
-              <p className="text-sm text-blue-700 mb-4">
-                {editingMessageType === 'nota_comunicazione_cliente'
-                  ? 'Aggiungi una nota interna (es: "È passato il marito", "Avvertito via WhatsApp personale")'
-                  : 'Modifica il testo del messaggio prima dell\'invio'
-                }
-              </p>
+          ) : editingMessageType ? (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-medium text-blue-900 mb-2">
+                  {editingMessageType === 'ordine_pronto' ? '📝 Modifica Messaggio - Ordine Pronto' :
+                    editingMessageType === 'sollecito_ritiro' ? '📝 Modifica Messaggio - Sollecito' :
+                      '📝 Aggiungi Nota Interna'}
+                </h4>
+                <p className="text-sm text-blue-700 mb-4">
+                  {editingMessageType === 'nota_comunicazione_cliente'
+                    ? 'Aggiungi una nota interna (es: "È passato il marito", "Avvertito via WhatsApp personale")'
+                    : 'Modifica il testo del messaggio prima dell\'invio'
+                  }
+                </p>
 
-              <div className="space-y-3">
-                <label className="block text-sm font-medium text-gray-700">
-                  {editingMessageType === 'nota_comunicazione_cliente' ? 'Nota:' : 'Testo messaggio:'}
-                </label>
-                <textarea
-                  value={editingMessageType === 'nota_comunicazione_cliente' ? freeNote : customMessage}
-                  onChange={(e) => {
-                    if (editingMessageType === 'nota_comunicazione_cliente') {
-                      setFreeNote(e.target.value);
-                    } else {
-                      setCustomMessage(e.target.value);
-                    }
-                  }}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-none"
-                  placeholder={editingMessageType === 'nota_comunicazione_cliente'
-                    ? 'Es: È passato il marito, gli abbiamo detto che può venire sua moglie a ritirare...'
-                    : 'Modifica il testo del messaggio...'}
-                />
-
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={annullaEditing}
-                    disabled={isSendingMessage}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 transition-colors"
-                  >
-                    Annulla
-                  </button>
-                  <button
-                    onClick={() => {
-                      const testo = editingMessageType === 'nota_comunicazione_cliente' ? freeNote : customMessage;
-                      inviaMessaggio(editingMessageType, testo);
+                <div className="space-y-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    {editingMessageType === 'nota_comunicazione_cliente' ? 'Nota:' : 'Testo messaggio:'}
+                  </label>
+                  <textarea
+                    value={editingMessageType === 'nota_comunicazione_cliente' ? freeNote : customMessage}
+                    onChange={(e) => {
+                      if (editingMessageType === 'nota_comunicazione_cliente') {
+                        setFreeNote(e.target.value);
+                      } else {
+                        setCustomMessage(e.target.value);
+                      }
                     }}
-                    disabled={isSendingMessage || (editingMessageType === 'nota_comunicazione_cliente' ? !freeNote.trim() : !customMessage.trim())}
-                    className={`px-4 py-2 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
-                      editingMessageType === 'ordine_pronto' ? 'bg-green-600 hover:bg-green-700' :
-                        editingMessageType === 'sollecito_ritiro' ? 'bg-orange-600 hover:bg-orange-700' :
-                          'bg-blue-600 hover:bg-blue-700'
-                    }`}
-                  >
-                    {isSendingMessage ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
-                        {editingMessageType === 'nota_comunicazione_cliente' ? 'Salvando...' : 'Inviando...'}
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-2 inline" />
-                        {editingMessageType === 'nota_comunicazione_cliente' ? 'Salva Nota' : 'Invia Messaggio'}
-                      </>
-                    )}
-                  </button>
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    placeholder={editingMessageType === 'nota_comunicazione_cliente'
+                      ? 'Es: È passato il marito, gli abbiamo detto che può venire sua moglie a ritirare...'
+                      : 'Modifica il testo del messaggio...'}
+                  />
+
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      onClick={annullaEditing}
+                      disabled={isSendingMessage}
+                      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                    >
+                      Annulla
+                    </button>
+                    <button
+                      onClick={() => {
+                        const testo = editingMessageType === 'nota_comunicazione_cliente' ? freeNote : customMessage;
+                        inviaMessaggio(editingMessageType, testo);
+                      }}
+                      disabled={isSendingMessage || (editingMessageType === 'nota_comunicazione_cliente' ? !freeNote.trim() : !customMessage.trim())}
+                      className={`px-4 py-2 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+                        editingMessageType === 'ordine_pronto' ? 'bg-green-600 hover:bg-green-700' :
+                          editingMessageType === 'sollecito_ritiro' ? 'bg-orange-600 hover:bg-orange-700' :
+                            'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      {isSendingMessage ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
+                          {editingMessageType === 'nota_comunicazione_cliente' ? 'Salvando...' : 'Inviando...'}
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4 mr-2 inline" />
+                          {editingMessageType === 'nota_comunicazione_cliente' ? 'Salva Nota' : 'Invia Messaggio'}
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-            {/* Messaggio Ordine Pronto */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2 flex items-center">
-                <Send className="w-4 h-4 mr-2 text-green-600" />
-                Avvisa Ordine Pronto
-              </h4>
-              <p className="text-sm text-gray-600 mb-3">
-                Notifica il cliente che i prodotti sono pronti per il ritiro
-              </p>
-              <div className="bg-gray-50 rounded-md p-3 mb-3">
-                <p className="text-xs text-gray-700 italic">
-                  {generaMessaggio('ordine_pronto')}
+              {/* Messaggio Ordine Pronto */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                  <Send className="w-4 h-4 mr-2 text-green-600" />
+                  Avvisa Ordine Pronto
+                </h4>
+                <p className="text-sm text-gray-600 mb-3">
+                  Notifica il cliente che i prodotti sono pronti per il ritiro
                 </p>
-              </div>
-              {profile?.role !== 'operatore' && (
+                <div className="bg-gray-50 rounded-md p-3 mb-3">
+                  <p className="text-xs text-gray-700 italic">
+                    {generaMessaggio('ordine_pronto')}
+                  </p>
+                </div>
                 <button
                   onClick={() => avviaEditingMessaggio('ordine_pronto')}
                   disabled={isSendingMessage}
@@ -326,24 +350,22 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
                   <MessageCircle className="w-4 h-4 mr-2" />
                   Personalizza e Invia
                 </button>
-              )}
-            </div>
-
-            {/* Messaggio Sollecito */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2 flex items-center">
-                <Clock className="w-4 h-4 mr-2 text-orange-600" />
-                Sollecito Ritiro
-              </h4>
-              <p className="text-sm text-gray-600 mb-3">
-                Invia un promemoria per prodotti non ancora ritirati
-              </p>
-              <div className="bg-gray-50 rounded-md p-3 mb-3">
-                <p className="text-xs text-gray-700 italic">
-                  {generaMessaggio('sollecito_ritiro')}
-                </p>
               </div>
-              {profile?.role !== 'operatore' && (
+
+              {/* Messaggio Sollecito */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                  <Clock className="w-4 h-4 mr-2 text-orange-600" />
+                  Sollecito Ritiro
+                </h4>
+                <p className="text-sm text-gray-600 mb-3">
+                  Invia un promemoria per prodotti non ancora ritirati
+                </p>
+                <div className="bg-gray-50 rounded-md p-3 mb-3">
+                  <p className="text-xs text-gray-700 italic">
+                    {generaMessaggio('sollecito_ritiro')}
+                  </p>
+                </div>
                 <button
                   onClick={() => avviaEditingMessaggio('sollecito_ritiro')}
                   disabled={isSendingMessage}
@@ -352,24 +374,22 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
                   <Clock className="w-4 h-4 mr-2" />
                   Personalizza e Invia
                 </button>
-              )}
-            </div>
-
-            {/* Nota Interna */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2 flex items-center">
-                <User className="w-4 h-4 mr-2 text-blue-600" />
-                Nota Interna
-              </h4>
-              <p className="text-sm text-gray-600 mb-3">
-                Aggiungi una comunicazione interna (nessun invio al cliente)
-              </p>
-              <div className="bg-gray-50 rounded-md p-3 mb-3">
-                <p className="text-xs text-gray-700 italic">
-                  Es: "È passato il marito", "Avvertito via WhatsApp personale", "Cliente chiamato telefonicamente"
-                </p>
               </div>
-              {profile?.role !== 'operatore' && (
+
+              {/* Nota Interna */}
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                  <User className="w-4 h-4 mr-2 text-blue-600" />
+                  Nota Interna
+                </h4>
+                <p className="text-sm text-gray-600 mb-3">
+                  Aggiungi una comunicazione interna (nessun invio al cliente)
+                </p>
+                <div className="bg-gray-50 rounded-md p-3 mb-3">
+                  <p className="text-xs text-gray-700 italic">
+                    Es: "È passato il marito", "Avvertito via WhatsApp personale", "Cliente chiamato telefonicamente"
+                  </p>
+                </div>
                 <button
                   onClick={avviaNotaLibera}
                   disabled={isSendingMessage}
@@ -378,13 +398,28 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
                   <User className="w-4 h-4 mr-2" />
                   Aggiungi Nota
                 </button>
-              )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ✅ NUOVO: Messaggio informativo per operatori quando busta non è pronta */}
+      {!canEdit && !isBustaReadyForNotification && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <MessageCircle className="w-5 h-5 text-blue-600" />
+            <div>
+              <h3 className="text-sm font-medium text-blue-800">Comunicazioni non ancora disponibili</h3>
+              <p className="text-sm text-blue-700">
+                La busta deve essere nello stato "Pronto Ritiro" prima che i messaggi possano essere inviati.
+              </p>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Storico Comunicazioni */}
+      {/* ✅ SEMPRE VISIBILE: Storico Comunicazioni - Completo per tutti */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -408,7 +443,10 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
             <MessageCircle className="w-12 h-12 mx-auto text-gray-300 mb-4" />
             <h4 className="text-lg font-medium text-gray-900 mb-2">Nessuna comunicazione</h4>
             <p className="text-gray-500">
-              Non sono ancora stati inviati messaggi o note per questa busta
+              {canEdit ? 
+                'Non sono ancora stati inviati messaggi o note per questa busta' :
+                'Non ci sono comunicazioni registrate per questa busta'
+              }
             </p>
           </div>
         ) : (
@@ -454,9 +492,12 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
                         <span>{comunicazione.nome_operatore}</span>
                       </div>
                     </div>
+                    
+                    {/* ✅ SEMPRE VISIBILE: Testo messaggio per tutti */}
                     <p className="text-gray-900 text-sm mb-2">
                       {comunicazione.testo_messaggio}
                     </p>
+                    
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-gray-500">
                         Inviato il {new Date(comunicazione.data_invio).toLocaleDateString('it-IT')} alle {new Date(comunicazione.data_invio).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
@@ -469,7 +510,7 @@ export default function NotificheTab({ busta }: NotificheTabProps) {
                             : 'bg-gray-100 text-gray-700'
                       }`}>
                         {comunicazione.tipo_messaggio === 'nota_comunicazione_cliente'
-                          ? 'Nota Comunicazione Cliente'
+                          ? 'Nota Interna'
                           : comunicazione.canale_invio?.toUpperCase() || 'WHATSAPP'}
                       </span>
                     </div>

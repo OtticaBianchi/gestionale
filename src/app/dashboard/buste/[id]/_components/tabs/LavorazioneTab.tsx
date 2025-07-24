@@ -1,5 +1,5 @@
 // ===== FILE: buste/[id]/_components/tabs/LavorazioneTab.tsx =====
-// 🔥 VERSIONE FIXED v2 - USA TABELLA LAVORAZIONI DEDICATA
+// 🔥 VERSIONE FIXED v3 - READ-ONLY COMPLETO CON STORICO VISIBILE
 
 'use client';
 
@@ -19,6 +19,7 @@ import {
   Eye,
   Trash2
 } from 'lucide-react';
+import { useUser } from '@/context/UserContext';
 
 // ===== TYPES LOCALI =====
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
@@ -31,12 +32,11 @@ type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
   >;
 };
 
-// Tipo per le lavorazioni dalla tabella dedicata - FIXED per compatibilità
 type Lavorazione = {
   id: string;
   busta_id: string;
   tipo_montaggio_id: number;
-  stato: string; // Cambiato da literal types a string per compatibilità
+  stato: string;
   data_inizio: string;
   data_completamento?: string | null;
   data_fallimento?: string | null;
@@ -52,18 +52,24 @@ type Lavorazione = {
 
 type TipoMontaggio = Database['public']['Tables']['tipi_montaggio']['Row'];
 
-// Props del componente
 interface LavorazioneTabProps {
   busta: BustaDettagliata;
+  isReadOnly?: boolean;
 }
 
-export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
+export default function LavorazioneTab({ busta, isReadOnly = false }: LavorazioneTabProps) {
   // ===== STATE =====
   const [lavorazioni, setLavorazioni] = useState<Lavorazione[]>([]);
   const [tipiMontaggio, setTipiMontaggio] = useState<TipoMontaggio[]>([]);
   const [showNuovaLavorazioneForm, setShowNuovaLavorazioneForm] = useState(false);
   const [isLoadingLavorazioni, setIsLoadingLavorazioni] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // User context for role checking
+  const { profile } = useUser();
+
+  // ✅ AGGIORNATO: Helper per controlli - solo le azioni di modifica sono limitate
+  const canEdit = !isReadOnly && profile?.role !== 'operatore';
 
   // Form per nuova lavorazione
   const [nuovaLavorazioneForm, setNuovaLavorazioneForm] = useState({
@@ -88,7 +94,6 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
     try {
       console.log('🔍 Loading lavorazioni per busta:', busta.id);
       
-      // 🔥 CARICA TIPI MONTAGGIO DAL DATABASE
       const { data: tipiMontaggioData, error: tipiError } = await supabase
         .from('tipi_montaggio')
         .select('*')
@@ -101,7 +106,6 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
 
       setTipiMontaggio(tipiMontaggioData || []);
 
-      // 🔥 CARICA LAVORAZIONI DALLA TABELLA DEDICATA - SENZA JOIN PROBLEMATICO
       const { data: lavorazioniData, error: lavorazioniError } = await supabase
         .from('lavorazioni')
         .select(`
@@ -129,10 +133,8 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
       // Arricchisci i dati con le informazioni mancanti
       const lavorazioniArricchite = await Promise.all(
         (lavorazioniData || []).map(async (lavorazione) => {
-          // Cerca il tipo montaggio
           const tipoMontaggio = tipiMontaggioData?.find(tm => tm.id === lavorazione.tipo_montaggio_id);
           
-          // Cerca il profilo del responsabile
           let responsabileNome = 'Sconosciuto';
           try {
             const { data: profileData } = await supabase
@@ -167,7 +169,7 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
     }
   };
 
-  // ===== HANDLE SALVA NUOVA LAVORAZIONE - 🔥 VERSIONE REALE =====
+  // ===== HANDLE SALVA NUOVA LAVORAZIONE =====
   const handleSalvaNuovaLavorazione = async () => {
     if (!nuovaLavorazioneForm.tipo_montaggio_id) {
       alert('Seleziona un tipo di montaggio');
@@ -179,14 +181,10 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Utente non autenticato");
 
-      console.log('🔄 Creazione nuova lavorazione REALE:', nuovaLavorazioneForm);
-
-      // Calcola il numero di tentativo per questo tipo di montaggio
       const tentativiEsistenti = lavorazioni.filter(l => 
         l.tipo_montaggio_id.toString() === nuovaLavorazioneForm.tipo_montaggio_id
       ).length;
 
-      // 🔥 INSERT REALE NELLA TABELLA LAVORAZIONI
       const { data: lavorazioneCreata, error } = await supabase
         .from('lavorazioni')
         .insert({
@@ -214,17 +212,10 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
         `)
         .single();
 
-      if (error) {
-        console.error('❌ Errore creazione lavorazione:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('✅ Lavorazione creata con successo:', lavorazioneCreata);
-
-      // Arricchisci i dati della lavorazione creata
       const tipoMontaggioNome = tipiMontaggio.find(tm => tm.id === parseInt(nuovaLavorazioneForm.tipo_montaggio_id))?.nome || 'Sconosciuto';
       
-      // Ottieni il nome dell'utente corrente
       let responsabileNome = 'Tu';
       try {
         const { data: profileData } = await supabase
@@ -246,19 +237,14 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
         profiles: { full_name: responsabileNome }
       };
 
-      // Aggiorna la lista locale
       setLavorazioni(prev => [lavorazioneArricchita, ...prev]);
 
-      // Reset form
       setNuovaLavorazioneForm({
         tipo_montaggio_id: '',
         note: '',
         data_inizio: new Date().toISOString().split('T')[0]
       });
       setShowNuovaLavorazioneForm(false);
-
-      // 🔥 NESSUN ALERT DEMO - Feedback silenzioso
-      console.log('✅ Lavorazione salvata nel database');
 
     } catch (error: any) {
       console.error('❌ Error creating lavorazione:', error);
@@ -268,18 +254,15 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
     }
   };
 
-  // ===== HANDLE AGGIORNA STATO LAVORAZIONE - 🔥 VERSIONE REALE =====
+  // ===== HANDLE AGGIORNA STATO LAVORAZIONE =====
   const handleAggiornaStatoLavorazione = async (lavorazioneId: string, nuovoStato: string, noteAggiuntive: string) => {
     try {
-      console.log('🔄 Aggiornamento stato lavorazione:', lavorazioneId, nuovoStato);
-      
       const oggi = new Date().toISOString().split('T')[0];
       const updateData: any = {
         stato: nuovoStato,
         note: noteAggiuntive.trim() || null
       };
 
-      // Aggiungi data appropriata basata sullo stato
       if (nuovoStato === 'completato') {
         updateData.data_completamento = oggi;
         updateData.data_fallimento = null;
@@ -288,20 +271,13 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
         updateData.data_completamento = null;
       }
 
-      // 🔥 UPDATE REALE NEL DATABASE
       const { error } = await supabase
         .from('lavorazioni')
         .update(updateData)
         .eq('id', lavorazioneId);
 
-      if (error) {
-        console.error('❌ Errore aggiornamento lavorazione:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('✅ Stato lavorazione aggiornato nel database');
-
-      // Aggiorna stato locale
       setLavorazioni(prev => prev.map(lav => 
         lav.id === lavorazioneId 
           ? { 
@@ -321,29 +297,20 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
     }
   };
 
-  // ===== HANDLE DELETE LAVORAZIONE - 🔥 VERSIONE REALE =====
+  // ===== HANDLE DELETE LAVORAZIONE =====
   const handleDeleteLavorazione = async (lavorazioneId: string) => {
     if (!confirm('Sei sicuro di voler eliminare questa lavorazione?')) {
       return;
     }
 
     try {
-      console.log('🗑️ Eliminazione lavorazione:', lavorazioneId);
-      
-      // 🔥 DELETE REALE DAL DATABASE
       const { error } = await supabase
         .from('lavorazioni')
         .delete()
         .eq('id', lavorazioneId);
 
-      if (error) {
-        console.error('❌ Errore eliminazione lavorazione:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('✅ Lavorazione eliminata dal database');
-
-      // Rimuovi dalla lista locale
       setLavorazioni(prev => prev.filter(lav => lav.id !== lavorazioneId));
 
     } catch (error: any) {
@@ -356,6 +323,21 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
   return (
     <div className="space-y-6">
       
+      {/* ✅ READ-ONLY BANNER - Solo se isReadOnly (non per operatori) */}
+      {isReadOnly && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <Eye className="h-5 w-5 text-orange-600" />
+            <div>
+              <h3 className="text-sm font-medium text-orange-800">Modalità Sola Visualizzazione</h3>
+              <p className="text-sm text-orange-700">
+                Le lavorazioni possono essere visualizzate ma non modificate.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Header Lavorazione */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
@@ -365,21 +347,28 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
               Lavorazione & Montaggio
             </h2>
             <p className="text-gray-600 text-sm mt-1">
-              Gestione lavorazioni di montaggio con tracking tentativi e stati
+              {canEdit 
+                ? 'Gestione lavorazioni di montaggio con tracking tentativi e stati'
+                : 'Visualizza storico lavorazioni di montaggio e relativi stati'
+              }
             </p>
           </div>
-          <button
-            onClick={() => setShowNuovaLavorazioneForm(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nuova Lavorazione</span>
-          </button>
+          
+          {/* ✅ MODIFICA: Pulsante solo per chi può editare */}
+          {canEdit && (
+            <button
+              onClick={() => setShowNuovaLavorazioneForm(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Nuova Lavorazione</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Form Nuova Lavorazione */}
-      {showNuovaLavorazioneForm && (
+      {/* ✅ MODIFICA: Form solo per chi può editare */}
+      {canEdit && showNuovaLavorazioneForm && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Nuova Lavorazione</h3>
@@ -392,8 +381,6 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            
-            {/* Tipo Montaggio */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tipo Montaggio *
@@ -413,7 +400,6 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
               </select>
             </div>
 
-            {/* Data Inizio */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Data Inizio
@@ -426,7 +412,6 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
               />
             </div>
 
-            {/* Note */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Note Lavorazione
@@ -441,7 +426,6 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
             </div>
           </div>
 
-          {/* Pulsanti */}
           <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
             <button
               onClick={() => setShowNuovaLavorazioneForm(false)}
@@ -468,7 +452,7 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
         </div>
       )}
 
-      {/* Lista Lavorazioni */}
+      {/* ✅ SEMPRE VISIBILE: Lista Lavorazioni - Storico completo per tutti */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="p-6 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -492,15 +476,21 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
             <Factory className="w-12 h-12 mx-auto text-gray-300 mb-4" />
             <h4 className="text-lg font-medium text-gray-900 mb-2">Nessuna lavorazione ancora</h4>
             <p className="text-gray-500 mb-4">
-              Inizia una nuova lavorazione di montaggio per questa busta
+              {canEdit 
+                ? 'Inizia una nuova lavorazione di montaggio per questa busta' 
+                : 'Non sono ancora state avviate lavorazioni per questa busta'
+              }
             </p>
-            <button
-              onClick={() => setShowNuovaLavorazioneForm(true)}
-              className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Prima Lavorazione
-            </button>
+            
+            {canEdit && (
+              <button
+                onClick={() => setShowNuovaLavorazioneForm(true)}
+                className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Prima Lavorazione
+              </button>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
@@ -554,6 +544,7 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
                       )}
                     </div>
 
+                    {/* ✅ SEMPRE VISIBILE: Note per tutti gli utenti */}
                     {lavorazione.note && (
                       <div className="mt-3 p-3 bg-gray-50 rounded-md">
                         <p className="text-sm text-gray-700">
@@ -563,45 +554,46 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
                     )}
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex flex-col space-y-2 ml-4">
-                    {lavorazione.stato === 'in_corso' && (
-                      <>
-                        <button
-                          onClick={() => {
-                            const note = prompt('Note sulla lavorazione completata:');
-                            if (note !== null) {
-                              handleAggiornaStatoLavorazione(lavorazione.id, 'completato', note);
-                            }
-                          }}
-                          className="px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors text-sm"
-                        >
-                          ✅ Completato
-                        </button>
-                        <button
-                          onClick={() => {
-                            const note = prompt('Descrivi il problema/errore:');
-                            if (note !== null) {
-                              handleAggiornaStatoLavorazione(lavorazione.id, 'fallito', note);
-                            }
-                          }}
-                          className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors text-sm"
-                        >
-                          ❌ Fallito
-                        </button>
-                      </>
-                    )}
-                    
-                    {/* Delete button per tutte le lavorazioni */}
-                    <button
-                      onClick={() => handleDeleteLavorazione(lavorazione.id)}
-                      className="px-3 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors text-sm flex items-center space-x-1"
-                      title="Elimina lavorazione"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span className="hidden sm:block">Elimina</span>
-                    </button>
-                  </div>
+                  {/* ✅ MODIFICA: Azioni solo per chi può editare */}
+                  {canEdit && (
+                    <div className="flex flex-col space-y-2 ml-4">
+                      {lavorazione.stato === 'in_corso' && (
+                        <>
+                          <button
+                            onClick={() => {
+                              const note = prompt('Note sulla lavorazione completata:');
+                              if (note !== null) {
+                                handleAggiornaStatoLavorazione(lavorazione.id, 'completato', note);
+                              }
+                            }}
+                            className="px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors text-sm"
+                          >
+                            ✅ Completato
+                          </button>
+                          <button
+                            onClick={() => {
+                              const note = prompt('Descrivi il problema/errore:');
+                              if (note !== null) {
+                                handleAggiornaStatoLavorazione(lavorazione.id, 'fallito', note);
+                              }
+                            }}
+                            className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors text-sm"
+                          >
+                            ❌ Fallito
+                          </button>
+                        </>
+                      )}
+                      
+                      <button
+                        onClick={() => handleDeleteLavorazione(lavorazione.id)}
+                        className="px-3 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors text-sm flex items-center space-x-1"
+                        title="Elimina lavorazione"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span className="hidden sm:block">Elimina</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -609,7 +601,7 @@ export default function LavorazioneTab({ busta }: LavorazioneTabProps) {
         )}
       </div>
 
-      {/* Riepilogo Lavorazioni */}
+      {/* ✅ SEMPRE VISIBILE: Riepilogo per tutti */}
       {lavorazioni.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Riepilogo</h3>

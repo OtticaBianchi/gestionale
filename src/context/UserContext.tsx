@@ -143,7 +143,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (user) {
       signOut('idle')
     }
-  }, 3 * 60 * 1000) // 3 minuti
+  }, 10 * 60 * 1000) // 10 minuti
 
   useEffect(() => {
     // Flag per prevenire state updates dopo unmount
@@ -176,6 +176,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
       console.log('Auth state changed:', event)
       
       if (!isMounted) return // Evita state update se component è unmounted
+      
+      // Evita loop se la sessione non è cambiata realmente
+      if (session?.access_token === newSession?.access_token && session?.user?.id === newSession?.user?.id) {
+        return
+      }
       
       setSession(newSession)
       setUser(newSession?.user ?? null)

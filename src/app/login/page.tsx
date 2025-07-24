@@ -1,17 +1,19 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+  const redirectTo = searchParams.get('redirectTo') || '/dashboard'
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,15 +29,9 @@ export default function LoginPage() {
       if (error) {
         setError(error.message === 'Invalid login credentials' ? 'Email o password non validi.' : error.message)
       } else {
-        // 🔧 VERSIONE PIÙ ROBUSTA
-        const { data: session } = await supabase.auth.getSession()
-        
-        if (session.session) {
-          router.push('/dashboard')
-          router.refresh()
-        } else {
-          setError('Errore nell\'impostazione della sessione. Riprova.')
-        }
+        // Redirect immediato dopo login riuscito
+        router.push(redirectTo)
+        router.refresh()
       }
     } catch (e) {
       setError('Si è verificato un errore imprevisto.')
@@ -157,5 +153,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
+          <div className="text-center">Caricamento...</div>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

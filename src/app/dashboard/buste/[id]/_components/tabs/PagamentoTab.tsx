@@ -1,4 +1,5 @@
 // ===== FILE: buste/[id]/_components/tabs/PagamentoTab.tsx =====
+// 🔥 VERSIONE FIXED v5 - READ-ONLY CON STORICO COMPLETO VISIBILE - COMPLETA
 
 'use client';
 
@@ -21,8 +22,9 @@ import {
   User,
   Clock,
   Ban,
-  Trash2, // ✅ NUOVO: Icona per eliminazione
-  RefreshCw // ✅ NUOVO: Icona per rigenera
+  Trash2,
+  RefreshCw,
+  Eye,
 } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 
@@ -92,22 +94,27 @@ const convertRateFromDatabase = (dbRates: any[]): RataPagamento[] => {
 
 interface PagamentoTabProps {
   busta: BustaDettagliata;
+  isReadOnly?: boolean; // ✅ AGGIUNTO
 }
 
-export default function PagamentoTab({ busta }: PagamentoTabProps) {
+export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTabProps) {
   // ===== STATE =====
   const [infoPagamento, setInfoPagamento] = useState<InfoPagamento | null>(null);
   
   // User context for role checking
   const { profile } = useUser();
+
+  // ✅ AGGIORNATO: Helper per controlli - solo le azioni sono limitate
+  const canEdit = !isReadOnly && profile?.role !== 'operatore';
+
   const [rate, setRate] = useState<RataPagamento[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false); // ✅ NUOVO: Loading per eliminazione
+  const [isDeleting, setIsDeleting] = useState(false); // ✅ Loading per eliminazione
   const [currentUser, setCurrentUser] = useState<{ id: string; full_name: string } | null>(null);
-  const [isEditingImporti, setIsEditingImporti] = useState(false); // ✅ NUOVO: Modalità editing importi
-  const [importiTemp, setImportiTemp] = useState<{ [key: string]: number }>({}); // ✅ NUOVO: Importi temporanei
+  const [isEditingImporti, setIsEditingImporti] = useState(false); // ✅ Modalità editing importi
+  const [importiTemp, setImportiTemp] = useState<{ [key: string]: number }>({}); // ✅ Importi temporanei
 
   // Form state con valori di default sicuri
   const [formData, setFormData] = useState<InfoPagamento>({
@@ -197,7 +204,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
     }
   };
 
-  // ✅ NUOVA FUNZIONE: Toggle reminder per singola rata
+  // ✅ FUNZIONE: Toggle reminder per singola rata
   const toggleReminderRata = async (rataId: string, currentStatus: boolean) => {
     try {
       const { error } = await supabase
@@ -221,7 +228,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
     }
   };
 
-  // ✅ AGGIORNATA: Attiva/disattiva reminder per tutte le rate SENZA conferma
+  // ✅ Attiva/disattiva reminder per tutte le rate SENZA conferma
   const toggleAllReminders = async (activate: boolean) => {
     try {
       const { error } = await supabase
@@ -232,13 +239,12 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
         })
         .eq('busta_id', busta.id)
         .eq('is_pagata', false) // Solo rate non pagate
-        .gt('numero_rata', 1); // ✅ NUOVO: Escludi prima rata
+        .gt('numero_rata', 1); // ✅ Escludi prima rata
 
       if (error) throw error;
 
       await loadPagamentoData();
       
-      // ✅ SEMPLIFICATO: Nessuna conferma, solo feedback discreto
       console.log(`✅ Reminder ${activate ? 'attivati' : 'disattivati'} per tutte le rate`);
 
     } catch (error: any) {
@@ -247,7 +253,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
     }
   };
 
-  // ✅ CORRETTO: Calcola importi rate automaticamente
+  // ✅ Calcola importi rate automaticamente
   const calcolaImportiRate = (prezzoFinale: number, importoAcconto: number, numeroRate: number) => {
     const restoDaPagare = prezzoFinale - importoAcconto;
     const importoRataBase = Math.floor(restoDaPagare / numeroRate);
@@ -267,7 +273,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
     return importi;
   };
 
-  // ✅ FIX: GENERA DATE E IMPORTI RATE CORRETTE
+  // ✅ GENERA DATE E IMPORTI RATE CORRETTE
   const generaDateRate = (modalita: string, dataInizio: string = new Date().toISOString().split('T')[0]) => {
     const date: string[] = [];
     const start = new Date(dataInizio);
@@ -299,7 +305,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
     return date;
   };
 
-  // ✅ NUOVO: ELIMINA RATE ESISTENTI
+  // ✅ ELIMINA RATE ESISTENTI
   const handleEliminaRate = async () => {
     if (!confirm('Sei sicuro di voler eliminare tutte le rate? Questa operazione non può essere annullata.')) {
       return;
@@ -325,7 +331,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
     }
   };
 
-  // ✅ NUOVO: Gestione modifica importi manuali
+  // ✅ Gestione modifica importi manuali
   const handleStartEditImporti = () => {
     const temp: { [key: string]: number } = {};
     rate.forEach(rata => {
@@ -412,7 +418,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
           data_scadenza: data,
           is_pagata: index === 0 ? true : false, // ✅ Prima rata già pagata alla consegna
           data_pagamento: index === 0 ? new Date().toISOString().split('T')[0] : null,
-          reminder_attivo: false, // ✅ NUOVO: Sempre disattivato di default
+          reminder_attivo: false, // ✅ Sempre disattivato di default
           ultimo_reminder: null
         }));
 
@@ -433,7 +439,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
       setInfoPagamento(convertedSaved);
       setIsEditing(false);
       
-      // ✅ NUOVO: Se modalità è finanziamento, aggiorna stato busta a "consegnato_pagato"
+      // ✅ Se modalità è finanziamento, aggiorna stato busta a "consegnato_pagato"
       if (formData.modalita_saldo === 'finanziamento' && busta.stato_attuale !== 'consegnato_pagato') {
         const { error: statoError } = await supabase
           .from('buste')
@@ -623,6 +629,21 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
   return (
     <div className="space-y-6">
       
+      {/* ✅ READ-ONLY BANNER - Solo se isReadOnly (non per operatori) */}
+      {isReadOnly && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2">
+            <Eye className="h-5 w-5 text-orange-600" />
+            <div>
+              <h3 className="text-sm font-medium text-orange-800">Modalità Sola Visualizzazione</h3>
+              <p className="text-sm text-orange-700">
+                Le informazioni di pagamento possono essere visualizzate ma non modificate.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
@@ -632,7 +653,10 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
               Pagamento & Consegna
             </h2>
             <p className="text-gray-600 text-sm mt-1">
-              Gestione acconti, rate e promemoria pagamenti
+              {canEdit 
+                ? 'Gestione acconti, rate e promemoria pagamenti'
+                : 'Visualizza stato pagamenti, rate e saldi'
+              }
             </p>
           </div>
           
@@ -657,12 +681,13 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
         </div>
       ) : (
         <>
-          {/* Configurazione Pagamento */}
+          {/* ✅ SEMPRE VISIBILE: Configurazione Pagamento - Informazioni per tutti */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">Configurazione Pagamento</h3>
               
-              {!isEditing && !isEffettivamenteSaldato && profile?.role !== 'operatore' && (
+              {/* ✅ MODIFICA: Pulsante Configura - NASCOSTO PER OPERATORI */}
+              {!isEditing && !isEffettivamenteSaldato && canEdit && (
                 <button
                   onClick={() => setIsEditing(true)}
                   className="flex items-center space-x-2 px-3 py-2 text-sm bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors"
@@ -673,7 +698,8 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
               )}
             </div>
 
-            {isEditing ? (
+            {/* ✅ MODIFICA: Form di editing - NASCOSTO PER OPERATORI */}
+            {isEditing && canEdit ? (
               <div className="space-y-4">
                 {/* Prezzo Finale */}
                 <div>
@@ -816,6 +842,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                 </div>
               </div>
             ) : (
+              // ✅ SEMPRE VISIBILE: Informazioni pagamento per tutti
               <div className="space-y-3">
                 {infoPagamento ? (
                   <>
@@ -857,21 +884,23 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                     )}
                   </>
                 ) : (
-                  <p className="text-gray-500 italic">Configurazione pagamento non ancora impostata</p>
+                  <p className="text-gray-500 italic">
+                    {canEdit ? 'Configurazione pagamento non ancora impostata' : 'Nessuna configurazione di pagamento disponibile'}
+                  </p>
                 )}
               </div>
             )}
           </div>
 
-          {/* ✅ MIGLIORATA: Gestione Rate con controllo reminder granulare */}
+          {/* ✅ SEMPRE VISIBILE: Gestione Rate - Storico completo per tutti */}
           {rate.length > 0 && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">Gestione Rate</h3>
                 
                 <div className="flex items-center space-x-2">
-                  {/* ✅ NUOVO: Pulsante modifica importi */}
-                  {!isEffettivamenteSaldato && rate.some(r => r.importo_rata) && !isEditingImporti && profile?.role !== 'operatore' && (
+                  {/* ✅ MODIFICA: Pulsante modifica importi - NASCOSTO PER OPERATORI */}
+                  {canEdit && !isEffettivamenteSaldato && rate.some(r => r.importo_rata) && !isEditingImporti && (
                     <button
                       onClick={handleStartEditImporti}
                       className="flex items-center space-x-1 px-3 py-1 bg-orange-50 text-orange-600 rounded-md hover:bg-orange-100 transition-colors text-sm border border-orange-200"
@@ -881,8 +910,8 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                     </button>
                   )}
 
-                  {/* ✅ AGGIORNATO: Pulsanti controllo reminder globale - solo per rate 2+ */}
-                  {!isEffettivamenteSaldato && rate.some(r => r.numero_rata > 1 && !safeBooleanValue(r.is_pagata)) && !isEditingImporti && profile?.role !== 'operatore' && (
+                  {/* ✅ MODIFICA: Pulsanti controllo reminder globale - NASCOSTI PER OPERATORI */}
+                  {canEdit && !isEffettivamenteSaldato && rate.some(r => r.numero_rata > 1 && !safeBooleanValue(r.is_pagata)) && !isEditingImporti && (
                     <div className="flex items-center space-x-2 mr-4">
                       <button
                         onClick={() => toggleAllReminders(true)}
@@ -901,8 +930,8 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                     </div>
                   )}
 
-                  {/* Pulsanti modifica importi */}
-                  {isEditingImporti && (
+                  {/* Pulsanti modifica importi - NASCOSTI PER OPERATORI */}
+                  {canEdit && isEditingImporti && (
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={handleCancelEditImporti}
@@ -927,8 +956,8 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                     </div>
                   )}
 
-                  {/* Pulsante Elimina Rate */}
-                  {!isEffettivamenteSaldato && !isEditingImporti && profile?.role !== 'operatore' && (
+                  {/* ✅ MODIFICA: Pulsante Elimina Rate - NASCOSTO PER OPERATORI */}
+                  {canEdit && !isEffettivamenteSaldato && !isEditingImporti && (
                     <button
                       onClick={handleEliminaRate}
                       disabled={isDeleting}
@@ -943,7 +972,8 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                     </button>
                   )}
                   
-                  {!isEffettivamenteSaldato && !isEditingImporti && profile?.role !== 'operatore' && (
+                  {/* ✅ MODIFICA: Pulsante Segna come Saldato - NASCOSTO PER OPERATORI */}
+                  {canEdit && !isEffettivamenteSaldato && !isEditingImporti && (
                     <button
                       onClick={handleSaldato}
                       disabled={isSaving}
@@ -960,6 +990,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                 </div>
               </div>
 
+              {/* ✅ SEMPRE VISIBILE: Lista rate per tutti */}
               <div className="space-y-3">
                 {rate.map((rata) => {
                   const oggi = new Date();
@@ -971,7 +1002,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                   const isRataPagata = safeBooleanValue(rata.is_pagata);
                   const isReminderAttivo = safeBooleanValue(rata.reminder_attivo);
                   
-                  // ✅ NUOVO: Prima rata = pagamento alla consegna (sempre pagata)
+                  // Prima rata = pagamento alla consegna (sempre pagata)
                   const isPrimaRata = rata.numero_rata === 1;
                   const isRataRitardo = !isPrimaRata && isScaduta; // Solo rate 2+ possono essere in ritardo
                   const isRataInScadenza = !isPrimaRata && isInScadenza; // Solo rate 2+ hanno scadenze
@@ -988,8 +1019,8 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                         <div className="flex-1">
                           <h4 className="font-medium text-gray-900">
                             Rata {rata.numero_rata} - {new Date(rata.data_scadenza).toLocaleDateString('it-IT')}
-                            {/* ✅ NUOVO: Importo rata modificabile */}
-                            {isEditingImporti && rata.id ? (
+                            {/* ✅ MODIFICA: Importo rata modificabile - SOLO PER canEdit */}
+                            {canEdit && isEditingImporti && rata.id ? (
                               <div className="inline-block ml-2">
                                 <div className="flex items-center space-x-1">
                                   <span className="text-sm text-gray-500">€</span>
@@ -1014,7 +1045,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                                 </span>
                               )
                             )}
-                            {/* ✅ MIGLIORATO: Indicatore prima rata più chiaro */}
+                            {/* Indicatore prima rata */}
                             {isPrimaRata && (
                               <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
                                 💰 Pagamento alla consegna
@@ -1030,7 +1061,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                                '⏳ Da pagare'}
                             </span>
                             
-                            {/* ✅ NUOVO: Ultimo reminder solo per rate 2+ */}
+                            {/* Ultimo reminder solo per rate 2+ */}
                             {!isPrimaRata && rata.ultimo_reminder && (
                               <span>
                                 Ultimo reminder: {new Date(rata.ultimo_reminder).toLocaleDateString('it-IT')}
@@ -1040,8 +1071,8 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                         </div>
 
                         <div className="flex items-center space-x-3">
-                          {/* ✅ NUOVO: Toggle reminder SOLO per rate 2+ */}
-                          {!isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && (
+                          {/* ✅ MODIFICA: Toggle reminder SOLO per rate 2+ e canEdit */}
+                          {canEdit && !isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && (
                             <button
                               onClick={() => rata.id && toggleReminderRata(rata.id, isReminderAttivo)}
                               className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors border ${
@@ -1065,8 +1096,8 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                             </button>
                           )}
 
-                          {/* ✅ NUOVO: Pulsante Invia Reminder SOLO per rate 2+ in scadenza */}
-                          {!isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && isReminderAttivo && (isRataInScadenza || isRataRitardo) && (
+                          {/* ✅ MODIFICA: Pulsante Invia Reminder - SOLO PER canEdit */}
+                          {canEdit && !isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && isReminderAttivo && (isRataInScadenza || isRataRitardo) && (
                             <button
                               onClick={() => handleInviaReminderRata(rata)}
                               className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${
@@ -1079,8 +1110,8 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                             </button>
                           )}
                           
-                          {/* ✅ NUOVO: Pulsante Paga Rata SOLO per rate 2+ non pagate */}
-                          {!isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && (
+                          {/* ✅ MODIFICA: Pulsante Paga Rata - SOLO PER canEdit */}
+                          {canEdit && !isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && (
                             <button
                               onClick={() => handlePagaRata(rata)}
                               className="flex items-center space-x-1 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
@@ -1091,15 +1122,36 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                             </button>
                           )}
                           
-                          {/* ✅ NUOVO: Stato reminder disattivato (solo rate 2+) */}
-                          {!isPrimaRata && !isRataPagata && !isReminderAttivo && (
+                          {/* ✅ NUOVO: Stato reminder per operatori (solo informativo) */}
+                          {!canEdit && !isPrimaRata && !isRataPagata && (
+                            <span className={`text-xs flex items-center px-2 py-1 rounded-full ${
+                              isReminderAttivo 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {isReminderAttivo ? (
+                                <>
+                                  <Bell className="w-3 h-3 mr-1" />
+                                  Reminder ON
+                                </>
+                              ) : (
+                                <>
+                                  <BellOff className="w-3 h-3 mr-1" />
+                                  Reminder OFF
+                                </>
+                              )}
+                            </span>
+                          )}
+                          
+                          {/* Stato reminder disattivato (solo rate 2+ per canEdit) */}
+                          {canEdit && !isPrimaRata && !isRataPagata && !isReminderAttivo && (
                             <span className="text-xs text-gray-500 flex items-center">
                               <BellOff className="w-3 h-3 mr-1" />
                               Reminder OFF
                             </span>
                           )}
 
-                          {/* ✅ NUOVO: Messaggio esplicativo per prima rata */}
+                          {/* Messaggio esplicativo per prima rata */}
                           {isPrimaRata && (
                             <span className="text-xs text-blue-600 flex items-center">
                               <Clock className="w-3 h-3 mr-1" />
@@ -1107,7 +1159,7 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                             </span>
                           )}
                           
-                          {/* ✅ NUOVO: Info rata pagata */}
+                          {/* Info rata pagata */}
                           {isRataPagata && rata.data_pagamento && (
                             <span className="text-xs text-green-600 flex items-center">
                               <CheckCircle className="w-3 h-3 mr-1" />
@@ -1121,22 +1173,22 @@ export default function PagamentoTab({ busta }: PagamentoTabProps) {
                 })}
               </div>
 
-              {/* ✅ AGGIORNATA: Spiegazione controllo reminder */}
+              {/* ✅ MODIFICA: Spiegazione controllo reminder - ADATTATA PER OPERATORI */}
               <div className="mt-4 p-3 bg-blue-50 rounded-md">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">🔔 Controllo Reminder:</h4>
+                <h4 className="text-sm font-medium text-blue-900 mb-2">🔔 Sistema Reminder:</h4>
                 <div className="text-sm text-blue-800 space-y-1">
                   <p>• <strong>Prima rata:</strong> 💰 Pagamento alla consegna (nessun reminder necessario)</p>
-                  <p>• <strong>Rate successive:</strong> Gestione reminder attivabile rata per rata</p>
-                  <p>• <strong>Reminder ON:</strong> Il sistema suggerirà l'invio quando la rata è in scadenza</p>
-                  <p>• <strong>Reminder OFF:</strong> Nessuna notifica per questa rata (per clienti fidati)</p>
-                  <p>• <strong>Controllo granulare:</strong> Puoi decidere rata per rata in base al cliente</p>
+                  <p>• <strong>Rate successive:</strong> {canEdit ? 'Gestione reminder attivabile rata per rata' : 'Stato reminder visibile (gestibile dai manager)'}</p>
+                  <p>• <strong>Reminder ON:</strong> {canEdit ? 'Il sistema suggerirà l\'invio quando la rata è in scadenza' : 'Sistema attivo per questa rata'}</p>
+                  <p>• <strong>Reminder OFF:</strong> {canEdit ? 'Nessuna notifica per questa rata (per clienti fidati)' : 'Sistema disattivato per questa rata'}</p>
+                  {canEdit && <p>• <strong>Controllo granulare:</strong> Puoi decidere rata per rata in base al cliente</p>}
                 </div>
               </div>
             </div>
           )}
 
-          {/* ✅ NUOVO: Sezione per rigenerare rate se necessario */}
-          {infoPagamento && (infoPagamento.modalita_saldo === 'due_rate' || infoPagamento.modalita_saldo === 'tre_rate') && rate.length === 0 && !isEffettivamenteSaldato && profile?.role !== 'operatore' && (
+          {/* ✅ MODIFICA: Sezione per rigenerare rate - NASCOSTA PER OPERATORI */}
+          {canEdit && infoPagamento && (infoPagamento.modalita_saldo === 'due_rate' || infoPagamento.modalita_saldo === 'tre_rate') && rate.length === 0 && !isEffettivamenteSaldato && (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between">
                 <div>

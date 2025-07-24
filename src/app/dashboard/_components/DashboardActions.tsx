@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useBuste } from '@/hooks/useBuste';
 import { toast } from 'sonner';
 import { useEffect, useState } from 'react';
-import { useUser } from '@/context/UserContext';
+import { createBrowserClient } from '@supabase/ssr';
+import { Database } from '@/types/database.types';
 
 interface DashboardActionsProps {
   totalBuste: number;
@@ -14,7 +15,30 @@ interface DashboardActionsProps {
 export default function DashboardActions({ totalBuste }: DashboardActionsProps) {
   const { mutate: revalidate, isLoading } = useBuste();
   const [voiceNotesCount, setVoiceNotesCount] = useState(0);
-  const { profile } = useUser();
+  const [userRole, setUserRole] = useState<string | null>(null);
+  
+  const supabase = createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  // ===== CHECK USER ROLE =====
+  useEffect(() => {
+    const checkUserRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+        
+        setUserRole(profile?.role || null);
+      }
+    };
+    
+    checkUserRole();
+  }, [supabase]);
 
   const handleRefresh = async () => {
     try {
@@ -83,17 +107,19 @@ export default function DashboardActions({ totalBuste }: DashboardActionsProps) 
         <span>Ricerca Avanzata</span>
       </Link>
 
-      {/* Filtri - LINK ALLA TUA PAGINA FILTRI - ROSSO */}
-      <Link
-        href="/dashboard/filtri-ordini"
-        className="flex items-center space-x-2 px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-      >
-        <Filter className="h-4 w-4" />
-        <span>Ordini</span>
-      </Link>
+      {/* ===== ORDINI - NASCOSTO PER OPERATORI ===== */}
+      {userRole !== 'operatore' && (
+        <Link
+          href="/dashboard/filtri-ordini"
+          className="flex items-center space-x-2 px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+        >
+          <Filter className="h-4 w-4" />
+          <span>Ordini</span>
+        </Link>
+      )}
       
-      {/* Nuova busta - nascosto per operatori */}
-      {profile?.role !== 'operatore' && (
+      {/* ===== NUOVA BUSTA - NASCOSTO PER OPERATORI ===== */}
+      {userRole !== 'operatore' && (
         <Link
           href="/dashboard/buste/new"
           className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
