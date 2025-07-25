@@ -65,7 +65,7 @@ const nextConfig = {
           // Permessi ristretti per funzionalità browser
           {
             key: 'Permissions-Policy',
-            value: 'geolocation=(), microphone=(), camera=(), payment=(), usb=(), bluetooth=()',
+            value: 'geolocation=(), camera=(), payment=(), usb=(), bluetooth=(), microphone=(self)',
           },
           // Content Security Policy (CSP) - CRITICO per sicurezza
           {

@@ -416,3 +416,87 @@ Il flusso richiesto:
 ---
 
 **Project completed (21 July 2025).**
+
+---
+
+## Recent Bug Fixes (24 July 2025)
+
+### ✅ Phase 3A: Voice Notes Critical Fixes (COMPLETED)
+- [x] **"Completata" Button Fix**: Voice notes PATCH API now uses service_role key to bypass RLS
+  - **Problem**: PATCH endpoint used regular auth client, couldn't find records created with service_role
+  - **Solution**: Updated `/api/voice-notes/[id]/route.ts` to use service_role for updates
+  - **Result**: "Completata" button now works, with toast feedback for user
+
+- [x] **7-Day Auto-Deletion Verification**: Confirmed automatic cleanup is working
+  - **Implementation**: GET endpoint deletes completed notes older than 7 days before fetching
+  - **Location**: `/api/voice-notes/route.ts` lines 92-100
+  - **Status**: ✅ Already functional
+
+### ✅ Phase 3B: Authentication Flow Stabilization (COMPLETED)
+- [x] **Session Timeout Extension**: Increased idle timeout from 3 to 10 minutes
+  - **File**: `/src/context/UserContext.tsx` line 146
+  - **Reason**: Prevent premature logouts during normal usage
+
+- [x] **Infinite Auth Loop Fix**: Prevented continuous SWR refetch cycles
+  - **Problem**: `onAuthStateChange` triggering continuously without session changes
+  - **Solution**: Added session comparison check to prevent unnecessary updates
+  - **File**: `/src/context/UserContext.tsx` lines 180-183
+
+- [x] **Login Flow Improvements**: Enhanced post-login redirect handling
+  - **Added**: `useSearchParams` with Suspense wrapper for better redirect handling
+  - **Fixed**: Login now properly redirects to intended page after authentication
+  - **Files**: `/src/app/login/page.tsx` (Suspense wrapper, redirect logic)
+
+### ✅ Phase 3C: User Registration System Fix (COMPLETED)
+- [x] **Signup Email Redirect**: Fixed callback URL for new user confirmations
+  - **Problem**: Email confirmation links went to homepage instead of `/auth/callback`
+  - **Solution**: Added `emailRedirectTo` in signup options
+  - **File**: `/src/app/signup/page.tsx` line 27
+
+- [x] **Profile Creation Logic**: Enhanced callback handling for new users
+  - **Improved**: Better fallback logic for extracting full_name from user_metadata
+  - **Added**: Comprehensive logging for debugging profile creation
+  - **Removed**: Non-existent onboarding flow redirect
+  - **File**: `/src/app/auth/callback/route.ts`
+
+- [x] **User Deletion Process**: Documented complete user removal procedure
+  - **Issue**: Removing users from `profiles` table wasn't enough
+  - **Solution**: Must delete from both `profiles` AND `auth.users` tables
+  - **Result**: New registrations now work correctly with proper full_name storage
+
+### ✅ Phase 3D: Role-Based Access Control Validation (COMPLETED)
+- [x] **Three-Tier Role System Operational**:
+  - **operatore**: Read-only access, no create/edit permissions
+  - **manager**: Full CRUD except admin functions and deletions
+  - **admin**: Complete system access including user management
+
+- [x] **Role Management Process**: Manual role assignment via Supabase dashboard
+  - **Location**: Table Editor > profiles > role column
+  - **Note**: No admin UI for role management (intentional for security)
+  - **Default**: All new users get 'operatore' role
+
+## System Status Summary
+
+### Core Features Status ✅
+- **Kanban Dashboard**: Fully synchronized with real-time updates
+- **Voice Notes**: Complete recording, transcription, and management system
+- **User Authentication**: Stable login/logout with proper session management  
+- **Role-Based Access**: Three-tier system operational (operatore/manager/admin)
+- **Busta Management**: Full lifecycle from creation to delivery
+- **Client Search**: Advanced search with busta relationship tracking
+
+### Technical Debt Resolved ✅
+- **Authentication loops**: Eliminated infinite refresh cycles
+- **Voice notes API**: Fixed RLS permission issues
+- **User registration**: Proper profile creation with correct data
+- **Session management**: Extended timeouts, better error handling
+- **Build process**: All TypeScript errors resolved, clean builds
+
+### Production Readiness ✅
+- **Error Handling**: Comprehensive error states and user feedback
+- **Security**: Proper RLS policies and role-based restrictions
+- **Performance**: SWR caching eliminates unnecessary API calls
+- **User Experience**: Intuitive interface with clear feedback
+- **Data Integrity**: Consistent state management across all operations
+
+**All critical bugs resolved (24 July 2025).** System ready for production use.
