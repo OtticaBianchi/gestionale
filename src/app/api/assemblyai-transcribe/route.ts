@@ -7,6 +7,14 @@ export async function POST(request: NextRequest) {
   const rateLimitResult = await strictRateLimit(request);
   if (rateLimitResult) return rateLimitResult;
   try {
+    // Debug: check if API key is loaded
+    const apiKey = process.env.ASSEMBLYAI_API_KEY;
+    console.log('AssemblyAI API Key loaded:', apiKey ? `${apiKey.substring(0, 8)}...` : 'NOT FOUND');
+    
+    if (!apiKey) {
+      return NextResponse.json({ error: 'AssemblyAI API key not configured' }, { status: 500 });
+    }
+    
     const { audioUrl, wordBoost } = await request.json();
     
     if (!audioUrl) {
@@ -17,8 +25,8 @@ export async function POST(request: NextRequest) {
     const transcribeResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
       method: 'POST',
       headers: {
-        'authorization': process.env.ASSEMBLYAI_API_KEY!,
-        'content-type': 'application/json'
+        'Authorization': apiKey,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         audio_url: audioUrl,
@@ -31,7 +39,9 @@ export async function POST(request: NextRequest) {
     });
 
     if (!transcribeResponse.ok) {
-      throw new Error('Failed to request transcription');
+      const errorText = await transcribeResponse.text();
+      console.error('AssemblyAI transcribe error:', transcribeResponse.status, errorText);
+      throw new Error(`Failed to request transcription: ${transcribeResponse.status} ${errorText}`);
     }
 
     const { id: transcriptId } = await transcribeResponse.json();
@@ -46,7 +56,7 @@ export async function POST(request: NextRequest) {
       
       const statusResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
         headers: {
-          'authorization': 'f953eb82c80c4797a6bd2f8d3a08855b'
+          'Authorization': apiKey
         }
       });
       

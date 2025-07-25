@@ -7,6 +7,14 @@ export async function POST(request: NextRequest) {
   const rateLimitResult = await strictRateLimit(request);
   if (rateLimitResult) return rateLimitResult;
   try {
+    // Debug: check if API key is loaded
+    const apiKey = process.env.ASSEMBLYAI_API_KEY;
+    console.log('AssemblyAI API Key loaded:', apiKey ? `${apiKey.substring(0, 8)}...` : 'NOT FOUND');
+    
+    if (!apiKey) {
+      return NextResponse.json({ error: 'AssemblyAI API key not configured' }, { status: 500 });
+    }
+    
     const formData = await request.formData();
     const audioFile = formData.get('file') as File;
     
@@ -18,13 +26,15 @@ export async function POST(request: NextRequest) {
     const uploadResponse = await fetch('https://api.assemblyai.com/v2/upload', {
       method: 'POST',
       headers: {
-        'authorization': process.env.ASSEMBLYAI_API_KEY!,
+        'Authorization': apiKey,
       },
       body: audioFile
     });
 
     if (!uploadResponse.ok) {
-      throw new Error('Failed to upload to AssemblyAI');
+      const errorText = await uploadResponse.text();
+      console.error('AssemblyAI upload error:', uploadResponse.status, errorText);
+      throw new Error(`Failed to upload to AssemblyAI: ${uploadResponse.status} ${errorText}`);
     }
 
     const { upload_url } = await uploadResponse.json();
