@@ -10,7 +10,21 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Use service role client to bypass RLS for voice notes updates
+    // First, ensure the caller is admin
+    const serverClient = createServerSupabaseClient();
+    const { data: { user } } = await serverClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+    }
+    const { data: me } = await serverClient
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    if (!me || me.role !== 'admin') {
+      return NextResponse.json({ error: 'Solo gli amministratori possono modificare le note vocali' }, { status: 403 });
+    }
+    // Use service role client after admin check
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!

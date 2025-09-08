@@ -3,7 +3,7 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { UserProvider } from '@/context/UserContext'
 import { Toaster } from 'sonner' // ← Import OK
-import { SpeedInsights } from "@vercel/speed-insights/next"
+// SpeedInsights loaded only in production via dynamic import inside component
 import SessionManager from '@/components/SessionManager'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -21,20 +21,18 @@ export const viewport: Viewport = {
   maximumScale: 1,
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // Carica Speed Insights solo quando giriamo su Vercel
+  const isVercel = process.env.VERCEL === '1'
+  const SpeedInsights = isVercel ? (await import('@vercel/speed-insights/next')).SpeedInsights : null
   return (
     <html lang="it">
       <head>
-        <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#3b82f6" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="OB Voice" />
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
       </head>
       <body className={inter.className}>
         <UserProvider>
@@ -49,7 +47,8 @@ export default function RootLayout({
             expand={true}
             visibleToasts={3}
           />
-          <SpeedInsights />
+          {/* Load Speed Insights only in production to avoid 404 locally */}
+          {SpeedInsights ? <SpeedInsights /> : null}
         </UserProvider>
       </body>
     </html>

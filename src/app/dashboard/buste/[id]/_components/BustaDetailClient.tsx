@@ -374,7 +374,8 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
             {activeTab === 'materiali' && (
               <MaterialiTab 
                 busta={busta}
-                isReadOnly={userRole === 'operatore'} // ✅ AGGIUNTO
+                isReadOnly={userRole === 'operatore'}
+                canDelete={userRole === 'admin'}
               />
             )}
 

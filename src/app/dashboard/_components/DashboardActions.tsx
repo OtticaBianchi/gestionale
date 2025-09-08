@@ -90,7 +90,7 @@ export default function DashboardActions({ totalBuste }: DashboardActionsProps) 
         className="relative flex items-center space-x-2 px-3 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
       >
         <Mic className="h-4 w-4" />
-        <span>Note Vocali</span>
+        <span>Note Telegram</span>
         {voiceNotesCount > 0 && (
           <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
             {voiceNotesCount > 99 ? '99+' : voiceNotesCount}
@@ -98,14 +98,16 @@ export default function DashboardActions({ totalBuste }: DashboardActionsProps) 
         )}
       </Link>
 
-      {/* Ricerca Avanzata */}
-      <Link
-        href="/dashboard/ricerca-avanzata"
-        className="flex items-center space-x-2 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-      >
-        <Search className="h-4 w-4" />
-        <span>Ricerca Avanzata</span>
-      </Link>
+      {/* ===== RICERCA AVANZATA - NASCOSTO PER OPERATORI ===== */}
+      {userRole !== 'operatore' && (
+        <Link
+          href="/dashboard/ricerca-avanzata"
+          className="flex items-center space-x-2 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+        >
+          <Search className="h-4 w-4" />
+          <span>Ricerca Avanzata</span>
+        </Link>
+      )}
 
       {/* ===== ORDINI - NASCOSTO PER OPERATORI ===== */}
       {userRole !== 'operatore' && (

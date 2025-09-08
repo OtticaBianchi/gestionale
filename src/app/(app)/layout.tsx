@@ -3,7 +3,7 @@
 import { useUser } from '@/context/UserContext'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LogOut, User, LayoutDashboard, LifeBuoy, Settings, Menu, X, Sun, Moon } from 'lucide-react'
+import { LogOut, User, LayoutDashboard, LifeBuoy, Settings, Menu, X, Sun, Moon, Shield } from 'lucide-react'
 import { useState } from 'react'
 
 // --- COMPONENTE HEADER ---
@@ -27,7 +27,7 @@ function Header({ onMenuClick }: { onMenuClick: () => void }) {
       <div className="flex items-center gap-4">
         {/* Qui potremmo aggiungere un selettore light/dark mode in futuro */}
         <div className="relative">
-          <button onClick={() => router.push('/profilo')} className="flex items-center gap-2">
+          <button onClick={() => router.push('/profile')} className="flex items-center gap-2">
             <img 
               src={profile?.avatar_url || `https://ui-avatars.com/api/?name=${profile?.full_name || 'User'}&background=random`}
               alt="Avatar utente"
@@ -47,12 +47,29 @@ function Header({ onMenuClick }: { onMenuClick: () => void }) {
 // --- COMPONENTE SIDEBAR ---
 function Sidebar({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const router = useRouter()
+  const { profile } = useUser()
   
   const navItems = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { href: '/profilo', icon: User, label: 'Profilo' },
+    { href: '/profile', icon: User, label: 'Profilo' },
+    // Hub removed - reverting to dashboard-centric approach
     { href: '/settings', icon: Settings, label: 'Impostazioni' },
     { href: '/help', icon: LifeBuoy, label: 'Assistenza' },
+    // Modules (role-aware)
+    ...(profile?.role === 'admin' ? [
+      { href: '/modules/voice-triage', icon: Shield, label: 'Voice Triage' },
+      { href: '/modules/archive', icon: Shield, label: 'Archivio Buste' },
+      { href: '/modules/operations', icon: Shield, label: 'Console Operativa' },
+    ] : []),
+    ...(profile?.role === 'manager' ? [
+      { href: '/modules/archive', icon: Shield, label: 'Archivio Buste' },
+      { href: '/modules/operations', icon: Shield, label: 'Console Operativa' },
+    ] : []),
+    // Admin-only utilities
+    ...(profile?.role === 'admin' ? [
+      { href: '/admin/users', icon: Shield, label: 'Utenti (Admin)' },
+      { href: '/admin/avatar-management', icon: Shield, label: 'Avatar (Admin)' },
+    ] : [])
   ]
   
   return (

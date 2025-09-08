@@ -1,0 +1,912 @@
+# Gestionale Ottica Bianchi - Documentazione Completa
+
+## Indice
+
+1. [Introduzione](#introduzione)
+2. [Architettura del Sistema](#architettura-del-sistema)
+3. [Database e Modello Dati](#database-e-modello-dati)
+4. [Sistema di Autenticazione e Ruoli](#sistema-di-autenticazione-e-ruoli)
+5. [Il Ciclo di Vita della Busta](#il-ciclo-di-vita-della-busta)
+6. [Interfacce Utente e Moduli](#interfacce-utente-e-moduli)
+7. [Sistema di Note Vocali](#sistema-di-note-vocali)
+8. [Gestione Ordini e Materiali](#gestione-ordini-e-materiali)
+9. [Sistema di Pagamenti](#sistema-di-pagamenti)
+10. [Integrazione Telegram](#integrazione-telegram)
+11. [Console Operativa](#console-operativa)
+12. [Sicurezza e Controllo Accessi](#sicurezza-e-controllo-accessi)
+
+---
+
+## Introduzione
+
+Il **Gestionale Ottica Bianchi** è un sistema di gestione completo progettato specificamente per un'ottica, che copre l'intero processo commerciale dalla prima visita del cliente fino alla consegna finale e al pagamento. Il sistema è costruito come una web application moderna utilizzando Next.js 14, TypeScript, Supabase per il database e l'autenticazione, e include un'innovativa integrazione Telegram per la gestione delle note vocali.
+
+### Obiettivi del Sistema
+
+- **Digitalizzazione completa del processo**: Eliminare i processi manuali e cartacei
+- **Tracciabilità totale**: Ogni fase del processo è tracciata e documentata
+- **Efficienza operativa**: Ridurre i tempi di gestione e aumentare la produttività
+- **Gestione multi-ruolo**: Supporto per diversi livelli di accesso (Admin, Manager, Operatore)
+- **Interfaccia intuitiva**: Dashboard Kanban per una visualizzazione immediata dello stato delle lavorazioni
+
+### Processo di Lavoro Gestito
+
+Il sistema segue il flusso naturale di un'ottica:
+
+1. **Prima visita del cliente**: Creazione della scheda cliente e della prima "busta"
+2. **Prescrizione e scelta prodotti**: Definizione dei materiali necessari
+3. **Ordinazione materiali**: Gestione ordini verso fornitori diversificati
+4. **Ricezione materiali**: Tracciamento arrivi parziali e completi
+5. **Lavorazione**: Montaggio e preparazione prodotto finale
+6. **Consegna e pagamento**: Ritiro da parte del cliente e saldo
+
+Ogni progetto è rappresentato da una **"busta"** che attraversa diverse fasi su una board Kanban, rendendo immediata la comprensione dello stato di ogni lavorazione.
+
+---
+
+## Architettura del Sistema
+
+### Stack Tecnologico
+
+- **Frontend**: Next.js 14 con App Router, React 18, TypeScript
+- **Styling**: Tailwind CSS
+- **Database**: Supabase (PostgreSQL)
+- **Autenticazione**: Supabase Auth
+- **State Management**: SWR per data fetching, Context API per stato utente
+- **UI Components**: Lucide React per icone, Custom components
+- **Drag & Drop**: @dnd-kit per la board Kanban
+- **Build**: Vercel per deployment
+
+### Struttura dell'Applicazione
+
+```
+src/
+├── app/                        # App Router (Next.js 14)
+│   ├── (app)/                 # Grouped routes con layout comune
+│   ├── dashboard/             # Dashboard principale (Kanban)
+│   ├── hub/                   # Hub moduli per admin/manager
+│   ├── modules/               # Moduli specializzati
+│   │   ├── voice-triage/      # Gestione note vocali
+│   │   ├── operations/        # Console operativa
+│   │   └── archive/           # Archivio buste
+│   ├── admin/                 # Pannello amministrazione
+│   ├── auth/                  # Callback autenticazione
+│   └── api/                   # API routes
+├── components/                # Componenti riusabili
+├── context/                   # React Context providers
+├── hooks/                     # Custom hooks
+├── lib/                       # Utilities e configurazioni
+├── telegram/                  # Bot Telegram
+├── types/                     # TypeScript type definitions
+└── middleware.ts              # Middleware autenticazione
+```
+
+### Filosofia di Design
+
+- **Server-Side Rendering**: Le pagine principali sono renderizzate server-side per performance
+- **Progressive Enhancement**: Funzionalità base senza JavaScript, enhancement con React
+- **Mobile-First**: Design responsive ottimizzato per tablet e smartphone
+- **Component-Based**: Architettura modulare con componenti riusabili
+- **Type Safety**: TypeScript rigoroso per ridurre errori runtime
+
+---
+
+## Database e Modello Dati
+
+### Entità Principali
+
+#### 1. **buste** - Il Core del Sistema
+La tabella `buste` rappresenta ogni progetto/lavorazione:
+
+```sql
+- id (UUID): Identificatore unico
+- readable_id (string): Numero busta leggibile (es. "2024-001")
+- cliente_id (UUID): Riferimento al cliente
+- stato_attuale (enum): Stato corrente nel workflow
+- data_apertura (date): Data creazione busta
+- data_consegna_prevista (date): Stima consegna
+- priorita (enum): normale|urgente|critica
+- tipo_lavorazione (enum): OCV|OV|OS|LV|LS|LAC|ACC|RIC|RIP|SA|SG|CT|ES|REL|FT|SPRT
+- note_generali (text): Note libere
+- is_suspended (boolean): Busta sospesa
+```
+
+**Stati della Busta (Workflow Kanban)**:
+- `nuove`: Appena create, in attesa di materiali
+- `materiali_ordinati`: Ordini inviati ai fornitori
+- `materiali_parzialmente_arrivati`: Alcuni materiali arrivati
+- `materiali_arrivati`: Tutti i materiali disponibili
+- `in_lavorazione`: Lavoro in corso nel laboratorio
+- `pronto_ritiro`: Prodotto finito, cliente da contattare
+- `consegnato_pagato`: Completato e archiviato
+
+#### 2. **clienti** - Anagrafica Clienti
+```sql
+- id (UUID): Identificatore unico
+- nome (string): Nome cliente
+- cognome (string): Cognome cliente
+- telefono (string): Numero telefono
+- email (string): Email cliente
+- data_nascita (date): Data nascita
+- genere (string): M/F
+- note_cliente (text): Note specifiche cliente
+```
+
+#### 3. **ordini_materiali** - Gestione Ordini
+```sql
+- id (UUID): Identificatore ordine
+- busta_id (UUID): Riferimento alla busta
+- descrizione_prodotto (text): Descrizione materiale
+- stato (enum): da_ordinare|ordinato|in_arrivo|in_ritardo|consegnato|accettato_con_riserva|rifiutato
+- da_ordinare (boolean): Flag per ordini da effettuare
+- data_ordine (date): Data ordine effettuato
+- data_consegna_prevista (date): Stima arrivo
+- data_consegna_effettiva (date): Arrivo reale
+- fornitore_*_id (UUID): Riferimenti ai vari tipi di fornitori
+```
+
+#### 4. **voice_notes** - Sistema Note Vocali
+```sql
+- id (UUID): Identificatore nota
+- audio_blob (text): Audio codificato base64
+- transcription (text): Trascrizione automatica
+- addetto_nome (string): Nome operatore
+- cliente_id (UUID): Cliente collegato
+- busta_id (UUID): Busta collegata (opzionale)
+- stato (string): pending|completed|archived
+- processed_by (UUID): Chi ha gestito la nota
+```
+
+### Fornitori Specializzati
+
+Il sistema gestisce cinque tipologie di fornitori:
+- **fornitori_lenti**: Lenti oftalmiche
+- **fornitori_montature**: Occhiali e montature
+- **fornitori_lac**: Lenti a contatto
+- **fornitori_sport**: Occhiali sportivi
+- **fornitori_lab_esterno**: Laboratori esterni
+
+Ogni fornitore ha:
+- Nome, contatti (email, telefono, web)
+- Tempi consegna medi
+- Note specifiche
+
+### Sistema di Pagamenti
+
+- **info_pagamenti**: Informazioni pagamento per busta
+- **rate_pagamenti**: Gestione rate e scadenze
+- Sistema automatico di solleciti e promemoria
+
+---
+
+## Sistema di Autenticazione e Ruoli
+
+### Tipologie Utente
+
+Il sistema implementa tre ruoli principali con permessi differenziati:
+
+#### 1. **Operatore** (Ruolo Base)
+- **Accesso**: Dashboard principale, gestione buste assegnate
+- **Permessi**: 
+  - Visualizzare e modificare buste
+  - Aggiornare stati nel Kanban
+  - Gestire materiali e ordini
+  - Accedere al dettaglio clienti
+- **Restrizioni**: 
+  - Non può eliminare buste o clienti
+  - Non accede a report o statistiche avanzate
+  - Non può gestire utenti
+
+#### 2. **Manager** (Ruolo Intermedio)
+- **Accesso**: Tutto dell'operatore + Console Operativa + Archivio
+- **Permessi**:
+  - Accesso alla Console Operativa per gestione ordini
+  - Visualizzazione archivio buste completate
+  - Azioni sicure su ordini (segnare ordinato, impostare ETA, segnare arrivato)
+- **Restrizioni**:
+  - Non può eliminare ordini
+  - Non accede al Voice Triage
+  - Non può gestire utenti
+
+#### 3. **Admin** (Controllo Totale)
+- **Accesso**: Tutte le funzionalità del sistema
+- **Permessi**:
+  - Gestione completa utenti e inviti
+  - Accesso Voice Triage per note vocali
+  - Eliminazione buste, ordini e dati
+  - Accesso a tutti i report
+  - Configurazione sistema
+
+### Sistema di Inviti
+
+Il sistema implementa un meccanismo di registrazione **solo su invito**:
+
+1. **Admin invia invito**: Specifica email e ruolo desiderato
+2. **Email di invito**: Utente riceve link di registrazione
+3. **Registrazione guidata**: Creazione account con ruolo pre-assegnato
+4. **Attivazione profilo**: Primo login completa la configurazione
+
+### Middleware di Sicurezza
+
+Il file `middleware.ts` implementa controlli rigorosi:
+
+- **Protezione rotte admin**: `/admin/*`, `/modules/voice-triage`
+- **Protezione rotte manager**: `/modules/archive`, `/modules/operations`
+- **Redirect intelligenti**: Basati su ruolo utente
+- **Refresh sessioni**: Mantenimento stato autenticazione
+- **Controllo continuo**: Verifica permessi ad ogni richiesta
+
+---
+
+## Il Ciclo di Vita della Busta
+
+### Flusso Completo
+
+#### 1. **Creazione Busta** (`nuove`)
+- Cliente entra in negozio per prima visita o controllo
+- Operatore crea nuova busta collegata al cliente
+- Definisce tipo lavorazione e priorità
+- Sistema assegna numero busta progressivo
+
+#### 2. **Definizione Materiali** (`nuove` → `materiali_ordinati`)
+- Operatore aggiunge i materiali necessari
+- Per ogni materiale specifica fornitore e caratteristiche
+- Sistema calcola date consegna stimate
+- Quando tutti i materiali sono definiti, busta passa a `materiali_ordinati`
+
+#### 3. **Gestione Ordini** (`materiali_ordinati`)
+- Operatore o Manager ordinano effettivamente i materiali
+- Sistema traccia data ordine e fornitori
+- Calcolo automatico ritardi basato su date previste
+- Console Operativa mostra ordini da effettuare
+
+#### 4. **Arrivi Materiali** (`materiali_parzialmente_arrivati` | `materiali_arrivati`)
+- Arrivi parziali: Solo alcuni materiali disponibili
+- Arrivo completo: Tutti i materiali ricevuti
+- Sistema aggiorna automaticamente stato busta
+- Notifiche automatiche per ritardi
+
+#### 5. **Lavorazione** (`in_lavorazione`)
+- Materiali completi, inizia montaggio/lavorazione
+- Tracciamento responsabile lavorazione
+- Gestione tentative multiple in caso di problemi
+- Note specifiche per ogni tentativo
+
+#### 6. **Pronto per Ritiro** (`pronto_ritiro`)
+- Lavorazione completata, prodotto finito
+- Sistema suggerisce contatto cliente
+- Gestione appuntamenti e promemoria
+- Possibilità di sospensione temporanea
+
+#### 7. **Consegnato e Pagato** (`consegnato_pagato`)
+- Cliente ha ritirato il prodotto
+- Pagamento completato (saldo o ultima rata)
+- Dopo 7 giorni busta diventa "archiviata"
+- Rimane nel database ma non appare nel Kanban attivo
+
+### Regole di Transizione
+
+Il sistema implementa **regole di workflow rigorose**:
+
+- Non si può saltare stati (es. da `nuove` a `materiali_arrivati`)
+- Alcune transizioni richiedono condizioni specifiche
+- Stati bloccanti per situazioni problematiche
+- Log completo di tutti i cambi stato con timestamp e responsabile
+
+### Workflow Speciali
+
+Per certe tipologie di lavorazione il workflow può essere semplificato:
+- **Riparazioni urgenti**: Possono saltare alcuni stati
+- **Accessori**: Workflow accelerato senza lavorazione
+- **Sostituzioni garanzia**: Gestione speciale senza pagamento
+
+---
+
+## Interfacce Utente e Moduli
+
+### 1. **Dashboard Principale** (`/dashboard`)
+
+#### Kanban Board
+- **Visualizzazione**: 7 colonne rappresentanti gli stati delle buste
+- **Drag & Drop**: Spostamento buste tra colonne per cambio stato
+- **Validazione**: Sistema impedisce transizioni non valide
+- **Real-time**: Aggiornamenti live con SWR
+- **Responsive**: Ottimizzato per tablet e desktop
+
+#### Statistiche in Tempo Reale
+- Contatori per ogni colonna
+- Buste in ritardo evidenziate
+- Priorità visualizzate con colori
+- Tempi medi di attraversamento
+
+#### Filtri e Ricerca
+- Filtro per cliente, periodo, stato
+- Ricerca full-text
+- Ordinamento personalizzabile
+- Esportazione dati
+
+### 2. **Hub Moduli** (`/hub`)
+
+**Disponibile solo per Admin e Manager**, l'hub centralizza l'accesso ai moduli specializzati:
+
+#### Console VisionHUB
+- Accesso rapido alla dashboard principale
+- Statistiche aggregate
+- Buste in evidenza
+
+#### Voice Triage (Solo Admin)
+- Gestione note vocali da Telegram
+- Collegamento note a clienti/buste
+- Trascrizione automatica
+
+#### Console Operativa (Manager/Admin)
+- Gestione ordini per stato
+- Azioni batch su ordini multipli
+- Monitoring fornitori
+
+#### Archivio (Manager/Admin)
+- Consultazione buste completate
+- Ricerca storica avanzata
+- Statistiche performance
+
+### 3. **Dettaglio Busta** (`/dashboard/buste/[id]`)
+
+Interfaccia completa per gestione singola busta, organizzata in tab:
+
+#### Tab Anagrafica
+- Dati cliente completi
+- Modifica informazioni
+- Storico buste precedenti
+- Note cliente
+
+#### Tab Materiali
+- Lista materiali richiesti
+- Gestione ordini per fornitore
+- Tracking stati singoli ordini
+- Calcolo costi
+
+#### Tab Lavorazione
+- Dettagli tecnici montaggio
+- Assegnazione responsabile
+- Tracking tentativi
+- Note tecniche
+
+#### Tab Pagamento
+- Impostazione prezzo finale
+- Gestione acconti
+- Rate e scadenze
+- Storico pagamenti
+
+#### Tab Notifiche
+- Comunicazioni inviate
+- Promemoria attivi
+- Log contatti cliente
+
+### 4. **Gestione Utenti** (`/admin/users`)
+
+**Solo Admin**, interfaccia per:
+- Lista tutti gli utenti registrati
+- Modifica ruoli e informazioni
+- Sistema inviti con ruoli pre-assegnati
+- Controllo accessi e permessi
+
+---
+
+## Sistema di Note Vocali
+
+### Filosofia del Sistema
+
+Il **Voice Triage** risolve un problema operativo cruciale: quando un cliente passa in negozio mentre l'operatore è occupato, invece di aprire l'applicazione (tempo e complessità), l'operatore può rapidamente inviare una **nota vocale via Telegram** che sarà poi processata quando possibile.
+
+### Flusso Operativo
+
+1. **Cliente in negozio**: Situazione che richiede annotazione rapida
+2. **Messaggio Telegram**: Operatore invia audio al bot
+3. **Trascrizione automatica**: AssemblyAI converte audio in testo
+4. **Storage sicuro**: Audio e testo salvati nel database
+5. **Triage admin**: Admin ascolta, legge trascrizione, esegue azioni necessarie
+
+### Integrazione Telegram
+
+#### Bot Configuration
+- **Token sicuro**: Webhook verificato con secret token
+- **Comandi base**: `/start`, `/help`, `/status`
+- **Multi-formato**: Voice messages, file audio, documenti audio
+- **Riconoscimento utenti**: Mapping username Telegram → operatore
+
+#### Gestione Audio
+- **Formati supportati**: OGG, MP3, WAV, M4A, AAC
+- **Download sicuro**: Via API Telegram
+- **Encoding**: Base64 per storage database
+- **Limiti**: Max 20MB per file, 10 minuti durata
+
+### Trascrizione Automatica
+
+#### AssemblyAI Integration
+- **API Key**: Configurata in variabili ambiente
+- **Linguaggio**: Ottimizzato per italiano
+- **Accuratezza**: Circa 85-95% su audio chiaro
+- **Fallback**: Sistema continua a funzionare anche senza trascrizione
+
+#### Processo Trascrizione
+1. Upload audio ad AssemblyAI
+2. Polling status trascrizione
+3. Retrieve testo completato
+4. Storage trascrizione nel database
+5. Notifica completamento
+
+### Voice Triage Interface
+
+**Accessibile solo agli Admin** tramite `/modules/voice-triage`:
+
+#### Lista Note Vocali
+- **Audio player**: Riproduzione diretta nel browser
+- **Trascrizione**: Testo affianco all'audio
+- **Metadati**: Chi, quando, durata, dimensione file
+- **Stato**: Pending, processed, archived
+
+#### Azioni Disponibili
+- **Play/Pause**: Controlli audio integrati
+- **Download**: Scarica file audio originale
+- **Collegamento**: Associa nota a cliente esistente
+- **Creazione busta**: Genera nuova busta da nota vocale
+- **Completamento**: Segna nota come processata
+- **Eliminazione**: Rimuove nota (solo admin)
+
+#### Ricerca Clienti Integrata
+Durante il voice triage è possibile:
+- Cercare clienti per nome/cognome/telefono
+- Visualizzare buste esistenti del cliente
+- Creare nuova busta direttamente dalla ricerca
+- Collegare nota vocale a busta specifica
+
+---
+
+## Gestione Ordini e Materiali
+
+### Tipologie di Materiali
+
+Il sistema gestisce cinque categorie principali:
+
+#### 1. **Lenti** (`tipi_lenti`)
+- Progressive, monofocali, bifocali
+- Trattamenti speciali (antiriflesso, indurimento, etc.)
+- Materiali (CR-39, policarbonato, high-index)
+- Tempi consegna stimati per tipo
+
+#### 2. **Montature** 
+- Metallo, acetato, titanio
+- Marchi e modelli
+- Taglie e varianti colore
+- Disponibilità e listini
+
+#### 3. **Lenti a Contatto** (LAC)
+- Giornaliere, mensili, semestrali
+- Toriche, multifocali, colorate
+- Marchi e parametri
+- Gestione scadenze
+
+#### 4. **Articoli Sportivi**
+- Occhiali sport-specifici
+- Lenti intercambiabili
+- Accessori (cordini, custodie)
+
+#### 5. **Laboratorio Esterno**
+- Lavorazioni speciali non fattibili internamente
+- Riparazioni complesse
+- Trattamenti particolari
+
+### Stati degli Ordini
+
+Ogni ordine materiale attraversa questi stati:
+
+- **`da_ordinare`**: Materiale definito ma non ancora ordinato
+- **`ordinato`**: Ordine inviato al fornitore
+- **`in_arrivo`**: Confermato dal fornitore, in transit
+- **`in_ritardo`**: Oltre la data prevista, alert automatico
+- **`consegnato`**: Arrivato e verificato
+- **`accettato_con_riserva`**: Arrivato ma con problemi minori
+- **`rifiutato`**: Non conforme, da ri-ordinare
+
+### Console Operativa
+
+Interfaccia specializzata per Manager e Admin (`/modules/operations`):
+
+#### Tab "Da Ordinare"
+- **Filtro automatico**: Solo ordini con stato `da_ordinare`
+- **Azioni batch**: Seleziona multipli e ordina insieme
+- **Raggruppamento**: Per fornitore per ordini combinati
+- **Priorità**: Evidenzia ordini urgenti
+
+#### Tab "Ordinati"
+- **Tracking**: Ordini inviati in attesa conferma
+- **Aggiornamento ETA**: Modifica date previste
+- **Note ordini**: Comunicazioni con fornitori
+
+#### Tab "In Arrivo"
+- **Calendario consegne**: Vista per data arrivo
+- **Preparazione ricezione**: Lista materiali attesi
+- **Conferma arrivi**: Azione rapida conferma
+
+#### Tab "In Ritardo"
+- **Alert automatici**: Ordini oltre data prevista
+- **Calcolo giorni ritardo**: Automatico
+- **Azioni correttive**: Sollecito fornitore, cambio ETA
+- **Comunicazione cliente**: Notifica ritardi
+
+#### Azioni Disponibili per Manager
+- ✅ **Segna ordinato**: Cambia stato + imposta data ordine + flag da_ordinare false
+- ✅ **Imposta ETA**: Modifica data consegna prevista
+- ✅ **Segna arrivato**: Conferma consegna + data effettiva
+- ✅ **Modifica note**: Aggiunge informazioni ordine
+- ❌ **Elimina ordine**: Solo admin (protezione dati)
+
+### Integrazione con Workflow Buste
+
+Il sistema di ordini è **sincronizzato automaticamente** con gli stati delle buste:
+
+- **Busta → `materiali_ordinati`**: Quando almeno un ordine passa a `ordinato`
+- **Busta → `materiali_parzialmente_arrivati`**: Quando alcuni (non tutti) ordini sono `consegnato`
+- **Busta → `materiali_arrivati`**: Quando TUTTI gli ordini sono `consegnato`
+
+### Gestione Fornitori
+
+#### Database Fornitori
+- **Specializzazione**: Ogni fornitore appartiene a una categoria specifica
+- **Tempi consegna medi**: Usati per calcolo automatico ETA
+- **Contatti**: Email, telefono, sito web per comunicazioni
+- **Note**: Condizioni speciali, orari, modalità ordini
+
+#### SLA e Performance
+- **Tracking ritardi**: Calcolo automatico giorni ritardo per fornitore
+- **Performance metrics**: Percentuale consegne puntuali
+- **Alert automatici**: Notifiche per fornitori problematici
+
+---
+
+## Sistema di Pagamenti
+
+### Modalità di Pagamento
+
+#### Pagamento Immediato
+- **Contanti**: Registrazione immediata
+- **Carta**: POS o online
+- **Bonifico**: Con tracking degli incassi
+- **Assegno**: Con data valuta
+
+#### Pagamento Dilazionato
+- **Acconto + Saldo**: Schema classico (30-50% + resto alla consegna)
+- **Rate mensili**: Fino a 12 rate personalizzabili
+- **Soluzioni personalizzate**: Per clienti abituali
+
+### Gestione Acconti
+
+```sql
+info_pagamenti:
+- prezzo_finale: Importo totale pattuito
+- ha_acconto: true/false
+- importo_acconto: Cifra versata in anticipo
+- data_acconto: Quando versato
+- modalita_saldo: Come pagherà il resto
+```
+
+### Sistema Rate
+
+```sql
+rate_pagamenti:
+- numero_rata: Progressivo (1, 2, 3...)
+- importo_rata: Singolo importo
+- data_scadenza: Quando deve essere pagata
+- is_pagata: Stato pagamento
+- data_pagamento: Quando effettivamente pagata
+```
+
+### Reminder Automatici
+
+Il sistema implementa **promemoria automatici**:
+
+#### Logica Reminder
+- **7 giorni prima**: Promemoria cortese via email/SMS
+- **Giorno scadenza**: Notifica scadenza
+- **3 giorni dopo**: Sollecito gentile
+- **7 giorni dopo**: Sollecito formale
+
+#### Configurazione Reminder
+- **Attivazione per rata**: `reminder_attivo = true/false`
+- **Ultimo inviato**: `ultimo_reminder` per evitare duplicati
+- **Personalizzazione**: Template messaggi per tipo cliente
+
+### Integrazione con Stati Busta
+
+- **Acconto versato**: Abilita inizio lavorazione se materiali pronti
+- **Saldo completo**: Busta può passare a `consegnato_pagato`
+- **Rate scadute**: Blocco nuove buste per cliente moroso (opzionale)
+
+### Reporting Finanziario
+
+#### Dashboard Admin
+- **Incassi del mese**: Totale e dettaglio per modalità
+- **Rate in scadenza**: Calendario prossimi incassi
+- **Crediti aperti**: Clienti con pagamenti pendenti
+- **Performance**: Tempo medio pagamento, % puntualità
+
+---
+
+## Console Operativa
+
+### Filosofia
+
+La **Console Operativa** (`/modules/operations`) è progettata per dare ai **Manager** un controllo operativo completo sui materiali e ordini, **senza permettere azioni distruttive**. È l'interfaccia primaria per chi si occupa della logistica e coordinamento fornitori.
+
+### Interfaccia Tabbed
+
+#### Tab "Da Ordinare"
+**Obiettivo**: Visualizzare tutti i materiali che devono ancora essere ordinati
+
+- **Dati mostrati**: 
+  - Busta di riferimento (numero leggibile)
+  - Cliente (cognome nome)
+  - Descrizione prodotto dettagliata
+  - Data consegna prevista
+- **Azioni disponibili**:
+  - `Segna ordinato`: Cambia stato ordine + imposta data_ordine + da_ordinare=false
+  - `Imposta ETA`: Modifica data consegna prevista
+  - `Note`: Aggiungi/modifica note ordine
+
+#### Tab "Ordinati" 
+**Obiettivo**: Monitoraggio ordini inviati ma non ancora arrivati
+
+- **Filtro automatico**: `stato = 'ordinato'`
+- **Informazioni chiave**: Data ordine effettuato, fornitore, ETA
+- **Azioni**:
+  - Aggiorna ETA se fornitore comunica cambi
+  - Note per tracking comunicazioni
+
+#### Tab "In Arrivo"
+**Obiettivo**: Ordini confermati in transit dal fornitore
+
+- **Vista calendario**: Raggruppamento per data arrivo prevista
+- **Preparazione ricezione**: Lista cosa aspettare oggi/domani
+- **Azione principale**: `Segna arrivato` quando materiale arriva fisicamente
+
+#### Tab "In Ritardo"
+**Obiettivo**: Alert e gestione ritardi automatici
+
+- **Calcolo automatico**: Ordini oltre `data_consegna_prevista`
+- **Evidenziazione**: Giorni di ritardo calcolati
+- **Azioni correttive**:
+  - Sollecito fornitore (note/email)
+  - Aggiornamento ETA realistica
+  - Comunicazione cliente se ritardo significativo
+
+#### Tab "Tutti"
+**Obiettivo**: Vista completa per ricerche e analisi
+
+- **Tutti gli ordini**: Senza filtri di stato
+- **Ricerca avanzata**: Per cliente, fornitore, prodotto, periodo
+- **Export dati**: Per analisi esterne
+
+### Azioni Manager (Sicure)
+
+#### ✅ Azioni Permesse
+1. **Segna ordinato**: 
+   - `stato = 'ordinato'`
+   - `da_ordinare = false`
+   - `data_ordine = oggi`
+
+2. **Imposta ETA**: 
+   - Modifica `data_consegna_prevista`
+   - Ricalcolo automatico ritardi
+
+3. **Segna arrivato**:
+   - `stato = 'consegnato'`
+   - `data_consegna_effettiva = oggi`
+   - Trigger aggiornamento stato busta
+
+4. **Modifica note**:
+   - Campo `note` per tracking comunicazioni
+
+#### ❌ Azioni Vietate (Solo Admin)
+- Eliminare ordini (protezione dati)
+- Modificare prezzi o fornitori
+- Cancellare buste
+- Accesso gestione utenti
+
+### API Backend Sicure
+
+#### GET `/api/ordini?status=...`
+- **Autenticazione**: Richiede login
+- **Autorizzazione**: Solo manager/admin
+- **Server-side filtering**: Filtri applicati lato database
+- **Service role**: Query con privilegi elevati dopo controllo ruolo
+
+#### PATCH `/api/ordini/[id]`
+- **Campi permessi**: Solo `stato`, `da_ordinare`, `data_consegna_prevista`, `data_consegna_effettiva`, `data_ordine`, `note`
+- **Validazione**: Server verifica manager/admin
+- **Atomic updates**: Transazioni database per consistency
+- **Trigger sync**: Aggiornamento automatico stati buste correlate
+
+### Integrazione Real-time
+
+- **SWR caching**: Dati aggiornati automaticamente
+- **Refresh button**: Aggiornamento manuale su richiesta
+- **Loading states**: Feedback visivo durante operazioni
+- **Error handling**: Gestione errori di rete/server
+
+---
+
+## Sicurezza e Controllo Accessi
+
+### Row Level Security (RLS)
+
+Supabase implementa **Row Level Security** a livello database:
+
+#### Policies per Ruolo
+
+**Operatori**:
+```sql
+-- Possono vedere solo buste non archiviate
+CREATE POLICY operatore_buste ON buste 
+FOR SELECT USING (stato_attuale != 'consegnato_pagato' OR updated_at > now() - interval '7 days');
+
+-- Possono modificare buste assegnate
+CREATE POLICY operatore_update ON buste 
+FOR UPDATE USING (creato_da = auth.uid());
+```
+
+**Manager**:
+```sql
+-- Accesso completo buste e ordini (lettura)
+CREATE POLICY manager_read ON buste FOR SELECT USING (true);
+
+-- Update sicuro ordini materiali
+CREATE POLICY manager_ordini ON ordini_materiali 
+FOR UPDATE USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('manager', 'admin'))
+);
+```
+
+**Admin**:
+```sql
+-- Accesso completo a tutto
+CREATE POLICY admin_all ON * FOR ALL USING (
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+);
+```
+
+### Middleware di Protezione
+
+Il `middleware.ts` implementa **controlli preventivi**:
+
+#### Protezione Route-Based
+```typescript
+// Admin-only paths
+const adminPaths = ['/admin', '/modules/voice-triage']
+const managerPaths = ['/modules/archive', '/modules/operations'] 
+const protectedPaths = ['/dashboard', '/profile', '/modules']
+```
+
+#### Validazione Continua
+- **Ad ogni richiesta**: Verifica sessione valida
+- **Controllo ruolo**: Query profilo utente per autorizzazione
+- **Redirect intelligenti**: Basati su ruolo e destinazione
+- **Session refresh**: Mantenimento automatico stato auth
+
+### API Security
+
+#### Authentication Required
+```typescript
+// Ogni API route verifica autenticazione
+const { data: { user }, error } = await supabase.auth.getUser()
+if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+```
+
+#### Role-Based Authorization
+```typescript
+// Admin-only endpoints
+if (profile?.role !== 'admin') {
+  return NextResponse.json({ error: 'Admin required' }, { status: 403 })
+}
+
+// Manager-or-above endpoints  
+if (!['admin', 'manager'].includes(profile?.role)) {
+  return NextResponse.json({ error: 'Manager required' }, { status: 403 })
+}
+```
+
+### Telegram Security
+
+#### Webhook Verification
+```typescript
+// Verifica secret token Telegram
+const configuredSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+const providedSecret = request.headers.get('x-telegram-bot-api-secret-token');
+if (configuredSecret && providedSecret !== configuredSecret) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+```
+
+#### User Mapping Sicuro
+- **Username Telegram → Operatore**: Mapping controllato admin
+- **Voice notes isolate**: Ogni operatore accede solo alle proprie
+- **Admin oversight**: Solo admin può accedere a tutte le note
+
+### Data Protection
+
+#### Audio Storage
+- **Base64 encoding**: Audio convertito per storage database sicuro
+- **Access control**: Solo admin possono scaricare audio originali
+- **Retention policy**: Cancellazione automatica dopo X giorni (configurabile)
+
+#### Personal Data
+- **GDPR compliance**: Diritto cancellazione dati cliente
+- **Data minimization**: Solo dati necessari per servizio
+- **Audit trail**: Log completo accessi e modifiche
+
+#### Environment Variables
+```bash
+# Database
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=  # Server-only, privilegi elevati
+
+# Telegram  
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+TELEGRAM_WEBHOOK_URL=
+
+# Transcription
+ASSEMBLYAI_API_KEY=
+```
+
+### Logging e Monitoring
+
+#### Application Logs
+- **Request tracking**: Ogni middleware log richiesta e user
+- **Error logging**: Stack trace completi in development
+- **Performance monitoring**: Tempi risposta API
+
+#### Security Events
+- **Failed auth attempts**: Log tentativi accesso non autorizzati
+- **Role violations**: Attempt accesso risorse non permesse
+- **Data modifications**: Chi cambia cosa quando
+
+#### Alerting
+- **Failed webhooks**: Problemi integrazione Telegram
+- **Database errors**: Connessione o query fallite
+- **Unusual activity**: Pattern di accesso anomali
+
+---
+
+## Conclusioni
+
+Il **Gestionale Ottica Bianchi** rappresenta una soluzione completa e moderna per la digitalizzazione di un'ottica, coprendo ogni aspetto del processo commerciale dalla prima visita del cliente fino alla consegna finale e pagamento.
+
+### Punti di Forza
+
+1. **Workflow Naturale**: Il sistema segue il flusso operativo reale di un'ottica
+2. **Interfaccia Intuitiva**: Dashboard Kanban per comprensione immediata degli stati
+3. **Multi-Ruolo**: Tre livelli di accesso con permessi granulari
+4. **Innovazione Voice**: Integrazione Telegram per note vocali risolve problema operativo reale  
+5. **Sicurezza Robusta**: RLS, middleware, API protette, controlli continui
+6. **Scalabilità**: Architettura moderna pronta per crescita
+7. **Mobile-Ready**: Responsive design ottimizzato per tablet e smartphone
+
+### Benefici Operativi
+
+- **Eliminazione Carta**: Processo completamente digitale
+- **Tracciabilità Completa**: Ogni azione documentata con timestamp e responsabile
+- **Riduzione Errori**: Validazioni automatiche e workflow guidati
+- **Miglior Servizio Cliente**: Storico completo e comunicazioni tracciate
+- **Controllo Gestionale**: Report e statistiche per decisioni data-driven
+- **Efficienza Team**: Ruoli chiari, responsabilità definite, collaborazione fluida
+
+### Tecnologie All'Avanguardia
+
+- **Next.js 14**: Framework React moderno con App Router
+- **Supabase**: Database PostgreSQL con autenticazione integrata  
+- **Real-time Updates**: SWR per sincronizzazione automatica dati
+- **TypeScript**: Type safety per riduzione errori runtime
+- **Responsive Design**: Tailwind CSS per interfaccia moderna
+
+Il sistema rappresenta un esempio eccellente di come la tecnologia moderna possa essere applicata per risolvere problemi operativi concreti in un settore tradizionale come l'ottica, migliorando significativamente l'efficienza operativa e la qualità del servizio al cliente.

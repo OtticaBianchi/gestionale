@@ -13,7 +13,7 @@ export const LazyLavorazioneTab = lazy(() => import('@/app/dashboard/buste/[id]/
 export const LazyNotificheTab = lazy(() => import('@/app/dashboard/buste/[id]/_components/tabs/NotificheTab'));
 
 // ✅ Pagine specializzate - sicure perché non in dashboard principale
-export const LazyVoiceNotesPage = lazy(() => import('@/app/dashboard/voice-notes/page'));
+// PWA voice interface removed - using Telegram bot instead
 export const LazyRicercaAvanzataPage = lazy(() => import('@/app/dashboard/ricerca-avanzata/page'));
 export const LazyFiltriOrdiniPage = lazy(() => import('@/app/dashboard/filtri-ordini/page'));
 

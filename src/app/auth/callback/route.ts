@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  let next = searchParams.get('next') ?? '/dashboard'
 
   console.log('🔍 CALLBACK - Code present:', !!code);
   console.log('🔍 CALLBACK - Next URL:', next);
@@ -70,7 +70,8 @@ export async function GET(request: Request) {
                         data.user.user_metadata?.name || 
                         data.user.identities?.[0]?.identity_data?.full_name ||
                         data.user.email?.split('@')[0] || 'Utente',
-              role: 'operatore' // Ruolo default (operatore nel nuovo sistema)
+              // Use invited role if present, fallback to 'operatore'
+              role: (data.user.user_metadata as any)?.role || 'operatore'
             })
             .select()
             .single()
@@ -84,12 +85,23 @@ export async function GET(request: Request) {
           }
         }
 
-        console.log('🔍 CALLBACK - Skipping onboarding check - redirecting to dashboard');
+      console.log('🔍 CALLBACK - Role-based default landing');
+      // If no explicit next, choose by role (admin/manager -> hub)
+      if (!searchParams.get('next')) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single()
+        if (prof && (prof.role === 'admin' || prof.role === 'manager')) {
+          next = '/dashboard'  // Everyone goes to dashboard
+        }
+      }
       }
 
       console.log('🔍 CALLBACK - REDIRECTING TO:', `${origin}${next}`);
       // Force redirect to dashboard for new users
-      const redirectUrl = next === '/dashboard' ? `${origin}/dashboard` : `${origin}${next}`;
+      const redirectUrl = `${origin}${next}`;
       console.log('🔍 CALLBACK - Final redirect URL:', redirectUrl);
       return NextResponse.redirect(redirectUrl)
     } catch (error) {

@@ -53,6 +53,7 @@ interface ClientSearchResult {
 
 export default function VoiceNotesPage() {
   const { profile } = useUser();
+  const isAdmin = profile?.role === 'admin';
   const [voiceNotes, setVoiceNotes] = useState<VoiceNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -355,7 +356,7 @@ export default function VoiceNotesPage() {
       {/* Content */}
       <div className="p-6">
         {/* Client Search Section */}
-        {selectedNote && (
+        {selectedNote && isAdmin && (
           <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
             <h3 className="font-semibold text-gray-900 mb-3">Cerca Cliente per questa Nota</h3>
             
@@ -406,6 +407,14 @@ export default function VoiceNotesPage() {
                           <p className="text-sm text-gray-600">📞 {result.cliente.telefono}</p>
                         )}
                       </div>
+                      {isAdmin && (
+                        <Link
+                          href={`/dashboard/buste/new?clientId=${result.cliente.id}`}
+                          className="px-3 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
+                        >
+                          + Nuova Busta
+                        </Link>
+                      )}
                     </div>
 
                     {/* Buste List */}
@@ -579,17 +588,23 @@ export default function VoiceNotesPage() {
 
                 {/* Controlli audio */}
                 <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => playAudio(note)}
-                    className="flex items-center space-x-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 transition-colors"
-                  >
-                    {playingId === note.id ? (
-                      <Pause className="h-4 w-4" />
-                    ) : (
-                      <Play className="h-4 w-4" />
-                    )}
-                    <span>{playingId === note.id ? 'Pause' : 'Play'}</span>
-                  </button>
+                  {isAdmin ? (
+                    <button
+                      onClick={() => playAudio(note)}
+                      className="flex items-center space-x-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 transition-colors"
+                    >
+                      {playingId === note.id ? (
+                        <Pause className="h-4 w-4" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      <span>{playingId === note.id ? 'Pause' : 'Play'}</span>
+                    </button>
+                  ) : (
+                    <div className="text-xs text-gray-500 bg-gray-100 px-3 py-2 rounded-md">
+                      Solo gli amministratori possono riprodurre l'audio
+                    </div>
+                  )}
 
                   <div className="flex items-center space-x-1">
                     {/* Link to busta */}
@@ -604,7 +619,7 @@ export default function VoiceNotesPage() {
                     )}
                     
                     {/* Mark as completed */}
-                    {note.stato === 'pending' && (
+                    {isAdmin && note.stato === 'pending' && (
                       <button
                         onClick={() => markAsCompleted(note.id)}
                         className="p-2 text-green-500 hover:text-green-700 transition-colors"
@@ -613,21 +628,24 @@ export default function VoiceNotesPage() {
                         <CheckCircle className="h-4 w-4" />
                       </button>
                     )}
-                    
-                    <button
-                      onClick={() => downloadAudio(note)}
-                      className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
-                      title="Scarica audio"
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => setSelectedNote(note)}
-                      className="p-2 text-purple-500 hover:text-purple-700 transition-colors"
-                      title="Cerca cliente"
-                    >
-                      <Search className="h-4 w-4" />
-                    </button>
+                    {isAdmin && (
+                      <>
+                        <button
+                          onClick={() => downloadAudio(note)}
+                          className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                          title="Scarica audio"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => setSelectedNote(note)}
+                          className="p-2 text-purple-500 hover:text-purple-700 transition-colors"
+                          title="Cerca cliente"
+                        >
+                          <Search className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
                     {canDeleteNotes && (
                       <button
                         onClick={() => deleteNote(note.id)}

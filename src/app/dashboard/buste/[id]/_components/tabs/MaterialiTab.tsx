@@ -60,9 +60,10 @@ type TipoLenti = Database['public']['Tables']['tipi_lenti']['Row'];
 interface MaterialiTabProps {
   busta: BustaDettagliata;
   isReadOnly?: boolean; // ✅ AGGIUNTO
+  canDelete?: boolean; // ✅ Solo admin possono cancellare ordini
 }                                                                                                            
 
-export default function MaterialiTab({ busta, isReadOnly = false }: MaterialiTabProps) {
+export default function MaterialiTab({ busta, isReadOnly = false, canDelete = false }: MaterialiTabProps) {
   // ===== STATE =====
   const [ordiniMateriali, setOrdiniMateriali] = useState<OrdineMateriale[]>([]);
   const [tipiOrdine, setTipiOrdine] = useState<TipoOrdine[]>([]);
@@ -400,22 +401,18 @@ export default function MaterialiTab({ busta, isReadOnly = false }: MaterialiTab
       const newValue = !currentValue;
       console.log(`🔄 Toggle da_ordinare per ${ordineId}: ${currentValue} → ${newValue}`);
       
-      // 🔥 FIX: Quando da_ordinare diventa false → stato diventa "ordinato"
-      const { error } = await supabase
-        .from('ordini_materiali')
-        .update({ 
+      // 🔥 Via API: Quando da_ordinare diventa false → stato diventa "ordinato"
+      const resp = await fetch(`/api/ordini/${ordineId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           da_ordinare: newValue,
-          stato: newValue ? 'da_ordinare' : 'ordinato', // ✅ SINCRONIZZAZIONE STATO
-          // Se marca come "ordinato", aggiorna anche data_ordine
+          stato: newValue ? 'da_ordinare' : 'ordinato',
           data_ordine: !newValue ? new Date().toISOString().split('T')[0] : undefined,
-          updated_at: new Date().toISOString()
         })
-        .eq('id', ordineId);
-  
-      if (error) {
-        console.error('❌ Errore toggle da_ordinare:', error);
-        throw error;
-      }
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || 'Errore aggiornamento')
   
       console.log('✅ da_ordinare E stato aggiornati nel database');
   
@@ -455,15 +452,13 @@ export default function MaterialiTab({ busta, isReadOnly = false }: MaterialiTab
         updateData.data_consegna_effettiva = new Date().toISOString().split('T')[0];
       }
 
-      const { error } = await supabase
-        .from('ordini_materiali')
-        .update(updateData)
-        .eq('id', ordineId);
-
-      if (error) {
-        console.error('❌ Errore aggiornamento stato:', error);
-        throw error;
-      }
+      const resp = await fetch(`/api/ordini/${ordineId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData)
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || 'Errore aggiornamento')
 
       console.log('✅ Stato ordine aggiornato nel database');
 
@@ -1008,14 +1003,16 @@ export default function MaterialiTab({ busta, isReadOnly = false }: MaterialiTab
                           <option value="consegnato">✅ Consegnato</option>
                         </select>
                   
-                        <button
-                          onClick={() => handleDeleteOrdine(ordine.id)}
-                          className="px-3 py-2 text-sm text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors border border-red-200"
-                          title="Elimina ordine"
-                        >
-                          <span className="hidden md:block">Elimina</span>
-                          <Trash2 className="w-4 h-4 md:hidden" />
-                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDeleteOrdine(ordine.id)}
+                            className="px-3 py-2 text-sm text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors border border-red-200"
+                            title="Elimina ordine"
+                          >
+                            <span className="hidden md:block">Elimina</span>
+                            <Trash2 className="w-4 h-4 md:hidden" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

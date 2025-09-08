@@ -1,0 +1,65 @@
+schemaname,tablename,policyname,permissive,roles,cmd,policy_expression,with_check_expression
+public,buste,Gli utenti autenticati possono creare buste,PERMISSIVE,{public},INSERT,null,(auth.uid() = creato_da)
+public,buste,Gli utenti autenticati possono vedere tutte le buste,PERMISSIVE,{public},SELECT,((auth.jwt() ->> 'role'::text) = 'authenticated'::text),null
+public,buste,Manager e Admin possono aggiornare le buste,PERMISSIVE,{public},UPDATE,true,true
+public,buste,Manager e Admin possono cancellare le buste,PERMISSIVE,{public},DELETE,"((get_my_claim('role'::text))::text = ANY (ARRAY['manager'::text, 'admin'::text]))",null
+public,buste,admin_full_access,PERMISSIVE,{authenticated},ALL,"(EXISTS ( SELECT 1
+   FROM profiles
+  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",null
+public,buste,manager_crud_no_delete,PERMISSIVE,{authenticated},ALL,"(EXISTS ( SELECT 1
+   FROM profiles
+  WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['manager'::text, 'admin'::text])))))",null
+public,buste,operatore_read_only,PERMISSIVE,{authenticated},ALL,"((EXISTS ( SELECT 1
+   FROM profiles
+  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'operatore'::text)))) AND
+CASE
+    WHEN (current_setting('request.method'::text, true) = 'GET'::text) THEN true
+    ELSE false
+END)",null
+public,clienti,Accesso completo per utenti autenticati,PERMISSIVE,{public},ALL,((auth.jwt() ->> 'role'::text) = 'authenticated'::text),((auth.jwt() ->> 'role'::text) = 'authenticated'::text)
+public,comunicazioni,Users can access communications from their company,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM buste
+  WHERE ((buste.id = comunicazioni.busta_id) AND (buste.creato_da = auth.uid()))))",null
+public,fornitori_lab_esterno,Enable insert for authenticated users,PERMISSIVE,{public},INSERT,null,(auth.role() = 'authenticated'::text)
+public,fornitori_lab_esterno,Enable read access for authenticated users,PERMISSIVE,{public},SELECT,(auth.role() = 'authenticated'::text),null
+public,fornitori_lab_esterno,Enable update for authenticated users,PERMISSIVE,{public},UPDATE,(auth.role() = 'authenticated'::text),null
+public,fornitori_lac,Fornitori - read all,PERMISSIVE,{public},SELECT,(auth.role() = 'authenticated'::text),null
+public,fornitori_lenti,Fornitori - read all,PERMISSIVE,{public},SELECT,(auth.role() = 'authenticated'::text),null
+public,fornitori_montature,Fornitori - read all,PERMISSIVE,{public},SELECT,(auth.role() = 'authenticated'::text),null
+public,fornitori_sport,Fornitori - read all,PERMISSIVE,{public},SELECT,(auth.role() = 'authenticated'::text),null
+public,info_pagamenti,Users can access payment info from their company,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM buste
+  WHERE ((buste.id = info_pagamenti.busta_id) AND (buste.creato_da = auth.uid()))))",null
+public,lavorazioni,Admin può eliminare lavorazioni,PERMISSIVE,{public},DELETE,"(EXISTS ( SELECT 1
+   FROM profiles
+  WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))",null
+public,lavorazioni,Responsabile può aggiornare lavorazioni,PERMISSIVE,{public},UPDATE,"((responsabile_id = auth.uid()) OR (EXISTS ( SELECT 1
+   FROM profiles
+  WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'manager'::text]))))))",null
+public,lavorazioni,Tutti possono leggere lavorazioni,PERMISSIVE,{public},SELECT,true,null
+public,lavorazioni,Utenti autenticati possono inserire lavorazioni,PERMISSIVE,{public},INSERT,null,(auth.uid() IS NOT NULL)
+public,materiali,Accesso completo per utenti autenticati,PERMISSIVE,{public},ALL,((auth.jwt() ->> 'role'::text) = 'authenticated'::text),((auth.jwt() ->> 'role'::text) = 'authenticated'::text)
+public,modi_avviso_cliente,Tutti possono leggere modi_avviso_cliente,PERMISSIVE,{public},SELECT,true,null
+public,note,Accesso completo per utenti autenticati,PERMISSIVE,{public},ALL,((auth.jwt() ->> 'role'::text) = 'authenticated'::text),((auth.jwt() ->> 'role'::text) = 'authenticated'::text)
+public,ordini_materiali,ordini_materiali_delete,PERMISSIVE,{public},DELETE,true,null
+public,ordini_materiali,ordini_materiali_insert,PERMISSIVE,{public},INSERT,null,true
+public,ordini_materiali,ordini_materiali_select,PERMISSIVE,{public},SELECT,true,null
+public,ordini_materiali,ordini_materiali_update,PERMISSIVE,{public},UPDATE,true,null
+public,profiles,Gli utenti possono aggiornare il proprio profilo,PERMISSIVE,{public},UPDATE,(auth.uid() = id),(auth.uid() = id)
+public,profiles,Gli utenti possono vedere il proprio profilo,PERMISSIVE,{public},SELECT,(auth.uid() = id),null
+public,rate_pagamenti,Users can access payment rates from their company,PERMISSIVE,{public},ALL,"(EXISTS ( SELECT 1
+   FROM buste
+  WHERE ((buste.id = rate_pagamenti.busta_id) AND (buste.creato_da = auth.uid()))))",null
+public,status_history,Accesso completo per utenti autenticati,PERMISSIVE,{public},ALL,((auth.jwt() ->> 'role'::text) = 'authenticated'::text),((auth.jwt() ->> 'role'::text) = 'authenticated'::text)
+public,tipi_lavorazione,Tutti possono leggere tipi_lavorazione,PERMISSIVE,{public},SELECT,true,null
+public,tipi_lenti,Tutti possono leggere tipi_lenti,PERMISSIVE,{public},SELECT,true,null
+public,tipi_montaggio,Tutti possono leggere tipi_montaggio,PERMISSIVE,{public},SELECT,true,null
+public,tipi_ordine,Tutti possono leggere tipi_ordine,PERMISSIVE,{public},SELECT,true,null
+public,voice_notes,All authenticated users can view voice notes,PERMISSIVE,{public},SELECT,(auth.role() = 'authenticated'::text),null
+public,voice_notes,Allow voice notes insertion from mobile,PERMISSIVE,{public},INSERT,null,true
+public,voice_notes,Only amministratore can delete voice notes,PERMISSIVE,{public},DELETE,"(auth.uid() IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.role = 'amministratore'::text)))",null
+public,voice_notes,Operatore and amministratore can update voice notes,PERMISSIVE,{public},UPDATE,"(auth.uid() IN ( SELECT profiles.id
+   FROM profiles
+  WHERE (profiles.role = ANY (ARRAY['amministratore'::text, 'operatore'::text]))))",null

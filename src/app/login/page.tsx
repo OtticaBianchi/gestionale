@@ -17,25 +17,45 @@ function LoginForm() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('🔑 LOGIN - Starting client-side login with fixed UserContext...')
+    console.log('🔑 LOGIN - Email:', email)
+    
     setError(null)
     setIsLoading(true)
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log('🔑 LOGIN - Calling signInWithPassword (should work now)...')
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
+
+      console.log('🔑 LOGIN - SignIn completed:', {
+        success: !error,
+        error: error?.message,
+        user: data?.user?.email
+      })
       
       if (error) {
+        console.log('🔑 LOGIN - Error occurred:', error.message)
         setError(error.message === 'Invalid login credentials' ? 'Email o password non validi.' : error.message)
-      } else {
-        // Redirect immediato dopo login riuscito
-        router.push(redirectTo)
-        router.refresh()
+        setIsLoading(false)
+        return
       }
+
+      if (data?.user) {
+        console.log('🔑 LOGIN - Success! User authenticated, UserContext will handle redirect...')
+        // UserContext will load profile and redirect automatically
+        // Keep loading state until redirect happens
+      } else {
+        setError('Login fallito - nessun utente ricevuto')
+        setIsLoading(false)
+      }
+      
     } catch (e) {
+      console.error('🔑 LOGIN - Unexpected error:', e)
       setError('Si è verificato un errore imprevisto.')
-    } finally {
       setIsLoading(false)
     }
   }
@@ -89,7 +109,6 @@ function LoginForm() {
               </div>
               <input
                 id="email"
-                name="email"
                 type="email"
                 autoComplete="email"
                 required
@@ -108,7 +127,6 @@ function LoginForm() {
               </div>
               <input
                 id="password"
-                name="password"
                 type="password"
                 autoComplete="current-password"
                 required
@@ -128,6 +146,12 @@ function LoginForm() {
             {isLoading ? 'Accesso in corso...' : 'Accedi'}
           </button>
         </form>
+
+        {/* Link reset password */}
+        <div className="flex items-center justify-between text-sm">
+          <div></div>
+          <a href="/reset-password" className="text-blue-600 hover:underline">Password dimenticata?</a>
+        </div>
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">

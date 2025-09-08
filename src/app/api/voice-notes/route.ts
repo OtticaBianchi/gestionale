@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
   // Apply rate limiting
   const rateLimitResult = await apiRateLimit(request);
   if (rateLimitResult) return rateLimitResult;
+  
   try {
     // Use service role client for anonymous inserts to bypass RLS
     const supabase = createClient(
@@ -17,65 +18,74 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
     
-    const formData = await request.formData();
-    const audioFile = formData.get('audio') as File;
-    const addetto_nome = formData.get('addetto_nome') as string;
-    const note_aggiuntive = formData.get('note_aggiuntive') as string;
-    const duration_seconds = formData.get('duration_seconds') as string;
-
-    if (!audioFile) {
-      return NextResponse.json({ error: 'File audio mancante' }, { status: 400 });
-    }
-
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024;
-    if (audioFile.size > maxSize) {
-      return NextResponse.json({ error: 'File troppo grande (max 5MB)' }, { status: 400 });
-    }
-
-    // Validate duration (max 60 seconds)
-    const duration = parseFloat(duration_seconds) || 0;
-    if (duration > 60) {
-      return NextResponse.json({ error: 'Durata massima 60 secondi' }, { status: 400 });
-    }
-
-    // Convert file to base64 for storage
-    const arrayBuffer = await audioFile.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Audio = buffer.toString('base64');
-
-    // Save to database with service role to bypass RLS temporarily
-    const { data, error } = await supabase
-      .from('voice_notes')
-      .insert({
-        audio_blob: base64Audio,
-        addetto_nome,
-        cliente_riferimento: null,
-        note_aggiuntive: note_aggiuntive || null,
-        stato: 'pending',
-        file_size: audioFile.size,
-        duration_seconds: duration,
-        cliente_id: null,
-        busta_id: null
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Database error:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
+    const contentType = request.headers.get('content-type');
+    
+    // ===== TELEGRAM BOT JSON REQUEST =====
+    if (contentType?.includes('application/json')) {
+      const jsonData = await request.json();
+      
+      // Validate required fields for Telegram bot
+      if (!jsonData.audioBase64) {
+        return NextResponse.json({ error: 'Audio data mancante' }, { status: 400 });
+      }
+      
+      // Save Telegram bot data directly
+      const { data, error } = await supabase
+        .from('voice_notes')
+        .insert({
+          audio_blob: jsonData.audioBase64,
+          addetto_nome: jsonData.addetto_nome || 'Telegram Bot',
+          cliente_riferimento: jsonData.cliente_riferimento || null,
+          note_aggiuntive: jsonData.transcription || null,
+          stato: 'pending',
+          file_size: jsonData.file_size || 0,
+          duration_seconds: jsonData.duration_seconds || 0,
+          cliente_id: jsonData.cliente_id || null,
+          busta_id: jsonData.busta_id || null,
+          
+          // Telegram-specific fields
+          telegram_message_id: jsonData.telegram_message_id || null,
+          telegram_user_id: jsonData.telegram_user_id || null,
+          telegram_username: jsonData.telegram_username || null,
+          audio_file_path: jsonData.audio_file_path || null,
+          
+          // AI Analysis fields
+          category_auto: jsonData.category_auto || null,
+          sentiment: jsonData.sentiment || null,
+          priority_level: jsonData.priority_level || 2,
+          extracted_dates: jsonData.extracted_dates || null,
+          confidence_scores: jsonData.confidence_scores || null,
+          needs_review: jsonData.needs_review || false
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Telegram bot database error:', error);
+        return NextResponse.json({ 
+          error: 'Errore salvataggio database', 
+          details: error.message 
+        }, { status: 500 });
+      }
+      
       return NextResponse.json({ 
-        error: 'Errore salvataggio database', 
-        details: error.message,
-        code: error.code 
-      }, { status: 500 });
+        success: true, 
+        noteId: data.id,
+        message: 'Nota Telegram salvata con successo' 
+      });
     }
-
-    return NextResponse.json({ 
-      success: true, 
-      noteId: data.id,
-      message: 'Nota vocale salvata con successo' 
-    });
+    
+    // ===== LEGACY PWA FORMDATA REQUEST (DEPRECATED) =====
+    else if (contentType?.includes('multipart/form-data')) {
+      return NextResponse.json({ 
+        error: 'PWA interface deprecated - use Telegram bot', 
+        telegram_bot: '@your_bot_username'
+      }, { status: 410 });
+    }
+    
+    else {
+      return NextResponse.json({ error: 'Unsupported content type' }, { status: 400 });
+    }
 
   } catch (error) {
     console.error('Voice note save error:', error);
@@ -88,34 +98,79 @@ export async function GET(request: NextRequest) {
     const supabase = createServerSupabaseClient();
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') as 'pending' | 'processing' | 'completed' | 'failed' | null;
-
-    // Delete COMPLETED notes older than 1 week
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
     
-    await supabase
-      .from('voice_notes')
-      .delete()
-      .eq('stato', 'completed')
-      .lt('created_at', oneWeekAgo.toISOString());
+    // Require auth and determine role
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+    }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    const isAdmin = profile?.role === 'admin';
+
+    // Maintenance delete (admin only): clean up completed notes older than 1 week
+    if (isAdmin) {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      await supabase
+        .from('voice_notes')
+        .delete()
+        .eq('stato', 'completed')
+        .lt('created_at', oneWeekAgo.toISOString());
+    }
 
     // Build query with related data
-    let query = supabase
-      .from('voice_notes')
-      .select(`
-        *,
-        clienti:cliente_id (
+    let query
+    if (isAdmin) {
+      // Admin sees everything including audio_blob
+      query = supabase
+        .from('voice_notes')
+        .select(`
+          *,
+          clienti:cliente_id (
+            id,
+            nome,
+            cognome
+          ),
+          buste:busta_id (
+            id,
+            readable_id,
+            stato_attuale
+          )
+        `)
+        .order('created_at', { ascending: false });
+    } else {
+      // Non-admin: hide audio_blob and other sensitive fields
+      query = supabase
+        .from('voice_notes')
+        .select(`
           id,
-          nome,
-          cognome
-        ),
-        buste:busta_id (
-          id,
-          readable_id,
-          stato_attuale
-        )
-      `)
-      .order('created_at', { ascending: false });
+          addetto_nome,
+          cliente_riferimento,
+          note_aggiuntive,
+          stato,
+          file_size,
+          duration_seconds,
+          created_at,
+          updated_at,
+          cliente_id,
+          busta_id,
+          clienti:cliente_id (
+            id,
+            nome,
+            cognome
+          ),
+          buste:busta_id (
+            id,
+            readable_id,
+            stato_attuale
+          )
+        `)
+        .order('created_at', { ascending: false });
+    }
 
     if (status) {
       query = query.eq('stato', status);

@@ -62,9 +62,9 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // ===== PROTEZIONE ADMIN ROUTES =====
-  // 🔐 NUOVO: Protezione per rotte admin (solo admin possono accedere)
-  const adminPaths = ['/admin']
+  // ===== PROTEZIONE ADMIN/MANAGER ROUTES =====
+  // 🔐 Protezione per rotte admin (solo admin)
+  const adminPaths = ['/admin', '/modules/voice-triage']
   const isAdminPath = adminPaths.some(path => pathname.startsWith(path))
 
   if (isAdminPath) {
@@ -96,8 +96,30 @@ export async function middleware(request: NextRequest) {
     console.log('🔍 MIDDLEWARE - ADMIN ACCESS GRANTED');
   }
 
+  // 🔐 Protezione per rotte manager-or-above (archive module)
+  const managerPaths = ['/modules/archive', '/modules/operations']
+  const isManagerPath = managerPaths.some(path => pathname.startsWith(path))
+
+  if (isManagerPath) {
+    console.log('🔍 MIDDLEWARE - MANAGER PATH DETECTED:', pathname);
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      const redirectUrl = new URL('/login', request.url)
+      redirectUrl.searchParams.set('redirectTo', pathname)
+      return NextResponse.redirect(redirectUrl)
+    }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single()
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+      return NextResponse.redirect(new URL('/dashboard?error=manager_required', request.url))
+    }
+  }
+
   // Proteggi le rotte che richiedono autenticazione
-  const protectedPaths = ['/dashboard', '/buste', '/clienti', '/settings', '/onboarding', '/profilo']
+  const protectedPaths = ['/dashboard', '/buste', '/clienti', '/settings', '/onboarding', '/profilo', '/profile', '/modules']
   const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path))
 
   console.log('🔍 MIDDLEWARE - isProtectedPath:', isProtectedPath);
@@ -127,8 +149,16 @@ export async function middleware(request: NextRequest) {
     console.log('🔍 MIDDLEWARE - AUTH PATH - Session:', session ? `EXISTS (${session.user.email})` : 'MISSING');
     
     if (session) {
-      console.log('🔍 MIDDLEWARE - REDIRECTING TO DASHBOARD from auth path');
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      // Determine role to pick home destination
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single()
+      const role = profile?.role || 'operatore'
+      const home = '/dashboard' // Everyone goes to dashboard
+      console.log('🔍 MIDDLEWARE - AUTH PATH - Redirecting to', home, 'for role:', role)
+      return NextResponse.redirect(new URL(home, request.url))
     } else {
       console.log('🔍 MIDDLEWARE - AUTH PATH - No session, allowing login page');
     }
@@ -144,9 +174,10 @@ export const config = {
      * Match all request paths except for the ones starting with:
      * - _next/static (static files)
      * - _next/image (image optimization files)
+     * - _vercel (Speed Insights & altre integrazioni)
      * - favicon.ico (favicon file)
-     * - public folder
+     * - file statici comuni (js, css, map, json, media)
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|_vercel|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|js|css|map|json|mp3|ogg|wav)$).*)',
   ],
 }

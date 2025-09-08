@@ -7,6 +7,7 @@ import StatsBar from './_components/StatsBar';
 import UserProfileHeader from './_components/UserProfileHeader';
 import { BustaWithCliente } from '@/types/shared.types';
 import DashboardActions from './_components/DashboardActions';
+import ErrorActions from './_components/ErrorActions';
 
 // ✅ FIX: Forza il dynamic rendering e disabilita la cache
 export const dynamic = 'force-dynamic';
@@ -111,20 +112,8 @@ export default async function DashboardPage() {
             Si è verificato un errore durante il caricamento dei dati. 
             Riprova tra qualche istante o contatta il supporto se il problema persiste.
           </p>
-          <div className="mt-3 flex space-x-2">
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-sm"
-            >
-              Ricarica Pagina
-            </button>
-            <button
-              onClick={() => window.location.href = '/login'}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
-            >
-              Torna al Login
-            </button>
-          </div>
+          {/* Sposta le azioni in un client component per evitare problemi RSC */}
+          <ErrorActions />
           {/* Solo in sviluppo, mostra dettagli tecnici */}
           {process.env.NODE_ENV === 'development' && (
             <details className="mt-3">

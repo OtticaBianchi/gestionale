@@ -16,7 +16,7 @@ interface UserContextType {
   session: Session | null
   profile: Profile | null
   isLoading: boolean
-  signOut: () => Promise<void>
+  signOut: (reason?: 'idle' | 'manual') => Promise<void>
   refreshProfile: () => Promise<void>
 }
 
@@ -62,6 +62,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [shouldLoadProfile, setShouldLoadProfile] = useState<string | null>(null) // Reactive trigger
 
   // Riferimenti per il tracciamento del tempo online
   const sessionStartTimeRef = useRef<number | null>(null)
@@ -73,6 +74,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // Funzione per caricare il profilo utente - CORRETTA
   const loadProfile = async (userId: string): Promise<Profile | null> => {
     try {
+      console.log('🔐 UserContext - Loading profile for userId:', userId)
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -81,13 +83,22 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         if (error.code !== 'PGRST116') { // 'PGRST116' = riga non trovata (normale per nuovi utenti)
-          console.error('Error loading profile:', error)
+          console.error('🔐 UserContext - Error loading profile:', error)
+        } else {
+          console.log('🔐 UserContext - Profile not found (new user):', userId)
         }
         return null
       }
+      
+      console.log('🔐 UserContext - Profile loaded successfully:', {
+        id: data.id,
+        role: data.role,
+        full_name: data.full_name
+      })
+      
       return data as Profile
     } catch (error) {
-      console.error('Unexpected error loading profile:', error)
+      console.error('🔐 UserContext - Unexpected error loading profile:', error)
       return null
     }
   }
@@ -128,14 +139,33 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   // Funzione di logout aggiornata
   const signOut = async (reason: 'idle' | 'manual' = 'manual') => {
-    console.log(`Signing out due to: ${reason}`)
+    console.log(`🔐 Signing out due to: ${reason}`)
     try {
       await trackAndSendSessionTime()
-      await supabase.auth.signOut()
+      
+      // Use server-side signout for reliability
+      const response = await fetch('/api/auth/signout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (response.ok) {
+        console.log('🔐 Server-side signout successful')
+      } else {
+        console.warn('🔐 Server-side signout failed, falling back to client signout')
+        await supabase.auth.signOut()
+      }
+      
+      // Force redirect to login page
+      window.location.href = '/login'
+      
     } catch (error) {
-      console.error('Unexpected error during signout:', error)
+      console.error('🔐 Error during signout, forcing redirect:', error)
+      // Even if signout fails, redirect to login
+      window.location.href = '/login'
     }
-    // Il cleanup dello stato (user, profile, etc.) è gestito da onAuthStateChange
   }
   
   // Attiva il timer di inattività
@@ -171,23 +201,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
     getInitialSession()
 
-    // Listener per i cambiamenti di stato dell'autenticazione
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      console.log('Auth state changed:', event)
+    // Listener per i cambiamenti di stato dell'autenticazione - NO DATABASE CALLS
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      console.log('🔐 UserContext - Auth state changed:', event, newSession?.user?.email)
       
       if (!isMounted) return // Evita state update se component è unmounted
-      
-      // Evita loop se la sessione non è cambiata realmente
-      if (session?.access_token === newSession?.access_token && session?.user?.id === newSession?.user?.id) {
-        return
-      }
       
       setSession(newSession)
       setUser(newSession?.user ?? null)
 
       if (newSession?.user && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
-        const profileData = await loadProfile(newSession.user.id)
-        if (isMounted) setProfile(profileData)
+        console.log('🔐 UserContext - Triggering profile load for user:', newSession.user.id)
+        // REACTIVE PATTERN: Set trigger instead of calling database directly
+        setShouldLoadProfile(newSession.user.id)
         
         if (!sessionStartTimeRef.current) { // Avvia il tracking se non già attivo
           sessionStartTimeRef.current = Date.now()
@@ -197,6 +223,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
       } else if (event === 'SIGNED_OUT') {
         if (isMounted) setProfile(null)
+        setShouldLoadProfile(null)
         
         // Resetta i contatori per sicurezza (dovrebbe essere già fatto in signOut)
         sessionStartTimeRef.current = null
@@ -240,6 +267,46 @@ export function UserProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
   }, []) // Rimosso supabase.auth per evitare re-render infiniti
+
+  // REACTIVE PROFILE LOADING - Separate from auth state change to prevent hanging
+  useEffect(() => {
+    let isMounted = true // Local flag for this effect
+    if (!shouldLoadProfile) return
+    
+    let isCurrent = true // Prevent stale updates
+    
+    const loadProfileReactive = async () => {
+      try {
+        console.log('🔐 UserContext - Reactive profile loading for user:', shouldLoadProfile)
+        const profileData = await loadProfile(shouldLoadProfile)
+        
+        if (isCurrent && isMounted) {
+          console.log('🔐 UserContext - Reactive profile loaded:', profileData)
+          setProfile(profileData)
+          setShouldLoadProfile(null) // Clear trigger
+          
+          // Auto-redirect after successful profile load
+          if (profileData && window.location.pathname === '/login') {
+            const role = profileData.role || 'operatore'
+            const redirectUrl = '/dashboard' // Everyone goes to dashboard
+            console.log('🔐 UserContext - Auto-redirecting to:', redirectUrl, 'for role:', role)
+            window.location.href = redirectUrl
+          }
+        }
+      } catch (error) {
+        console.error('🔐 UserContext - Reactive profile loading error:', error)
+        if (isCurrent && isMounted) {
+          setShouldLoadProfile(null) // Clear trigger on error
+        }
+      }
+    }
+
+    loadProfileReactive()
+
+    return () => {
+      isCurrent = false
+    }
+  }, [shouldLoadProfile]) // React to trigger changes
 
   const value: UserContextType = {
     user,

@@ -10,10 +10,24 @@ const nextConfig = {
     formats: ['image/webp', 'image/avif'],
   },
   
-  // ✅ PERFORMANCE: Webpack optimizations (sicure)
-  webpack: (config, { isServer }) => {
-    // Ottimizza bundle splitting
-    if (!isServer) {
+  // ✅ PERFORMANCE & STABILITY: Webpack optimizations with dev stability fixes
+  webpack: (config, { dev, isServer }) => {
+    // In development, disable aggressive caching that causes vendors.js corruption
+    if (dev && !isServer) {
+      // Disable webpack cache in development to prevent file corruption
+      config.cache = false
+      
+      // Keep default Next.js chunk splitting but disable caching
+      // Don't override splitChunks to avoid 404s
+      config.optimization.splitChunks = {
+        ...config.optimization.splitChunks,
+        // Keep default but ensure no caching issues
+        cacheGroups: {
+          ...config.optimization.splitChunks.cacheGroups,
+        }
+      }
+    } else if (!isServer) {
+      // Production optimizations (keep existing)
       config.optimization.splitChunks = {
         ...config.optimization.splitChunks,
         cacheGroups: {
@@ -38,7 +52,7 @@ const nextConfig = {
 
   // ✅ SECURITY: Headers di sicurezza per proteggere l'app
   async headers() {
-    return [
+    const headers = [
       {
         source: '/(.*)',
         headers: [
@@ -86,7 +100,41 @@ const nextConfig = {
           },
         ],
       },
-    ];
+    ]
+    
+    // Add development-specific headers to prevent JS file caching issues
+    if (process.env.NODE_ENV === 'development') {
+      headers.push(
+        {
+          source: '/_next/static/chunks/:path*',
+          headers: [
+            {
+              key: 'Cache-Control',
+              value: 'no-cache, no-store, must-revalidate',
+            },
+            {
+              key: 'Pragma',
+              value: 'no-cache',
+            },
+            {
+              key: 'Expires',
+              value: '0',
+            },
+          ],
+        },
+        {
+          source: '/_next/static/css/:path*',
+          headers: [
+            {
+              key: 'Cache-Control',
+              value: 'no-cache, no-store, must-revalidate',
+            },
+          ],
+        }
+      )
+    }
+    
+    return headers
   },
 }
 

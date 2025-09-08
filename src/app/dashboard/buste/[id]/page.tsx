@@ -85,7 +85,7 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
               >
                 <ArrowLeft className="h-5 w-5" />
-                <span>Torna alla Dashboard</span>
+                <span>Torna al Dashboard</span>
               </Link>
               <div className="h-6 w-px bg-gray-300" />
               <div>

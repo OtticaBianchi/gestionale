@@ -1,0 +1,101 @@
+table_name,column_name,data_type,is_nullable,column_default
+buste,id,uuid,NO,uuid_generate_v4()
+buste,readable_id,text,YES,null
+buste,cliente_id,uuid,YES,null
+buste,tipo_lavorazione,USER-DEFINED,YES,null
+buste,stato_attuale,USER-DEFINED,NO,'nuove'::job_status
+buste,priorita,USER-DEFINED,NO,'normale'::job_priority
+buste,is_suspended,boolean,NO,false
+buste,note_generali,text,YES,null
+buste,data_apertura,timestamp with time zone,NO,now()
+buste,data_consegna_prevista,date,YES,null
+buste,creato_da,uuid,YES,null
+buste,updated_at,timestamp with time zone,YES,now()
+buste,modo_avviso_id,integer,YES,null
+buste,tipo_montaggio_id,integer,YES,null
+buste,tipo_lavorazione_codice,text,YES,null
+clienti,id,uuid,NO,uuid_generate_v4()
+clienti,cognome,text,NO,null
+clienti,nome,text,NO,null
+clienti,data_nascita,date,YES,null
+clienti,telefono,text,YES,null
+clienti,email,text,YES,null
+clienti,note_cliente,text,YES,null
+clienti,created_at,timestamp with time zone,YES,now()
+clienti,updated_at,timestamp with time zone,YES,now()
+clienti,genere,text,YES,null
+comunicazioni,id,uuid,NO,gen_random_uuid()
+comunicazioni,busta_id,uuid,NO,null
+comunicazioni,tipo_messaggio,text,NO,null
+comunicazioni,destinatario_tipo,text,NO,null
+comunicazioni,destinatario_nome,text,NO,null
+comunicazioni,destinatario_contatto,text,YES,null
+comunicazioni,testo_messaggio,text,NO,null
+comunicazioni,canale_invio,text,YES,'sms'::text
+comunicazioni,data_invio,timestamp with time zone,NO,now()
+comunicazioni,stato_invio,text,YES,'inviato'::text
+comunicazioni,inviato_da,uuid,NO,null
+comunicazioni,nome_operatore,text,NO,null
+comunicazioni,created_at,timestamp with time zone,YES,now()
+comunicazioni,updated_at,timestamp with time zone,YES,now()
+fornitori_lab_esterno,id,uuid,NO,gen_random_uuid()
+fornitori_lab_esterno,nome,text,NO,null
+fornitori_lab_esterno,telefono,text,YES,null
+fornitori_lab_esterno,email,text,YES,null
+fornitori_lab_esterno,tempi_consegna_medi,integer,YES,7
+fornitori_lab_esterno,note,text,YES,null
+fornitori_lab_esterno,created_at,timestamp with time zone,YES,now()
+fornitori_lab_esterno,web_address,text,YES,null
+fornitori_lac,id,uuid,NO,gen_random_uuid()
+fornitori_lac,nome,text,NO,null
+fornitori_lac,tempi_consegna_medi,integer,YES,3
+fornitori_lac,email,text,YES,null
+fornitori_lac,telefono,text,YES,null
+fornitori_lac,note,text,YES,null
+fornitori_lac,created_at,timestamp with time zone,YES,now()
+fornitori_lac,updated_at,timestamp with time zone,YES,now()
+fornitori_lac,web_address,text,YES,null
+fornitori_lenti,id,uuid,NO,gen_random_uuid()
+fornitori_lenti,nome,text,NO,null
+fornitori_lenti,tempi_consegna_medi,integer,YES,4
+fornitori_lenti,email,text,YES,null
+fornitori_lenti,telefono,text,YES,null
+fornitori_lenti,note,text,YES,null
+fornitori_lenti,created_at,timestamp with time zone,YES,now()
+fornitori_lenti,updated_at,timestamp with time zone,YES,now()
+fornitori_lenti,web_address,text,YES,null
+fornitori_montature,id,uuid,NO,gen_random_uuid()
+fornitori_montature,nome,text,NO,null
+fornitori_montature,tempi_consegna_medi,integer,YES,7
+fornitori_montature,email,text,YES,null
+fornitori_montature,telefono,text,YES,null
+fornitori_montature,note,text,YES,null
+fornitori_montature,created_at,timestamp with time zone,YES,now()
+fornitori_montature,updated_at,timestamp with time zone,YES,now()
+fornitori_montature,web_address,text,YES,null
+fornitori_sport,id,uuid,NO,gen_random_uuid()
+fornitori_sport,nome,text,NO,null
+fornitori_sport,tempi_consegna_medi,integer,YES,5
+fornitori_sport,email,text,YES,null
+fornitori_sport,telefono,text,YES,null
+fornitori_sport,note,text,YES,null
+fornitori_sport,created_at,timestamp with time zone,YES,now()
+fornitori_sport,updated_at,timestamp with time zone,YES,now()
+fornitori_sport,web_address,text,YES,null
+info_pagamenti,id,uuid,NO,gen_random_uuid()
+info_pagamenti,busta_id,uuid,NO,null
+info_pagamenti,ha_acconto,boolean,YES,false
+info_pagamenti,data_acconto,date,YES,null
+info_pagamenti,modalita_saldo,text,NO,'saldo_unico'::text
+info_pagamenti,is_saldato,boolean,YES,false
+info_pagamenti,data_saldo,date,YES,null
+info_pagamenti,note_pagamento,text,YES,null
+info_pagamenti,created_at,timestamp with time zone,YES,now()
+info_pagamenti,updated_at,timestamp with time zone,YES,now()
+info_pagamenti,importo_acconto,numeric,YES,null
+info_pagamenti,prezzo_finale,numeric,YES,null
+lavorazioni,id,uuid,NO,gen_random_uuid()
+lavorazioni,busta_id,uuid,NO,null
+lavorazioni,tipo_montaggio_id,integer,NO,null
+lavorazioni,stato,text,NO,'pianificato'::text
+lavorazioni,data_inizio,date,NO,CURRENT_DATE

@@ -28,14 +28,13 @@ export default function UserProfileHeader() {
     // ✅ INTEGRAZIONE: TUO pattern isMounted + BUSINESS LOGIC esistente
     let isMounted = true;
     
-    // ✅ FIX: Add timeout to prevent infinite loading
+    // Rende il componente resiliente: niente redirect automatico; mostra errore e consente retry
     const timeoutId = setTimeout(() => {
       if (isMounted) {
-        console.log('⏱️ Profile loading timeout - redirecting to login');
+        console.log('⏱️ Profile loading timeout');
         setError('Timeout caricamento profilo');
-        router.push('/login');
       }
-    }, 10000); // 10 seconds timeout
+    }, 15000);
     
     const getProfile = async () => {
       try {
@@ -54,9 +53,9 @@ export default function UserProfileHeader() {
         }
 
         if (!user) {
-          console.log('❌ No user found, redirecting to login');
-          router.push('/login');
-          return;
+          console.log('❌ No user found, showing error state');
+          setError('Utente non autenticato');
+          return; 
         }
 
         setUser(user);
@@ -199,21 +198,28 @@ export default function UserProfileHeader() {
           </div>
           
           <div className="flex items-center space-x-3">
-            <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-2">
-              <div className="flex items-center space-x-2 text-orange-700">
-                <AlertCircle className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  Tempo di inattività superiore ai 5 minuti - Logout automatico
-                </span>
+            {error && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-2">
+                <div className="flex items-center space-x-2 text-orange-700">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    {error}. Riprova o torna al login.
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
             
-            <button
-              onClick={() => window.location.href = '/login'}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <span className="text-sm">Accedi di nuovo</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => router.refresh()}
+                className="flex items-center space-x-2 px-3 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+              >
+                Riprova
+              </button>
+              <a href="/login" className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                Accedi di nuovo
+              </a>
+            </div>
           </div>
         </div>
       </div>
