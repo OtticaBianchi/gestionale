@@ -6,9 +6,6 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Lazy import to avoid top-level ESM/CJS conflicts
 const { createClient } = require('@supabase/supabase-js');
-const { AssemblyAI } = require('assemblyai');
-const fs = require('fs');
-const path = require('path');
 
 // ===== Helpers =====
 function jsonSafe<T>(v: T) {
@@ -141,71 +138,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'saved_error', error: saveErr.message });
     }
 
-    console.log('✅ Voice note saved:', saved?.id);
-
-    // 4) Transcribe synchronously (best effort). This may take time; ensure Vercel timeout is adequate.
-    const aaiKey = process.env.ASSEMBLYAI_API_KEY;
-    if (!aaiKey) {
-      console.warn('⚠️ ASSEMBLYAI_API_KEY missing; skipping transcription');
-      return NextResponse.json({ status: 'ok_saved_no_transcription', id: saved?.id });
-    }
-
-    try {
-      // Write temp file to /tmp for upload
-      const tmpDir = process.env.TMPDIR || '/tmp';
-      const tmpFile = path.join(tmpDir, `voice_${saved.id}.bin`);
-      const audioBuffer = Buffer.from(audioBase64, 'base64');
-      fs.writeFileSync(tmpFile, audioBuffer);
-
-      const client = new AssemblyAI({ apiKey: aaiKey });
-      const uploadedUrl = await client.files.upload(tmpFile);
-      const transcript = await client.transcripts.transcribe({
-        audio_url: uploadedUrl,
-        language_code: 'it'
-      });
-
-      if (transcript.status === 'error') {
-        throw new Error(transcript.error || 'AssemblyAI error');
-      }
-
-      const text = (transcript.text || '').trim();
-      if (!text) throw new Error('Empty transcription');
-
-      // Update note as completed
-      const { error: updErr } = await supabase
-        .from('voice_notes')
-        .update({
-          note_aggiuntive: text,
-          stato: 'completed',
-          processed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', saved.id);
-
-      if (updErr) {
-        console.error('⚠️ Failed to update transcription:', updErr.message);
-      } else {
-        console.log('📝 Transcription saved for note:', saved.id);
-      }
-
-      // Cleanup tmp file
-      try { fs.unlinkSync(tmpFile); } catch {}
-
-      return NextResponse.json({ status: 'ok_transcribed', id: saved?.id });
-    } catch (txErr: any) {
-      console.error('❌ Transcription failed:', txErr?.message || txErr);
-      // Mark pending with error note (optional)
-      const { error: updErr2 } = await supabase
-        .from('voice_notes')
-        .update({
-          note_aggiuntive: `Transcription Error: ${txErr?.message || 'unknown'}`,
-          stato: 'pending',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', saved.id);
-      if (updErr2) console.error('⚠️ Failed to write error note:', updErr2.message);
-      return NextResponse.json({ status: 'ok_saved_pending', id: saved?.id, error: txErr?.message });
-    }
+    console.log('✅ Voice note saved (no auto transcription):', saved?.id);
+    // Return success; transcription is on-demand via PATCH /api/voice-notes/[id] with redo_transcription
+    return NextResponse.json({ status: 'ok_saved', id: saved?.id });
 
   } catch (error: any) {
     console.error('🔥 Webhook handler error:', error);
