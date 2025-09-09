@@ -237,6 +237,39 @@ export default function VoiceNotesPage() {
     setShowDuplicateMenu(null);
   };
 
+  // Link currently selected note to a client (and optionally to a busta)
+  const linkNote = async (noteId: string, clientId: string, bustaId?: string) => {
+    try {
+      const response = await fetch(`/api/voice-notes/${noteId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: clientId, busta_id: bustaId ?? null, redo_transcription: true })
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Impossibile collegare la nota');
+      }
+      // Update local state for immediate feedback
+      setVoiceNotes(prev => prev.map(n => {
+        if (n.id !== noteId) return n;
+        return {
+          ...n,
+          cliente_id: clientId,
+          busta_id: bustaId ?? null,
+          clienti: bustaId ? n.clienti : (n.clienti || { id: clientId, nome: '', cognome: '' }),
+          buste: bustaId ? (n.buste || { id: bustaId, readable_id: '', stato_attuale: '' }) : n.buste
+        } as VoiceNote;
+      }));
+      toast.success('Nota collegata correttamente');
+      // Optionally close the search panel
+      setSelectedNote(null);
+      // Refresh to hydrate relations if needed
+      fetchVoiceNotes();
+    } catch (e: any) {
+      toast.error(e.message || 'Errore collegamento nota');
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('it-IT', {
       day: '2-digit',
@@ -354,7 +387,7 @@ export default function VoiceNotesPage() {
       </div>
 
       {/* Content */}
-      <div className="p-6">
+      <div className="p-4">
         {/* Client Search Section */}
         {selectedNote && isAdmin && (
           <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
@@ -408,12 +441,21 @@ export default function VoiceNotesPage() {
                         )}
                       </div>
                       {isAdmin && (
-                        <Link
-                          href={`/dashboard/buste/new?clientId=${result.cliente.id}`}
-                          className="px-3 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
-                        >
-                          + Nuova Busta
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => selectedNote && linkNote(selectedNote.id, result.cliente.id)}
+                            className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition-colors"
+                            title="Collega la nota al cliente (senza busta)"
+                          >
+                            Collega al Cliente
+                          </button>
+                          <Link
+                            href={`/dashboard/buste/new?clientId=${result.cliente.id}`}
+                            className="px-3 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
+                          >
+                            + Nuova Busta
+                          </Link>
+                        </div>
                       )}
                     </div>
 
@@ -483,6 +525,15 @@ export default function VoiceNotesPage() {
                                   )}
                                 </div>
                               )}
+                              {isAdmin && (
+                                <button
+                                  onClick={() => selectedNote && linkNote(selectedNote.id, result.cliente.id, busta.id)}
+                                  className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
+                                  title="Collega la nota a questa busta"
+                                >
+                                  Collega qui
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -511,9 +562,9 @@ export default function VoiceNotesPage() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
           </div>
         ) : voiceNotes.length === 0 ? (
-          <div className="text-center py-12">
-            <Mic className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Nessuna nota vocale</h3>
+          <div className="text-center py-10">
+            <Mic className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+            <h3 className="text-base font-medium text-gray-900 mb-1">Nessuna nota vocale</h3>
             <p className="text-gray-500">
               {filter === 'all' 
                 ? 'Non ci sono note vocali registrate.'
@@ -522,29 +573,29 @@ export default function VoiceNotesPage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
             {voiceNotes.map((note) => (
-              <div key={note.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div key={note.id} className="bg-white rounded-md border border-gray-200 p-3 hover:shadow-sm transition-shadow">
                 {/* Header della nota */}
-                <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start justify-between mb-2">
                   <div className="flex flex-col space-y-1">
                     {/* Cliente info */}
                     {note.clienti ? (
                       <div className="flex items-center space-x-2">
-                        <User className="h-4 w-4 text-blue-500" />
-                        <span className="font-medium text-gray-900">
+                        <User className="h-3 w-3 text-blue-500" />
+                        <span className="text-sm font-medium text-gray-900">
                           {note.clienti.nome} {note.clienti.cognome}
                         </span>
                       </div>
                     ) : note.cliente_riferimento ? (
                       <div className="flex items-center space-x-2">
-                        <User className="h-4 w-4 text-gray-500" />
-                        <span className="font-medium text-gray-700">{note.cliente_riferimento}</span>
+                        <User className="h-3 w-3 text-gray-500" />
+                        <span className="text-sm font-medium text-gray-700">{note.cliente_riferimento}</span>
                       </div>
                     ) : (
                       <div className="flex items-center space-x-2">
-                        <Mic className="h-4 w-4 text-purple-500" />
-                        <span className="text-sm text-gray-500">Nota generica</span>
+                        <Mic className="h-3 w-3 text-purple-500" />
+                        <span className="text-xs text-gray-500">Nota generica</span>
                       </div>
                     )}
                     
@@ -552,34 +603,34 @@ export default function VoiceNotesPage() {
                     {note.buste && (
                       <div className="flex items-center space-x-2">
                         <FolderOpen className="h-3 w-3 text-green-500" />
-                        <span className="text-xs text-gray-600">
+                        <span className="text-[11px] text-gray-600">
                           Busta {note.buste.readable_id} • {note.buste.stato_attuale}
                         </span>
                       </div>
                     )}
                   </div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStateColor(note.stato)}`}>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${getStateColor(note.stato)}`}>
                     {getStateText(note.stato)}
                   </span>
                 </div>
 
                 {/* Informazioni temporali */}
-                <div className="space-y-2 mb-4 text-sm text-gray-600">
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4" />
+                <div className="space-y-1 mb-2 text-xs text-gray-600">
+                  <div className="flex items-center space-x-1.5">
+                    <Calendar className="h-3 w-3" />
                     <span>{formatDate(note.created_at)}</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Clock className="h-4 w-4" />
+                  <div className="flex items-center space-x-1.5">
+                    <Clock className="h-3 w-3" />
                     <span>{formatDuration(note.duration_seconds)} • {formatFileSize(note.file_size)}</span>
                   </div>
                 </div>
 
                 {/* Trascrizione */}
                 {note.note_aggiuntive && (
-                  <div className="mb-4">
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-sm text-gray-700 leading-relaxed">
+                  <div className="mb-2">
+                    <div className="bg-gray-50 rounded-md p-2">
+                      <p className="text-xs text-gray-700 leading-snug line-clamp-3">
                         {note.note_aggiuntive}
                       </p>
                     </div>
@@ -591,17 +642,22 @@ export default function VoiceNotesPage() {
                   {isAdmin ? (
                     <button
                       onClick={() => playAudio(note)}
-                      className="flex items-center space-x-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 transition-colors"
+                      disabled={!note.audio_blob}
+                      className={`flex items-center space-x-2 px-2 py-1 rounded transition-colors text-xs ${
+                        note.audio_blob
+                          ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
                     >
                       {playingId === note.id ? (
-                        <Pause className="h-4 w-4" />
+                        <Pause className="h-3 w-3" />
                       ) : (
-                        <Play className="h-4 w-4" />
+                        <Play className="h-3 w-3" />
                       )}
-                      <span>{playingId === note.id ? 'Pause' : 'Play'}</span>
+                      <span>{note.audio_blob ? (playingId === note.id ? 'Pausa' : 'Play') : 'Audio rimosso'}</span>
                     </button>
                   ) : (
-                    <div className="text-xs text-gray-500 bg-gray-100 px-3 py-2 rounded-md">
+                    <div className="text-[11px] text-gray-500 bg-gray-100 px-2 py-1 rounded">
                       Solo gli amministratori possono riprodurre l'audio
                     </div>
                   )}
@@ -611,10 +667,10 @@ export default function VoiceNotesPage() {
                     {note.buste && (
                       <Link
                         href={`/dashboard/buste/${note.buste.id}`}
-                        className="p-2 text-blue-500 hover:text-blue-700 transition-colors"
+                        className="p-1.5 text-blue-500 hover:text-blue-700 transition-colors"
                         title="Apri busta"
                       >
-                        <ExternalLink className="h-4 w-4" />
+                        <ExternalLink className="h-3 w-3" />
                       </Link>
                     )}
                     
@@ -622,37 +678,37 @@ export default function VoiceNotesPage() {
                     {isAdmin && note.stato === 'pending' && (
                       <button
                         onClick={() => markAsCompleted(note.id)}
-                        className="p-2 text-green-500 hover:text-green-700 transition-colors"
+                        className="p-1.5 text-green-500 hover:text-green-700 transition-colors"
                         title="Segna come completata"
                       >
-                        <CheckCircle className="h-4 w-4" />
+                        <CheckCircle className="h-3 w-3" />
                       </button>
                     )}
                     {isAdmin && (
                       <>
                         <button
                           onClick={() => downloadAudio(note)}
-                          className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                          className="p-1.5 text-gray-500 hover:text-gray-700 transition-colors"
                           title="Scarica audio"
                         >
-                          <Download className="h-4 w-4" />
+                          <Download className="h-3 w-3" />
                         </button>
                         <button
                           onClick={() => setSelectedNote(note)}
-                          className="p-2 text-purple-500 hover:text-purple-700 transition-colors"
+                          className="p-1.5 text-purple-500 hover:text-purple-700 transition-colors"
                           title="Cerca cliente"
                         >
-                          <Search className="h-4 w-4" />
+                          <Search className="h-3 w-3" />
                         </button>
                       </>
                     )}
                     {canDeleteNotes && (
                       <button
                         onClick={() => deleteNote(note.id)}
-                        className="p-2 text-red-500 hover:text-red-700 transition-colors"
+                        className="p-1.5 text-red-500 hover:text-red-700 transition-colors"
                         title="Elimina nota (solo amministratore)"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                       </button>
                     )}
                   </div>

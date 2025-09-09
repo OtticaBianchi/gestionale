@@ -910,3 +910,36 @@ Il **Gestionale Ottica Bianchi** rappresenta una soluzione completa e moderna pe
 - **Responsive Design**: Tailwind CSS per interfaccia moderna
 
 Il sistema rappresenta un esempio eccellente di come la tecnologia moderna possa essere applicata per risolvere problemi operativi concreti in un settore tradizionale come l'ottica, migliorando significativamente l'efficienza operativa e la qualità del servizio al cliente.
+
+---
+
+## Aggiornamenti Recenti (UI, Fornitori, Note Vocali)
+
+Questa sezione riassume le principali modifiche implementate in questa iterazione.
+
+- Filtri Ordini (Da Ordinare)
+  - Il pulsante “Chiama” è stato sostituito da “Apri portale”: se il fornitore ha `web_address`, si apre il sito B2B in una nuova scheda per inserire l’ordine; rimane disponibile il pulsante Email.
+  - La vista ora mostra “Portale” come metodo preferito quando presente l’URL.
+  - Aggiunto pulsante “Gestisci fornitori” nella testata per accesso rapido.
+
+- Gestione Fornitori (Manager/Admin)
+  - Nuovo modulo: `/modules/fornitori` con tab per categoria (lenti, montature, lac, sport, lab. esterno).
+  - Campi gestiti: `nome`, `referente_nome`, `telefono`, `email`, `web_address` (URL ordini), `tempi_consegna_medi`, `note`.
+  - API protette per creare/aggiornare fornitori; aggiunta colonna `referente_nome` a tutte le tabelle fornitori.
+  - Script utili: `scripts/add_supplier_referente.sql` e `scripts/seed_supplier_portals.sql` (placeholders da sostituire con URL reali).
+
+- Note Vocali (Voice Triage)
+  - UI più compatta: card ridotte, griglia più densa, testo e icone più piccoli per consultazione rapida.
+  - Collegamento rapido: dalla ricerca cliente è possibile collegare la nota a un Cliente (“Collega al Cliente”) o a una specifica Busta (“Collega qui”).
+  - Ritrascrizione su collegamento: se l’audio è ancora presente e si richiede la ritrascrizione, il sistema invia l’audio ad AssemblyAI e, al termine, aggiunge automaticamente il testo a `note_generali` della busta (con marcatore `[VoiceNote <id>]`, idempotente).
+  - Retention: dopo 7 giorni dal completamento (`processed_at`), l’audio viene rimosso dal database (svuotiamo `audio_blob` e azzeriamo `file_size`); restano metadati e trascrizione. È prevista un’API di manutenzione schedulata (cron) per sostituire la pulizia lato GET admin.
+
+- Pagamenti (ASAP – revisione modellazione)
+  - Confermata l’adozione del modello semplificato `buste_finance` + `payments` per rendere immediata la registrazione incassi, saldo e chiusura busta. Dettagli in Application Architecture Guide.
+
+### Messaggio per il team di domani
+
+- Migliorare l’affidabilità della pipeline Telegram → Nota vocale → Trascrizione: deve funzionare “come un orologio svizzero”.
+  - Aggiungere retry/backoff, idempotenza per `telegram_message_id`, logging/alerting più ricchi e job periodico per ritentare trascrizioni fallite.
+  - Introdurre un endpoint di manutenzione per archiviazione/eliminazione note: dopo 7 giorni dal completamento archiviare le note collegate (busta/cliente) e cancellare quelle non collegate.
+  - Valutare migrazione dell’audio da `audio_blob` a Supabase Storage con URL firmati per ridurre peso DB e migliorare streaming.

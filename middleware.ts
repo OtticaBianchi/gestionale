@@ -97,7 +97,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // 🔐 Protezione per rotte manager-or-above (archive module)
-  const managerPaths = ['/modules/archive', '/modules/operations']
+  const managerPaths = ['/modules/archive', '/modules/operations', '/modules/fornitori']
   const isManagerPath = managerPaths.some(path => pathname.startsWith(path))
 
   if (isManagerPath) {

@@ -1,12 +1,34 @@
 // app/profile/page.tsx - Admin-managed avatars version
 "use client"
 
-import { useState, useRef, ChangeEvent } from 'react'
+import { useState, useRef, ChangeEvent, useEffect, useMemo } from 'react'
 import { useUser } from '@/context/UserContext'
 import Link from 'next/link'
-import { ArrowLeft, User, Camera, Save, AlertTriangle, CheckCircle, Loader2, Shield, Mail, Info } from 'lucide-react'
+import { ArrowLeft, User, Camera, Save, AlertTriangle, CheckCircle, Loader2, Shield, Mail, Info, Users, Search, Check, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+
+type AdminUser = {
+  id: string
+  email: string | null
+  created_at: string
+  last_sign_in_at: string | null
+  user_metadata: Record<string, any>
+  profile: {
+    id: string
+    full_name: string | null
+    role: string
+    avatar_url: string | null
+    updated_at: string | null
+    created_at: string | null
+  } | null
+}
+
+const roles = [
+  { value: 'operatore', label: 'Operatore' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'admin', label: 'Amministratore' },
+]
 
 export default function ProfilePage() {
   const { user, profile, refreshProfile, isLoading } = useUser()
@@ -22,6 +44,14 @@ export default function ProfilePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isUploadingRequest, setIsUploadingRequest] = useState(false)
   
+  // User Management State (Admin only)
+  const [users, setUsers] = useState<AdminUser[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [userSearch, setUserSearch] = useState('')
+  const [savingUserId, setSavingUserId] = useState<string | null>(null)
+  const [invite, setInvite] = useState({ email: '', full_name: '', role: 'operatore' })
+  const [inviting, setInviting] = useState(false)
+  
   const [formData, setFormData] = useState({
     fullName: profile?.full_name || '',
     email: user?.email || '',
@@ -30,6 +60,98 @@ export default function ProfilePage() {
 
   // Check if current user is admin
   const isAdmin = profile?.role === 'admin'
+
+  // Fetch users for admin
+  const fetchUsers = async () => {
+    if (!isAdmin) return
+    setLoadingUsers(true)
+    try {
+      const res = await fetch('/api/admin/users')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Errore caricamento')
+      setUsers(data.users || [])
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isAdmin) {
+      fetchUsers()
+    }
+  }, [isAdmin])
+
+  // Filter users for admin search
+  const filteredUsers = useMemo(() => {
+    if (!isAdmin) return []
+    const q = userSearch.trim().toLowerCase()
+    if (!q) return users
+    return users.filter(u =>
+      (u.email || '').toLowerCase().includes(q) ||
+      (u.profile?.full_name || '').toLowerCase().includes(q) ||
+      u.id.toLowerCase().includes(q)
+    )
+  }, [users, userSearch, isAdmin])
+
+  const updateUser = async (id: string, updates: { role?: string, full_name?: string }) => {
+    try {
+      setSavingUserId(id)
+      setError('')
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Errore salvataggio')
+      setSuccess('Utente aggiornato')
+      setTimeout(() => setSuccess(''), 2000)
+      fetchUsers()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setSavingUserId(null)
+    }
+  }
+
+  const deleteUser = async (id: string) => {
+    if (!confirm('Eliminare definitivamente questo utente?')) return
+    setError('')
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Eliminazione fallita')
+      setUsers(prev => prev.filter(u => u.id !== id))
+      setSuccess('Utente eliminato')
+      setTimeout(() => setSuccess(''), 2000)
+    } catch (e: any) {
+      setError(e.message)
+    }
+  }
+
+  const sendInvite = async () => {
+    if (!invite.email || !invite.role) return
+    try {
+      setInviting(true)
+      setError('')
+      const res = await fetch('/api/admin/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(invite)
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Invito fallito')
+      setSuccess(`Invito inviato a ${invite.email}`)
+      setInvite({ email: '', full_name: '', role: 'operatore' })
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setInviting(false)
+    }
+  }
 
   // Redirect if not authenticated
   if (!isLoading && !user) {
@@ -277,7 +399,7 @@ Grazie!`)
                 <span>Torna alla Dashboard</span>
               </Link>
               <div className="h-6 w-px bg-gray-300" />
-              <h1 className="text-xl font-semibold text-gray-900">Profilo Utente</h1>
+              <h1 className="text-xl font-semibold text-gray-900">{isAdmin ? 'Profilo e Gestione Utenti' : 'Profilo Utente'}</h1>
               {isAdmin && (
                 <div className="flex items-center space-x-1 bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs">
                   <Shield className="w-3 h-3" />
@@ -525,7 +647,7 @@ Grazie!`)
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center space-x-3 mb-6">
               <User className="h-5 w-5 text-gray-500" />
-              <h2 className="text-lg font-semibold text-gray-900">Informazioni Personali</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Le Mie Informazioni</h2>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -603,6 +725,190 @@ Grazie!`)
               </div>
             </div>
           </div>
+
+          {/* Admin User Management Section */}
+          {isAdmin && (
+            <>
+              {/* User Management Header */}
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200 p-6">
+                <div className="flex items-center space-x-3">
+                  <Users className="h-6 w-6 text-purple-600" />
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">Gestione Utenti</h2>
+                    <p className="text-sm text-gray-600 mt-1">Invita nuovi utenti e gestisci i loro permessi</p>
+                  </div>
+                  <div className="ml-auto">
+                    <div className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium">
+                      {filteredUsers.length} utenti
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Invite New User */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Mail className="w-5 h-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Invita Nuovo Utente</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  <input
+                    type="email"
+                    placeholder="email@esempio.it"
+                    value={invite.email}
+                    onChange={e => setInvite({ ...invite, email: e.target.value })}
+                    className="px-3 py-2 border border-gray-300 rounded-md md:col-span-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Nome completo (opzionale)"
+                    value={invite.full_name}
+                    onChange={e => setInvite({ ...invite, full_name: e.target.value })}
+                    className="px-3 py-2 border border-gray-300 rounded-md md:col-span-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <select
+                    value={invite.role}
+                    onChange={e => setInvite({ ...invite, role: e.target.value })}
+                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+                </div>
+                <div className="pt-4">
+                  <button
+                    onClick={sendInvite}
+                    disabled={inviting || !invite.email}
+                    className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                  >
+                    {inviting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                    {inviting ? 'Invio in corso...' : 'Invia Invito'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Users List */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Utenti Esistenti</h3>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                      <input
+                        placeholder="Cerca utenti..."
+                        className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        value={userSearch}
+                        onChange={e => setUserSearch(e.target.value)}
+                      />
+                    </div>
+                    <button 
+                      onClick={fetchUsers} 
+                      className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      Aggiorna
+                    </button>
+                  </div>
+                </div>
+
+                {loadingUsers ? (
+                  <div className="text-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
+                    <p className="text-gray-500 mt-2">Caricamento utenti...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredUsers.map(u => (
+                      <UserManagementRow 
+                        key={u.id} 
+                        user={u} 
+                        savingId={savingUserId} 
+                        onSave={updateUser} 
+                        onDelete={deleteUser} 
+                      />
+                    ))}
+                    {filteredUsers.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        {userSearch ? 'Nessun utente trovato per la ricerca' : 'Nessun utente presente'}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// User Management Row Component
+function UserManagementRow({ user, savingId, onSave, onDelete }: {
+  user: AdminUser,
+  savingId: string | null,
+  onSave: (id: string, updates: { role?: string, full_name?: string }) => Promise<void>,
+  onDelete: (id: string) => Promise<void> | void
+}) {
+  const [fullName, setFullName] = useState(user.profile?.full_name || user.user_metadata?.full_name || '')
+  const [role, setRole] = useState(user.profile?.role || 'operatore')
+  const isSaving = savingId === user.id
+
+  return (
+    <div className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+        {/* User Info */}
+        <div className="md:col-span-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-gray-500" />
+            <input
+              className="border border-gray-300 px-3 py-1 rounded-md flex-1 focus:ring-blue-500 focus:border-blue-500"
+              value={fullName}
+              onChange={e => setFullName(e.target.value)}
+              placeholder="Nome completo"
+            />
+          </div>
+          <div className="text-sm text-gray-600 truncate">
+            <strong>Email:</strong> {user.email || '—'}
+          </div>
+          <div className="text-xs text-gray-500 truncate">
+            <strong>ID:</strong> {user.id}
+          </div>
+        </div>
+
+        {/* Last Login */}
+        <div className="md:col-span-3 text-sm text-gray-600">
+          <div className="font-medium">Ultimo accesso:</div>
+          <div>{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('it-IT') : 'Mai'}</div>
+        </div>
+
+        {/* Role */}
+        <div className="md:col-span-3">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Ruolo</label>
+          <select 
+            className="w-full border border-gray-300 px-3 py-1 rounded-md focus:ring-blue-500 focus:border-blue-500" 
+            value={role} 
+            onChange={e => setRole(e.target.value)}
+          >
+            {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+          </select>
+        </div>
+
+        {/* Actions */}
+        <div className="md:col-span-2 flex gap-2 justify-end">
+          <button
+            onClick={() => onSave(user.id, { full_name: fullName, role })}
+            disabled={isSaving}
+            className="inline-flex items-center gap-1 bg-green-600 text-white px-3 py-1.5 rounded-md hover:bg-green-700 disabled:opacity-50 text-sm transition-colors"
+          >
+            {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+            Salva
+          </button>
+          <button
+            onClick={() => onDelete(user.id)}
+            className="inline-flex items-center gap-1 bg-red-600 text-white px-3 py-1.5 rounded-md hover:bg-red-700 text-sm transition-colors"
+            title="Elimina utente"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
         </div>
       </div>
     </div>

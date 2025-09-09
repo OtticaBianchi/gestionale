@@ -71,7 +71,7 @@ type FornitoreRaggruppato = {
   web_address: string | null;
   note: string | null;
   tempi_medi: number | null;
-  metodo_ordine_derivato: 'telefono' | 'email' | 'misto';
+  metodo_ordine_derivato: 'portale' | 'email' | 'telefono' | 'misto';
   ordini: OrdineConFornitore[];
 };
 
@@ -315,9 +315,11 @@ export default function FiltriOrdiniDashboard() {
         web_address: ordine.fornitore_web_address,
         note: ordine.fornitore_note,
         tempi_medi: ordine.fornitore_tempi_medi,
-        // Deriva metodo ordine preferito dai campi disponibili
-        metodo_ordine_derivato: ordine.fornitore_email && ordine.fornitore_telefono ? 'misto' :
-                                ordine.fornitore_email ? 'email' : 'telefono',
+        // Deriva metodo ordine preferito: predilige Portale se presente
+        metodo_ordine_derivato: ordine.fornitore_web_address ? 'portale' : (
+          ordine.fornitore_email && ordine.fornitore_telefono ? 'misto' :
+          ordine.fornitore_email ? 'email' : 'telefono'
+        ),
         ordini: []
       };
     }
@@ -361,6 +363,7 @@ export default function FiltriOrdiniDashboard() {
 
   const getMetodoIcon = (metodo: string) => {
     switch (metodo) {
+      case 'portale': return <Globe className="w-4 h-4" />;
       case 'telefono': return <Phone className="w-4 h-4" />;
       case 'email': return <Mail className="w-4 h-4" />;
       case 'misto': return <Globe className="w-4 h-4" />;
@@ -370,6 +373,7 @@ export default function FiltriOrdiniDashboard() {
 
   const getMetodoLabel = (metodo: string) => {
     switch (metodo) {
+      case 'portale': return 'Portale';
       case 'telefono': return 'Telefono';
       case 'email': return 'Email';
       case 'misto': return 'Email + Tel';
@@ -439,6 +443,15 @@ export default function FiltriOrdiniDashboard() {
                 <span>{modalitaDettagli ? 'Vista compatta' : 'Mostra dettagli'}</span>
               </button>
               
+              <Link
+                href="/modules/fornitori"
+                className="flex items-center space-x-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                title="Gestisci dati dei fornitori (manager/admin)"
+              >
+                <Globe className="w-4 h-4" />
+                <span>Gestisci fornitori</span>
+              </Link>
+
               <button
                 onClick={loadOrdiniDaOrdinare}
                 disabled={isLoading}
@@ -611,14 +624,26 @@ export default function FiltriOrdiniDashboard() {
 
                         {/* Azioni rapide fornitore */}
                         <div className="flex space-x-2">
-                          {fornitore.telefono && (
+                          {fornitore.web_address ? (
                             <a 
-                              href={`tel:${fornitore.telefono}`}
+                              href={fornitore.web_address}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               className="flex items-center space-x-1 px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200 transition-colors"
                             >
-                              <Phone className="w-3 h-3" />
-                              <span>Chiama</span>
+                              <Globe className="w-3 h-3" />
+                              <span>Apri portale</span>
+                              <ExternalLink className="w-3 h-3 ml-1" />
                             </a>
+                          ) : (
+                            <button
+                              className="flex items-center space-x-1 px-3 py-1 bg-gray-100 text-gray-500 rounded text-sm cursor-not-allowed"
+                              title="URL portale non disponibile"
+                              disabled
+                            >
+                              <Globe className="w-3 h-3" />
+                              <span>URL non disponibile</span>
+                            </button>
                           )}
                           {fornitore.email && (
                             <a 
@@ -629,17 +654,7 @@ export default function FiltriOrdiniDashboard() {
                               <span>Email</span>
                             </a>
                           )}
-                          {fornitore.web_address && (
-                            <a 
-                              href={fornitore.web_address}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center space-x-1 px-3 py-1 bg-purple-100 text-purple-700 rounded text-sm hover:bg-purple-200 transition-colors"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                              <span>sito {fornitore.nome}</span>
-                            </a>
-                          )}
+                          {/* Il link portale è già visualizzato sopra; nessun duplicato qui */}
                         </div>
                       </div>
                     </div>
@@ -750,7 +765,7 @@ export default function FiltriOrdiniDashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
               <span>💡 <strong>Suggerimento:</strong> Raggruppa per fornitore per ordinazioni più efficienti</span>
-              <span>📞 Usa i link diretti per telefonare o mandare email</span>
+              <span>🌐 Usa il link al portale o l'email per ordinare</span>
             </div>
             <div className="text-xs">
               Ultimo aggiornamento: {new Date().toLocaleString('it-IT')}

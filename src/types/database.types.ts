@@ -208,6 +208,7 @@ export type Database = {
           email: string | null
           id: string
           nome: string
+          referente_nome: string | null
           note: string | null
           telefono: string | null
           tempi_consegna_medi: number | null
@@ -218,6 +219,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome: string
+          referente_nome?: string | null
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null
@@ -228,6 +230,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome?: string
+          referente_nome?: string | null
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null
@@ -241,6 +244,7 @@ export type Database = {
           email: string | null
           id: string
           nome: string
+          referente_nome: string | null
           note: string | null
           telefono: string | null
           tempi_consegna_medi: number | null
@@ -252,6 +256,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome: string
+          referente_nome?: string | null
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null
@@ -263,6 +268,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome?: string
+          referente_nome?: string | null
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null
@@ -277,6 +283,7 @@ export type Database = {
           email: string | null
           id: string
           nome: string
+          referente_nome: string | null
           note: string | null
           telefono: string | null
           tempi_consegna_medi: number | null
@@ -288,6 +295,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome: string
+          referente_nome?: string | null
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null
@@ -299,6 +307,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome?: string
+          referente_nome?: string | null
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null
@@ -313,6 +322,7 @@ export type Database = {
           email: string | null
           id: string
           nome: string
+          referente_nome: string | null
           note: string | null
           telefono: string | null
           tempi_consegna_medi: number | null
@@ -324,6 +334,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome: string
+          referente_nome?: string | null
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null
@@ -335,6 +346,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome?: string
+          referente_nome?: string | null
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null
@@ -349,6 +361,7 @@ export type Database = {
           email: string | null
           id: string
           nome: string
+          referente_nome: string | null
           note: string | null
           telefono: string | null
           tempi_consegna_medi: number | null
@@ -360,6 +373,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome: string
+          referente_nome?: string | null
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null
@@ -371,6 +385,7 @@ export type Database = {
           email?: string | null
           id?: string
           nome?: string
+          referente_nome?: string | null
           note?: string | null
           telefono?: string | null
           tempi_consegna_medi?: number | null

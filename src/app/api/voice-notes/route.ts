@@ -111,15 +111,16 @@ export async function GET(request: NextRequest) {
       .single();
     const isAdmin = profile?.role === 'admin';
 
-    // Maintenance delete (admin only): clean up completed notes older than 1 week
+    // Maintenance cleanup (admin only): remove audio payload after 7 days from completion
     if (isAdmin) {
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       await supabase
         .from('voice_notes')
-        .delete()
+        .update({ audio_blob: '', file_size: 0 })
         .eq('stato', 'completed')
-        .lt('created_at', oneWeekAgo.toISOString());
+        .lt('processed_at', oneWeekAgo.toISOString())
+        .neq('audio_blob', '');
     }
 
     // Build query with related data
