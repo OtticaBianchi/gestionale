@@ -424,6 +424,60 @@ git push origin master     # Triggers deployment
 
 ---
 
+## 🚀 Vercel Deployment Setup
+
+**IMPORTANT:** This project uses GitHub Actions for deployment due to private repository restrictions.
+
+### Required Configuration:
+
+#### 1. GitHub Secrets (Repository Settings → Secrets and variables → Actions)
+Add these secrets with exact values from `.env.local`:
+
+**Vercel Configuration:**
+- `VERCEL_TOKEN` - Your Vercel API token
+- `VERCEL_ORG_ID` - Your Vercel organization/team ID  
+- `VERCEL_PROJECT_ID` - Your Vercel project ID
+
+**Application Environment Variables:**
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ASSEMBLYAI_API_KEY`
+- `TELEGRAM_BOT_TOKEN`
+- `OPENROUTER_API_KEY`
+- `ARUBA_EMAIL_PASSWORD`
+
+#### 2. GitHub Actions Workflow
+File: `.github/workflows/vercel.yml` (already configured)
+- Builds with all environment variables
+- Deploys to Vercel on every push to master
+- Handles private repository deployment issues
+
+#### 3. Getting Vercel IDs:
+```bash
+# Get Vercel token
+npx vercel login
+# Go to: https://vercel.com/account/tokens
+
+# Get Project and Org IDs
+# Go to Vercel Dashboard → Project → Settings → General
+# Copy "Project ID" and "Team ID" (or Personal Account ID)
+```
+
+### Troubleshooting:
+- **Build fails**: Missing environment variables in GitHub secrets
+- **Team access error**: Use GitHub Actions instead of direct Vercel CLI
+- **Deploy hook not working**: Environment variables needed for build process
+
+### Deployment Flow:
+1. Push to master → GitHub Actions triggers
+2. Environment variables loaded from secrets
+3. Build succeeds with all dependencies
+4. Deploy to Vercel production
+5. App is live automatically ✅
+
+---
+
 ## 📋 Environment Variables
 
 ```env
