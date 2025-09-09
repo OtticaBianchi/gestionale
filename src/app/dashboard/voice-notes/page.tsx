@@ -74,7 +74,12 @@ export default function VoiceNotesPage() {
     try {
       setLoading(true);
       const url = filter !== 'all' ? `/api/voice-notes?status=${filter}` : '/api/voice-notes';
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      });
       if (response.ok) {
         const data = await response.json();
         setVoiceNotes(data.notes || []);
@@ -186,10 +191,18 @@ export default function VoiceNotesPage() {
       });
       
       if (response.ok) {
+        // Update local state immediately for instant feedback
         setVoiceNotes(prev => prev.filter(note => note.id !== noteId));
+        // Also force a fresh fetch to ensure consistency
+        fetchVoiceNotes();
+        toast.success('Nota eliminata con successo');
+      } else {
+        const errorData = await response.json();
+        toast.error(`Errore: ${errorData.error || 'Impossibile eliminare la nota'}`);
       }
     } catch (error) {
       console.error('Error deleting note:', error);
+      toast.error('Errore di connessione');
     }
   };
 
