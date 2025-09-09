@@ -150,26 +150,29 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createServerSupabaseClient();
-    const { id } = params;
-
-    // Check user role - only admin can delete voice notes
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    // First, ensure the caller is admin using regular client
+    const serverClient = createServerSupabaseClient();
+    const { data: { user } } = await serverClient.auth.getUser();
+    if (!user) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
     }
-
-    const { data: profile } = await supabase
+    const { data: profile } = await serverClient
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single();
-
     if (!profile || profile.role !== 'admin') {
       return NextResponse.json({ 
         error: 'Solo gli amministratori possono eliminare le note vocali' 
       }, { status: 403 });
     }
+
+    // Use service role client after admin check to bypass RLS
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    const { id } = params;
 
     const { error } = await supabase
       .from('voice_notes')

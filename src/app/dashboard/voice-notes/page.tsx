@@ -191,13 +191,12 @@ export default function VoiceNotesPage() {
       });
       
       if (response.ok) {
-        // Update local state immediately for instant feedback
+        // Only update local state if server deletion succeeded
         setVoiceNotes(prev => prev.filter(note => note.id !== noteId));
-        // Also force a fresh fetch to ensure consistency
-        fetchVoiceNotes();
         toast.success('Nota eliminata con successo');
       } else {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Server deletion failed:', errorData);
         toast.error(`Errore: ${errorData.error || 'Impossibile eliminare la nota'}`);
       }
     } catch (error) {
