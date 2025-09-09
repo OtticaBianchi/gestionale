@@ -8,14 +8,24 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Vercel Deploy Hook
-        run: |
-          echo "Triggering Vercel deployment..."
-          response=$(curl -s -w "%{http_code}" -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}")
-          echo "Response: $response"
-          if [[ "${response: -3}" == "200" || "${response: -3}" == "201" ]]; then
-            echo "✅ Deploy hook triggered successfully"
-          else
-            echo "❌ Deploy hook failed with response: $response"
-            exit 1
-          fi
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
