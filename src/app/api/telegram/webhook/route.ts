@@ -4,111 +4,148 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 
-// Import Telegram Bot (JS modules in TS)
-const TelegramVoiceBot = require('@/telegram/bot.js');
+// Lazy import to avoid top-level ESM/CJS conflicts
+const { createClient } = require('@supabase/supabase-js');
 
-// Bot instance (singleton)
-let botInstance: any = null;
+// ===== Helpers =====
+function jsonSafe<T>(v: T) {
+  try { return JSON.parse(JSON.stringify(v)); } catch { return v; }
+}
 
-// Initialize bot instance
-function getBotInstance() {
-  if (!botInstance) {
-    try {
-      botInstance = new TelegramVoiceBot();
-      console.log('🤖 Telegram bot instance created for webhook');
-    } catch (error) {
-      console.error('❌ Failed to create bot instance:', error);
-      throw error;
-    }
-  }
-  return botInstance;
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Supabase credentials missing');
+  return createClient(url, key);
+}
+
+async function telegramGetFile(botToken: string, fileId: string) {
+  const resp = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${encodeURIComponent(fileId)}`);
+  if (!resp.ok) throw new Error(`getFile failed: ${resp.status}`);
+  const data = await resp.json();
+  if (!data.ok) throw new Error(`getFile error: ${data.description || 'unknown'}`);
+  return data.result as { file_path: string; file_size?: number };
+}
+
+async function telegramDownloadBase64(botToken: string, filePath: string) {
+  const fileUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+  const resp = await fetch(fileUrl);
+  if (!resp.ok) throw new Error(`file download failed: ${resp.status}`);
+  const buf = Buffer.from(await resp.arrayBuffer());
+  return buf.toString('base64');
+}
+
+function messageType(update: any) {
+  if (update.message?.voice) return 'voice';
+  if (update.message?.audio) return 'audio';
+  if (update.message?.document) return 'document';
+  if (update.callback_query) return 'callback';
+  if (update.message?.text) return 'text';
+  return 'unknown';
 }
 
 // ===== WEBHOOK HANDLER =====
 export async function POST(request: NextRequest) {
   try {
     console.log('📡 Webhook request received');
-    
-    // Verify webhook authenticity (basic)
+
+    // Verify bot token
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
       console.error('❌ TELEGRAM_BOT_TOKEN not configured');
       return NextResponse.json({ error: 'Bot not configured' }, { status: 500 });
     }
-    // Verify secret token if configured
+
+    // Verify secret header (if configured)
     const configuredSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
     const providedSecret = request.headers.get('x-telegram-bot-api-secret-token');
     if (configuredSecret && providedSecret !== configuredSecret) {
       console.error('❌ Invalid Telegram webhook secret');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
-    // Parse Telegram update
+
+    // Parse update
     const update = await request.json();
-    
     if (!update) {
-      console.error('❌ Invalid webhook payload');
       return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
     }
-    
-    console.log('📨 Telegram update received:', {
+
+    const mtype = messageType(update);
+    const fromUser = update.message?.from || update.callback_query?.from;
+    console.log('📨 Telegram update:', jsonSafe({
       update_id: update.update_id,
-      message_type: update.message ? 
-        (update.message.voice ? 'voice' : 
-         update.message.audio ? 'audio' :
-         update.message.document ? 'document' :
-         update.message.text ? 'text' : 'other') : 
-        (update.callback_query ? 'callback' : 'unknown'),
-      from: update.message?.from?.username || update.callback_query?.from?.username || 'unknown'
-    });
-    
-    // Get bot instance
-    const bot = getBotInstance();
-    
-    if (!bot || !bot.getBot()) {
-      console.error('❌ Bot not initialized');
-      return NextResponse.json({ error: 'Bot not available' }, { status: 503 });
+      type: mtype,
+      from: fromUser?.username || fromUser?.id || 'unknown'
+    }));
+
+    // Only handle voice/audio/document here
+    if (!['voice', 'audio', 'document'].includes(mtype)) {
+      return NextResponse.json({ status: 'ignored' });
     }
-    
-    // Process update with Telegram Bot API library
-    try {
-      // The bot instance handles the update through its event listeners
-      await bot.getBot().processUpdate(update);
-      
-      console.log('✅ Webhook update processed successfully');
-      return NextResponse.json({ status: 'ok' });
-      
-    } catch (processingError: any) {
-      console.error('❌ Error processing update:', processingError);
-      
-      // Try to send error message to user if possible
-      if (update.message?.chat?.id) {
-        try {
-          await bot.sendMessage(
-            update.message.chat.id,
-            '❌ Si è verificato un errore temporaneo. Riprova tra qualche secondo.',
-            { parse_mode: 'Markdown' }
-          );
-        } catch (errorSendError) {
-          console.error('❌ Could not send error message to user:', errorSendError);
-        }
-      }
-      
-      // Return success to Telegram to avoid retries
-      return NextResponse.json({ 
-        status: 'error_handled',
-        error: processingError.message 
-      });
+
+    const msg = update.message;
+    const fileObj = msg.voice || msg.audio || msg.document;
+    const fileId: string = fileObj.file_id;
+    const duration: number = msg.voice?.duration || msg.audio?.duration || 0;
+    const fileSize: number = fileObj.file_size || 0;
+
+    // 1) Resolve file path and download to base64 (in-memory)
+    const fileMeta = await telegramGetFile(botToken, fileId);
+    const audioBase64 = await telegramDownloadBase64(botToken, fileMeta.file_path);
+
+    // 2) Idempotency: skip if this telegram_message_id already exists
+    const supabase = getSupabaseAdmin();
+    const telegramMessageId = String(msg.message_id);
+    const { data: existing, error: findErr } = await supabase
+      .from('voice_notes')
+      .select('id')
+      .eq('telegram_message_id', telegramMessageId)
+      .limit(1);
+    if (findErr) {
+      console.error('⚠️ Idempotency check failed:', findErr.message);
     }
-    
+    if (existing && existing.length > 0) {
+      console.log('↩️ Duplicate update: voice_note already saved');
+      return NextResponse.json({ status: 'ok_duplicate' });
+    }
+
+    // 3) Save minimal voice note record
+    const voiceNoteData = {
+      audio_blob: audioBase64,
+      addetto_nome: fromUser?.username || `${fromUser?.first_name || ''} ${fromUser?.last_name || ''}`.trim() || 'Telegram',
+      note_aggiuntive: null,
+      stato: 'pending',
+      file_size: fileSize || fileMeta.file_size || 0,
+      duration_seconds: duration || 0,
+      cliente_id: null,
+      busta_id: null,
+      telegram_message_id: telegramMessageId,
+      telegram_user_id: String(fromUser?.id || ''),
+      telegram_username: fromUser?.username || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: saved, error: saveErr } = await supabase
+      .from('voice_notes')
+      .insert(voiceNoteData)
+      .select('id')
+      .single();
+
+    if (saveErr) {
+      console.error('❌ Database save failed:', saveErr.message);
+      // Return 200 to avoid Telegram retries, but mark failure
+      return NextResponse.json({ status: 'saved_error', error: saveErr.message });
+    }
+
+    console.log('✅ Voice note saved:', saved?.id);
+    // Fast ack; transcription handled elsewhere or later
+    return NextResponse.json({ status: 'ok', id: saved?.id });
+
   } catch (error: any) {
     console.error('🔥 Webhook handler error:', error);
-    
     return NextResponse.json(
-      { 
-        error: 'Webhook processing failed',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
-      },
+      { error: 'Webhook processing failed' },
       { status: 500 }
     );
   }
@@ -135,7 +172,7 @@ export async function GET(request: NextRequest) {
         environment: process.env.NODE_ENV || 'unknown'
       },
       telegram_webhook: webhookInfo.result || {},
-      bot_instance: botInstance ? '✅ Active' : '❌ Not initialized',
+      bot_instance: 'n/a (direct handler)',
       timestamp: new Date().toISOString()
     };
     

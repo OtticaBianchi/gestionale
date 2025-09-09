@@ -7,7 +7,8 @@ class FileHandler {
   constructor(bot, settings) {
     this.bot = bot;
     this.settings = settings;
-    this.tempDir = path.join(process.cwd(), 'temp');
+    // In serverless (e.g., Vercel), only /tmp is writable
+    this.tempDir = process.env.TMPDIR || '/tmp';
     
     // Ensure temp directory exists
     if (!fs.existsSync(this.tempDir)) {
