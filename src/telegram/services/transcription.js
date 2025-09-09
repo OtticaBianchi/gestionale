@@ -29,27 +29,15 @@ class TranscriptionService {
         throw new Error('File not found: ' + filePath);
       }
       
-      // Prepare transcription config
+      // Upload audio file to AssemblyAI
+      console.log('📤 Uploading audio file to AssemblyAI...');
+      const uploadedUrl = await this.client.files.upload(filePath);
+      console.log('✅ Audio uploaded, URL:', uploadedUrl);
+      
+      // Prepare transcription config (simplified)
       const config = {
-        audio: filePath,
-        language_code: this.settings.assemblyAI.language,
-        punctuate: this.settings.assemblyAI.features.punctuate,
-        format_text: this.settings.assemblyAI.features.format_text,
-        auto_punctuation: this.settings.assemblyAI.features.auto_punctuation,
-        
-        // Word boost for optical terminology
-        word_boost: this.settings.assemblyAI.wordBoost,
-        boost_param: 'high',
-        
-        // Speaker detection disabled for single voice notes
-        speaker_labels: false,
-        
-        // Additional features
-        filter_profanity: false, // Keep original content
-        redact_pii: false,      // Don't redact personal info
-        
-        // Custom options
-        ...options
+        audio_url: uploadedUrl,
+        language_code: 'it'
       };
       
       console.log('⏳ Submitting transcription request...');

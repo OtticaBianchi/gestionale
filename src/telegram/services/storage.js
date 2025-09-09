@@ -282,6 +282,7 @@ class StorageService {
   }
   
   // ===== CLEANUP OLD NOTES =====
+  // Remove audio payload for completed notes older than {days} using processed_at
   async cleanupOldNotes(days = 30) {
     try {
       const cutoffDate = new Date();
@@ -289,9 +290,10 @@ class StorageService {
       
       const { data, error } = await this.supabase
         .from('voice_notes')
-        .delete()
+        .update({ audio_blob: '', file_size: 0 })
         .eq('stato', 'completed')
-        .lt('created_at', cutoffDate.toISOString())
+        .lt('processed_at', cutoffDate.toISOString())
+        .neq('audio_blob', '')
         .select('id');
       
       if (error) {
@@ -299,12 +301,11 @@ class StorageService {
         return 0;
       }
       
-      const deletedCount = data?.length || 0;
-      if (deletedCount > 0) {
-        console.log(`🗑️ Cleaned up ${deletedCount} old voice notes`);
+      const cleanedCount = data?.length || 0;
+      if (cleanedCount > 0) {
+        console.log(`🧹 Cleaned audio from ${cleanedCount} old voice notes`);
       }
-      
-      return deletedCount;
+      return cleanedCount;
       
     } catch (error) {
       console.error('❌ Cleanup error:', error);

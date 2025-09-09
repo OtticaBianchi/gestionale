@@ -1,6 +1,7 @@
 // src/telegram/handlers/voice-simple.js
 const FileHandler = require('../utils/fileHandler');
 const StorageService = require('../services/storage');
+const TranscriptionService = require('../services/transcription');
 
 class VoiceHandlerSimple {
   constructor(bot, settings) {
@@ -10,6 +11,7 @@ class VoiceHandlerSimple {
     // Initialize services
     this.fileHandler = new FileHandler(bot, settings);
     this.storageService = new StorageService();
+    this.transcriptionService = new TranscriptionService(settings);
     
     console.log('🎙️ VoiceHandlerSimple initialized');
   }
@@ -65,17 +67,65 @@ class VoiceHandlerSimple {
       // Save to database
       const savedNote = await this.storageService.saveVoiceNote(voiceNoteData);
       
-      // Send simple success message
+      // ===== STEP 3: AUTOMATIC TRANSCRIPTION =====
+      console.log('🎙️ Step 3: Starting automatic transcription...');
+      
+      // Update status message
       await this.bot.editMessageText(
-        '✅ *Nota vocale salvata!*\n\n📝 *ID:* #' + savedNote.id.slice(-8) + 
+        '✅ *Audio salvato!*\n\n📝 *ID:* #' + savedNote.id.slice(-8) + 
         '\n⏰ *Durata:* ' + this.storageService.formatDuration(msg.voice.duration) +
-        '\n\n👥 Sarà processata dal team tramite Voice Triage.',
+        '\n\n🔄 *Trascrizione in corso...*',
         {
           chat_id: chatId,
           message_id: statusMessage.message_id,
           parse_mode: 'Markdown'
         }
       );
+      
+      // Perform transcription with retry
+      const transcriptionResult = await this.transcribeWithRetry(tempFilePath, savedNote.id, 3);
+      
+      if (transcriptionResult.success) {
+        // Update database with transcription
+        await this.storageService.updateVoiceNote(savedNote.id, {
+          note_aggiuntive: transcriptionResult.transcription,
+          stato: 'completed',
+          processed_at: new Date().toISOString(),
+        });
+        
+        // Send final success message
+        await this.bot.editMessageText(
+          '✅ *Trascrizione completata!*\n\n📝 *ID:* #' + savedNote.id.slice(-8) + 
+          '\n⏰ *Durata:* ' + this.storageService.formatDuration(msg.voice.duration) +
+          '\n🎯 *Confidenza:* ' + Math.round((transcriptionResult.confidence || 0) * 100) + '%' +
+          '\n\n📄 *Trascrizione:*\n_' + (transcriptionResult.transcription.substring(0, 200) + 
+          (transcriptionResult.transcription.length > 200 ? '...' : '')) + '_',
+          {
+            chat_id: chatId,
+            message_id: statusMessage.message_id,
+            parse_mode: 'Markdown'
+          }
+        );
+      } else {
+        // Transcription failed, but audio is saved
+        await this.storageService.updateVoiceNote(savedNote.id, {
+          stato: 'pending',
+          note_aggiuntive: `Transcription Error: ${transcriptionResult.error}`,
+          updated_at: new Date().toISOString()
+        });
+        
+        await this.bot.editMessageText(
+          '⚠️ *Audio salvato, trascrizione fallita*\n\n📝 *ID:* #' + savedNote.id.slice(-8) + 
+          '\n⏰ *Durata:* ' + this.storageService.formatDuration(msg.voice.duration) +
+          '\n❌ *Errore:* ' + transcriptionResult.error +
+          '\n\n👥 Sarà processata manualmente dal team.',
+          {
+            chat_id: chatId,
+            message_id: statusMessage.message_id,
+            parse_mode: 'Markdown'
+          }
+        );
+      }
       
       console.log('✅ Voice message processing completed for:', userInfo.telegram_username);
       
@@ -220,18 +270,61 @@ class VoiceHandlerSimple {
       
       const savedNote = await this.storageService.saveVoiceNote(voiceNoteData);
       
-      // Send success message
+      // Update status for transcription
       await this.bot.editMessageText(
         `✅ *${type === 'audio' ? 'File audio' : 'Documento audio'} salvato!*\n\n` +
         `📝 *ID:* #${savedNote.id.slice(-8)}\n` +
         `📁 *Dimensione:* ${this.fileHandler.formatFileSize(fileInfo.fileSize)}\n\n` +
-        `👥 Sarà processato dal team tramite Voice Triage.`,
+        `🔄 *Trascrizione in corso...*`,
         {
           chat_id: chatId,
           message_id: statusMessage.message_id,
           parse_mode: 'Markdown'
         }
       );
+      
+      // Perform transcription
+      const transcriptionResult = await this.transcribeWithRetry(tempFilePath, savedNote.id, 3);
+      
+      if (transcriptionResult.success) {
+        // Update database with transcription
+        await this.storageService.updateVoiceNote(savedNote.id, {
+          note_aggiuntive: transcriptionResult.transcription,
+          stato: 'completed',
+          processed_at: new Date().toISOString(),
+        });
+        
+        // Send final success message
+        await this.bot.editMessageText(
+          `✅ *Trascrizione completata!*\n\n📝 *ID:* #${savedNote.id.slice(-8)}\n` +
+          `📁 *Dimensione:* ${this.fileHandler.formatFileSize(fileInfo.fileSize)}\n` +
+          `🎯 *Confidenza:* ${Math.round((transcriptionResult.confidence || 0) * 100)}%\n\n` +
+          `📄 *Trascrizione:*\n_${transcriptionResult.transcription.substring(0, 200)}${transcriptionResult.transcription.length > 200 ? '...' : ''}_`,
+          {
+            chat_id: chatId,
+            message_id: statusMessage.message_id,
+            parse_mode: 'Markdown'
+          }
+        );
+      } else {
+        // Transcription failed
+        await this.storageService.updateVoiceNote(savedNote.id, {
+          stato: 'pending',
+          note_aggiuntive: `Transcription Error: ${transcriptionResult.error}`,
+          updated_at: new Date().toISOString()
+        });
+        
+        await this.bot.editMessageText(
+          `⚠️ *Audio salvato, trascrizione fallita*\n\n📝 *ID:* #${savedNote.id.slice(-8)}\n` +
+          `📁 *Dimensione:* ${this.fileHandler.formatFileSize(fileInfo.fileSize)}\n` +
+          `❌ *Errore:* ${transcriptionResult.error}\n\n👥 Sarà processato manualmente.`,
+          {
+            chat_id: chatId,
+            message_id: statusMessage.message_id,
+            parse_mode: 'Markdown'
+          }
+        );
+      }
       
     } catch (error) {
       console.error(`❌ ${type} processing failed:`, error);
@@ -254,6 +347,67 @@ class VoiceHandlerSimple {
         await this.fileHandler.cleanupTempFile(tempFilePath);
       }
     }
+  }
+  
+  // ===== TRANSCRIPTION WITH RETRY =====
+  async transcribeWithRetry(filePath, noteId, maxRetries = 3) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 Transcription attempt ${attempt}/${maxRetries} for note: ${noteId}`);
+        
+        // Call transcription service
+        const result = await this.transcriptionService.transcribeFile(filePath);
+        
+        // Validate result
+        const validation = this.transcriptionService.validateTranscriptionResult(result);
+        if (!validation.valid) {
+          throw new Error(`Validation failed: ${validation.error}`);
+        }
+        
+        // Post-process the text
+        const processedText = this.transcriptionService.postProcessTranscription(result.text);
+        
+        console.log('✅ Transcription successful:', processedText.substring(0, 100) + '...');
+        
+        return {
+          success: true,
+          transcription: processedText,
+          confidence: result.confidence || 0,
+          attempts: attempt
+        };
+        
+      } catch (error) {
+        lastError = error;
+        console.error(`❌ Transcription attempt ${attempt} failed:`, error.message);
+        
+        // Don't retry on certain errors
+        if (error.message.includes('API key') || 
+            error.message.includes('file not found') ||
+            error.message.includes('quota')) {
+          break;
+        }
+        
+        // Wait before retry (exponential backoff)
+        if (attempt < maxRetries) {
+          const waitTime = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+          console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+          await this.sleep(waitTime);
+        }
+      }
+    }
+    
+    return {
+      success: false,
+      error: lastError?.message || 'Unknown error',
+      attempts: maxRetries
+    };
+  }
+  
+  // ===== UTILITY HELPERS =====
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
   
   // ===== UTILITY =====
