@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
+    const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL || 'https://ob-gestionale-2025.vercel.app/api/telegram/webhook';
     
     if (!botToken) {
       return NextResponse.json({ error: 'Bot token not configured' }, { status: 500 });
@@ -154,11 +154,11 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
+    const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL || 'https://ob-gestionale-2025.vercel.app/api/telegram/webhook';
     
-    if (!botToken || !webhookUrl) {
+    if (!botToken) {
       return NextResponse.json(
-        { error: 'Bot token or webhook URL not configured' },
+        { error: 'Bot token not configured' },
         { status: 500 }
       );
     }
