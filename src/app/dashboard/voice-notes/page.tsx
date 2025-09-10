@@ -12,6 +12,7 @@ interface VoiceNote {
   addetto_nome: string;
   cliente_riferimento: string | null;
   note_aggiuntive: string | null;
+  transcription?: string | null;
   stato: 'pending' | 'processing' | 'completed' | 'failed';
   file_size: number;
   duration_seconds: number;
@@ -242,7 +243,8 @@ export default function VoiceNotesPage() {
       if (response.ok) {
         const data = await response.json();
         toast.success(`Busta ${data.newReadableId} creata con successo!`);
-        window.open(`/dashboard/buste/${data.newBustaId}`, '_blank');
+        // Naviga nella stessa scheda per evitare problemi di sessione
+        window.location.href = `/dashboard/buste/${data.newBustaId}`;
       } else {
         const error = await response.json().catch(() => ({}));
         throw new Error(error.error || 'Impossibile duplicare la busta');
@@ -317,10 +319,9 @@ export default function VoiceNotesPage() {
         }
       }
       
-      // Open the new busta in a new tab to avoid disrupting voice triage workflow
+      // Apri la nuova busta nella stessa scheda per evitare perdita sessione
       if (newBustaId) {
-        window.open(`/dashboard/buste/${newBustaId}`, '_blank');
-        toast.success('Busta duplicata con successo! Aperta in una nuova scheda.');
+        window.location.href = `/dashboard/buste/${newBustaId}`;
       }
       
     } catch (error: any) {
@@ -568,7 +569,7 @@ export default function VoiceNotesPage() {
             <div className="bg-gray-50 rounded-lg p-3 mb-4">
               <p className="text-sm text-gray-600 mb-1">Nota selezionata:</p>
               <p className="text-sm text-gray-800 line-clamp-2">
-                {selectedNote.note_aggiuntive || 'Nessuna trascrizione disponibile'}
+            {(selectedNote.transcription || selectedNote.note_aggiuntive || 'Nessuna trascrizione disponibile')}
               </p>
             </div>
 
@@ -795,11 +796,11 @@ export default function VoiceNotesPage() {
                 </div>
 
                 {/* Trascrizione */}
-                {note.note_aggiuntive && (
+                {(note.transcription || note.note_aggiuntive) && (
                   <div className="mb-2">
                     <div className="bg-gray-50 rounded-md p-2">
                       <p className="text-xs text-gray-700 leading-snug line-clamp-3">
-                        {note.note_aggiuntive}
+                        {note.transcription || note.note_aggiuntive}
                       </p>
                     </div>
                   </div>

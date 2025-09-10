@@ -9,6 +9,12 @@ export async function POST(request: NextRequest) {
     const supabase = createServerSupabaseClient();
     const { sourceId, includeItems } = await request.json();
 
+    // Get current user for creato_da field
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+    }
+
     if (!sourceId) {
       return NextResponse.json({ error: 'ID busta sorgente richiesto' }, { status: 400 });
     }
@@ -25,42 +31,32 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (bustaError || !sourceBusta) {
-      console.error('Error fetching source busta:', bustaError);
+      console.error('❌ Error fetching source busta:', {
+        error: bustaError,
+        sourceId,
+        found: !!sourceBusta
+      });
       return NextResponse.json({ error: 'Busta sorgente non trovata' }, { status: 404 });
     }
 
-    // Get the next readable_id
-    const currentYear = new Date().getFullYear();
-    const { data: lastBusta } = await supabase
-      .from('buste')
-      .select('readable_id')
-      .like('readable_id', `B-${currentYear}-%`)
-      .order('readable_id', { ascending: false })
-      .limit(1);
-
-    let nextNumber = 1;
-    if (lastBusta && lastBusta.length > 0 && lastBusta[0].readable_id) {
-      const lastId = lastBusta[0].readable_id;
-      const lastNumber = parseInt(lastId.split('-')[2]);
-      nextNumber = lastNumber + 1;
-    }
-
-    const newReadableId = `B-${currentYear}-${nextNumber.toString().padStart(3, '0')}`;
-
-    // Create new busta with basic data (anagrafica fields will be copied manually later)
-    const newBustaData = {
-      readable_id: newReadableId,
+    console.log('📋 Source busta found:', {
+      id: sourceBusta.id,
+      readable_id: sourceBusta.readable_id,
       cliente_id: sourceBusta.cliente_id,
-      stato_attuale: 'nuove' as const,
-      stato_chiusura: null,
-      data_apertura: new Date().toISOString(),
-      data_consegna_prevista: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // +7 days
-      tipo_lavorazione: sourceBusta.tipo_lavorazione || 'OV',
+      tipo_lavorazione: sourceBusta.tipo_lavorazione,
+      priorita: sourceBusta.priorita
+    });
+
+    // Create new busta with minimal required data (matching BustaForm pattern)
+    const newBustaData = {
+      cliente_id: sourceBusta.cliente_id,
+      tipo_lavorazione: sourceBusta.tipo_lavorazione || null,
       priorita: sourceBusta.priorita || 'normale',
       note_generali: `Duplicata da ${sourceBusta.readable_id}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      creato_da: user.id
     };
+
+    console.log('🆕 Attempting to create new busta with data:', newBustaData);
 
     const { data: newBusta, error: createError } = await supabase
       .from('buste')
@@ -69,8 +65,19 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (createError || !newBusta) {
-      console.error('Error creating new busta:', createError);
-      return NextResponse.json({ error: 'Errore nella creazione della nuova busta' }, { status: 500 });
+      console.error('❌ Error creating new busta:', {
+        error: createError,
+        code: createError?.code,
+        message: createError?.message,
+        details: createError?.details,
+        hint: createError?.hint,
+        newBustaData
+      });
+      return NextResponse.json({ 
+        error: 'Errore nella creazione della nuova busta', 
+        details: createError?.message,
+        code: createError?.code 
+      }, { status: 500 });
     }
 
     console.log(`✅ Created new busta: ${newBusta.readable_id}`);
@@ -110,8 +117,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       newBustaId: newBusta.id,
-      newReadableId: newBusta.readable_id,
-      message: `Busta ${newBusta.readable_id} creata con successo` 
+      newReadableId: newBusta.readable_id || newBusta.id,
+      message: `Busta duplicata con successo` 
     });
 
   } catch (error) {

@@ -62,7 +62,8 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    const redirectTo = `${new URL(request.url).origin}/auth/callback`
+    // Route invites to a client-side confirm page that can handle both #access_token and ?code flows
+    const redirectTo = `${new URL(request.url).origin}/auth/confirm?set_password=1`
 
     const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: { full_name, role },
@@ -76,4 +77,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invito fallito', details: error.message }, { status: 500 })
   }
 }
-

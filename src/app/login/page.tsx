@@ -71,7 +71,8 @@ function LoginForm() {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          // Unify all email flows to the client-side confirm handler
+          emailRedirectTo: `${window.location.origin}/auth/confirm`,
         },
       })
       if (error) {

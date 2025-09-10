@@ -22,7 +22,8 @@ export async function transcribeFromBase64(base64: string, mime: string = 'audio
     method: 'POST',
     headers: {
       authorization: apiKey,
-      'content-type': mime,
+      // AssemblyAI accepts raw bytes; octet-stream is safest
+      'content-type': 'application/octet-stream',
     },
     body: buffer,
   });
@@ -67,4 +68,3 @@ export async function transcribeFromBase64(base64: string, mime: string = 'audio
   }
   throw new Error('AssemblyAI timeout');
 }
-

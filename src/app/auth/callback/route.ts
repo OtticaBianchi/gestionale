@@ -83,6 +83,21 @@ export async function GET(request: Request) {
             console.log('🔍 CALLBACK - Profile created successfully:', newProfile);
             profile = newProfile; // Update profile variable for onboarding check
           }
+        } else if (!profileError && profile) {
+          // Sync role from user metadata if invited role differs
+          const invitedRole = (data.user.user_metadata as any)?.role as string | undefined
+          const allowed = new Set(['admin', 'manager', 'operatore'])
+          if (invitedRole && allowed.has(invitedRole) && profile.role !== invitedRole) {
+            const { data: synced, error: syncErr } = await supabase
+              .from('profiles')
+              .update({ role: invitedRole, updated_at: new Date().toISOString() })
+              .eq('id', data.user.id)
+              .select('*')
+              .single()
+            if (!syncErr && synced) {
+              profile = synced
+            }
+          }
         }
 
       console.log('🔍 CALLBACK - Role-based default landing');

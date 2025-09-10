@@ -76,12 +76,16 @@ export default function UserProfileHeader() {
           if (profileError.code === 'PGRST116') {
             console.log('📝 Creating missing profile...');
             
+            // Prefer role and full_name from user metadata if present (invited users)
+            const invitedRole = (user.user_metadata as any)?.role || 'operatore'
+            const invitedName = (user.user_metadata as any)?.full_name || user.email?.split('@')[0] || 'Utente'
+
             const { data: newProfile, error: createError } = await supabase
               .from('profiles')
               .insert({
                 id: user.id,
-                full_name: user.email?.split('@')[0] || 'Utente',
-                role: 'operatore'
+                full_name: invitedName,
+                role: invitedRole
               })
               .select()
               .single();
@@ -98,7 +102,26 @@ export default function UserProfileHeader() {
             setError('Errore caricamento profilo');
           }
         } else {
-          setProfile(profile);
+          // If profile exists but metadata suggests a higher role (from invite), sync it once
+          const metaRole = (user.user_metadata as any)?.role as string | undefined
+          const allowed = new Set(['admin', 'manager', 'operatore'])
+          if (metaRole && allowed.has(metaRole) && profile.role !== metaRole) {
+            console.log('🔄 Syncing profile role from metadata:', profile.role, '->', metaRole)
+            const { data: synced, error: syncErr } = await supabase
+              .from('profiles')
+              .update({ role: metaRole, updated_at: new Date().toISOString() })
+              .eq('id', user.id)
+              .select('*')
+              .single()
+            if (syncErr) {
+              console.warn('⚠️ Role sync failed (non-blocking):', syncErr)
+              setProfile(profile)
+            } else {
+              setProfile(synced)
+            }
+          } else {
+            setProfile(profile);
+          }
         }
 
       } catch (error) {

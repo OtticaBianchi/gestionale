@@ -28,7 +28,16 @@ async function safeTranscribeIfRequested(note: any, redo: boolean) {
     
     console.log('🔄 Starting transcription with AssemblyAI...');
     const { transcribeFromBase64 } = await import('@/lib/transcription/assemblyai');
-    const text = await transcribeFromBase64(note.audio_blob, 'audio/ogg'); // Changed from webm to ogg for Telegram
+    // Try to infer mime type from path; default to ogg (Telegram voice)
+    const path: string = (note.audio_file_path || '').toLowerCase();
+    const inferredMime = path.endsWith('.webm')
+      ? 'audio/webm'
+      : path.endsWith('.mp3')
+        ? 'audio/mpeg'
+        : path.endsWith('.m4a') || path.endsWith('.aac')
+          ? 'audio/m4a'
+          : 'audio/ogg';
+    const text = await transcribeFromBase64(note.audio_blob, inferredMime);
     console.log('✅ Transcription completed:', text?.substring(0, 100) + '...');
     
     return text || note.transcription || note.note_aggiuntive || '';
@@ -112,7 +121,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Nota vocale non trovata' }, { status: 404 });
     }
 
-    // If linked to a busta, optionally redo transcription and append to busta.note_generali
+    // If linked to a busta, optionally redo transcription and append/update in busta.note_generali
     if (busta_id || data.busta_id) {
       const bustaId = (busta_id || data.busta_id) as string;
       // Fetch latest note (ensure we have audio_blob, etc.)
@@ -133,7 +142,7 @@ export async function PATCH(
           .eq('id', id);
       }
 
-      // Append to busta.note_generali once (idempotent)
+      // Append first time, then update block content if a later transcription succeeds
       const marker = `[VoiceNote ${id}]`;
       const { data: busta } = await supabase
         .from('buste')
@@ -141,14 +150,30 @@ export async function PATCH(
         .eq('id', bustaId)
         .single();
 
-      const already = (busta?.note_generali || '').includes(marker);
-      if (!already) {
-        const nowStr = new Date().toLocaleString('it-IT');
-        const block = `${marker} Nota vocale collegata il ${nowStr}\n${text || '(nessuna trascrizione)'}\n`;
-        const newNotes = (busta?.note_generali ? busta.note_generali + '\n\n' : '') + block;
+      const existingNotes = busta?.note_generali || '';
+      const start = existingNotes.indexOf(marker);
+      const nowStr = new Date().toLocaleString('it-IT');
+      const newBlock = `${marker} Nota vocale collegata il ${nowStr}\n${text || '(nessuna trascrizione)'}\n`;
+
+      if (start === -1) {
+        // First append
+        const newNotes = (existingNotes ? existingNotes + '\n\n' : '') + newBlock;
         await supabase
           .from('buste')
           .update({ note_generali: newNotes, updated_at: new Date().toISOString() })
+          .eq('id', bustaId);
+      } else if (redo_transcription && text && text.trim().length > 0) {
+        // Replace the existing block content with the fresh transcription
+        // Find the end of the block: next blank line (\n\n) or end of string
+        const afterStart = existingNotes.slice(start);
+        const sepIdx = afterStart.indexOf('\n\n');
+        const end = sepIdx === -1 ? existingNotes.length : start + sepIdx;
+        const before = existingNotes.slice(0, start);
+        const after = existingNotes.slice(end);
+        const updatedNotes = (before + newBlock + (after.startsWith('\n\n') ? after : (after ? '\n\n' + after : ''))).trim();
+        await supabase
+          .from('buste')
+          .update({ note_generali: updatedNotes, updated_at: new Date().toISOString() })
           .eq('id', bustaId);
       }
     }
