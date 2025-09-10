@@ -19,10 +19,7 @@ export async function POST(request: NextRequest) {
     const { data: sourceBusta, error: bustaError } = await supabase
       .from('buste')
       .select(`
-        *,
-        clienti:cliente_id (
-          id, nome, cognome, telefono, email, data_nascita, genere
-        )
+        *
       `)
       .eq('id', sourceId)
       .single();
@@ -57,6 +54,9 @@ export async function POST(request: NextRequest) {
       stato_attuale: 'nuove' as const,
       stato_chiusura: null,
       data_apertura: new Date().toISOString(),
+      data_consegna_prevista: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // +7 days
+      tipo_lavorazione: sourceBusta.tipo_lavorazione || 'OV',
+      priorita: sourceBusta.priorita || 'normale',
       note_generali: `Duplicata da ${sourceBusta.readable_id}`,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()

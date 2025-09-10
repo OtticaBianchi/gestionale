@@ -241,10 +241,15 @@ export default function VoiceNotesPage() {
       
       if (response.ok) {
         const data = await response.json();
+        toast.success(`Busta ${data.newReadableId} creata con successo!`);
         window.open(`/dashboard/buste/${data.newBustaId}`, '_blank');
+      } else {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Impossibile duplicare la busta');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error duplicating busta:', error);
+      toast.error(error.message || 'Errore nella duplicazione della busta');
     }
     setShowDuplicateMenu(null);
   };
@@ -312,9 +317,10 @@ export default function VoiceNotesPage() {
         }
       }
       
-      // Open the new busta
+      // Open the new busta in a new tab to avoid disrupting voice triage workflow
       if (newBustaId) {
-        window.location.href = `/dashboard/buste/${newBustaId}`;
+        window.open(`/dashboard/buste/${newBustaId}`, '_blank');
+        toast.success('Busta duplicata con successo! Aperta in una nuova scheda.');
       }
       
     } catch (error: any) {
