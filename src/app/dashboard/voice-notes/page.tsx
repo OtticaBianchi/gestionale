@@ -249,6 +249,83 @@ export default function VoiceNotesPage() {
     setShowDuplicateMenu(null);
   };
 
+  // Enhanced duplicate function that includes voice note transcription
+  const duplicateBustaWithTranscription = async (bustaId: string, includeItems: boolean, clientId: string) => {
+    if (!selectedNote) {
+      toast.error('Nessuna nota vocale selezionata');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // First, get transcription by triggering it
+      const transcribeResponse = await fetch(`/api/voice-notes/${selectedNote.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redo_transcription: true })
+      });
+      
+      let transcription = '';
+      if (transcribeResponse.ok) {
+        // Get the fresh transcription
+        const noteResponse = await fetch(`/api/voice-notes/${selectedNote.id}`);
+        if (noteResponse.ok) {
+          const noteData = await noteResponse.json();
+          transcription = noteData.note?.transcription || noteData.note?.note_aggiuntive || '';
+        }
+      }
+      
+      // Duplicate the busta
+      const duplicateResponse = await fetch('/api/buste/duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceId: bustaId,
+          includeItems
+        })
+      });
+      
+      if (!duplicateResponse.ok) {
+        const error = await duplicateResponse.json().catch(() => ({}));
+        throw new Error(error.error || 'Impossibile duplicare la busta');
+      }
+      
+      const duplicateData = await duplicateResponse.json();
+      const newBustaId = duplicateData.newBustaId;
+      
+      // Add voice note transcription to the new busta's notes
+      if (newBustaId && transcription) {
+        const addTranscriptionResponse = await fetch(`/api/voice-notes/${selectedNote.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            cliente_id: clientId, 
+            busta_id: newBustaId,
+            stato: 'completed',
+            redo_transcription: false // Don't redo, we already have it
+          })
+        });
+        
+        if (addTranscriptionResponse.ok) {
+          toast.success('Busta duplicata con trascrizione vocale!');
+        }
+      }
+      
+      // Open the new busta
+      if (newBustaId) {
+        window.location.href = `/dashboard/buste/${newBustaId}`;
+      }
+      
+    } catch (error: any) {
+      console.error('Error duplicating busta with transcription:', error);
+      toast.error(error.message || 'Errore nella duplicazione della busta');
+    } finally {
+      setLoading(false);
+      setShowDuplicateMenu(null);
+    }
+  };
+
   // Create a new busta from selected note with transcription
   const createBustaFromNote = async (clientId: string) => {
     if (!selectedNote) {
@@ -534,16 +611,9 @@ export default function VoiceNotesPage() {
                             <button
                               onClick={() => selectedNote && linkNote(selectedNote.id, result.cliente.id)}
                               className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition-colors"
-                              title="Collega la nota al cliente (senza busta né trascrizione)"
+                              title="Collega la nota al cliente (trascrizione salvata solo nella nota)"
                             >
                               Collega al Cliente
-                            </button>
-                            <button
-                              onClick={() => createBustaFromNote(result.cliente.id)}
-                              className="px-3 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
-                              title="Crea una nuova busta per il cliente con la trascrizione"
-                            >
-                              + Nuova Busta
                             </button>
                           </div>
                           <p className="text-[11px] text-gray-500">Suggerimento: la trascrizione parte quando colleghi la nota a una busta.</p>
@@ -602,16 +672,16 @@ export default function VoiceNotesPage() {
                                   {showDuplicateMenu === busta.id && (
                                     <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10">
                                       <button
-                                        onClick={() => duplicateBusta(busta.id, false)}
+                                        onClick={() => duplicateBustaWithTranscription(busta.id, false, result.cliente.id)}
                                         className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
                                       >
-                                        Solo Anagrafica
+                                        Solo Anagrafica + Nota Vocale
                                       </button>
                                       <button
-                                        onClick={() => duplicateBusta(busta.id, true)}
+                                        onClick={() => duplicateBustaWithTranscription(busta.id, true, result.cliente.id)}
                                         className="block w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
                                       >
-                                        Anagrafica + Materiali
+                                        Anagrafica + Materiali + Nota Vocale
                                       </button>
                                     </div>
                                   )}
