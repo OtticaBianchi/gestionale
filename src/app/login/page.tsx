@@ -170,10 +170,8 @@ function LoginForm() {
           Invia link d'accesso rapido
         </button>
 
-        <div className="text-sm text-center">
-          <a href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
-            Non hai un account? Registrati
-          </a>
+        <div className="text-sm text-center text-gray-500">
+          La creazione di account è consentita solo su invito
         </div>
       </div>
     </div>

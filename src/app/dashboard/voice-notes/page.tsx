@@ -249,6 +249,82 @@ export default function VoiceNotesPage() {
     setShowDuplicateMenu(null);
   };
 
+  // Create a new busta from selected note with transcription
+  const createBustaFromNote = async (clientId: string) => {
+    if (!selectedNote) {
+      setError('Nessuna nota vocale selezionata');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // First, get transcription by linking note temporarily
+      const transcribeResponse = await fetch(`/api/voice-notes/${selectedNote.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ redo_transcription: true })
+      });
+      
+      let transcription = '';
+      if (transcribeResponse.ok) {
+        const transcribeData = await transcribeResponse.json();
+        // Get the fresh transcription
+        const noteResponse = await fetch(`/api/voice-notes/${selectedNote.id}`);
+        if (noteResponse.ok) {
+          const noteData = await noteResponse.json();
+          transcription = noteData.note?.transcription || noteData.note?.note_aggiuntive || '';
+        }
+      }
+      
+      // Create new busta with client data and transcription
+      const bustaResponse = await fetch('/api/buste', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: clientId,
+          stato_attuale: 'nuove',
+          tipo_lavorazione: 'OV', // Default, can be changed later
+          priorita: 'normale',
+          note_generali: transcription ? `Nota vocale collegata il ${new Date().toLocaleString('it-IT')}\n${transcription}` : 'Creata da nota vocale (nessuna trascrizione disponibile)',
+          data_apertura: new Date().toISOString(),
+          data_consegna_prevista: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // +7 days
+        })
+      });
+      
+      if (!bustaResponse.ok) {
+        const error = await bustaResponse.json().catch(() => ({}));
+        throw new Error(error.error || 'Impossibile creare la busta');
+      }
+      
+      const bustaData = await bustaResponse.json();
+      const bustaId = bustaData.busta?.id;
+      
+      if (bustaId) {
+        // Link the voice note to the new busta
+        await fetch(`/api/voice-notes/${selectedNote.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            cliente_id: clientId, 
+            busta_id: bustaId,
+            stato: 'completed',
+            processed_by: null // Will be set by server
+          })
+        });
+        
+        // Redirect to the new busta
+        window.location.href = `/dashboard/buste/${bustaId}`;
+      }
+      
+    } catch (error: any) {
+      console.error('Error creating busta from note:', error);
+      setError(error.message || 'Errore nella creazione della busta');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Link currently selected note to a client (and optionally to a busta)
   const linkNote = async (noteId: string, clientId: string, bustaId?: string) => {
     try {
@@ -462,13 +538,13 @@ export default function VoiceNotesPage() {
                             >
                               Collega al Cliente
                             </button>
-                            <Link
-                              href={`/dashboard/buste/new?clientId=${result.cliente.id}`}
+                            <button
+                              onClick={() => createBustaFromNote(result.cliente.id)}
                               className="px-3 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
-                              title="Crea una nuova busta per il cliente"
+                              title="Crea una nuova busta per il cliente con la trascrizione"
                             >
                               + Nuova Busta
-                            </Link>
+                            </button>
                           </div>
                           <p className="text-[11px] text-gray-500">Suggerimento: la trascrizione parte quando colleghi la nota a una busta.</p>
                         </div>
