@@ -453,20 +453,24 @@ export default function VoiceNotesPage() {
                         )}
                       </div>
                       {isAdmin && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => selectedNote && linkNote(selectedNote.id, result.cliente.id)}
-                            className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition-colors"
-                            title="Collega la nota al cliente (senza busta)"
-                          >
-                            Collega al Cliente
-                          </button>
-                          <Link
-                            href={`/dashboard/buste/new?clientId=${result.cliente.id}`}
-                            className="px-3 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
-                          >
-                            + Nuova Busta
-                          </Link>
+                        <div className="flex flex-col items-end gap-1">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => selectedNote && linkNote(selectedNote.id, result.cliente.id)}
+                              className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 transition-colors"
+                              title="Collega la nota al cliente (senza busta né trascrizione)"
+                            >
+                              Collega al Cliente
+                            </button>
+                            <Link
+                              href={`/dashboard/buste/new?clientId=${result.cliente.id}`}
+                              className="px-3 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
+                              title="Crea una nuova busta per il cliente"
+                            >
+                              + Nuova Busta
+                            </Link>
+                          </div>
+                          <p className="text-[11px] text-gray-500">Suggerimento: la trascrizione parte quando colleghi la nota a una busta.</p>
                         </div>
                       )}
                     </div>
@@ -541,7 +545,7 @@ export default function VoiceNotesPage() {
                                 <button
                                   onClick={() => selectedNote && linkNote(selectedNote.id, result.cliente.id, busta.id)}
                                   className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"
-                                  title="Collega la nota a questa busta"
+                                  title="Collega la nota a questa busta e avvia la trascrizione"
                                 >
                                   Collega qui
                                 </button>
