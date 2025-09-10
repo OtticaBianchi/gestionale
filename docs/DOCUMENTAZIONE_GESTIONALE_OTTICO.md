@@ -420,7 +420,13 @@ Il **Voice Triage** risolve un problema operativo cruciale: quando un cliente pa
 - **Encoding**: Base64 per storage database
 - **Limiti**: Max 20MB per file, 10 minuti durata
 
-### Trascrizione Automatica
+### Trascrizione
+
+#### Modalità attuale (on‑demand)
+- La trascrizione NON avviene nel webhook Telegram. Le note vocali vengono salvate come "in attesa" senza testo.
+- La trascrizione viene eseguita solo quando la nota viene collegata a una busta (azione “Collega qui” nella UI di Triage). In quel momento il backend invia l'audio ad AssemblyAI e salva la trascrizione nella nota, oltre ad aggiungere un blocco in `buste.note_generali` con marcatore idempotente `[VoiceNote <id>]`.
+- Collegare solo al Cliente (senza busta) non avvia la trascrizione.
+- Gli amministratori possono riprodurre/scaricare l'audio; gli operatori vedono metadati e trascrizione quando presente.
 
 #### AssemblyAI Integration
 - **API Key**: Configurata in variabili ambiente
@@ -428,12 +434,12 @@ Il **Voice Triage** risolve un problema operativo cruciale: quando un cliente pa
 - **Accuratezza**: Circa 85-95% su audio chiaro
 - **Fallback**: Sistema continua a funzionare anche senza trascrizione
 
-#### Processo Trascrizione
-1. Upload audio ad AssemblyAI
-2. Polling status trascrizione
-3. Retrieve testo completato
-4. Storage trascrizione nel database
-5. Notifica completamento
+#### Processo Trascrizione (al collegamento alla busta)
+1. Upload audio ad AssemblyAI (on‑demand)
+2. Polling fino a completamento
+3. Salvataggio testo nella `voice_notes.transcription`
+4. Append idempotente in `buste.note_generali` con marcatore `[VoiceNote <id>]`
+5. La nota resta "pending" finché un operatore non la marca "completed"
 
 ### Voice Triage Interface
 
@@ -835,8 +841,8 @@ if (configuredSecret && providedSecret !== configuredSecret) {
 
 #### Audio Storage
 - **Base64 encoding**: Audio convertito per storage database sicuro
-- **Access control**: Solo admin possono scaricare audio originali
-- **Retention policy**: Cancellazione automatica dopo X giorni (configurabile)
+- **Access control**: Solo admin possono riprodurre/scaricare audio
+- **Retention policy**: Per note marcate "completed" l'audio viene rimosso automaticamente dopo 7 giorni; restano metadati e trascrizione
 
 #### Personal Data
 - **GDPR compliance**: Diritto cancellazione dati cliente

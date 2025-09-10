@@ -571,7 +571,10 @@ What changed in this iteration:
   - Link actions: from the search panel, admins can now:
     - “Collega al Cliente” → sets `voice_notes.cliente_id`.
     - “Collega qui” on any busta → sets `voice_notes.busta_id` (and `cliente_id` accordingly).
-  - Re-transcription on link: when linking and `redo_transcription = true`, we re-run transcription (AssemblyAI) if audio is still present; then append the resulting text to `buste.note_generali`. The append is idempotent per voice note (marker `[VoiceNote <id>]`).
+  - On‑demand transcription on link: when linking to a busta and `redo_transcription = true`, we transcribe server‑side (AssemblyAI) if audio is present; then append the resulting text to `buste.note_generali`. The append is idempotent per voice note (marker `[VoiceNote <id>]`).
+  - Webhook simplified for serverless: `/api/telegram/webhook` now processes Telegram updates directly (no bot class instantiation). It validates the secret header, downloads the file via Telegram API, saves a `voice_notes` row, and returns immediately. Idempotent by `telegram_message_id`.
+  - Serverless FS safety: temp writes use `/tmp` only; most processing is in‑memory.
+  - No auto‑transcription in webhook: notes remain `pending` until linked to a busta; transcription is triggered by link actions only.
   - Audio retention: audio payload is purged after 7 days from completion (`processed_at`) to save DB space (we keep metadata and transcription). Admin GET on the list triggers a cleanup update; a dedicated cron endpoint is planned.
 
 - Orders (Filtri Ordini)
