@@ -252,12 +252,12 @@ export default function VoiceNotesPage() {
   // Create a new busta from selected note with transcription
   const createBustaFromNote = async (clientId: string) => {
     if (!selectedNote) {
-      setError('Nessuna nota vocale selezionata');
+      toast.error('Nessuna nota vocale selezionata');
       return;
     }
 
     try {
-      setIsLoading(true);
+      setLoading(true);
       
       // First, get transcription by linking note temporarily
       const transcribeResponse = await fetch(`/api/voice-notes/${selectedNote.id}`, {
@@ -319,9 +319,9 @@ export default function VoiceNotesPage() {
       
     } catch (error: any) {
       console.error('Error creating busta from note:', error);
-      setError(error.message || 'Errore nella creazione della busta');
+      toast.error(error.message || 'Errore nella creazione della busta');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
