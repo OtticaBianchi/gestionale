@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     // 4) Auto-transcribe immediately
     let transcriptionText = '';
-    let finalStatus = 'failed';
+    let finalStatus = 'pending'; // Always start as pending, user marks as completed manually
     
     try {
       console.log('🎙️ Starting auto-transcription...');
@@ -151,10 +151,10 @@ export async function POST(request: NextRequest) {
       
       if (transcriptionText && transcriptionText.trim().length > 0) {
         console.log('✅ Transcription completed:', transcriptionText.substring(0, 100) + '...');
-        finalStatus = 'completed';
+        finalStatus = 'pending'; // Still pending, user needs to mark as completed
       } else {
         console.log('⚠️ Transcription returned empty result');
-        finalStatus = 'failed';
+        finalStatus = 'pending'; // Still pending, not failed
       }
     } catch (transcriptionError: any) {
       console.error('❌ Auto-transcription failed:', transcriptionError.message);
@@ -162,11 +162,11 @@ export async function POST(request: NextRequest) {
       // Temporary: Use mock transcription when AssemblyAI fails due to network issues
       if (transcriptionError.message.includes('404') || transcriptionError.message.includes('AssemblyAI')) {
         transcriptionText = '[Trascrizione temporaneamente non disponibile - problema di rete con AssemblyAI. Audio salvato correttamente.]';
-        finalStatus = 'completed';
+        finalStatus = 'pending'; // Still pending - user decides when it's complete
         console.log('🔧 Using mock transcription due to AssemblyAI network issue');
       } else {
         transcriptionText = '';
-        finalStatus = 'failed';
+        finalStatus = 'failed'; // Only mark failed for actual errors
       }
     }
 

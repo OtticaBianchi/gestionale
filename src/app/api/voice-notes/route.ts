@@ -148,6 +148,7 @@ export async function GET(request: NextRequest) {
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       
       // Auto-dismiss completed notes after 7 days (same as manual deletion)
+      // Only dismiss notes that user has manually marked as completed
       await supabase
         .from('voice_notes')
         .update({ 
@@ -155,8 +156,8 @@ export async function GET(request: NextRequest) {
           audio_blob: '', 
           file_size: 0 
         })
-        .eq('stato', 'completed')
-        .lt('processed_at', oneWeekAgo.toISOString())
+        .eq('stato', 'completed') // Only auto-dismiss manually completed notes
+        .lt('updated_at', oneWeekAgo.toISOString()) // Use updated_at since that's when user marked it completed
         .is('dismissed_at', null); // Only auto-dismiss if not already dismissed
     }
 
