@@ -143,16 +143,23 @@ export async function POST(request: NextRequest) {
 
     // 4) Auto-transcribe immediately
     let transcriptionText = '';
-    let finalStatus = 'completed';
+    let finalStatus = 'failed';
     
     try {
       console.log('🎙️ Starting auto-transcription...');
       transcriptionText = await transcribeFromBase64(audioBase64, 'audio/ogg');
-      console.log('✅ Transcription completed:', transcriptionText.substring(0, 100) + '...');
+      
+      if (transcriptionText && transcriptionText.trim().length > 0) {
+        console.log('✅ Transcription completed:', transcriptionText.substring(0, 100) + '...');
+        finalStatus = 'completed';
+      } else {
+        console.log('⚠️ Transcription returned empty result');
+        finalStatus = 'failed';
+      }
     } catch (transcriptionError: any) {
       console.error('❌ Auto-transcription failed:', transcriptionError.message);
       transcriptionText = ''; // Empty transcription on failure
-      finalStatus = 'completed'; // Still mark as completed to show in dashboard
+      finalStatus = 'failed'; // Mark as failed so user knows transcription didn't work
     }
 
     // 5) Update voice note with transcription and final status
