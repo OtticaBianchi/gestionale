@@ -50,7 +50,7 @@ export async function transcribeFromBase64(base64: string, mime: string = 'audio
   const payload = { audio_url: uploadUrl, language_code: 'it' };
   console.log('📦 Request payload:', JSON.stringify(payload));
   
-  const createRes = await fetch(`${AAI_BASE}/transcripts`, {
+  const createRes = await fetch(`${AAI_BASE}/transcript`, {
     method: 'POST',
     headers: {
       'Authorization': apiKey, // Try Authorization instead of authorization
@@ -76,7 +76,7 @@ export async function transcribeFromBase64(base64: string, mime: string = 'audio
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     await new Promise((r) => setTimeout(r, 1500));
-    const pollRes = await fetch(`${AAI_BASE}/transcripts/${transcriptId}`, {
+    const pollRes = await fetch(`${AAI_BASE}/transcript/${transcriptId}`, {
       headers: { 'Authorization': apiKey },
     });
     if (!pollRes.ok) continue;
