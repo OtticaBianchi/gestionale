@@ -142,19 +142,25 @@ export async function GET(request: NextRequest) {
       .single();
     const isAdmin = profile?.role === 'admin';
 
-    // Maintenance cleanup (admin only): remove audio payload after 7 days from completion
+    // Maintenance cleanup (admin only): auto-dismiss and clean audio after 7 days
     if (isAdmin) {
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      
+      // Auto-dismiss completed notes after 7 days (same as manual deletion)
       await supabase
         .from('voice_notes')
-        .update({ audio_blob: '', file_size: 0 })
+        .update({ 
+          dismissed_at: new Date().toISOString(),
+          audio_blob: '', 
+          file_size: 0 
+        })
         .eq('stato', 'completed')
         .lt('processed_at', oneWeekAgo.toISOString())
-        .neq('audio_blob', '');
+        .is('dismissed_at', null); // Only auto-dismiss if not already dismissed
     }
 
-    // Build query with related data
+    // Build query with related data - only show non-dismissed notes
     let query
     if (isAdmin) {
       // Admin sees everything including audio_blob
@@ -173,6 +179,7 @@ export async function GET(request: NextRequest) {
             stato_attuale
           )
         `)
+        .is('dismissed_at', null) // Only show active (non-dismissed) notes
         .order('created_at', { ascending: false });
     } else {
       // Non-admin: hide audio_blob and other sensitive fields
@@ -183,6 +190,7 @@ export async function GET(request: NextRequest) {
           addetto_nome,
           cliente_riferimento,
           note_aggiuntive,
+          transcription,
           stato,
           file_size,
           duration_seconds,
@@ -201,6 +209,7 @@ export async function GET(request: NextRequest) {
             stato_attuale
           )
         `)
+        .is('dismissed_at', null) // Only show active (non-dismissed) notes
         .order('created_at', { ascending: false });
     }
 

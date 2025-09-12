@@ -219,23 +219,30 @@ export async function DELETE(
     );
     const { id } = params;
 
+    // Unified deletion: dismiss from UI + clear audio but preserve metadata
     const { error } = await supabase
       .from('voice_notes')
-      .delete()
+      .update({
+        dismissed_at: new Date().toISOString(), // Hide from dashboard
+        audio_blob: '', // Clear audio to save space
+        file_size: 0, // Reset file size
+        updated_at: new Date().toISOString()
+        // Keep transcription, metadata, and all other fields for history
+      })
       .eq('id', id);
 
     if (error) {
       console.error('Database error:', error);
-      return NextResponse.json({ error: 'Errore eliminazione nota vocale' }, { status: 500 });
+      return NextResponse.json({ error: 'Errore dismissing nota vocale' }, { status: 500 });
     }
 
     return NextResponse.json({ 
       success: true,
-      message: 'Nota vocale eliminata con successo' 
+      message: 'Nota vocale rimossa dalla dashboard (dati conservati)' 
     });
 
   } catch (error) {
-    console.error('Voice note delete error:', error);
+    console.error('Voice note dismiss error:', error);
     return NextResponse.json({ error: 'Errore interno del server' }, { status: 500 });
   }
 }

@@ -18,6 +18,7 @@ interface VoiceNote {
   duration_seconds: number;
   created_at: string;
   updated_at: string;
+  dismissed_at?: string | null;
   cliente_id: string | null;
   busta_id: string | null;
   clienti?: {

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { transcribeFromBase64 } from '@/lib/transcription/assemblyai';
 
 // Lazy import to avoid top-level ESM/CJS conflicts
 const { createClient } = require('@supabase/supabase-js');
@@ -109,12 +110,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'ok_duplicate' });
     }
 
-    // 3) Save minimal voice note record
+    // 3) Save initial voice note record
     const voiceNoteData = {
       audio_blob: audioBase64,
       addetto_nome: fromUser?.username || `${fromUser?.first_name || ''} ${fromUser?.last_name || ''}`.trim() || 'Telegram',
       note_aggiuntive: null,
-      stato: 'pending',
+      stato: 'processing', // Start as processing
       file_size: fileSize || fileMeta.file_size || 0,
       duration_seconds: duration || 0,
       cliente_id: null,
@@ -138,9 +139,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'saved_error', error: saveErr.message });
     }
 
-    console.log('✅ Voice note saved (no auto transcription):', saved?.id);
-    // Return success; transcription is on-demand via PATCH /api/voice-notes/[id] with redo_transcription
-    return NextResponse.json({ status: 'ok_saved', id: saved?.id });
+    console.log('✅ Voice note saved, starting transcription:', saved?.id);
+
+    // 4) Auto-transcribe immediately
+    let transcriptionText = '';
+    let finalStatus = 'completed';
+    
+    try {
+      console.log('🎙️ Starting auto-transcription...');
+      transcriptionText = await transcribeFromBase64(audioBase64, 'audio/ogg');
+      console.log('✅ Transcription completed:', transcriptionText.substring(0, 100) + '...');
+    } catch (transcriptionError: any) {
+      console.error('❌ Auto-transcription failed:', transcriptionError.message);
+      transcriptionText = ''; // Empty transcription on failure
+      finalStatus = 'completed'; // Still mark as completed to show in dashboard
+    }
+
+    // 5) Update voice note with transcription and final status
+    const { error: updateErr } = await supabase
+      .from('voice_notes')
+      .update({
+        transcription: transcriptionText,
+        stato: finalStatus,
+        processed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', saved?.id);
+
+    if (updateErr) {
+      console.error('❌ Failed to update transcription:', updateErr.message);
+    }
+
+    console.log('✅ Voice note processed with auto-transcription:', saved?.id);
+    return NextResponse.json({ 
+      status: 'ok_processed', 
+      id: saved?.id,
+      transcription: transcriptionText ? 'success' : 'failed'
+    });
 
   } catch (error: any) {
     console.error('🔥 Webhook handler error:', error);
