@@ -147,8 +147,6 @@ export async function POST(request: NextRequest) {
     
     try {
       console.log('🎙️ Starting auto-transcription...');
-      console.log('🔧 Audio data size:', audioBase64.length, 'characters');
-      console.log('🔧 API key present:', process.env.ASSEMBLYAI_API_KEY ? 'YES' : 'NO');
       transcriptionText = await transcribeFromBase64(audioBase64, 'audio/ogg');
       
       if (transcriptionText && transcriptionText.trim().length > 0) {

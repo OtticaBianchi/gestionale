@@ -1,16 +1,35 @@
-# Voice Transcription – Current Status (2025‑09‑10)
+# Voice Transcription – RESOLVED ✅ (2025‑09‑12)
 
-This note captures exactly what we changed for voice‑note transcription, what we observed, why it still fails, and the next steps to finish it fast next time we pick it up.
+## 🎉 ISSUE RESOLVED
 
-## Summary
-- Goal: have Telegram voice notes automatically transcribed and the text visible in Voice Triage and copied into the linked busta’s “Note Generali”.
-- Result so far: UI and server flows are wired, but AssemblyAI transcription keeps failing in your environment. Transcription text is therefore empty and the busta block shows “(nessuna trascrizione)”.
+**Root Cause:** Wrong AssemblyAI API endpoint  
+**Solution:** Use `/transcript` (singular) instead of `/transcripts` (plural)
 
-## What’s Failing (Primary Symptom)
-- Server logs show AssemblyAI returning a 404 HTML page when creating a transcript:
-  - Error: `AssemblyAI create transcript failed: 404 <html>404: Not Found</html>`
-  - Stack: in `safeTranscribeIfRequested()` during `POST https://api.assemblyai.com/v2/transcripts`.
-- A 404 HTML from that endpoint suggests the request is not hitting AssemblyAI’s JSON API (likely a local proxy/VPN/dev intercept or network egress issue), not a normal AAI error.
+## Problem Summary
+- **Goal:** Automatic transcription of Telegram voice notes with immediate display in Voice Triage
+- **Symptom:** AssemblyAI returning 404 HTML page: `<html>404: Not Found</html>`  
+- **Original assumption:** Network/proxy issue blocking AssemblyAI access
+
+## Root Cause Analysis
+Through systematic debugging with detailed logging, we discovered:
+1. ✅ **Upload endpoint worked** (`/v2/upload`) → Status 200
+2. ❌ **Transcript creation failed** (`/v2/transcripts`) → Status 404 HTML  
+3. 🔍 **Response headers showed AWS load balancer** → Request WAS reaching AssemblyAI
+4. 🎯 **Issue was endpoint URL:** AssemblyAI uses `/transcript` not `/transcripts`
+
+## Solution Applied
+**File:** `src/lib/transcription/assemblyai.ts`
+```diff
+- const createRes = await fetch(`${AAI_BASE}/transcripts`, {
++ const createRes = await fetch(`${AAI_BASE}/transcript`, {
+
+- const pollRes = await fetch(`${AAI_BASE}/transcripts/${transcriptId}`, {
++ const pollRes = await fetch(`${AAI_BASE}/transcript/${transcriptId}`, {
+```
+
+**Additional fixes:**
+- Proper header capitalization: `Authorization` and `Content-Type`
+- Cleaned up debug logging code
 
 ## Changes Implemented
 - Display transcription in triage UI (if present)
@@ -76,9 +95,26 @@ This note captures exactly what we changed for voice‑note transcription, what 
 - Helper
   - `src/lib/transcription/assemblyai.ts` (upload + poll logic)
 
-## Current Outcome
-- “Nothing gained” from a user perspective because the AAI call fails upstream; however, once network/API access is fixed, the UI and server logic will immediately surface the transcription in triage and sync it to the corresponding busta.
+## Current Status: ✅ FULLY FUNCTIONAL
+
+**Complete Voice Notes Flow Working:**
+1. **Telegram voice message** → Webhook receives and saves to database
+2. **Auto-transcription** → AssemblyAI processes immediately 
+3. **Dashboard display** → Voice notes appear with transcription text (status: "In attesa")
+4. **User control** → Click ✅ to mark as "Completata"
+5. **Busta integration** → Link notes to work orders, transcription appends to note_generali
+6. **Cleanup system** → Delete/dismiss notes (preserves transcription data for history)
+
+**Auto-dismiss:** Completed notes automatically removed from dashboard after 7 days.
 
 ---
 
-Last updated: 2025‑09‑10
+## Troubleshooting for Future
+If transcription fails again, check:
+1. **Environment variable:** `ASSEMBLYAI_API_KEY` set in Vercel
+2. **API endpoint:** Ensure using `/transcript` not `/transcripts` 
+3. **Headers:** Use `Authorization` and `Content-Type` (proper case)
+
+---
+
+Last updated: 2025‑09‑12 - **RESOLVED ✅**
