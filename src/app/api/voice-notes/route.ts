@@ -68,36 +68,7 @@ export async function POST(request: NextRequest) {
         }, { status: 500 });
       }
       
-      // Fire-and-forget: start transcription immediately for triage display
-      (async () => {
-        try {
-          const note = data;
-          if (!note?.audio_blob) return;
-          const path: string = (note.audio_file_path || '').toLowerCase();
-          const inferredMime = path.endsWith('.webm')
-            ? 'audio/webm'
-            : path.endsWith('.mp3')
-              ? 'audio/mpeg'
-              : path.endsWith('.m4a') || path.endsWith('.aac')
-                ? 'audio/m4a'
-                : 'audio/ogg';
-          const { transcribeFromBase64 } = await import('@/lib/transcription/assemblyai');
-          const text = await transcribeFromBase64(note.audio_blob, inferredMime).catch(() => '');
-          if (text && text.trim().length > 0) {
-            await supabase
-              .from('voice_notes')
-              .update({ transcription: text, stato: 'completed', processed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-              .eq('id', note.id);
-          } else {
-            await supabase
-              .from('voice_notes')
-              .update({ stato: 'completed', processed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-              .eq('id', note.id);
-          }
-        } catch (e) {
-          console.error('Background transcription failed:', e);
-        }
-      })();
+      // Note: Transcription now handled by webhook route, not here
 
       return NextResponse.json({ 
         success: true, 
