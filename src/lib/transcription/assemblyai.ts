@@ -27,9 +27,8 @@ export async function transcribeFromBase64(base64: string, mime: string = 'audio
   const uploadRes = await fetch(`${AAI_BASE}/upload`, {
     method: 'POST',
     headers: {
-      authorization: apiKey,
-      // AssemblyAI accepts raw bytes; octet-stream is safest
-      'content-type': 'application/octet-stream',
+      'Authorization': apiKey, // Use consistent capitalization
+      'Content-Type': 'application/octet-stream',
     },
     body: buffer,
   });
@@ -48,13 +47,16 @@ export async function transcribeFromBase64(base64: string, mime: string = 'audio
 
   // 2) Create transcript
   console.log('🔄 Creating transcript with AssemblyAI...');
+  const payload = { audio_url: uploadUrl, language_code: 'it' };
+  console.log('📦 Request payload:', JSON.stringify(payload));
+  
   const createRes = await fetch(`${AAI_BASE}/transcripts`, {
     method: 'POST',
     headers: {
-      authorization: apiKey,
-      'content-type': 'application/json',
+      'Authorization': apiKey, // Try Authorization instead of authorization
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ audio_url: uploadUrl, language_code: 'it' }),
+    body: JSON.stringify(payload),
   });
   
   console.log('📝 Create transcript response status:', createRes.status);
@@ -75,7 +77,7 @@ export async function transcribeFromBase64(base64: string, mime: string = 'audio
   while (Date.now() - started < timeoutMs) {
     await new Promise((r) => setTimeout(r, 1500));
     const pollRes = await fetch(`${AAI_BASE}/transcripts/${transcriptId}`, {
-      headers: { authorization: apiKey },
+      headers: { 'Authorization': apiKey },
     });
     if (!pollRes.ok) continue;
     const pollJson = await pollRes.json() as { status: TranscriptStatus; text?: string; error?: string };
