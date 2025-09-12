@@ -11,7 +11,12 @@ const AAI_BASE = 'https://api.assemblyai.com/v2';
 type TranscriptStatus = 'queued' | 'processing' | 'completed' | 'error';
 
 export async function transcribeFromBase64(base64: string, mime: string = 'audio/webm', timeoutMs = 120000): Promise<string> {
+  console.log('🚀 transcribeFromBase64 function called');
+  console.log('📊 Input params:', { base64Length: base64.length, mime, timeoutMs });
+  
   const apiKey = process.env.ASSEMBLYAI_API_KEY;
+  console.log('🔑 API Key check:', apiKey ? 'Present' : 'Missing');
+  
   if (!apiKey) throw new Error('ASSEMBLYAI_API_KEY non configurata');
 
   // Convert base64 to Buffer
