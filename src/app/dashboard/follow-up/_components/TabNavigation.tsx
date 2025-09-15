@@ -1,14 +1,15 @@
 'use client'
 
 interface TabNavigationProps {
-  activeTab: 'calls' | 'statistics'
-  onTabChange: (tab: 'calls' | 'statistics') => void
+  activeTab: 'calls' | 'statistics' | 'enhanced-stats'
+  onTabChange: (tab: 'calls' | 'statistics' | 'enhanced-stats') => void
 }
 
 export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
   const tabs = [
     { id: 'calls' as const, label: 'Lista Chiamate', icon: '📞' },
-    { id: 'statistics' as const, label: 'Statistiche', icon: '📊' }
+    { id: 'statistics' as const, label: 'Statistiche Base', icon: '📊' },
+    { id: 'enhanced-stats' as const, label: 'Statistiche Avanzate', icon: '📈' }
   ]
 
   return (

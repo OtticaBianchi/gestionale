@@ -40,6 +40,7 @@ export interface FollowUpCall {
   prezzo_finale: number
   giorni_trascorsi: number
   readable_id: string
+  descrizione_prodotti?: string
 }
 
 export interface CallUpdateData {

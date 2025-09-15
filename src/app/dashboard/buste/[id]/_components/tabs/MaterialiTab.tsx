@@ -92,7 +92,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     descrizione_prodotto: '',
     data_ordine: new Date().toISOString().split('T')[0],
     giorni_consegna_custom: '',
-    note: ''
+    note: '',
+    primo_acquisto_lac: false
   });
 
   const supabase = createBrowserClient<Database>(
@@ -372,6 +373,30 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       // ✅ SWR: Invalidate cache after creating new order
       await mutate('/api/buste');
 
+      // ✅ NUOVO: Se categoria è LAC, crea entry in materiali per follow-up
+      if (nuovoOrdineForm.categoria_prodotto === 'lac') {
+        console.log('🔄 Creazione entry materiali per LAC con primo_acquisto_lac:', nuovoOrdineForm.primo_acquisto_lac);
+
+        const materialeEntry = {
+          busta_id: busta.id,
+          tipo: 'LAC',
+          primo_acquisto_lac: nuovoOrdineForm.primo_acquisto_lac,
+          note: `Collegato all'ordine: ${nuovoOrdineForm.descrizione_prodotto}`,
+          stato: 'attivo'
+        };
+
+        const { error: materialeError } = await supabase
+          .from('materiali')
+          .insert(materialeEntry);
+
+        if (materialeError) {
+          console.error('⚠️ Errore creazione entry materiali:', materialeError);
+          // Non blocchiamo il flusso, ma logghiamo l'errore
+        } else {
+          console.log('✅ Entry materiali LAC creata per follow-up system');
+        }
+      }
+
       // Reset form
       setNuovoOrdineForm({
         categoria_prodotto: '',
@@ -381,7 +406,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         descrizione_prodotto: '',
         data_ordine: new Date().toISOString().split('T')[0],
         giorni_consegna_custom: '',
-        note: ''
+        note: '',
+        primo_acquisto_lac: false
       });
       setShowNuovoOrdineForm(false);
 
@@ -587,11 +613,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 ].map(categoria => (
                   <button
                     key={categoria.value}
-                    onClick={() => setNuovoOrdineForm(prev => ({ 
-                      ...prev, 
+                    onClick={() => setNuovoOrdineForm(prev => ({
+                      ...prev,
                       categoria_prodotto: categoria.value as any,
                       fornitore_id: '',
-                      tipo_lenti: ''
+                      tipo_lenti: '',
+                      primo_acquisto_lac: false // Reset when changing category
                     }))}
                     className={`p-3 rounded-lg border text-center transition-colors ${
                       nuovoOrdineForm.categoria_prodotto === categoria.value
@@ -646,7 +673,31 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 ))}
               </select>
             </div>
-      
+
+            {/* ===== CHECKBOX PRIMO ACQUISTO LAC (Solo per categoria 'lac') ===== */}
+            {nuovoOrdineForm.categoria_prodotto === 'lac' && (
+              <div className="lg:col-span-3">
+                <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="primo_acquisto_lac"
+                    checked={nuovoOrdineForm.primo_acquisto_lac}
+                    onChange={(e) => setNuovoOrdineForm(prev => ({
+                      ...prev,
+                      primo_acquisto_lac: e.target.checked
+                    }))}
+                    className="w-4 h-4 text-blue-600 bg-white border-blue-300 rounded focus:ring-blue-500 focus:ring-2"
+                  />
+                  <label htmlFor="primo_acquisto_lac" className="text-sm font-medium text-blue-900">
+                    🌟 Primo acquisto di lenti a contatto per questo cliente
+                  </label>
+                </div>
+                <p className="text-xs text-blue-600 mt-2">
+                  ✓ Seleziona se è la prima volta che questo cliente acquista LAC - influenzerà la priorità delle chiamate di follow-up
+                </p>
+              </div>
+            )}
+
             {/* ===== MODALITÀ ORDINE ===== */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

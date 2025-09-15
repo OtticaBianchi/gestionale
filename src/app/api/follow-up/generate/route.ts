@@ -11,7 +11,14 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Query semplificata per generare lista follow-up
+    // Query per generare lista follow-up - cerca buste che sono state consegnate 7-14 giorni fa
+    // Evita i primi 7 giorni per dare tempo di risolvere eventuali problemi immediati
+    console.log('🔍 DEBUG: Starting follow-up generation...')
+
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    console.log('📅 DEBUG: Looking for buste delivered between:', fourteenDaysAgo, 'and', sevenDaysAgo)
+
     const { data: fallbackData, error: fallbackError } = await supabase
       .from('buste')
       .select(`
@@ -31,35 +38,79 @@ export async function POST() {
         ),
         info_pagamenti (
           prezzo_finale
+        ),
+        ordini_materiali (
+          descrizione_prodotto
         )
       `)
       .eq('stato_attuale', 'consegnato_pagato')
-      .gte('updated_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
-      .lte('updated_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      .gte('updated_at', fourteenDaysAgo)
+      .lte('updated_at', sevenDaysAgo)
       .not('clienti.telefono', 'is', null)
       .neq('clienti.telefono', '')
 
+    console.log('📊 DEBUG: Query completed. Error:', fallbackError)
+    console.log('📊 DEBUG: Raw query results count:', fallbackData?.length || 0)
+
     if (fallbackError) {
-      console.error('Errore query buste elegibili:', fallbackError)
+      console.error('❌ ERROR: Query failed:', fallbackError)
       throw fallbackError
     }
+
+    if (!fallbackData || fallbackData.length === 0) {
+      console.log('⚠️ DEBUG: No buste found matching criteria')
+      console.log('🔍 DEBUG: Search criteria:')
+      console.log('  - stato_attuale: consegnato_pagato')
+      console.log('  - updated_at >= ', fourteenDaysAgo)
+      console.log('  - clienti.telefono is not null and not empty')
+    } else {
+      console.log('✅ DEBUG: Found', fallbackData.length, 'potential buste')
+      console.log('📋 DEBUG: Sample busta:', JSON.stringify(fallbackData[0], null, 2))
+    }
+
+    // Recupera le buste già in follow-up COMPLETATE per escluderle
+    // Stati finali che non devono riapparire: chiamato_completato, non_vuole_essere_contattato, numero_sbagliato, cellulare_staccato
+    // Stati che devono continuare ad apparire: non_risponde, richiamami
+    const { data: existingFollowUps } = await supabase
+      .from('follow_up_chiamate')
+      .select('busta_id')
+      .in('stato_chiamata', ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato', 'cellulare_staccato'])
+
+    const existingBusteIds = new Set(existingFollowUps?.map(f => f.busta_id) || [])
+    console.log('🚫 DEBUG: Found', existingBusteIds.size, 'buste with final/completed states to exclude')
 
     // Processa i dati manualmente
     const processedData = fallbackData
       ?.filter(busta => {
-        // Esclude chi è già stato chiamato (questo controllo andrebbe fatto con una query separata)
-        return true // Per ora accettiamo tutti
+        // Esclude solo buste con stati FINALI (chiamato_completato, non_vuole_essere_contattato, etc.)
+        // Le buste con stati temporanei (non_risponde, richiamami) continuano ad apparire
+        if (existingBusteIds.has(busta.id)) {
+          return false
+        }
+
+        // Verifica che sia nel range 7-14 giorni (già filtrato nella query, ma ricontrolliamo)
+        const dataConsegna = new Date(busta.updated_at || Date.now())
+        const giorniTrascorsi = Math.floor((Date.now() - dataConsegna.getTime()) / (1000 * 60 * 60 * 24))
+
+        return giorniTrascorsi >= 7 && giorniTrascorsi <= 14 // Range 7-14 giorni
       })
       .map(busta => {
         const cliente = Array.isArray(busta.clienti) ? busta.clienti[0] : busta.clienti
         const materiali = Array.isArray(busta.materiali) ? busta.materiali : [busta.materiali]
         const infoPagamenti = Array.isArray(busta.info_pagamenti) ? busta.info_pagamenti[0] : busta.info_pagamenti
+        const ordiniMateriali = Array.isArray(busta.ordini_materiali) ? busta.ordini_materiali : (busta.ordini_materiali ? [busta.ordini_materiali] : [])
 
         const hasPrimoAcquistoLAC = materiali?.some(m =>
           m?.tipo === 'LAC' && m?.primo_acquisto_lac === true
         ) || false
 
         const prezzoFinale = infoPagamenti?.prezzo_finale || 0
+
+        // Extract product descriptions from ordini_materiali
+        const descrizioniProdotti = ordiniMateriali
+          ?.filter(ordine => ordine?.descrizione_prodotto && ordine.descrizione_prodotto.trim() !== '')
+          .map(ordine => ordine.descrizione_prodotto)
+          .join(', ') || ''
 
         const priorita = calcolaPriorità(
           prezzoFinale,
@@ -84,15 +135,17 @@ export async function POST() {
           cliente_cognome: cliente?.cognome || '',
           cliente_telefono: cliente?.telefono || '',
           tipo_acquisto: getTipoAcquisto(busta.tipo_lavorazione),
+          descrizione_prodotti: descrizioniProdotti,
           priorita
         }
       })
       .filter((item): item is NonNullable<typeof item> => Boolean(item))
       .sort((a, b) => {
-        // Ordina per giorni trascorsi e priorità
+        // PRIORITÀ 1: Giorni trascorsi (più vecchi prima - 14 giorni prima di 7 giorni)
         if (a.giorni_trascorsi !== b.giorni_trascorsi) {
-          return b.giorni_trascorsi - a.giorni_trascorsi
+          return b.giorni_trascorsi - a.giorni_trascorsi // Più vecchi per primi
         }
+        // PRIORITÀ 2: Livello di priorità del cliente
         const priorityOrder = { alta: 1, normale: 2, bassa: 3 }
         return priorityOrder[a.priorita] - priorityOrder[b.priorita]
       })
@@ -116,10 +169,20 @@ export async function POST() {
       }
     }
 
+    console.log('🎯 DEBUG: Final processed data count:', processedData.length)
+    console.log('📤 DEBUG: Returning response with', processedData.length, 'follow-up entries')
+
     return NextResponse.json({
       success: true,
       count: processedData.length,
-      data: processedData
+      data: processedData,
+      debug: {
+        rawQueryCount: fallbackData?.length || 0,
+        excludedCount: existingBusteIds.size,
+        finalCount: processedData.length,
+        searchDateRange: `${fourteenDaysAgo} to ${sevenDaysAgo}`,
+        dayRange: '7-14 days ago'
+      }
     })
 
   } catch (error) {
@@ -144,13 +207,16 @@ function calcolaPriorità(
     return 'alta'
   }
 
-  // PRIORITÀ NORMALE: Prime LAC o Lenti da vista sopra 100€
-  if (haPrimoAcquistoLAC || (prezzoFinale >= 100 && tipoLavorazione === 'LV')) {
+  // PRIORITÀ NORMALE: Prime LAC, Lenti da vista sopra 100€, o Occhiali Completi/Vista sopra 200€
+  if (haPrimoAcquistoLAC ||
+      (prezzoFinale >= 100 && tipoLavorazione === 'LV') ||
+      (prezzoFinale >= 200 && ['OCV', 'OV'].includes(tipoLavorazione))) {
     return 'normale'
   }
 
-  // PRIORITÀ BASSA: Occhiali da sole sopra 400€
-  if (prezzoFinale >= 400 && tipoLavorazione === 'OS') {
+  // PRIORITÀ BASSA: Occhiali da sole sopra 400€, o qualsiasi altro acquisto sopra 100€
+  if ((prezzoFinale >= 400 && tipoLavorazione === 'OS') ||
+      (prezzoFinale >= 100)) {
     return 'bassa'
   }
 

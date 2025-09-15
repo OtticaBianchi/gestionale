@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react'
 import { CallList } from './CallList'
 import { StatisticsDashboard } from './StatisticsDashboard'
+import { EnhancedStatisticsDashboard } from './EnhancedStatisticsDashboard'
 import { GenerateListButton } from './GenerateListButton'
 import { TabNavigation } from './TabNavigation'
 import { useFollowUpData } from '../_hooks/useFollowUpData'
 
-type ActiveTab = 'calls' | 'statistics'
+type ActiveTab = 'calls' | 'statistics' | 'enhanced-stats'
 
 export function FollowUpClient() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('calls')
@@ -44,11 +45,13 @@ export function FollowUpClient() {
             isLoading={isLoading}
             onUpdateCall={updateCall}
           />
-        ) : (
+        ) : activeTab === 'statistics' ? (
           <StatisticsDashboard
             statistics={statistics}
             isLoading={isLoading}
           />
+        ) : (
+          <EnhancedStatisticsDashboard />
         )}
       </div>
     </div>

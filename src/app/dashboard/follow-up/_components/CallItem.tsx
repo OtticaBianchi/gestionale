@@ -101,6 +101,9 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
           <div className="text-sm text-gray-600 space-y-1">
             <div>📞 {call.cliente_telefono}</div>
             <div>🛍️ {call.tipo_acquisto} - €{call.prezzo_finale}</div>
+            {call.descrizione_prodotti && (
+              <div>🔍 {call.descrizione_prodotti}</div>
+            )}
             <div>📋 Busta: {call.readable_id}</div>
             <div>📅 {call.giorni_trascorsi} giorni fa</div>
             {call.livello_soddisfazione && (

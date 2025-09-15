@@ -50,6 +50,9 @@ export async function GET(request: Request) {
           ),
           info_pagamenti (
             prezzo_finale
+          ),
+          ordini_materiali (
+            descrizione_prodotto
           )
         ),
         profiles (
@@ -87,6 +90,13 @@ export async function GET(request: Request) {
         tipoAcquisto = 'Prime Lenti a Contatto'
       }
 
+      // Extract product descriptions from ordini_materiali
+      const ordiniMateriali = Array.isArray(busta.ordini_materiali) ? busta.ordini_materiali : (busta.ordini_materiali ? [busta.ordini_materiali] : [])
+      const descrizioniProdotti = ordiniMateriali
+        ?.filter(ordine => ordine?.descrizione_prodotto && ordine.descrizione_prodotto.trim() !== '')
+        .map(ordine => ordine.descrizione_prodotto)
+        .join(', ') || ''
+
       return {
         id: chiamata.id,
         busta_id: chiamata.busta_id,
@@ -110,7 +120,8 @@ export async function GET(request: Request) {
         prezzo_finale: (Array.isArray(busta.info_pagamenti) ? busta.info_pagamenti[0]?.prezzo_finale : busta.info_pagamenti?.prezzo_finale) || 0,
         giorni_trascorsi: giorniTrascorsi,
         readable_id: busta.readable_id,
-        operatore_nome: chiamata.profiles?.full_name
+        operatore_nome: chiamata.profiles?.full_name,
+        descrizione_prodotti: descrizioniProdotti
       }
     }) || []
 
