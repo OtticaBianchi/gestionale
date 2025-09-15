@@ -1,6 +1,6 @@
 'use client';
 
-import { RefreshCw, Filter, Plus, Mic, Search } from 'lucide-react';
+import { RefreshCw, Filter, Plus, Mic, Search, Phone } from 'lucide-react';
 import Link from 'next/link';
 import { useBuste } from '@/hooks/useBuste';
 import { toast } from 'sonner';
@@ -84,6 +84,15 @@ export default function DashboardActions({ totalBuste }: DashboardActionsProps) 
         <span>Aggiorna</span>
       </button>
       
+      {/* Follow-up Chiamate */}
+      <Link
+        href="/dashboard/follow-up"
+        className="flex items-center space-x-2 px-3 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors"
+      >
+        <Phone className="h-4 w-4" />
+        <span>Follow-up</span>
+      </Link>
+
       {/* Note vocali */}
       <Link
         href="/dashboard/voice-notes"

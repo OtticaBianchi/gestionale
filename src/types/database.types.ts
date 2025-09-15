@@ -517,6 +517,7 @@ export type Database = {
           fornitore_id: string | null
           id: string
           note: string | null
+          primo_acquisto_lac: boolean | null
           stato: string | null
           tipo: string
           tipo_lente_id: string | null
@@ -532,6 +533,7 @@ export type Database = {
           fornitore_id?: string | null
           id?: string
           note?: string | null
+          primo_acquisto_lac?: boolean | null
           stato?: string | null
           tipo: string
           tipo_lente_id?: string | null
@@ -547,6 +549,7 @@ export type Database = {
           fornitore_id?: string | null
           id?: string
           note?: string | null
+          primo_acquisto_lac?: boolean | null
           stato?: string | null
           tipo?: string
           tipo_lente_id?: string | null
@@ -983,6 +986,137 @@ export type Database = {
           nome?: string
         }
         Relationships: []
+      }
+      follow_up_chiamate: {
+        Row: {
+          id: string
+          busta_id: string
+          data_generazione: string
+          data_chiamata: string | null
+          operatore_id: string | null
+          stato_chiamata: string
+          livello_soddisfazione: string | null
+          note_chiamata: string | null
+          orario_richiamata_da: string | null
+          orario_richiamata_a: string | null
+          data_completamento: string | null
+          archiviato: boolean
+          priorita: string
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          busta_id: string
+          data_generazione?: string
+          data_chiamata?: string | null
+          operatore_id?: string | null
+          stato_chiamata?: string
+          livello_soddisfazione?: string | null
+          note_chiamata?: string | null
+          orario_richiamata_da?: string | null
+          orario_richiamata_a?: string | null
+          data_completamento?: string | null
+          archiviato?: boolean
+          priorita: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          busta_id?: string
+          data_generazione?: string
+          data_chiamata?: string | null
+          operatore_id?: string | null
+          stato_chiamata?: string
+          livello_soddisfazione?: string | null
+          note_chiamata?: string | null
+          orario_richiamata_da?: string | null
+          orario_richiamata_a?: string | null
+          data_completamento?: string | null
+          archiviato?: boolean
+          priorita?: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_chiamate_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: false
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follow_up_chiamate_operatore_id_fkey"
+            columns: ["operatore_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      statistiche_follow_up: {
+        Row: {
+          id: string
+          data_riferimento: string
+          operatore_id: string | null
+          chiamate_totali: number
+          chiamate_completate: number
+          molto_soddisfatti: number
+          soddisfatti: number
+          poco_soddisfatti: number
+          insoddisfatti: number
+          non_vuole_contatto: number
+          numeri_sbagliati: number
+          cellulari_staccati: number
+          non_risponde: number
+          da_richiamare: number
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          data_riferimento?: string
+          operatore_id?: string | null
+          chiamate_totali?: number
+          chiamate_completate?: number
+          molto_soddisfatti?: number
+          soddisfatti?: number
+          poco_soddisfatti?: number
+          insoddisfatti?: number
+          non_vuole_contatto?: number
+          numeri_sbagliati?: number
+          cellulari_staccati?: number
+          non_risponde?: number
+          da_richiamare?: number
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          data_riferimento?: string
+          operatore_id?: string | null
+          chiamate_totali?: number
+          chiamate_completate?: number
+          molto_soddisfatti?: number
+          soddisfatti?: number
+          poco_soddisfatti?: number
+          insoddisfatti?: number
+          non_vuole_contatto?: number
+          numeri_sbagliati?: number
+          cellulari_staccati?: number
+          non_risponde?: number
+          da_richiamare?: number
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "statistiche_follow_up_operatore_id_fkey"
+            columns: ["operatore_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       voice_notes: {
         Row: {
