@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Copy, ChevronDown, Eye } from 'lucide-react';
+import { Copy, ChevronDown, Eye, Search, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
@@ -25,6 +25,8 @@ export default function ArchiveClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDuplicateMenu, setShowDuplicateMenu] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredBuste, setFilteredBuste] = useState<ArchivedBusta[]>([]);
 
   useEffect(() => {
     fetchArchivedBuste();
@@ -60,6 +62,7 @@ export default function ArchiveClient() {
       }
 
       setBuste(data || []);
+      setFilteredBuste(data || []);
     } catch (error) {
       console.error('Archive fetch error:', error);
       setError('Errore nel caricamento dell\'archivio');
@@ -97,6 +100,34 @@ export default function ArchiveClient() {
     setShowDuplicateMenu(null);
   };
 
+  // Filter buste based on search term
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredBuste(buste);
+    } else {
+      const filtered = buste.filter(busta => {
+        const searchLower = searchTerm.toLowerCase();
+        const bustaId = busta.readable_id?.toLowerCase() || '';
+        const clienteNome = busta.clienti?.nome?.toLowerCase() || '';
+        const clienteCognome = busta.clienti?.cognome?.toLowerCase() || '';
+        const clienteTelefono = busta.clienti?.telefono?.toLowerCase() || '';
+
+        return (
+          bustaId.includes(searchLower) ||
+          clienteNome.includes(searchLower) ||
+          clienteCognome.includes(searchLower) ||
+          clienteTelefono.includes(searchLower) ||
+          `${clienteCognome} ${clienteNome}`.includes(searchLower)
+        );
+      });
+      setFilteredBuste(filtered);
+    }
+  }, [searchTerm, buste]);
+
+  const clearSearch = () => {
+    setSearchTerm('');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -127,21 +158,62 @@ export default function ArchiveClient() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <h1 className="text-2xl font-bold text-gray-900">Archivio Buste</h1>
-        <p className="text-sm text-gray-600">
-          Buste consegnate e pagate (archiviate dopo 7 giorni) • {buste.length} buste trovate
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Archivio Buste</h1>
+            <p className="text-sm text-gray-600">
+              Buste consegnate e pagate (archiviate dopo 7 giorni) • {buste.length} buste totali
+              {searchTerm && ` • ${filteredBuste.length} risultati`}
+            </p>
+          </div>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative max-w-md">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="h-4 w-4 text-gray-400" />
+          </div>
+          <input
+            type="text"
+            placeholder="Cerca per ID busta, nome cliente o telefono..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          />
+          {searchTerm && (
+            <button
+              onClick={clearSearch}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="p-6">
         {buste.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-gray-500">Nessuna busta archiviata trovata</div>
-            <button 
+            <button
               onClick={fetchArchivedBuste}
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
               Aggiorna
+            </button>
+          </div>
+        ) : filteredBuste.length === 0 && searchTerm ? (
+          <div className="text-center py-12">
+            <Search className="w-12 h-12 mx-auto text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Nessun risultato trovato</h3>
+            <p className="text-gray-500">
+              Nessuna busta corrisponde ai criteri di ricerca "{searchTerm}"
+            </p>
+            <button
+              onClick={clearSearch}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Mostra tutte le buste
             </button>
           </div>
         ) : (
@@ -156,7 +228,7 @@ export default function ArchiveClient() {
                 </tr>
               </thead>
               <tbody>
-                {buste.map((busta) => (
+                {filteredBuste.map((busta) => (
                   <tr key={busta.id} className="border-t hover:bg-gray-50">
                     <td className="px-4 py-2 font-medium text-gray-800">
                       {busta.readable_id || busta.id}

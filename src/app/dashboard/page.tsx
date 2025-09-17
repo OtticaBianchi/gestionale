@@ -8,6 +8,7 @@ import UserProfileHeader from './_components/UserProfileHeader';
 import { BustaWithCliente } from '@/types/shared.types';
 import DashboardActions from './_components/DashboardActions';
 import ErrorActions from './_components/ErrorActions';
+import DashboardLayout from '@/components/layout/DashboardLayout';
 
 // ✅ FIX: Forza il dynamic rendering e disabilita la cache
 export const dynamic = 'force-dynamic';
@@ -132,37 +133,39 @@ export default async function DashboardPage() {
   console.log('🔍 Dashboard - Rendering with', busteWithCliente.length, 'buste');
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header Profilo Utente */}
-      <UserProfileHeader />
+    <DashboardLayout>
+      <div className="flex flex-col h-full">
+        {/* Header Profilo Utente */}
+        <UserProfileHeader />
 
-      {/* Header con azioni */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Gestione buste e lavorazioni in corso - {busteWithCliente.length} buste totali
-            </p>
-            {/* ✅ Debug info in development */}
-            {process.env.NODE_ENV === 'development' && (
-              <p className="text-xs text-gray-400 mt-1">
-                Ultimo aggiornamento: {new Date().toLocaleTimeString('it-IT')}
+        {/* Header con azioni */}
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                Gestione buste e lavorazioni in corso - {busteWithCliente.length} buste totali
               </p>
-            )}
+              {/* ✅ Debug info in development */}
+              {process.env.NODE_ENV === 'development' && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Ultimo aggiornamento: {new Date().toLocaleTimeString('it-IT')}
+                </p>
+              )}
+            </div>
+
+            <DashboardActions totalBuste={busteWithCliente.length} />
           </div>
-          
-          <DashboardActions totalBuste={busteWithCliente.length} />
+        </div>
+
+        {/* Barra delle statistiche */}
+        <StatsBar buste={busteWithCliente} />
+
+        {/* Contenuto principale - Kanban Board */}
+        <div className="flex-1 p-6 bg-gray-50 overflow-hidden">
+          <KanbanBoard buste={busteWithCliente} />
         </div>
       </div>
-
-      {/* Barra delle statistiche */}
-      <StatsBar buste={busteWithCliente} />
-
-      {/* Contenuto principale - Kanban Board */}
-      <div className="flex-1 p-6 bg-gray-50 overflow-hidden">
-        <KanbanBoard buste={busteWithCliente} />
-      </div>
-    </div>
+    </DashboardLayout>
   );
 }
