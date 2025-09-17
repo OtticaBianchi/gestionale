@@ -73,11 +73,70 @@ export async function POST(request: NextRequest) {
 
     const mtype = messageType(update);
     const fromUser = update.message?.from || update.callback_query?.from;
+    const telegramUserId = String(fromUser?.id || '');
+
     console.log('📨 Telegram update:', jsonSafe({
       update_id: update.update_id,
       type: mtype,
       from: fromUser?.username || fromUser?.id || 'unknown'
     }));
+
+    // Check if user is authorized to use the bot
+    const supabase = getSupabaseAdmin();
+    const { data: authorizedUser } = await supabase
+      .from('profiles')
+      .select('id, nome, telegram_bot_access')
+      .eq('telegram_user_id', telegramUserId)
+      .eq('telegram_bot_access', true)
+      .single();
+
+    if (!authorizedUser) {
+      // Log unauthorized access attempt
+      await supabase
+        .from('telegram_auth_requests')
+        .upsert({
+          telegram_user_id: telegramUserId,
+          telegram_username: fromUser?.username || null,
+          first_name: fromUser?.first_name || null,
+          last_name: fromUser?.last_name || null,
+          last_seen_at: new Date().toISOString(),
+          message_count: 1
+        }, {
+          onConflict: 'telegram_user_id',
+          ignoreDuplicates: false
+        });
+
+      // Update message count if already exists
+      await supabase.rpc('increment_message_count', {
+        user_id: telegramUserId
+      }).catch(() => {
+        // Fallback if function doesn't exist
+        supabase
+          .from('telegram_auth_requests')
+          .update({
+            message_count: supabase.sql`message_count + 1`,
+            last_seen_at: new Date().toISOString()
+          })
+          .eq('telegram_user_id', telegramUserId);
+      });
+
+      console.log('🚫 Unauthorized Telegram user:', telegramUserId, fromUser?.username);
+
+      // Send friendly denial message
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: fromUser?.id,
+          text: '🔒 Non sei autorizzato ad usare questo bot.\n\nPer ottenere l\'accesso, contatta un amministratore e fornisci questo codice:\n\n`' + telegramUserId + '`',
+          parse_mode: 'Markdown'
+        })
+      });
+
+      return NextResponse.json({ status: 'unauthorized' });
+    }
+
+    console.log('✅ Authorized user:', authorizedUser.nome, '(' + telegramUserId + ')');
 
     // Only handle voice/audio/document here
     if (!['voice', 'audio', 'document'].includes(mtype)) {
@@ -95,7 +154,6 @@ export async function POST(request: NextRequest) {
     const audioBase64 = await telegramDownloadBase64(botToken, fileMeta.file_path);
 
     // 2) Idempotency: skip if this telegram_message_id already exists
-    const supabase = getSupabaseAdmin();
     const telegramMessageId = String(msg.message_id);
     const { data: existing, error: findErr } = await supabase
       .from('voice_notes')

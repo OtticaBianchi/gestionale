@@ -33,6 +33,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [voiceNotesCount, setVoiceNotesCount] = useState(0);
+  const [telegramRequestsCount, setTelegramRequestsCount] = useState(0);
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -70,11 +71,34 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     }
   };
 
+  // Fetch telegram auth requests count (admin only)
+  const fetchTelegramRequestsCount = async () => {
+    if (userRole !== 'admin') return;
+
+    try {
+      const response = await fetch('/api/admin/telegram-auth');
+      if (response.ok) {
+        const data = await response.json();
+        setTelegramRequestsCount(data.unauthorizedUsers?.length || 0);
+      }
+    } catch (error) {
+      console.error('Error fetching telegram requests count:', error);
+    }
+  };
+
   useEffect(() => {
     fetchVoiceNotesCount();
     const interval = setInterval(fetchVoiceNotesCount, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (userRole === 'admin') {
+      fetchTelegramRequestsCount();
+      const interval = setInterval(fetchTelegramRequestsCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [userRole]);
 
   return (
     <>
@@ -214,6 +238,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
                   icon={Users}
                   label="Utenti"
                   isCollapsed={isCollapsed}
+                  badge={telegramRequestsCount > 0 ? telegramRequestsCount.toString() : undefined}
                 />
               )}
             </SidebarSection>

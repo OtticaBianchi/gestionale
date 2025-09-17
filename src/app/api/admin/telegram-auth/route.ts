@@ -1,0 +1,111 @@
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
+
+// GET: List unauthorized users
+export async function GET(request: NextRequest) {
+  const cookieStore = cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { get: (name) => cookieStore.get(name)?.value } }
+  );
+
+  // Ensure admin
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || profile.role !== 'admin') {
+    return NextResponse.json({ error: 'Solo gli amministratori possono accedere' }, { status: 403 });
+  }
+
+  const adminClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  try {
+    // Get unauthorized users
+    const { data: unauthorizedUsers, error } = await adminClient
+      .from('telegram_auth_requests')
+      .select('*')
+      .eq('authorized', false)
+      .order('last_seen_at', { ascending: false });
+
+    if (error) throw error;
+
+    return NextResponse.json({ unauthorizedUsers: unauthorizedUsers || [] });
+  } catch (error: any) {
+    console.error('Telegram auth list error:', error);
+    return NextResponse.json({ error: 'Errore caricamento richieste', details: error.message }, { status: 500 });
+  }
+}
+
+// POST: Authorize a user
+export async function POST(request: NextRequest) {
+  const cookieStore = cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { get: (name) => cookieStore.get(name)?.value } }
+  );
+
+  // Ensure admin
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || profile.role !== 'admin') {
+    return NextResponse.json({ error: 'Solo gli amministratori possono accedere' }, { status: 403 });
+  }
+
+  const adminClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  try {
+    const { telegramUserId, profileId } = await request.json();
+
+    if (!telegramUserId || !profileId) {
+      return NextResponse.json({ error: 'telegramUserId e profileId richiesti' }, { status: 400 });
+    }
+
+    // Update profile with telegram info
+    const { error: updateError } = await adminClient
+      .from('profiles')
+      .update({
+        telegram_user_id: telegramUserId,
+        telegram_bot_access: true
+      })
+      .eq('id', profileId);
+
+    if (updateError) throw updateError;
+
+    // Mark as authorized in auth requests
+    await adminClient
+      .from('telegram_auth_requests')
+      .update({ authorized: true })
+      .eq('telegram_user_id', telegramUserId);
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Telegram auth error:', error);
+    return NextResponse.json({ error: 'Errore autorizzazione', details: error.message }, { status: 500 });
+  }
+}

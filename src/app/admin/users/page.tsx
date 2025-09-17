@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useUser } from '@/context/UserContext'
 import { useRouter } from 'next/navigation'
-import { Users, Shield, Mail, Loader2, Search, Check, X, User, Trash2 } from 'lucide-react'
+import { Users, Shield, Mail, Loader2, Search, Check, X, User, Trash2, MessageCircle, Link, ArrowLeft } from 'lucide-react'
 
 type AdminUser = {
   id: string
@@ -18,7 +18,21 @@ type AdminUser = {
     avatar_url: string | null
     updated_at: string | null
     created_at: string | null
+    telegram_user_id: string | null
+    telegram_bot_access: boolean | null
   } | null
+}
+
+type TelegramAuthRequest = {
+  id: number
+  telegram_user_id: string
+  telegram_username: string | null
+  first_name: string | null
+  last_name: string | null
+  first_seen_at: string
+  last_seen_at: string
+  message_count: number
+  authorized: boolean
 }
 
 const roles = [
@@ -39,6 +53,9 @@ export default function AdminUsersPage() {
   const [inviting, setInviting] = useState(false)
   const [error, setError] = useState<string>('')
   const [success, setSuccess] = useState<string>('')
+  const [telegramRequests, setTelegramRequests] = useState<TelegramAuthRequest[]>([])
+  const [telegramLoading, setTelegramLoading] = useState(false)
+  const [showTelegramRequests, setShowTelegramRequests] = useState(false)
 
   useEffect(() => {
     if (!isLoading) {
@@ -67,7 +84,22 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     fetchUsers()
+    fetchTelegramRequests()
   }, [])
+
+  const fetchTelegramRequests = async () => {
+    setTelegramLoading(true)
+    try {
+      const res = await fetch('/api/admin/telegram-auth')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Errore caricamento richieste Telegram')
+      setTelegramRequests(data.unauthorizedUsers || [])
+    } catch (e: any) {
+      console.error('Telegram requests error:', e.message)
+    } finally {
+      setTelegramLoading(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -78,6 +110,25 @@ export default function AdminUsersPage() {
       u.id.toLowerCase().includes(q)
     )
   }, [users, search])
+
+  const authorizeTelegramUser = async (telegramUserId: string, profileId: string) => {
+    try {
+      setError('')
+      const res = await fetch('/api/admin/telegram-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramUserId, profileId })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Errore autorizzazione')
+      setSuccess('Utente Telegram autorizzato')
+      setTimeout(() => setSuccess(''), 2000)
+      fetchUsers()
+      fetchTelegramRequests()
+    } catch (e: any) {
+      setError(e.message)
+    }
+  }
 
   const updateUser = async (id: string, updates: { role?: string, full_name?: string }) => {
     try {
@@ -143,9 +194,19 @@ export default function AdminUsersPage() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-2">
-              <Shield className="w-5 h-5 text-purple-600" />
-              <h1 className="text-xl font-semibold text-gray-900">Gestione Utenti</h1>
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors"
+                title="Torna alla Dashboard"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>← Dashboard</span>
+              </button>
+              <div className="flex items-center space-x-2">
+                <Shield className="w-5 h-5 text-purple-600" />
+                <h1 className="text-xl font-semibold text-gray-900">Gestione Utenti</h1>
+              </div>
             </div>
             <div className="text-sm text-gray-600">
               {filtered.length} utenti
@@ -204,6 +265,39 @@ export default function AdminUsersPage() {
           </div>
         </div>
 
+        {/* Telegram Authorization Requests */}
+        {telegramRequests.length > 0 && (
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-4 h-4 text-orange-600" />
+                <h2 className="font-medium text-orange-800">Richieste Accesso Bot Telegram</h2>
+                <span className="bg-orange-200 text-orange-800 text-xs px-2 py-1 rounded-full">
+                  {telegramRequests.length}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowTelegramRequests(!showTelegramRequests)}
+                className="text-orange-600 hover:text-orange-700 text-sm"
+              >
+                {showTelegramRequests ? 'Nascondi' : 'Mostra'}
+              </button>
+            </div>
+            {showTelegramRequests && (
+              <div className="space-y-2">
+                {telegramRequests.map(req => (
+                  <TelegramRequestRow
+                    key={req.telegram_user_id}
+                    request={req}
+                    users={users}
+                    onAuthorize={authorizeTelegramUser}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Search */}
         <div className="flex items-center gap-2">
           <div className="relative w-full md:w-80">
@@ -221,10 +315,11 @@ export default function AdminUsersPage() {
         {/* Users table */}
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           <div className="grid grid-cols-12 gap-2 px-4 py-2 text-xs font-medium text-gray-600 border-b">
-            <div className="col-span-3">Utente</div>
+            <div className="col-span-2">Utente</div>
             <div className="col-span-3">Email</div>
             <div className="col-span-2">Ultimo Accesso</div>
             <div className="col-span-2">Ruolo</div>
+            <div className="col-span-1">Telegram</div>
             <div className="col-span-2 text-right">Azioni</div>
           </div>
           {loading ? (
@@ -259,7 +354,7 @@ function UserRow({ user, savingId, onSave, onDelete }: {
 
   return (
     <div className="grid grid-cols-12 gap-2 px-4 py-3 items-center">
-      <div className="col-span-3">
+      <div className="col-span-2">
         <div className="font-medium text-gray-900 flex items-center gap-2">
           <User className="w-4 h-4 text-gray-500" />
           <input
@@ -278,6 +373,15 @@ function UserRow({ user, savingId, onSave, onDelete }: {
           {roles.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
         </select>
       </div>
+      <div className="col-span-1 text-center">
+        {user.profile?.telegram_bot_access ? (
+          <div className="flex items-center justify-center" title="Bot Telegram autorizzato">
+            <MessageCircle className="w-4 h-4 text-green-600" />
+          </div>
+        ) : (
+          <span className="text-gray-400">—</span>
+        )}
+      </div>
       <div className="col-span-2 text-right">
         <button
           onClick={() => onSave(user.id, { full_name: fullName, role })}
@@ -294,6 +398,57 @@ function UserRow({ user, savingId, onSave, onDelete }: {
         >
           <Trash2 className="w-4 h-4" />
           Elimina
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function TelegramRequestRow({ request, users, onAuthorize }: {
+  request: TelegramAuthRequest,
+  users: AdminUser[],
+  onAuthorize: (telegramUserId: string, profileId: string) => Promise<void>
+}) {
+  const [selectedUserId, setSelectedUserId] = useState('')
+
+  const displayName = [request.first_name, request.last_name].filter(Boolean).join(' ') ||
+                     request.telegram_username ||
+                     `User ${request.telegram_user_id}`
+
+  return (
+    <div className="bg-white border border-orange-200 rounded-lg p-3 flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <MessageCircle className="w-5 h-5 text-orange-600" />
+        <div>
+          <div className="font-medium text-gray-900">{displayName}</div>
+          <div className="text-xs text-gray-600">
+            ID: {request.telegram_user_id} •
+            {request.telegram_username && ` @${request.telegram_username} • `}
+            {request.message_count} messaggi •
+            Ultimo: {new Date(request.last_seen_at).toLocaleString('it-IT')}
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <select
+          value={selectedUserId}
+          onChange={e => setSelectedUserId(e.target.value)}
+          className="border px-3 py-1 rounded text-sm"
+        >
+          <option value="">Seleziona utente...</option>
+          {users.filter(u => u.profile && !u.profile.telegram_user_id).map(u => (
+            <option key={u.id} value={u.id}>
+              {u.profile?.full_name || u.email || 'Senza nome'}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() => selectedUserId && onAuthorize(request.telegram_user_id, selectedUserId)}
+          disabled={!selectedUserId}
+          className="inline-flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50"
+        >
+          <Link className="w-4 h-4" />
+          Autorizza
         </button>
       </div>
     </div>
