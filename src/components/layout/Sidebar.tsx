@@ -18,7 +18,9 @@ import {
   Archive,
   Users,
   Building2,
-  Activity
+  Activity,
+  Mail,
+  RotateCcw
 } from 'lucide-react';
 import SidebarSection from './SidebarSection';
 import SidebarItem from './SidebarItem';
@@ -216,6 +218,20 @@ export default function Sidebar({ className = '' }: SidebarProps) {
               icon={Phone}
               label="Follow-up Chiamate"
               isCollapsed={isCollapsed}
+            />
+            <SidebarItem
+              href="/modules/marketing"
+              icon={Mail}
+              label="Marketing"
+              isCollapsed={isCollapsed}
+              disabled={userRole === 'operatore'}
+            />
+            <SidebarItem
+              href="/modules/reactivation"
+              icon={RotateCcw}
+              label="Riattivazione"
+              isCollapsed={isCollapsed}
+              disabled={userRole === 'operatore'}
             />
           </SidebarSection>
 
