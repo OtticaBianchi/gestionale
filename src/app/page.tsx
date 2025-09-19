@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, Bot, Info, Calendar, Clock } from 'lucide-react'
+import { ArrowRight, Info, Calendar, Clock } from 'lucide-react'
 
 // --- Componente per l'orologio e la data live ---
 const LiveClock = () => {
@@ -66,16 +66,19 @@ const LiveClock = () => {
 export default function WelcomePage() {
   const router = useRouter()
 
-  // Dati di esempio per gli aggiornamenti
+  // Aggiornamenti reali del sistema
   const changelog = [
-    { version: '1.0.1', date: '25/07/2024', description: 'Migliorata la velocità di caricamento della Kanban Board.' },
-    { version: '1.0.0', date: '20/07/2024', description: 'Lancio iniziale del Sistema Gestionale.' },
+    { version: '2.8.0', date: '19/09/2024', description: 'Sistema di tracking pagamenti migliorato e calcolo tempi di consegna aggiornato.' },
+    { version: '2.7.0', date: '15/09/2024', description: 'Sistema Marketing completo con filtri brand e segmentazione clienti inattivi.' },
+    { version: '2.6.0', date: '10/09/2024', description: 'Sistema di autenticazione Telegram Bot implementato.' },
+    { version: '2.5.0', date: '08/09/2024', description: 'Nuovo menu sidebar e sistema di follow-up avanzato.' },
+    { version: '2.4.0', date: '05/09/2024', description: 'Trascrizione note vocali funzionante e miglioramenti AssemblyAI.' },
   ]
 
   return (
     <div className="min-h-screen w-full bg-gray-900 text-white relative overflow-hidden">
       {/* Sfondo con effetto gradiente e blur */}
-      <div className="absolute top-0 left-0 w-full h-full bg-cover bg-center" style={{backgroundImage: "url('/background-abstract.jpg')"}}></div>
+      <div className="absolute top-0 left-0 w-full h-full bg-cover bg-center" style={{backgroundImage: "url('/OB-Team for Gestionale.jpg')"}}></div>
       <div className="absolute top-0 left-0 w-full h-full bg-black/50 backdrop-blur-sm"></div>
 
       <div className="relative z-10 flex flex-col justify-between min-h-screen p-4 sm:p-8">
@@ -114,10 +117,10 @@ export default function WelcomePage() {
           </div>
         </main>
 
-        {/* Footer con aggiornamenti e help */}
-        <footer className="w-full max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+        {/* Footer con aggiornamenti */}
+        <footer className="w-full max-w-7xl mx-auto">
           {/* Colonna Aggiornamenti */}
-          <div className="bg-black/20 p-4 rounded-lg backdrop-blur-sm">
+          <div className="bg-black/20 p-4 rounded-lg backdrop-blur-sm max-w-2xl">
             <div className="flex items-center gap-2 mb-2">
               <Info className="w-5 h-5 text-blue-400" />
               <h3 className="font-semibold">Ultimi Aggiornamenti</h3>
@@ -130,19 +133,6 @@ export default function WelcomePage() {
                 </li>
               ))}
             </ul>
-          </div>
-          
-          {/* Placeholder per altre info future */}
-          <div className="hidden md:block"></div>
-
-          {/* Colonna Assistente AI */}
-          <div className="flex justify-center md:justify-end">
-             <button className="flex items-center gap-3 px-6 py-3 font-semibold 
-                                bg-purple-600 hover:bg-purple-500 rounded-lg transition-all
-                                shadow-lg hover:shadow-purple-500/50">
-                <Bot className="w-6 h-6" />
-                <span>Chiedi all'Assistente AI</span>
-             </button>
           </div>
         </footer>
       </div>
