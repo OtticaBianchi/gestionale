@@ -52,6 +52,13 @@ type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
     descrizione_prodotto: string;
     stato: string;
   }>;
+  payment_plan?: (Database['public']['Tables']['payment_plans']['Row'] & {
+    payment_installments: Database['public']['Tables']['payment_installments']['Row'][] | null;
+  }) | null;
+  info_pagamenti?: Pick<
+    Database['public']['Tables']['info_pagamenti']['Row'],
+    'is_saldato' | 'modalita_saldo' | 'importo_acconto' | 'ha_acconto' | 'prezzo_finale' | 'data_saldo' | 'updated_at'
+  > | null;
 };
 
 interface BustaDetailClientProps {

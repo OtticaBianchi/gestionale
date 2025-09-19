@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
 import { mutate } from 'swr';
-import { 
+import {
   ShoppingCart,
   Plus,
   Truck,
@@ -22,7 +22,9 @@ import {
   AlertTriangle,
   CheckCircle,
   Loader2,
-  Check
+  Check,
+  Euro,
+  Save
 } from 'lucide-react';
 
 // ===== TYPES LOCALI =====
@@ -34,6 +36,13 @@ type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
       profiles: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
     }
   >;
+  payment_plan?: (Database['public']['Tables']['payment_plans']['Row'] & {
+    payment_installments: Database['public']['Tables']['payment_installments']['Row'][] | null;
+  }) | null;
+  info_pagamenti?: Pick<
+    Database['public']['Tables']['info_pagamenti']['Row'],
+    'is_saldato' | 'modalita_saldo' | 'importo_acconto' | 'ha_acconto' | 'prezzo_finale' | 'data_saldo' | 'updated_at'
+  > | null;
 };
 
 // ✅ TIPO AGGIORNATO: Aggiunto da_ordinare
@@ -46,6 +55,7 @@ type OrdineMateriale = Database['public']['Tables']['ordini_materiali']['Row'] &
   fornitori_sport?: { nome: string } | null;
   tipi_lenti?: { nome: string; giorni_consegna_stimati: number | null } | null;
   tipi_ordine?: { nome: string } | null;
+  prezzo_prodotto?: number | null;
 };
 
 type Fornitore = {
@@ -80,6 +90,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const [isLoadingOrdini, setIsLoadingOrdini] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // ✅ NUOVO: State per acconto (down payment) della busta
+  const [accontoInfo, setAccontoInfo] = useState({
+    importo_acconto: '',
+    ha_acconto: false,
+    currentAcconto: null as number | null
+  });
+
+
   // ✅ AGGIUNTO: Helper per controlli
   const canEdit = !isReadOnly;
 
@@ -90,6 +108,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     tipo_lenti: '',
     tipo_ordine_id: '',
     descrizione_prodotto: '',
+    prezzo_prodotto: '', // ✅ NUOVO: Prezzo del singolo prodotto
     data_ordine: new Date().toISOString().split('T')[0],
     giorni_consegna_custom: '',
     note: '',
@@ -101,10 +120,56 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  const calcolaTotaleOrdini = (ordini: OrdineMateriale[]): number => {
+    return ordini.reduce((sum, ordine) => {
+      const prezzo = typeof ordine.prezzo_prodotto === 'number' ? ordine.prezzo_prodotto : 0;
+      return sum + (isNaN(prezzo) ? 0 : prezzo);
+    }, 0);
+  };
+
+  const aggiornaPrezzoTotale = async (ordini: OrdineMateriale[]) => {
+    if (!canEdit) return;
+
+    const totale = Number(calcolaTotaleOrdini(ordini).toFixed(2));
+
+    try {
+      const { error } = await supabase
+        .from('info_pagamenti')
+        .upsert({
+          busta_id: busta.id,
+          prezzo_finale: totale,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'busta_id' });
+
+      if (error) {
+        console.error('❌ Errore aggiornamento prezzo finale:', error);
+        return;
+      }
+
+      await mutate('/api/buste');
+    } catch (error) {
+      console.error('❌ Errore sincronizzazione prezzo finale:', error);
+    }
+  };
+
   // ===== EFFECTS =====
   useEffect(() => {
     loadMaterialiData();
+    loadAccontoInfo(); // ✅ CARICA INFO ACCONTO
   }, [busta.id]);
+
+  // ✅ NUOVO EFFECT: Auto-aggiornamento ordini "in arrivo"
+  useEffect(() => {
+    if (ordiniMateriali.length > 0 && canEdit) {
+      // Controlla se ci sono ordini che dovrebbero essere in arrivo prima di chiamare l'aggiornamento
+      const ordiniDaAggiornare = ordiniMateriali.filter(dovrebbeEssereInArrivo);
+      if (ordiniDaAggiornare.length > 0) {
+        console.log(`🔍 Controllo automatico: ${ordiniDaAggiornare.length} ordini pronti per "in_arrivo"`);
+        aggiornaOrdiniInArrivo();
+      }
+    }
+  }, [ordiniMateriali.length, canEdit]); // Trigger quando cambiano ordini o permessi
+
 
   // ===== LOAD MATERIALI DATA =====
   const loadMaterialiData = async () => {
@@ -163,9 +228,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         tipi_ordine: ordine.tipi_ordine && typeof ordine.tipi_ordine === 'object' && 'nome' in ordine.tipi_ordine
           ? ordine.tipi_ordine
           : null,
+        prezzo_prodotto: (ordine as any).prezzo_prodotto ?? (ordine as any).costo ?? null
       })) as OrdineMateriale[];
       
       setOrdiniMateriali(ordiniTipizzati);
+
+      if (canEdit) {
+        await aggiornaPrezzoTotale(ordiniTipizzati);
+      }
 
       // Load reference data se non già caricati
       if (tipiOrdine.length === 0) {
@@ -246,7 +316,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     // Aggiungi solo giorni lavorativi (Lun-Sab)
     let dataConsegna = new Date(dataOrdine);
     let giorniAggiunti = 0;
-    
+
     while (giorniAggiunti < giorniConsegna) {
       dataConsegna.setDate(dataConsegna.getDate() + 1);
       const giorno = dataConsegna.getDay();
@@ -254,8 +324,224 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         giorniAggiunti++;
       }
     }
-    
+
     return dataConsegna.toISOString().split('T')[0];
+  };
+
+  // ===== CALCOLO DATA CONSEGNA PER ORDINE ESISTENTE =====
+  const calcolaDataConsegnaPerOrdineEsistente = (ordine: OrdineMateriale, dataOrdinePiazzato: string) => {
+    const dataOrdine = new Date(dataOrdinePiazzato);
+    let giorniConsegna = ordine.giorni_consegna_medi || 5;
+
+    // Se abbiamo giorni consegna custom dal database, usali
+    if (ordine.giorni_consegna_medi) {
+      giorniConsegna = ordine.giorni_consegna_medi;
+    } else {
+      // Altrimenti determina la categoria e usa i tempi default
+      let categoria = 'lenti'; // default
+      if (ordine.fornitori_lac?.nome) categoria = 'lac';
+      else if (ordine.fornitori_montature?.nome) categoria = 'montature';
+      else if (ordine.fornitori_sport?.nome) categoria = 'sport';
+      else if (ordine.fornitori_lab_esterno?.nome) categoria = 'lab.esterno';
+
+      giorniConsegna = getTempiConsegnaByCategoria(categoria, ordine.tipo_lenti_id || undefined);
+    }
+
+    // Aggiungi solo giorni lavorativi (Lun-Sab)
+    let dataConsegna = new Date(dataOrdine);
+    let giorniAggiunti = 0;
+
+    while (giorniAggiunti < giorniConsegna) {
+      dataConsegna.setDate(dataConsegna.getDate() + 1);
+      const giorno = dataConsegna.getDay();
+      if (giorno >= 1 && giorno <= 6) {
+        giorniAggiunti++;
+      }
+    }
+
+    return dataConsegna.toISOString().split('T')[0];
+  };
+
+  // ===== BUSINESS LOGIC: CALCOLO QUANDO ORDINE DOVREBBE ESSERE "IN ARRIVO" =====
+  const calcolaDataInArrivo = (dataOrdine: string) => {
+    const ordine = new Date(dataOrdine);
+    const giorno = ordine.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+
+    // Trova il prossimo giorno lavorativo (Lun-Ven)
+    let prossimoGiornoLavorativo = new Date(ordine);
+
+    if (giorno === 5) {
+      // Venerdì → Lunedì (3 giorni dopo)
+      prossimoGiornoLavorativo.setDate(ordine.getDate() + 3);
+    } else if (giorno === 6) {
+      // Sabato → Lunedì (2 giorni dopo)
+      prossimoGiornoLavorativo.setDate(ordine.getDate() + 2);
+    } else if (giorno === 0) {
+      // Domenica → Lunedì (1 giorno dopo)
+      prossimoGiornoLavorativo.setDate(ordine.getDate() + 1);
+    } else {
+      // Lun-Gio → giorno successivo
+      prossimoGiornoLavorativo.setDate(ordine.getDate() + 1);
+    }
+
+    return prossimoGiornoLavorativo;
+  };
+
+  // ===== CONTROLLA SE ORDINE DOVREBBE ESSERE "IN ARRIVO" =====
+  const dovrebbeEssereInArrivo = (ordine: OrdineMateriale) => {
+    if (ordine.stato !== 'ordinato') return false; // Solo ordini "ordinati" possono diventare "in_arrivo"
+    if (!ordine.data_ordine) return false;
+
+    const oggi = new Date();
+    const dataInArrivo = calcolaDataInArrivo(ordine.data_ordine);
+
+    // Se oggi >= data in arrivo, allora dovrebbe essere "in_arrivo"
+    return oggi >= dataInArrivo;
+  };
+
+  // ===== AGGIORNA AUTOMATICAMENTE GLI ORDINI CHE DOVREBBERO ESSERE "IN ARRIVO" =====
+  const aggiornaOrdiniInArrivo = async () => {
+    try {
+      const ordiniDaAggiornare = ordiniMateriali.filter(dovrebbeEssereInArrivo);
+
+      if (ordiniDaAggiornare.length === 0) {
+        return; // Nessun ordine da aggiornare
+      }
+
+      console.log(`🚚 Aggiornamento automatico: ${ordiniDaAggiornare.length} ordini da "ordinato" a "in_arrivo"`);
+
+      // Aggiorna tutti gli ordini che dovrebbero essere in arrivo
+      const updatePromises = ordiniDaAggiornare.map(async (ordine) => {
+        console.log(`📦→🚚 Auto-update: ${ordine.id} (ordinato il ${ordine.data_ordine})`);
+
+        const resp = await fetch(`/api/ordini/${ordine.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stato: 'in_arrivo',
+            note: ordine.note ? `${ordine.note}\n[Auto-aggiornato: In arrivo da ${new Date().toLocaleDateString('it-IT')}]` : `[Auto-aggiornato: In arrivo da ${new Date().toLocaleDateString('it-IT')}]`
+          })
+        });
+
+        if (!resp.ok) {
+          const error = await resp.json();
+          console.error(`❌ Errore aggiornamento ordine ${ordine.id}:`, error);
+          return null;
+        }
+
+        return await resp.json();
+      });
+
+      const risultati = await Promise.all(updatePromises);
+      const successi = risultati.filter(r => r !== null);
+
+      if (successi.length > 0) {
+        // Aggiorna stato locale
+        setOrdiniMateriali(prev => prev.map(ordine => {
+          if (ordiniDaAggiornare.find(o => o.id === ordine.id)) {
+            const noteAggiornate = ordine.note
+              ? `${ordine.note}\n[Auto-aggiornato: In arrivo da ${new Date().toLocaleDateString('it-IT')}]`
+              : `[Auto-aggiornato: In arrivo da ${new Date().toLocaleDateString('it-IT')}]`;
+
+            return {
+              ...ordine,
+              stato: 'in_arrivo' as const,
+              note: noteAggiornate
+            };
+          }
+          return ordine;
+        }));
+
+        // Invalida cache
+        await mutate('/api/buste');
+
+        console.log(`✅ Aggiornati ${successi.length} ordini a "in_arrivo"`);
+      }
+
+    } catch (error) {
+      console.error('❌ Errore aggiornamento automatico ordini in arrivo:', error);
+    }
+  };
+
+  // ===== LOAD ACCONTO INFO =====
+  const loadAccontoInfo = async () => {
+    try {
+      const { data: infoPagamento, error } = await supabase
+        .from('info_pagamenti')
+        .select('importo_acconto, ha_acconto')
+        .eq('busta_id', busta.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+        console.error('❌ Errore caricamento acconto:', error);
+        return;
+      }
+
+      if (infoPagamento) {
+        setAccontoInfo(prev => ({
+          ...prev,
+          currentAcconto: infoPagamento.importo_acconto,
+          ha_acconto: infoPagamento.ha_acconto || false,
+          importo_acconto: infoPagamento.importo_acconto?.toString() || ''
+        }));
+      }
+    } catch (error) {
+      console.error('❌ Errore caricamento acconto info:', error);
+    }
+  };
+
+  // ===== SAVE ACCONTO INFO - IMMEDIATO COME IL RESTO DEL SISTEMA =====
+  const saveAccontoInfo = async (importoString: string) => {
+    if (!canEdit) return;
+
+    const importo = parseFloat(importoString);
+    if (isNaN(importo) || importo < 0) {
+      return; // Ignora valori non validi
+    }
+
+    try {
+      console.log(`💰 Salvando acconto: €${importo} per busta ${busta.id}`);
+
+      const { error } = await supabase
+        .from('info_pagamenti')
+        .upsert({
+          busta_id: busta.id,
+          importo_acconto: importo,
+          ha_acconto: importo > 0
+        }, {
+          onConflict: 'busta_id'
+        });
+
+      if (error) {
+        console.error('❌ Errore salvataggio acconto:', error);
+        return;
+      }
+
+      setAccontoInfo(prev => ({
+        ...prev,
+        currentAcconto: importo,
+        ha_acconto: importo > 0
+      }));
+
+      console.log('✅ Acconto salvato con successo');
+
+      // Invalida cache per aggiornare altri componenti
+      await mutate('/api/buste');
+
+    } catch (error: any) {
+      console.error('❌ Errore salvataggio acconto:', error);
+    }
+  };
+
+  // ===== HANDLE ACCONTO CHANGE - SALVA IMMEDIATAMENTE =====
+  const handleAccontoChange = (value: string) => {
+    // Aggiorna il valore immediatamente nell'UI
+    setAccontoInfo(prev => ({ ...prev, importo_acconto: value }));
+
+    // Salva immediatamente come fa il resto del sistema
+    if (value.trim() !== '') {
+      saveAccontoInfo(value);
+    }
   };
 
   // ===== HANDLE NUOVO ORDINE - ✅ AGGIORNATO CON da_ordinare =====
@@ -267,6 +553,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     
     if (!nuovoOrdineForm.categoria_prodotto) {
       alert('Categoria prodotto obbligatoria');
+      return;
+    }
+
+    if (!nuovoOrdineForm.prezzo_prodotto || parseFloat(nuovoOrdineForm.prezzo_prodotto) <= 0) {
+      alert('Prezzo prodotto obbligatorio e deve essere maggiore di 0');
       return;
     }
 
@@ -297,14 +588,17 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       }
 
       // 🔥 INSERT CON da_ordinare = true DI DEFAULT
+      const prezzoProdottoNumero = parseFloat(nuovoOrdineForm.prezzo_prodotto);
+
       const nuovoOrdineDb = {
         busta_id: busta.id,
         tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
         tipo_ordine_id: nuovoOrdineForm.tipo_ordine_id ? parseInt(nuovoOrdineForm.tipo_ordine_id) : null,
         descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
+        prezzo_prodotto: isNaN(prezzoProdottoNumero) ? null : prezzoProdottoNumero,
         data_ordine: nuovoOrdineForm.data_ordine,
         data_consegna_prevista: calcolaDataConsegnaPrevista(),
-        giorni_consegna_medi: nuovoOrdineForm.giorni_consegna_custom 
+        giorni_consegna_medi: nuovoOrdineForm.giorni_consegna_custom
           ? parseInt(nuovoOrdineForm.giorni_consegna_custom)
           : getTempiConsegnaByCategoria(nuovoOrdineForm.categoria_prodotto, nuovoOrdineForm.tipo_lenti),
         stato: 'da_ordinare' as const,
@@ -368,7 +662,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       } as OrdineMateriale;
 
       // Aggiorna la lista locale
-      setOrdiniMateriali(prev => [ordineConTipiCorretti, ...prev]);
+      const ordiniAggiornati = [ordineConTipiCorretti, ...ordiniMateriali];
+      setOrdiniMateriali(ordiniAggiornati);
+
+      // Aggiorna prezzo totale
+      await aggiornaPrezzoTotale(ordiniAggiornati);
 
       // ✅ SWR: Invalidate cache after creating new order
       await mutate('/api/buste');
@@ -404,6 +702,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         tipo_lenti: '',
         tipo_ordine_id: '',
         descrizione_prodotto: '',
+        prezzo_prodotto: '', // ✅ RESET PREZZO
         data_ordine: new Date().toISOString().split('T')[0],
         giorni_consegna_custom: '',
         note: '',
@@ -421,42 +720,57 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     }
   };
 
-  // ✅ NUOVA FUNZIONE: Toggle da_ordinare
+  // ✅ NUOVA FUNZIONE: Toggle da_ordinare CON RICALCOLO DELIVERY DATE
   const handleToggleDaOrdinare = async (ordineId: string, currentValue: boolean | null) => {
     try {
       const newValue = !currentValue;
       console.log(`🔄 Toggle da_ordinare per ${ordineId}: ${currentValue} → ${newValue}`);
-      
-      // 🔥 Via API: Quando da_ordinare diventa false → stato diventa "ordinato"
+
+      // Trova l'ordine per calcolare la nuova data di consegna
+      const ordine = ordiniMateriali.find(o => o.id === ordineId);
+      if (!ordine) {
+        throw new Error('Ordine non trovato');
+      }
+
+      const oggi = new Date().toISOString().split('T')[0];
+      let updateData: any = {
+        da_ordinare: newValue,
+        stato: newValue ? 'da_ordinare' : 'ordinato',
+      };
+
+      // 🔥 CORREZIONE: Quando l'ordine viene piazzato (da_ordinare = false)
+      if (!newValue) {
+        // Imposta data ordine a oggi
+        updateData.data_ordine = oggi;
+        // Ricalcola data consegna prevista basata su OGGI
+        updateData.data_consegna_prevista = calcolaDataConsegnaPerOrdineEsistente(ordine, oggi);
+        console.log(`📅 Ricalcolo consegna: ordine piazzato ${oggi} → consegna prevista ${updateData.data_consegna_prevista}`);
+      }
+
+      // 🔥 Via API con nuovi campi
       const resp = await fetch(`/api/ordini/${ordineId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          da_ordinare: newValue,
-          stato: newValue ? 'da_ordinare' : 'ordinato',
-          data_ordine: !newValue ? new Date().toISOString().split('T')[0] : undefined,
-        })
+        body: JSON.stringify(updateData)
       })
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'Errore aggiornamento')
-  
-      console.log('✅ da_ordinare E stato aggiornati nel database');
-  
-      // 🔥 FIX: Aggiorna stato locale con ENTRAMBI i campi
-      setOrdiniMateriali(prev => prev.map(ordine => 
-        ordine.id === ordineId 
-          ? { 
-              ...ordine, 
-              da_ordinare: newValue,
-              stato: newValue ? 'da_ordinare' : 'ordinato', // ✅ AGGIORNAMENTO LOCALE STATO
-              data_ordine: !newValue ? new Date().toISOString().split('T')[0] : ordine.data_ordine
+
+      console.log('✅ da_ordinare, stato e delivery date aggiornati nel database');
+
+      // 🔥 FIX: Aggiorna stato locale con TUTTI i campi
+      setOrdiniMateriali(prev => prev.map(o =>
+        o.id === ordineId
+          ? {
+              ...o,
+              ...updateData
             }
-          : ordine
+          : o
       ));
 
       // ✅ SWR: Invalidate cache after order state change
       await mutate('/api/buste');
-  
+
     } catch (error: any) {
       console.error('❌ Error toggle da_ordinare:', error);
       alert(`Errore aggiornamento: ${error.message}`);
@@ -526,7 +840,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       console.log('✅ Ordine eliminato dal database');
 
       // Rimuovi dalla lista locale
-      setOrdiniMateriali(prev => prev.filter(ordine => ordine.id !== ordineId));
+      const ordiniAggiornati = ordiniMateriali.filter(ordine => ordine.id !== ordineId);
+      setOrdiniMateriali(ordiniAggiornati);
+
+      await aggiornaPrezzoTotale(ordiniAggiornati);
 
       // ✅ SWR: Invalidate cache after order deletion
       await mutate('/api/buste');
@@ -555,7 +872,65 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           </div>
         </div>
       )}
-      
+
+      {/* ✅ NUOVO: SEZIONE ACCONTO (DOWN PAYMENT) */}
+      <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg shadow-sm border border-yellow-200 p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+              <Euro className="w-6 h-6 mr-3 text-yellow-600" />
+              Acconto Cliente
+            </h2>
+            <p className="text-gray-600 text-sm mt-1">
+              Gestione del pagamento anticipato per questa busta
+            </p>
+          </div>
+
+          {accontoInfo.currentAcconto !== null && (
+            <div className="text-right">
+              <div className="text-sm text-gray-500">Acconto corrente</div>
+              <div className="text-2xl font-bold text-green-600">
+                €{accontoInfo.currentAcconto.toFixed(2)}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {canEdit && (
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                💰 Importo Acconto
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={accontoInfo.importo_acconto}
+                  onChange={(e) => handleAccontoChange(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:ring-yellow-500 focus:border-yellow-500"
+                  placeholder="0.00"
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-500 text-sm">€</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-sm text-yellow-700 bg-yellow-100 p-3 rounded-lg">
+              💡 <strong>Nota:</strong> L'acconto verrà utilizzato per calcolare il saldo rimanente nel sistema pagamenti
+            </div>
+          </div>
+        )}
+
+        {!canEdit && accontoInfo.currentAcconto === null && (
+          <div className="mt-4 text-sm text-gray-500 italic">
+            Nessun acconto registrato per questa busta
+          </div>
+        )}
+      </div>
+
       {/* Header con pulsante nuovo ordine */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
@@ -716,7 +1091,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
             </div>
       
             {/* ===== DESCRIZIONE PRODOTTO OBBLIGATORIA ===== */}
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Descrizione Prodotto * <span className="text-red-500">(Obbligatorio)</span>
               </label>
@@ -731,6 +1106,28 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               <p className="text-xs text-gray-500 mt-1">
                 Inserire tutte le caratteristiche tecniche del prodotto
               </p>
+            </div>
+
+            {/* ✅ NUOVO: PREZZO PRODOTTO */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                💰 Prezzo Prodotto * <span className="text-red-500">(Obbligatorio)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={nuovoOrdineForm.prezzo_prodotto}
+                  onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, prezzo_prodotto: e.target.value }))}
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="0.00"
+                  required
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <span className="text-gray-500 text-sm">€</span>
+                </div>
+              </div>
             </div>
       
             {/* ===== GESTIONE DATE E TEMPI ===== */}
@@ -817,7 +1214,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               </button>
               <button
                 onClick={handleSalvaNuovoOrdine}
-                disabled={!nuovoOrdineForm.descrizione_prodotto.trim() || !nuovoOrdineForm.categoria_prodotto || isSaving}
+                disabled={!nuovoOrdineForm.descrizione_prodotto.trim() || !nuovoOrdineForm.categoria_prodotto || !nuovoOrdineForm.prezzo_prodotto || parseFloat(nuovoOrdineForm.prezzo_prodotto) <= 0 || isSaving}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               >
                 {isSaving ? (
@@ -961,6 +1358,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                           
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                             statoOrdine === 'consegnato' ? 'bg-green-100 text-green-800' :
+                            statoOrdine === 'in_arrivo' ? 'bg-cyan-100 text-cyan-800' :
                             statoOrdine === 'in_ritardo' ? 'bg-red-100 text-red-800' :
                             statoOrdine === 'ordinato' ? 'bg-blue-100 text-blue-800' :
                             statoOrdine === 'da_ordinare' ? 'bg-purple-100 text-purple-800' :
@@ -1048,6 +1446,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                         >
                           <option value="da_ordinare">🛒 Da Ordinare</option>
                           <option value="ordinato">📦 Ordinato</option>
+                          <option value="in_arrivo">🚚 In Arrivo</option>
                           <option value="in_ritardo">⏰ In Ritardo</option>
                           <option value="accettato_con_riserva">🔄 Con Riserva</option>
                           <option value="rifiutato">❌ Rifiutato</option>

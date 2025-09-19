@@ -28,11 +28,36 @@ const shouldCheckArchiving = (): boolean => {
   return false;
 };
 
+const normalizePaymentPlanRelation = (busta: any) => {
+  const rawPlan = busta.payment_plan;
+  let normalizedPlan = null;
+
+  if (Array.isArray(rawPlan)) {
+    normalizedPlan = rawPlan[0] ?? null;
+  } else if (rawPlan) {
+    normalizedPlan = rawPlan;
+  }
+
+  if (normalizedPlan) {
+    normalizedPlan = {
+      ...normalizedPlan,
+      payment_installments: Array.isArray(normalizedPlan.payment_installments)
+        ? normalizedPlan.payment_installments
+        : []
+    };
+  }
+
+  return {
+    ...busta,
+    payment_plan: normalizedPlan,
+  };
+};
+
 const fetcher = async (): Promise<BustaWithCliente[]> => {
   const supabase = createClient();
   
   console.log('🔍 SWR Fetcher - Starting buste fetch...');
-  
+
   const { data, error } = await supabase
     .from('buste')
     .select(`
@@ -52,16 +77,33 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
         da_ordinare,
         note
       ),
-      rate_pagamenti (
+      payment_plan:payment_plans (
         id,
-        numero_rata,
-        data_scadenza,
-        is_pagata,
-        reminder_attivo
+        total_amount,
+        acconto,
+        payment_type,
+        auto_reminders_enabled,
+        reminder_preference,
+        is_completed,
+        payment_installments (
+          id,
+          installment_number,
+          due_date,
+          expected_amount,
+          paid_amount,
+          is_completed,
+          reminder_3_days_sent,
+          reminder_10_days_sent
+        )
       ),
       info_pagamenti (
         is_saldato,
-        modalita_saldo
+        modalita_saldo,
+        importo_acconto,
+        ha_acconto,
+        prezzo_finale,
+        data_saldo,
+        updated_at
       )
     `)
     .order('data_apertura', { ascending: false })
@@ -73,11 +115,12 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
   }
 
   const allBuste = (data as BustaWithCliente[]) || [];
+  const normalizedBuste = (allBuste as any[]).map(normalizePaymentPlanRelation) as BustaWithCliente[];
 
   // ✅ CONTROLLO ARCHIVIAZIONE - Solo una volta al giorno
   if (shouldCheckArchiving()) {
-    const activeBuste = allBuste.filter(busta => !isArchived(busta));
-    const archivedCount = allBuste.length - activeBuste.length;
+    const activeBuste = normalizedBuste.filter(busta => !isArchived(busta));
+    const archivedCount = normalizedBuste.length - activeBuste.length;
     
     if (archivedCount > 0) {
       console.log('📁 ARCHIVING CHECK - Nascondendo', archivedCount, 'buste archiviate dalla Kanban (controllo giornaliero)');
@@ -87,7 +130,7 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
   }
 
   // ✅ CONTROLLO GIÀ FATTO OGGI - Usa cache locale per performance
-  const cachedFilteredBuste = allBuste.filter(busta => !isArchived(busta));
+  const cachedFilteredBuste = normalizedBuste.filter(busta => !isArchived(busta));
   console.log('✅ SWR Fetcher - Success:', cachedFilteredBuste.length, 'active buste (archiving già controllato oggi)');
   
   return cachedFilteredBuste;

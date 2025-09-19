@@ -40,6 +40,8 @@ export async function PATCH(
     if (body.data_ordine !== undefined) allowed.data_ordine = body.data_ordine
     if (body.note !== undefined) allowed.note = body.note
 
+    console.log('🔄 API Update ordine:', id, 'Campi consentiti:', allowed);
+
     // Disallow financial/foreign key changes in this endpoint
     const forbiddenKeys = ['busta_id','fornitore_id','fornitore_lenti_id','fornitore_lac_id','fornitore_montature_id','fornitore_lab_esterno_id','fornitore_sport_id','tipo_lenti_id','tipo_ordine_id','descrizione_prodotto','giorni_consegna_medi','giorni_ritardo','creato_da']
     for (const k of Object.keys(body || {})) {

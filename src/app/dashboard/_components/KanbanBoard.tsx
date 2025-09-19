@@ -64,7 +64,7 @@ const getColumnName = (status: string) => {
     'materiali_arrivati': 'Mat. Arrivati',
     'in_lavorazione': 'In Lavorazione',
     'pronto_ritiro': 'Pronto Ritiro',
-    'consegnato_pagato': 'Consegnato',
+    'consegnato_pagato': 'Consegnato & Pagato',
   };
   return names[status] || status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
@@ -141,15 +141,26 @@ function DroppableColumn({
     id: `column-${status}`, // ✅ FIX CRITICO: Prefisso per evitare conflitti con UUID buste
   });
 
+  const isFinalColumn = status === 'consegnato_pagato';
+  const columnShellClasses = isFinalColumn
+    ? 'bg-emerald-50 border border-emerald-100'
+    : 'bg-gray-100';
+  const titleColor = isFinalColumn ? 'text-emerald-700' : 'text-gray-700';
+
   return (
     <div className="flex-shrink-0 w-64">
-      <div className="bg-gray-100 rounded-lg p-3 h-full flex flex-col">
+      <div className={`${columnShellClasses} rounded-lg p-3 h-full flex flex-col transition-colors duration-200`}>
         <div className="flex justify-between items-center mb-4 px-2">
-          <h2 className="font-semibold text-gray-700 text-xs">{getColumnName(status)}</h2>
+          <h2 className={`font-semibold text-xs ${titleColor}`}>{getColumnName(status)}</h2>
           <span className="bg-gray-300 text-gray-700 text-xs font-bold px-2 py-1 rounded-full">
             {buste.length}
           </span>
         </div>
+        {isFinalColumn && (
+          <p className="text-[10px] text-emerald-700 bg-emerald-100 rounded px-2 py-1 mx-2 mb-2 font-medium">
+            Si archivia automaticamente dopo 7 giorni
+          </p>
+        )}
         
         <div
           ref={setNodeRef}
@@ -158,7 +169,9 @@ function DroppableColumn({
             min-h-[400px] max-h-[calc(100vh-200px)]
             ${isOver 
               ? 'bg-blue-50 border-2 border-blue-300 border-dashed shadow-inner' 
-              : 'bg-transparent'
+              : isFinalColumn
+                ? 'bg-emerald-50/50'
+                : 'bg-transparent'
             }
           `}
           style={{

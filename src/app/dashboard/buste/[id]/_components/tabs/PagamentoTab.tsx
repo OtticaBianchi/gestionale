@@ -1,1223 +1,801 @@
-// ===== FILE: buste/[id]/_components/tabs/PagamentoTab.tsx =====
-// 🔥 VERSIONE FIXED v5 - READ-ONLY CON STORICO COMPLETO VISIBILE - COMPLETA
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
+import PaymentPlanSetup from '../PaymentPlanSetup';
 import { mutate } from 'swr';
-import {
-  Bell,
-  BellOff, 
-  CreditCard,
-  Calendar,
-  CheckCircle,
-  AlertTriangle,
-  Euro,
-  MessageCircle,
-  Save,
-  X,
-  Loader2,
-  User,
-  Clock,
-  Ban,
-  Trash2,
-  RefreshCw,
-  Eye,
-} from 'lucide-react';
 import { useUser } from '@/context/UserContext';
+import {
+  AlertCircle,
+  AlertTriangle,
+  BellOff,
+  Bot,
+  Calendar,
+  CreditCard,
+  RefreshCw,
+  Trash2,
+  User as UserIcon,
+  Sparkles,
+  Clock
+} from 'lucide-react';
 
-// ===== TYPES LOCALI - GESTISCONO NULL DAL DATABASE =====
+const currencyFormatter = new Intl.NumberFormat('it-IT', {
+  style: 'currency',
+  currency: 'EUR',
+  minimumFractionDigits: 2
+});
+
+const paymentTypeLabels: Record<string, { title: string; description: string }> = {
+  saldo_unico: {
+    title: '💳 Saldo Unico',
+    description: 'Incasso completo alla consegna'
+  },
+  installments: {
+    title: '📊 Rateizzazione Interna',
+    description: '2 o 3 rate gestite internamente'
+  },
+  finanziamento_bancario: {
+    title: '🏦 Finanziamento Bancario',
+    description: 'Pagamento gestito dalla banca'
+  }
+};
+
+const reminderPreferenceLabels: Record<string, { title: string; hint: string; icon: JSX.Element }> = {
+  automatic: {
+    title: 'Automatici',
+    hint: 'Messaggi dopo 3 e 10 giorni dalla scadenza',
+    icon: <Bot className="w-4 h-4 mr-1 text-blue-600" />
+  },
+  manual: {
+    title: 'Solo Manuali',
+    hint: 'Il team decide quando inviare i promemoria',
+    icon: <UserIcon className="w-4 h-4 mr-1 text-orange-600" />
+  },
+  disabled: {
+    title: 'Disattivati',
+    hint: 'Nessun promemoria previsto',
+    icon: <BellOff className="w-4 h-4 mr-1 text-gray-500" />
+  }
+};
+
+type PaymentPlanRecord = Database['public']['Tables']['payment_plans']['Row'] & {
+  payment_installments: Database['public']['Tables']['payment_installments']['Row'][] | null;
+};
+
+type PaymentInstallmentRecord = Database['public']['Tables']['payment_installments']['Row'];
+
+type InfoPagamentoRecord = Pick<
+  Database['public']['Tables']['info_pagamenti']['Row'],
+  'is_saldato' | 'modalita_saldo' | 'importo_acconto' | 'ha_acconto' | 'prezzo_finale' | 'updated_at' | 'data_saldo'
+>;
+
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
   clienti: Database['public']['Tables']['clienti']['Row'] | null;
-  profiles: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
-  status_history: Array<
-    Database['public']['Tables']['status_history']['Row'] & {
-      profiles: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
-    }
-  >;
-};
-
-type InfoPagamento = {
-  id?: string;
-  busta_id: string;
-  ha_acconto: boolean | null;
-  importo_acconto: number | null;
-  data_acconto: string | null;
-  prezzo_finale: number | null;
-  modalita_saldo: 'saldo_unico' | 'due_rate' | 'tre_rate' | 'finanziamento';
-  is_saldato: boolean | null;
-  data_saldo: string | null;
-  note_pagamento: string | null;
-  created_at?: string;
-  updated_at?: string;
-};
-
-type RataPagamento = {
-  id?: string;
-  busta_id: string;
-  numero_rata: number;
-  importo_rata: number | null;
-  data_scadenza: string;
-  is_pagata: boolean | null;
-  data_pagamento: string | null;
-  reminder_attivo: boolean | null;
-  ultimo_reminder: string | null;
-};
-
-// ✅ Funzioni helper per gestire NULL values
-const safeBooleanValue = (value: boolean | null): boolean => {
-  return value === true;
-};
-
-const safeBooleanForForm = (value: boolean | null): boolean => {
-  return value ?? false;
-};
-
-// ✅ Funzioni di conversione da database ai tipi locali
-const convertDatabaseToLocal = (dbData: any): InfoPagamento => {
-  return {
-    ...dbData,
-    ha_acconto: safeBooleanForForm(dbData.ha_acconto),
-    is_saldato: safeBooleanForForm(dbData.is_saldato),
-  };
-};
-
-const convertRateFromDatabase = (dbRates: any[]): RataPagamento[] => {
-  return dbRates.map(rata => ({
-    ...rata,
-    is_pagata: safeBooleanForForm(rata.is_pagata),
-    reminder_attivo: safeBooleanForForm(rata.reminder_attivo),
-  }));
+  payment_plan?: PaymentPlanRecord | null;
+  info_pagamenti?: InfoPagamentoRecord | null;
 };
 
 interface PagamentoTabProps {
   busta: BustaDettagliata;
-  isReadOnly?: boolean; // ✅ AGGIUNTO
+  isReadOnly?: boolean;
 }
 
+interface DerivedFinance {
+  totalAmount: number;
+  acconto: number;
+  paidInstallments: number;
+  outstanding: number;
+  paidCount: number;
+  totalInstallments: number;
+  nextInstallment: PaymentInstallmentRecord | null;
+}
+
+const formatCurrency = (value: number | null | undefined) => currencyFormatter.format(value || 0);
+
+const computeFinanceSnapshot = (
+  plan: PaymentPlanRecord | null,
+  installments: PaymentInstallmentRecord[],
+  info: InfoPagamentoRecord | null
+): DerivedFinance => {
+  const totalAmount = plan?.total_amount ?? info?.prezzo_finale ?? 0;
+  const acconto = plan?.acconto ?? info?.importo_acconto ?? 0;
+  const paidInstallments = installments.reduce((sum, installment) => {
+    return sum + (installment.paid_amount || 0);
+  }, 0);
+
+  const outstandingRaw = totalAmount - (acconto + paidInstallments);
+  const outstanding = Number.isFinite(outstandingRaw) ? Math.max(outstandingRaw, 0) : 0;
+
+  const sortedInstallments = [...installments].sort((a, b) =>
+    new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+  );
+
+  const nextInstallment = sortedInstallments.find(inst => !inst.is_completed) || null;
+
+  return {
+    totalAmount,
+    acconto,
+    paidInstallments,
+    outstanding,
+    paidCount: installments.filter(inst => inst.is_completed).length,
+    totalInstallments: installments.length,
+    nextInstallment
+  };
+};
+
+const getInstallmentStatus = (installment: PaymentInstallmentRecord) => {
+  if (installment.is_completed) {
+    return {
+      label: 'Pagata',
+      tone: 'text-green-700 bg-green-50 border-green-200'
+    };
+  }
+
+  const today = new Date();
+  const dueDate = new Date(installment.due_date);
+  const diffDays = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    return {
+      label: `In ritardo di ${Math.abs(diffDays)} gg`,
+      tone: 'text-red-700 bg-red-50 border-red-200'
+    };
+  }
+
+  if (diffDays <= 3) {
+    return {
+      label: diffDays === 0 ? 'Scade oggi' : `Scade tra ${diffDays} gg`,
+      tone: 'text-orange-700 bg-orange-50 border-orange-200'
+    };
+  }
+
+  return {
+    label: `Scadenza ${dueDate.toLocaleDateString('it-IT')}`,
+    tone: 'text-blue-700 bg-blue-50 border-blue-200'
+  };
+};
+
+const mapReminderPreferenceToBoolean = (preference: string | null) => preference === 'automatic';
+
 export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTabProps) {
-  // ===== STATE =====
-  const [infoPagamento, setInfoPagamento] = useState<InfoPagamento | null>(null);
-  
-  // User context for role checking
-  const { profile } = useUser();
-
-  // ✅ AGGIORNATO: Helper per controlli - solo le azioni sono limitate
-  const canEdit = !isReadOnly && profile?.role !== 'operatore';
-
-  const [rate, setRate] = useState<RataPagamento[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false); // ✅ Loading per eliminazione
-  const [currentUser, setCurrentUser] = useState<{ id: string; full_name: string } | null>(null);
-  const [isEditingImporti, setIsEditingImporti] = useState(false); // ✅ Modalità editing importi
-  const [importiTemp, setImportiTemp] = useState<{ [key: string]: number }>({}); // ✅ Importi temporanei
-
-  // Form state con valori di default sicuri
-  const [formData, setFormData] = useState<InfoPagamento>({
-    busta_id: busta.id,
-    ha_acconto: false,
-    importo_acconto: null,
-    data_acconto: null,
-    prezzo_finale: null,
-    modalita_saldo: 'saldo_unico',
-    is_saldato: false,
-    data_saldo: null,
-    note_pagamento: null
-  });
-
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // ===== EFFECTS =====
+  const { profile } = useUser();
+  const canEdit = !isReadOnly && profile?.role !== 'operatore';
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSetupOpen, setIsSetupOpen] = useState(false);
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlanRecord | null>(busta.payment_plan ?? null);
+  const [installments, setInstallments] = useState<PaymentInstallmentRecord[]>(
+    busta.payment_plan?.payment_installments ?? []
+  );
+  const [infoPagamento, setInfoPagamento] = useState<InfoPagamentoRecord | null>(busta.info_pagamenti ?? null);
+  const [totalDraft, setTotalDraft] = useState(() => {
+    const initialTotal = busta.payment_plan?.total_amount ?? busta.info_pagamenti?.prezzo_finale ?? '';
+    return initialTotal === '' ? '' : String(initialTotal ?? '');
+  });
+  const [isSavingTotal, setIsSavingTotal] = useState(false);
+  const [ongoingAction, setOngoingAction] = useState<string | null>(null);
+
+  const financeSnapshot = useMemo(
+    () => computeFinanceSnapshot(paymentPlan, installments, infoPagamento),
+    [paymentPlan, installments, infoPagamento]
+  );
+
+  const paymentTypeLabel = paymentPlan ? paymentTypeLabels[paymentPlan.payment_type] : null;
+  const reminderPreferenceLabel = paymentPlan
+    ? reminderPreferenceLabels[paymentPlan.reminder_preference || 'disabled']
+    : null;
+
   useEffect(() => {
-    loadPagamentoData();
-    getCurrentUser();
+    loadPaymentContext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busta.id]);
 
-  // ===== LOAD USER =====
-  const getCurrentUser = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .single();
-        
-        if (profile?.full_name) {
-          setCurrentUser({ id: user.id, full_name: profile.full_name });
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error loading user:', error);
-    }
-  };
-
-  // ===== LOAD PAGAMENTO DATA =====
-  const loadPagamentoData = async () => {
+  const loadPaymentContext = async () => {
     setIsLoading(true);
     try {
-      // Carica info pagamento
-      const { data: pagamentoData, error: pagamentoError } = await supabase
-        .from('info_pagamenti')
-        .select('*')
+      const { data: planData, error: planError } = await supabase
+        .from('payment_plans')
+        .select('*, payment_installments(*)')
         .eq('busta_id', busta.id)
         .maybeSingle();
 
-      if (pagamentoError && pagamentoError.code !== 'PGRST116') {
-        throw pagamentoError;
+      if (planError && planError.code !== 'PGRST116') {
+        throw planError;
       }
 
-      if (pagamentoData) {
-        const convertedData = convertDatabaseToLocal(pagamentoData);
-        setInfoPagamento(convertedData);
-        setFormData(convertedData);
-      }
-
-      // Carica rate se esistono
-      const { data: rateData, error: rateError } = await supabase
-        .from('rate_pagamenti')
-        .select('*')
+      const { data: infoData, error: infoError } = await supabase
+        .from('info_pagamenti')
+        .select('is_saldato, modalita_saldo, importo_acconto, ha_acconto, prezzo_finale, data_saldo, updated_at')
         .eq('busta_id', busta.id)
-        .order('numero_rata');
+        .maybeSingle();
 
-      if (rateError) {
-        throw rateError;
+      if (infoError && infoError.code !== 'PGRST116') {
+        throw infoError;
       }
 
-      if (rateData) {
-        const convertedRates = convertRateFromDatabase(rateData);
-        setRate(convertedRates);
+      // Keep plan aligned with latest acconto value coming from Materiali tab
+      if (planData && infoData && typeof infoData.importo_acconto === 'number') {
+        const delta = Math.abs((planData.acconto || 0) - infoData.importo_acconto);
+        if (delta > 0.49) {
+          await supabase
+            .from('payment_plans')
+            .update({ acconto: infoData.importo_acconto })
+            .eq('id', planData.id);
+          planData.acconto = infoData.importo_acconto;
+        }
       }
 
+      setPaymentPlan(planData ?? null);
+      setInstallments(planData?.payment_installments ?? []);
+      setInfoPagamento(infoData ?? null);
+
+      if (planData?.total_amount) {
+        setTotalDraft(String(planData.total_amount));
+      } else if (infoData?.prezzo_finale) {
+        setTotalDraft(String(infoData.prezzo_finale));
+      }
     } catch (error) {
-      console.error('❌ Error loading pagamento data:', error);
+      console.error('❌ Error loading payment context:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ✅ FUNZIONE: Toggle reminder per singola rata
-  const toggleReminderRata = async (rataId: string, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('rate_pagamenti')
-        .update({ 
-          reminder_attivo: !currentStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', rataId);
-
-      if (error) throw error;
-
-      // Ricarica i dati per aggiornare l'UI
-      await loadPagamentoData();
-      
-      console.log(`✅ Reminder ${!currentStatus ? 'attivato' : 'disattivato'} per rata`);
-
-    } catch (error: any) {
-      console.error('❌ Error toggling reminder:', error);
-      alert(`Errore nell'aggiornamento: ${error.message}`);
-    }
+  const handlePlanCreated = async () => {
+    setIsSetupOpen(false);
+    await loadPaymentContext();
+    await mutate('/api/buste');
   };
 
-  // ✅ Attiva/disattiva reminder per tutte le rate SENZA conferma
-  const toggleAllReminders = async (activate: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('rate_pagamenti')
-        .update({ 
-          reminder_attivo: activate,
-          updated_at: new Date().toISOString()
-        })
-        .eq('busta_id', busta.id)
-        .eq('is_pagata', false) // Solo rate non pagate
-        .gt('numero_rata', 1); // ✅ Escludi prima rata
-
-      if (error) throw error;
-
-      await loadPagamentoData();
-      
-      console.log(`✅ Reminder ${activate ? 'attivati' : 'disattivati'} per tutte le rate`);
-
-    } catch (error: any) {
-      console.error('❌ Error toggling all reminders:', error);
-      alert(`Errore: ${error.message}`);
-    }
-  };
-
-  // ✅ Calcola importi rate automaticamente
-  const calcolaImportiRate = (prezzoFinale: number, importoAcconto: number, numeroRate: number) => {
-    const restoDaPagare = prezzoFinale - importoAcconto;
-    const importoRataBase = Math.floor(restoDaPagare / numeroRate);
-    const resto = restoDaPagare % numeroRate;
-    
-    const importi: number[] = [];
-    
-    // Le rate sono TUTTE dal resto da pagare, non includono l'acconto
-    for (let i = 0; i < numeroRate; i++) {
-      if (i === 0 && resto > 0) {
-        importi.push(importoRataBase + resto); // Prima rata prende il resto
-      } else {
-        importi.push(importoRataBase);
-      }
-    }
-    
-    return importi;
-  };
-
-  // ✅ GENERA DATE E IMPORTI RATE CORRETTE
-  const generaDateRate = (modalita: string, dataInizio: string = new Date().toISOString().split('T')[0]) => {
-    const date: string[] = [];
-    const start = new Date(dataInizio);
-    
-    if (modalita === 'due_rate') {
-      // ✅ Prima rata: giorno della consegna (dataInizio)
-      // ✅ Seconda rata: +30 giorni dalla prima
-      date.push(dataInizio); // Prima rata = giorno consegna
-      
-      const rata2 = new Date(start);
-      rata2.setMonth(rata2.getMonth() + 1); // +1 mese
-      date.push(rata2.toISOString().split('T')[0]);
-      
-    } else if (modalita === 'tre_rate') {
-      // ✅ Prima rata: giorno della consegna (dataInizio)
-      // ✅ Seconda rata: +1 mese dalla prima
-      // ✅ Terza rata: +2 mesi dalla prima
-      date.push(dataInizio); // Prima rata = giorno consegna
-      
-      const rata2 = new Date(start);
-      rata2.setMonth(rata2.getMonth() + 1); // +1 mese
-      date.push(rata2.toISOString().split('T')[0]);
-      
-      const rata3 = new Date(start);
-      rata3.setMonth(rata3.getMonth() + 2); // +2 mesi
-      date.push(rata3.toISOString().split('T')[0]);
-    }
-    
-    return date;
-  };
-
-  // ✅ ELIMINA RATE ESISTENTI
-  const handleEliminaRate = async () => {
-    if (!confirm('Sei sicuro di voler eliminare tutte le rate? Questa operazione non può essere annullata.')) {
+  const handleResetPlan = async () => {
+    if (!paymentPlan) return;
+    if (!confirm('Eliminare il piano pagamenti? Verranno rimosse anche le rate associate.')) {
       return;
     }
 
-    setIsDeleting(true);
+    setOngoingAction('reset-plan');
     try {
       const { error } = await supabase
-        .from('rate_pagamenti')
+        .from('payment_plans')
         .delete()
-        .eq('busta_id', busta.id);
+        .eq('id', paymentPlan.id);
 
       if (error) throw error;
 
-      setRate([]);
-      alert('✅ Rate eliminate con successo!');
-      
+      setPaymentPlan(null);
+      setInstallments([]);
+      await mutate('/api/buste');
     } catch (error: any) {
-      console.error('❌ Error deleting rates:', error);
-      alert(`Errore nell'eliminazione: ${error.message}`);
+      console.error('❌ Error deleting payment plan:', error);
+      alert(`Errore nella cancellazione del piano: ${error.message}`);
     } finally {
-      setIsDeleting(false);
+      setOngoingAction(null);
     }
   };
 
-  // ✅ Gestione modifica importi manuali
-  const handleStartEditImporti = () => {
-    const temp: { [key: string]: number } = {};
-    rate.forEach(rata => {
-      if (rata.id && rata.importo_rata) {
-        temp[rata.id] = rata.importo_rata;
-      }
-    });
-    setImportiTemp(temp);
-    setIsEditingImporti(true);
-  };
+  const saveTotalAmount = async () => {
+    if (!canEdit || totalDraft === '') return;
 
-  const handleSaveImporti = async () => {
-    try {
-      setIsSaving(true);
-      
-      // Aggiorna ogni rata con il nuovo importo
-      for (const [rataId, importo] of Object.entries(importiTemp)) {
-        const { error } = await supabase
-          .from('rate_pagamenti')
-          .update({ 
-            importo_rata: importo,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', rataId);
-
-        if (error) throw error;
-      }
-
-      // Ricarica i dati
-      await loadPagamentoData();
-      setIsEditingImporti(false);
-      setImportiTemp({});
-      alert('✅ Importi aggiornati con successo!');
-      
-    } catch (error: any) {
-      console.error('❌ Error updating amounts:', error);
-      alert(`Errore nell'aggiornamento: ${error.message}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleCancelEditImporti = () => {
-    setIsEditingImporti(false);
-    setImportiTemp({});
-  };
-
-  // ===== SAVE PAGAMENTO =====
-  const handleSave = async () => {
-    if (!currentUser) {
-      alert('Utente non autenticato');
+    const parsed = Number.parseFloat(totalDraft);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      alert('Inserisci un totale valido prima di salvare.');
       return;
     }
 
-    setIsSaving(true);
+    setIsSavingTotal(true);
     try {
-      // Salva/aggiorna info pagamento
-      const { data: savedPagamento, error: pagamentoError } = await supabase
+      const upsertPayload = {
+        busta_id: busta.id,
+        prezzo_finale: parsed,
+        updated_at: new Date().toISOString()
+      } satisfies Partial<InfoPagamentoRecord> & { busta_id: string };
+
+      const { error: infoError } = await supabase
         .from('info_pagamenti')
-        .upsert({
-          ...formData,
+        .upsert(upsertPayload, { onConflict: 'busta_id' });
+
+      if (infoError) throw infoError;
+
+      if (paymentPlan) {
+        const { error: planError } = await supabase
+          .from('payment_plans')
+          .update({ total_amount: parsed })
+          .eq('id', paymentPlan.id);
+
+        if (planError) throw planError;
+      }
+
+      await loadPaymentContext();
+      await mutate('/api/buste');
+    } catch (error: any) {
+      console.error('❌ Error saving total amount:', error);
+      alert(`Errore salvataggio totale: ${error.message}`);
+    } finally {
+      setIsSavingTotal(false);
+    }
+  };
+
+  const handleRegisterInstallmentPayment = async (installment: PaymentInstallmentRecord) => {
+    if (!canEdit) return;
+
+    const defaultValue = installment.expected_amount || 0;
+    const input = prompt('Importo incassato per questa rata', defaultValue ? String(defaultValue) : '');
+    if (input === null) return; // user cancelled
+
+    const parsed = Number.parseFloat(input);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      alert('Inserisci un importo valido per registrare il pagamento.');
+      return;
+    }
+
+    setOngoingAction(`pay-${installment.id}`);
+    try {
+      const { error } = await supabase
+        .from('payment_installments')
+        .update({
+          paid_amount: parsed,
+          is_completed: true,
           updated_at: new Date().toISOString()
         })
-        .select()
-        .single();
+        .eq('id', installment.id);
 
-      if (pagamentoError) throw pagamentoError;
+      if (error) throw error;
 
-      // Se modalità con rate e non esistono ancora, crea le rate
-      if ((formData.modalita_saldo === 'due_rate' || formData.modalita_saldo === 'tre_rate') && rate.length === 0) {
-        const dateRate = generaDateRate(formData.modalita_saldo);
-        const numeroRate = formData.modalita_saldo === 'due_rate' ? 2 : 3;
-        
-        // Calcola importi automaticamente se abbiamo prezzo finale e acconto
-        let importiRate: number[] = [];
-        if (formData.prezzo_finale && formData.importo_acconto) {
-          importiRate = calcolaImportiRate(formData.prezzo_finale, formData.importo_acconto, numeroRate);
-        }
-        
-        const nuoveRate = dateRate.map((data, index) => ({
-          busta_id: busta.id,
-          numero_rata: index + 1,
-          importo_rata: importiRate.length > 0 ? importiRate[index] : null,
-          data_scadenza: data,
-          is_pagata: index === 0 ? true : false, // ✅ Prima rata già pagata alla consegna
-          data_pagamento: index === 0 ? new Date().toISOString().split('T')[0] : null,
-          reminder_attivo: false, // ✅ Sempre disattivato di default
-          ultimo_reminder: null
-        }));
-
-        const { data: rateCreate, error: rateError } = await supabase
-          .from('rate_pagamenti')
-          .insert(nuoveRate)
-          .select();
-
-        if (rateError) throw rateError;
-        
-        if (rateCreate) {
-          const convertedRates = convertRateFromDatabase(rateCreate);
-          setRate(convertedRates);
-        }
-      }
-
-      const convertedSaved = convertDatabaseToLocal(savedPagamento);
-      setInfoPagamento(convertedSaved);
-      setIsEditing(false);
-      
-      // ✅ Se modalità è finanziamento, aggiorna stato busta a "consegnato_pagato"
-      if (formData.modalita_saldo === 'finanziamento' && busta.stato_attuale !== 'consegnato_pagato') {
-        const { error: statoError } = await supabase
-          .from('buste')
-          .update({
-            stato_attuale: 'consegnato_pagato',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', busta.id);
-          
-        if (statoError) {
-          console.error('❌ Errore aggiornamento stato busta:', statoError);
-        } else {
-          console.log('✅ Stato busta aggiornato a "consegnato_pagato" per finanziamento');
-        }
-      }
-      
-      console.log('✅ Pagamento salvato con successo');
-
+      await loadPaymentContext();
+      await mutate('/api/buste');
     } catch (error: any) {
-      console.error('❌ Error saving pagamento:', error);
+      console.error('❌ Error registering payment:', error);
       alert(`Errore nel salvataggio: ${error.message}`);
     } finally {
-      setIsSaving(false);
+      setOngoingAction(null);
     }
   };
 
-  // ===== SEGNA COME SALDATO =====
-  const handleSaldato = async () => {
-    if (!confirm('Confermi che il cliente ha saldato completamente?')) return;
+  const handleUndoInstallmentPayment = async (installment: PaymentInstallmentRecord) => {
+    if (!canEdit) return;
+    if (!confirm('Segnare questa rata come non pagata?')) return;
 
-    setIsSaving(true);
+    setOngoingAction(`undo-${installment.id}`);
     try {
-      const updatedInfo = {
-        ...formData,
-        is_saldato: true,
-        data_saldo: new Date().toISOString().split('T')[0]
-      };
-
-      const { error: pagamentoError } = await supabase
-        .from('info_pagamenti')
-        .upsert(updatedInfo);
-
-      if (pagamentoError) throw pagamentoError;
-
-      // Disabilita tutti i reminder delle rate
-      if (rate.length > 0) {
-        const { error: rateError } = await supabase
-          .from('rate_pagamenti')
-          .update({ reminder_attivo: false })
-          .eq('busta_id', busta.id);
-
-        if (rateError) throw rateError;
-      }
-
-      setFormData(updatedInfo);
-      setInfoPagamento(updatedInfo);
-      
-      await loadPagamentoData();
-      alert('✅ Cliente segnato come saldato! Tutti i reminder sono stati disattivati.');
-
-    } catch (error: any) {
-      console.error('❌ Error marking as paid:', error);
-      alert(`Errore: ${error.message}`);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // ===== INVIA REMINDER RATA =====
-  const handleInviaReminderRata = async (rata: RataPagamento) => {
-    if (!currentUser || !busta.clienti) {
-      alert('Dati mancanti per inviare il reminder');
-      return;
-    }
-
-    if (!rata.id) {
-      alert('Errore: ID rata mancante');
-      return;
-    }
-
-    const nomeCliente = busta.clienti.nome;
-    const nomeOperatore = currentUser.full_name.split(' ').slice(1).join(' ');
-    const dataScadenza = new Date(rata.data_scadenza).toLocaleDateString('it-IT');
-    
-    const oggi = new Date();
-    const scadenza = new Date(rata.data_scadenza);
-    const isScaduta = oggi > scadenza;
-    
-    const testoMessaggio = isScaduta 
-      ? `Ciao ${nomeCliente}, sono ${nomeOperatore} di Ottica Bianchi. Ti ricordo gentilmente la rata scaduta il ${dataScadenza}. Quando ti è comodo! Grazie.`
-      : `Ciao ${nomeCliente}, sono ${nomeOperatore} di Ottica Bianchi. Ti ricordo che la prossima rata scade il ${dataScadenza}. Grazie!`;
-
-    if (!confirm(`Inviare questo reminder?\n\n"${testoMessaggio}"`)) return;
-
-    try {
-      // Salva comunicazione
-      const { error: commError } = await supabase
-        .from('comunicazioni')
-        .insert({
-          busta_id: busta.id,
-          tipo_messaggio: 'reminder_rata',
-          testo_messaggio: testoMessaggio,
-          data_invio: new Date().toISOString(),
-          destinatario_tipo: 'cliente',
-          destinatario_nome: `${busta.clienti.cognome} ${busta.clienti.nome}`,
-          destinatario_contatto: busta.clienti.telefono,
-          canale_invio: 'whatsapp',
-          stato_invio: 'inviato',
-          inviato_da: currentUser.id,
-          nome_operatore: currentUser.full_name
-        });
-
-      if (commError) throw commError;
-
-      // Aggiorna ultimo reminder per la rata
-      const { error: rataError } = await supabase
-        .from('rate_pagamenti')
-        .update({ ultimo_reminder: new Date().toISOString() })
-        .eq('id', rata.id);
-
-      if (rataError) throw rataError;
-
-      alert('✅ Reminder inviato e registrato!');
-      await loadPagamentoData();
-
-    } catch (error: any) {
-      console.error('❌ Error sending reminder:', error);
-      alert(`Errore nell'invio: ${error.message}`);
-    }
-  };
-
-  // ===== SEGNA SINGOLA RATA COME PAGATA =====
-  const handlePagaRata = async (rata: RataPagamento) => {
-    if (!rata.id) return;
-    
-    const conferma = confirm(
-      `Confermi il pagamento della rata ${rata.numero_rata} del ${new Date(rata.data_scadenza).toLocaleDateString('it-IT')}?`
-    );
-    
-    if (!conferma) return;
-
-    try {
-      const oggi = new Date().toISOString().split('T')[0];
-      
-      // Aggiorna la rata come pagata e disabilita il reminder
-      const { error: rataError } = await supabase
-        .from('rate_pagamenti')
+      const { error } = await supabase
+        .from('payment_installments')
         .update({
-          is_pagata: true,
-          data_pagamento: oggi,
-          reminder_attivo: false
+          paid_amount: 0,
+          is_completed: false,
+          updated_at: new Date().toISOString()
         })
-        .eq('id', rata.id);
+        .eq('id', installment.id);
 
-      if (rataError) throw rataError;
+      if (error) throw error;
 
-      // Ricarica le rate aggiornate
-      const { data: rateAggiornate, error: fetchError } = await supabase
-        .from('rate_pagamenti')
-        .select('*')
-        .eq('busta_id', busta.id)
-        .order('numero_rata');
-
-      if (fetchError) throw fetchError;
-
-      setRate(convertRateFromDatabase(rateAggiornate || []));
-      
-      // ✅ SWR: Invalida cache dopo pagamento rata
+      await loadPaymentContext();
       await mutate('/api/buste');
-      
-      alert(`Rata ${rata.numero_rata} marcata come pagata!`);
-      
     } catch (error: any) {
-      console.error('❌ Error marking installment as paid:', error);
-      alert(`Errore nel pagamento: ${error.message}`);
+      console.error('❌ Error reverting payment:', error);
+      alert(`Errore nell\'aggiornamento: ${error.message}`);
+    } finally {
+      setOngoingAction(null);
     }
   };
 
-  // ===== VERIFICA SE BUSTA È CONSEGNATA =====
-  const isBustaConsegnata = busta.stato_attuale === 'consegnato_pagato' || busta.stato_attuale === 'pronto_ritiro';
-  
-  // ===== VERIFICA SE PAGAMENTO È CONSIDERATO SALDATO =====
-  // Finanziamento è equivalente a saldato
-  const isEffettivamenteSaldato = safeBooleanValue(formData.is_saldato) || formData.modalita_saldo === 'finanziamento';
+  const handleToggleReminderPreference = async (preference: 'automatic' | 'manual' | 'disabled') => {
+    if (!canEdit || !paymentPlan) return;
 
-  // ===== RENDER =====
+    setOngoingAction('toggle-reminders');
+    try {
+      const { error } = await supabase
+        .from('payment_plans')
+        .update({
+          reminder_preference: preference,
+          auto_reminders_enabled: mapReminderPreferenceToBoolean(preference),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', paymentPlan.id);
+
+      if (error) throw error;
+
+      await loadPaymentContext();
+    } catch (error: any) {
+      console.error('❌ Error updating reminder preference:', error);
+      alert(`Errore nella configurazione: ${error.message}`);
+    } finally {
+      setOngoingAction(null);
+    }
+  };
+
+  const handleMarkPlanAsCompleted = async () => {
+    if (!canEdit || !paymentPlan) return;
+
+    setOngoingAction('complete-plan');
+    try {
+      const { error } = await supabase
+        .from('payment_plans')
+        .update({
+          is_completed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', paymentPlan.id);
+
+      if (error) throw error;
+
+      await supabase
+        .from('info_pagamenti')
+        .upsert({
+          busta_id: busta.id,
+          is_saldato: true,
+          data_saldo: new Date().toISOString()
+        }, { onConflict: 'busta_id' });
+
+      await loadPaymentContext();
+      await mutate('/api/buste');
+    } catch (error: any) {
+      console.error('❌ Error closing plan:', error);
+      alert(`Errore nel completamento: ${error.message}`);
+    } finally {
+      setOngoingAction(null);
+    }
+  };
+
+  const handleCloseBusta = async () => {
+    if (!canEdit) return;
+    if (!confirm('Segnare la busta come consegnata e pagata?')) return;
+
+    setOngoingAction('close-busta');
+    try {
+      const { error } = await supabase
+        .from('buste')
+        .update({
+          stato_attuale: 'consegnato_pagato',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', busta.id);
+
+      if (error) throw error;
+
+      await mutate('/api/buste');
+      await loadPaymentContext();
+    } catch (error: any) {
+      console.error('❌ Error closing busta:', error);
+      alert(`Errore aggiornamento busta: ${error.message}`);
+    } finally {
+      setOngoingAction(null);
+    }
+  };
+
+  const outstandingZero = financeSnapshot.outstanding <= 0.5;
+  const planIsInstallments = paymentPlan?.payment_type === 'installments';
+
+  const installmentsSorted = useMemo(
+    () => [...installments].sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()),
+    [installments]
+  );
+
   return (
     <div className="space-y-6">
-      
-      {/* ✅ READ-ONLY BANNER - Solo se isReadOnly (non per operatori) */}
-      {isReadOnly && (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-          <div className="flex items-center space-x-2">
-            <Eye className="h-5 w-5 text-orange-600" />
+      {isSetupOpen && (
+        <PaymentPlanSetup
+          busta={busta}
+          totalAmount={financeSnapshot.totalAmount}
+          acconto={financeSnapshot.acconto}
+          onComplete={handlePlanCreated}
+          onCancel={() => setIsSetupOpen(false)}
+        />
+      )}
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
+              <CreditCard className="w-5 h-5" />
+            </div>
             <div>
-              <h3 className="text-sm font-medium text-orange-800">Modalità Sola Visualizzazione</h3>
-              <p className="text-sm text-orange-700">
-                Le informazioni di pagamento possono essere visualizzate ma non modificate.
-              </p>
+              <h2 className="text-lg font-semibold text-gray-900">Stato Pagamenti</h2>
+              <p className="text-sm text-gray-500">Gestione incassi per la busta #{busta.readable_id}</p>
             </div>
           </div>
+          {canEdit && (
+            <div className="flex items-center space-x-2">
+              {paymentPlan ? (
+                <button
+                  onClick={() => setIsSetupOpen(true)}
+                  className="px-3 py-2 text-sm bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors"
+                >
+                  Rivedi piano
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsSetupOpen(true)}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Configura piano
+                </button>
+              )}
+              {paymentPlan && (
+                <button
+                  onClick={handleResetPlan}
+                  disabled={ongoingAction === 'reset-plan'}
+                  className="px-3 py-2 text-sm bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="w-4 h-4 inline mr-1" />
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
         </div>
-      )}
-      
-      {/* Header */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-              <CreditCard className="w-6 h-6 mr-3 text-green-600" />
-              Pagamento & Consegna
-            </h2>
-            <p className="text-gray-600 text-sm mt-1">
-              {canEdit 
-                ? 'Gestione acconti, rate e promemoria pagamenti'
-                : 'Visualizza stato pagamenti, rate e saldi'
-              }
-            </p>
-          </div>
-          
-          {/* Status indicator */}
-          <div className={`px-3 py-2 rounded-lg text-sm font-medium ${
-            isEffettivamenteSaldato
-              ? 'bg-green-100 text-green-800' 
-              : isBustaConsegnata
-              ? 'bg-yellow-100 text-yellow-800'
-              : 'bg-gray-100 text-gray-600'
-          }`}>
-            {isEffettivamenteSaldato ? (formData.modalita_saldo === 'finanziamento' ? '🏦 Finanziato' : '✅ Saldato') : 
-             isBustaConsegnata ? '⏳ In attesa pagamento' : '📋 Da configurare'}
+
+        <div className="px-6 py-5">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <div className="text-xs uppercase text-gray-500">Totale preventivato</div>
+              <div className="flex items-baseline space-x-2 mt-2">
+                <span className="text-xl font-semibold text-gray-900">{formatCurrency(financeSnapshot.totalAmount)}</span>
+              </div>
+              {canEdit && (
+                <div className="mt-3 space-y-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={totalDraft}
+                    onChange={(event) => setTotalDraft(event.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Es. 550"
+                  />
+                  <button
+                    onClick={saveTotalAmount}
+                    disabled={isSavingTotal || totalDraft === ''}
+                    className="w-full text-sm bg-blue-600 text-white rounded-md py-1.5 hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    {isSavingTotal ? 'Salvataggio...' : 'Salva totale'}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <div className="text-xs uppercase text-gray-500">Acconto incassato</div>
+              <div className="mt-2 text-xl font-semibold text-green-700">
+                {formatCurrency(financeSnapshot.acconto)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Gestisci l'acconto dalla scheda Materiali</p>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <div className="text-xs uppercase text-gray-500">Incassato sulle rate</div>
+              <div className="mt-2 text-xl font-semibold text-blue-700">
+                {formatCurrency(financeSnapshot.paidInstallments)}
+              </div>
+              {planIsInstallments && (
+                <p className="text-xs text-gray-500 mt-1">
+                  {financeSnapshot.paidCount} di {financeSnapshot.totalInstallments} rate saldate
+                </p>
+              )}
+            </div>
+
+            <div className={`rounded-lg p-4 border ${outstandingZero ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
+              <div className="text-xs uppercase text-gray-500">Da incassare</div>
+              <div className={`mt-2 text-xl font-semibold ${outstandingZero ? 'text-green-700' : 'text-orange-700'}`}>
+                {formatCurrency(financeSnapshot.outstanding)}
+              </div>
+              {financeSnapshot.nextInstallment && !outstandingZero && (
+                <p className="text-xs text-gray-600 mt-1 flex items-center">
+                  <Calendar className="w-3 h-3 mr-1" />
+                  Prossima rata {new Date(financeSnapshot.nextInstallment.due_date).toLocaleDateString('it-IT')}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto text-gray-400" />
-          <p className="text-gray-500 mt-2">Caricamento dati pagamento...</p>
+        <div className="bg-white border border-gray-200 rounded-lg p-6 flex items-center justify-center text-gray-500">
+          <RefreshCw className="w-5 h-5 animate-spin mr-2" />
+          Caricamento stato pagamenti...
         </div>
-      ) : (
-        <>
-          {/* ✅ SEMPRE VISIBILE: Configurazione Pagamento - Informazioni per tutti */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Configurazione Pagamento</h3>
-              
-              {/* ✅ MODIFICA: Pulsante Configura - NASCOSTO PER OPERATORI */}
-              {!isEditing && !isEffettivamenteSaldato && canEdit && (
+      ) : paymentPlan ? (
+        <div className="bg-white border border-gray-200 rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-gray-900">Tipo pagamento</div>
+              <div className="text-base text-gray-700">
+                {paymentTypeLabel?.title}
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {paymentTypeLabel?.description}
+              </p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                paymentPlan.is_completed ? 'bg-green-50 text-green-700 border border-green-200' :
+                outstandingZero ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                'bg-orange-50 text-orange-700 border border-orange-200'
+              }`}>
+                {paymentPlan.is_completed
+                  ? '✅ Piano completato'
+                  : outstandingZero
+                    ? 'Saldo pronto per chiusura'
+                    : 'Saldo in corso'}
+              </div>
+              {canEdit && !paymentPlan.is_completed && paymentPlan.payment_type !== 'installments' && (
                 <button
-                  onClick={() => setIsEditing(true)}
-                  className="flex items-center space-x-2 px-3 py-2 text-sm bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors"
+                  onClick={handleMarkPlanAsCompleted}
+                  disabled={ongoingAction === 'complete-plan'}
+                  className="text-sm px-3 py-1.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
                 >
-                  <CreditCard className="h-4 w-4" />
-                  <span>Configura</span>
+                  Segna incassato
                 </button>
               )}
             </div>
+          </div>
 
-            {/* ✅ MODIFICA: Form di editing - NASCOSTO PER OPERATORI */}
-            {isEditing && canEdit ? (
-              <div className="space-y-4">
-                {/* Prezzo Finale */}
+          {planIsInstallments && (
+            <div className="px-6 py-4 border-b border-gray-100">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">💰 Prezzo Finale</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">€</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.prezzo_finale || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, prezzo_finale: e.target.value ? parseFloat(e.target.value) : null }))}
-                      className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="0.00"
-                    />
+                  <div className="text-sm font-semibold text-gray-900 flex items-center">
+                    <Sparkles className="w-4 h-4 mr-2 text-purple-500" />
+                    Promemoria rate
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Prezzo totale del lavoro (per reportistica)</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Mantieni i clienti aggiornati: invio dopo 3 e 10 giorni dalla scadenza per ogni rata non pagata.
+                  </p>
                 </div>
 
-                {/* Acconto */}
-                <div>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={safeBooleanValue(formData.ha_acconto)}
-                      onChange={(e) => setFormData(prev => ({ ...prev, ha_acconto: e.target.checked, importo_acconto: e.target.checked ? prev.importo_acconto : null }))}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="font-medium text-gray-700">Ha versato acconto</span>
-                  </label>
-                </div>
-
-                {safeBooleanValue(formData.ha_acconto) && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Importo acconto</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">€</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max={formData.prezzo_finale || undefined}
-                          value={formData.importo_acconto || ''}
-                          onChange={(e) => setFormData(prev => ({ ...prev, importo_acconto: e.target.value ? parseFloat(e.target.value) : null }))}
-                          className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="0.00"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Data acconto</label>
-                      <input
-                        type="date"
-                        value={formData.data_acconto || ''}
-                        onChange={(e) => setFormData(prev => ({ ...prev, data_acconto: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Modalità Saldo */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Modalità Saldo</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { value: 'saldo_unico', label: '💰 Saldo Unico', desc: 'Tutto alla consegna' },
-                      { value: 'due_rate', label: '📅 2 Rate', desc: 'Consegna + 1 mese' },
-                      { value: 'tre_rate', label: '📅 3 Rate', desc: 'Consegna + 1 mese + 2 mesi' },
-                      { value: 'finanziamento', label: '🏦 Finanziamento', desc: '12 rate tramite finanziaria' }
-                    ].map(modalita => (
+                {canEdit && (
+                  <div className="flex items-center space-x-2">
+                    {(['automatic', 'manual', 'disabled'] as const).map(option => (
                       <button
-                        key={modalita.value}
-                        onClick={() => setFormData(prev => ({ ...prev, modalita_saldo: modalita.value as any }))}
-                        className={`p-3 rounded-lg border text-center transition-colors ${
-                          formData.modalita_saldo === modalita.value
+                        key={option}
+                        onClick={() => handleToggleReminderPreference(option)}
+                        disabled={ongoingAction === 'toggle-reminders'}
+                        className={`px-3 py-1.5 text-xs rounded-full border transition-colors flex items-center ${
+                          paymentPlan.reminder_preference === option
                             ? 'border-blue-500 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 hover:border-gray-300'
+                            : 'border-gray-200 text-gray-600 hover:border-gray-300'
                         }`}
                       >
-                        <div className="font-medium text-sm">{modalita.label}</div>
-                        <div className="text-xs text-gray-500 mt-1">{modalita.desc}</div>
+                        {reminderPreferenceLabels[option].icon}
+                        {reminderPreferenceLabels[option].title}
                       </button>
                     ))}
                   </div>
-                </div>
-
-                {/* Note */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Note Pagamento</label>
-                  <textarea
-                    value={formData.note_pagamento || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, note_pagamento: e.target.value }))}
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Accordi particolari, note..."
-                  />
-                </div>
-
-                {/* Pulsanti */}
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => {
-                      setIsEditing(false);
-                      setFormData(infoPagamento || {
-                        busta_id: busta.id,
-                        ha_acconto: false,
-                        importo_acconto: null,
-                        data_acconto: null,
-                        prezzo_finale: null,
-                        modalita_saldo: 'saldo_unico',
-                        is_saldato: false,
-                        data_saldo: null,
-                        note_pagamento: null
-                      });
-                    }}
-                    disabled={isSaving}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50"
-                  >
-                    Annulla
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Salvando...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4" />
-                        <span>Salva</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            ) : (
-              // ✅ SEMPRE VISIBILE: Informazioni pagamento per tutti
-              <div className="space-y-3">
-                {infoPagamento ? (
-                  <>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <span className="text-sm text-gray-500">Prezzo finale:</span>
-                        <p className="font-medium text-lg">
-                          {infoPagamento.prezzo_finale ? 
-                            `€ ${infoPagamento.prezzo_finale.toFixed(2)}` : 
-                            '💰 Non specificato'
-                          }
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-500">Acconto:</span>
-                        <p className="font-medium">
-                          {safeBooleanValue(infoPagamento.ha_acconto) ? 
-                            `✅ €${infoPagamento.importo_acconto?.toFixed(2) || '0.00'} (${infoPagamento.data_acconto ? new Date(infoPagamento.data_acconto).toLocaleDateString('it-IT') : 'data non spec.'})` : 
-                            '❌ No'
-                          }
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm text-gray-500">Modalità:</span>
-                        <p className="font-medium">
-                          {infoPagamento.modalita_saldo === 'saldo_unico' ? '💰 Saldo Unico' :
-                           infoPagamento.modalita_saldo === 'due_rate' ? '📅 2 Rate' :
-                           infoPagamento.modalita_saldo === 'tre_rate' ? '📅 3 Rate' :
-                           '🏦 Finanziamento'}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {infoPagamento.note_pagamento && (
-                      <div className="bg-gray-50 rounded-md p-3">
-                        <span className="text-sm text-gray-500">Note:</span>
-                        <p className="text-sm mt-1">{infoPagamento.note_pagamento}</p>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-gray-500 italic">
-                    {canEdit ? 'Configurazione pagamento non ancora impostata' : 'Nessuna configurazione di pagamento disponibile'}
-                  </p>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* ✅ SEMPRE VISIBILE: Gestione Rate - Storico completo per tutti */}
-          {rate.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Gestione Rate</h3>
-                
-                <div className="flex items-center space-x-2">
-                  {/* ✅ MODIFICA: Pulsante modifica importi - NASCOSTO PER OPERATORI */}
-                  {canEdit && !isEffettivamenteSaldato && rate.some(r => r.importo_rata) && !isEditingImporti && (
-                    <button
-                      onClick={handleStartEditImporti}
-                      className="flex items-center space-x-1 px-3 py-1 bg-orange-50 text-orange-600 rounded-md hover:bg-orange-100 transition-colors text-sm border border-orange-200"
-                    >
-                      <Euro className="w-4 h-4" />
-                      <span>Modifica Importi</span>
-                    </button>
-                  )}
-
-                  {/* ✅ MODIFICA: Pulsanti controllo reminder globale - NASCOSTI PER OPERATORI */}
-                  {canEdit && !isEffettivamenteSaldato && rate.some(r => r.numero_rata > 1 && !safeBooleanValue(r.is_pagata)) && !isEditingImporti && (
-                    <div className="flex items-center space-x-2 mr-4">
-                      <button
-                        onClick={() => toggleAllReminders(true)}
-                        className="flex items-center space-x-1 px-3 py-1 bg-green-50 text-green-600 rounded-md hover:bg-green-100 transition-colors text-sm border border-green-200"
-                      >
-                        <Bell className="w-4 h-4" />
-                        <span>Attiva Tutti</span>
-                      </button>
-                      <button
-                        onClick={() => toggleAllReminders(false)}
-                        className="flex items-center space-x-1 px-3 py-1 bg-gray-50 text-gray-600 rounded-md hover:bg-gray-100 transition-colors text-sm border border-gray-200"
-                      >
-                        <BellOff className="w-4 h-4" />
-                        <span>Disattiva Tutti</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Pulsanti modifica importi - NASCOSTI PER OPERATORI */}
-                  {canEdit && isEditingImporti && (
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={handleCancelEditImporti}
-                        disabled={isSaving}
-                        className="flex items-center space-x-1 px-3 py-1 bg-gray-50 text-gray-600 rounded-md hover:bg-gray-100 transition-colors text-sm border border-gray-200 disabled:opacity-50"
-                      >
-                        <X className="w-4 h-4" />
-                        <span>Annulla</span>
-                      </button>
-                      <button
-                        onClick={handleSaveImporti}
-                        disabled={isSaving}
-                        className="flex items-center space-x-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm disabled:opacity-50"
-                      >
-                        {isSaving ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Save className="w-4 h-4" />
-                        )}
-                        <span>Salva Importi</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {/* ✅ MODIFICA: Pulsante Elimina Rate - NASCOSTO PER OPERATORI */}
-                  {canEdit && !isEffettivamenteSaldato && !isEditingImporti && (
-                    <button
-                      onClick={handleEliminaRate}
-                      disabled={isDeleting}
-                      className="flex items-center space-x-2 px-3 py-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors disabled:opacity-50 border border-red-200"
-                    >
-                      {isDeleting ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                      <span>Elimina Rate</span>
-                    </button>
-                  )}
-                  
-                  {/* ✅ MODIFICA: Pulsante Segna come Saldato - NASCOSTO PER OPERATORI */}
-                  {canEdit && !isEffettivamenteSaldato && !isEditingImporti && (
-                    <button
-                      onClick={handleSaldato}
-                      disabled={isSaving}
-                      className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
-                    >
-                      {isSaving ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <CheckCircle className="w-4 h-4" />
-                      )}
-                      <span>Segna come Saldato</span>
-                    </button>
-                  )}
-                </div>
+              <div className="mt-3 text-xs text-gray-500 flex items-center">
+                {reminderPreferenceLabel?.icon}
+                <span>{reminderPreferenceLabel?.hint}</span>
               </div>
+            </div>
+          )}
 
-              {/* ✅ SEMPRE VISIBILE: Lista rate per tutti */}
-              <div className="space-y-3">
-                {rate.map((rata) => {
-                  const oggi = new Date();
-                  const scadenza = new Date(rata.data_scadenza);
-                  const isScaduta = oggi > scadenza;
-                  const giorniAllaScadenza = Math.ceil((scadenza.getTime() - oggi.getTime()) / (1000 * 60 * 60 * 24));
-                  const isInScadenza = giorniAllaScadenza <= 7 && giorniAllaScadenza >= 0;
+          {installmentsSorted.length > 0 ? (
+            <div className="divide-y divide-gray-100">
+              {installmentsSorted.map((installment, index) => {
+                const status = getInstallmentStatus(installment);
+                const reminderInfo = planIsInstallments ? `3g: ${installment.reminder_3_days_sent ? '✅' : '—'}   ·   10g: ${installment.reminder_10_days_sent ? '✅' : '—'}` : null;
+                const isProcessing = ongoingAction === `pay-${installment.id}` || ongoingAction === `undo-${installment.id}`;
 
-                  const isRataPagata = safeBooleanValue(rata.is_pagata);
-                  const isReminderAttivo = safeBooleanValue(rata.reminder_attivo);
-                  
-                  // Prima rata = pagamento alla consegna (sempre pagata)
-                  const isPrimaRata = rata.numero_rata === 1;
-                  const isRataRitardo = !isPrimaRata && isScaduta; // Solo rate 2+ possono essere in ritardo
-                  const isRataInScadenza = !isPrimaRata && isInScadenza; // Solo rate 2+ hanno scadenze
-
-                  return (
-                    <div key={rata.id} className={`border rounded-lg p-4 ${
-                      isPrimaRata ? 'bg-blue-50 border-blue-200' : // Prima rata = blu (consegna)
-                      isRataPagata ? 'bg-green-50 border-green-200' :
-                      isRataRitardo ? 'bg-red-50 border-red-200' :
-                      isRataInScadenza ? 'bg-yellow-50 border-yellow-200' :
-                      'bg-gray-50 border-gray-200'
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">
-                            Rata {rata.numero_rata} - {new Date(rata.data_scadenza).toLocaleDateString('it-IT')}
-                            {/* ✅ MODIFICA: Importo rata modificabile - SOLO PER canEdit */}
-                            {canEdit && isEditingImporti && rata.id ? (
-                              <div className="inline-block ml-2">
-                                <div className="flex items-center space-x-1">
-                                  <span className="text-sm text-gray-500">€</span>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={importiTemp[rata.id] || ''}
-                                    onChange={(e) => setImportiTemp(prev => ({
-                                      ...prev,
-                                      [rata.id!]: e.target.value ? parseFloat(e.target.value) : 0
-                                    }))}
-                                    className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                                    placeholder="0.00"
-                                  />
-                                </div>
-                              </div>
-                            ) : (
-                              rata.importo_rata && (
-                                <span className="ml-2 text-sm font-semibold text-green-600">
-                                  €{rata.importo_rata.toFixed(2)}
-                                </span>
-                              )
-                            )}
-                            {/* Indicatore prima rata */}
-                            {isPrimaRata && (
-                              <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                                💰 Pagamento alla consegna
-                              </span>
-                            )}
-                          </h4>
-                          <div className="flex items-center space-x-4 mt-1 text-sm text-gray-600">
-                            <span>
-                              {isPrimaRata ? '💰 Pagamento alla consegna' : // Prima rata = speciale
-                               isRataPagata ? '✅ Pagata' :
-                               isRataRitardo ? '🔴 Scaduta' :
-                               isRataInScadenza ? '🟡 In scadenza' :
-                               '⏳ Da pagare'}
-                            </span>
-                            
-                            {/* Ultimo reminder solo per rate 2+ */}
-                            {!isPrimaRata && rata.ultimo_reminder && (
-                              <span>
-                                Ultimo reminder: {new Date(rata.ultimo_reminder).toLocaleDateString('it-IT')}
-                              </span>
-                            )}
+                return (
+                  <div key={installment.id} className="px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3">
+                        <div className="text-sm font-semibold text-gray-900">Rata {index + 1}</div>
+                        <span className={`text-xs px-2 py-1 rounded-full border ${status.tone}`}>
+                          {status.label}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-2 text-sm text-gray-700">
+                        <div>
+                          <div className="text-xs uppercase text-gray-500">Scadenza</div>
+                          <div className="flex items-center text-gray-700">
+                            <Calendar className="w-4 h-4 mr-1" />
+                            {new Date(installment.due_date).toLocaleDateString('it-IT')}
                           </div>
                         </div>
-
-                        <div className="flex items-center space-x-3">
-                          {/* ✅ MODIFICA: Toggle reminder SOLO per rate 2+ e canEdit */}
-                          {canEdit && !isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && (
-                            <button
-                              onClick={() => rata.id && toggleReminderRata(rata.id, isReminderAttivo)}
-                              className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors border ${
-                                isReminderAttivo 
-                                  ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' 
-                                  : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                              }`}
-                              title={isReminderAttivo ? 'Disattiva reminder per questa rata' : 'Attiva reminder per questa rata'}
-                            >
-                              {isReminderAttivo ? (
-                                <>
-                                  <Bell className="w-4 h-4" />
-                                  <span>ON</span>
-                                </>
-                              ) : (
-                                <>
-                                  <BellOff className="w-4 h-4" />
-                                  <span>OFF</span>
-                                </>
-                              )}
-                            </button>
-                          )}
-
-                          {/* ✅ MODIFICA: Pulsante Invia Reminder - SOLO PER canEdit */}
-                          {canEdit && !isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && isReminderAttivo && (isRataInScadenza || isRataRitardo) && (
-                            <button
-                              onClick={() => handleInviaReminderRata(rata)}
-                              className={`flex items-center space-x-1 px-3 py-1 rounded-md text-sm transition-colors ${
-                                isRataRitardo ? 'bg-red-600 text-white hover:bg-red-700' :
-                                'bg-yellow-600 text-white hover:bg-yellow-700'
-                              }`}
-                            >
-                              <MessageCircle className="w-4 h-4" />
-                              <span>Invia Reminder</span>
-                            </button>
-                          )}
-                          
-                          {/* ✅ MODIFICA: Pulsante Paga Rata - SOLO PER canEdit */}
-                          {canEdit && !isPrimaRata && !isRataPagata && !isEffettivamenteSaldato && (
-                            <button
-                              onClick={() => handlePagaRata(rata)}
-                              className="flex items-center space-x-1 px-3 py-1 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
-                              title="Segna questa rata come pagata"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                              <span>Paga Rata</span>
-                            </button>
-                          )}
-                          
-                          {/* ✅ NUOVO: Stato reminder per operatori (solo informativo) */}
-                          {!canEdit && !isPrimaRata && !isRataPagata && (
-                            <span className={`text-xs flex items-center px-2 py-1 rounded-full ${
-                              isReminderAttivo 
-                                ? 'bg-green-100 text-green-700' 
-                                : 'bg-gray-100 text-gray-600'
-                            }`}>
-                              {isReminderAttivo ? (
-                                <>
-                                  <Bell className="w-3 h-3 mr-1" />
-                                  Reminder ON
-                                </>
-                              ) : (
-                                <>
-                                  <BellOff className="w-3 h-3 mr-1" />
-                                  Reminder OFF
-                                </>
-                              )}
-                            </span>
-                          )}
-                          
-                          {/* Stato reminder disattivato (solo rate 2+ per canEdit) */}
-                          {canEdit && !isPrimaRata && !isRataPagata && !isReminderAttivo && (
-                            <span className="text-xs text-gray-500 flex items-center">
-                              <BellOff className="w-3 h-3 mr-1" />
-                              Reminder OFF
-                            </span>
-                          )}
-
-                          {/* Messaggio esplicativo per prima rata */}
-                          {isPrimaRata && (
-                            <span className="text-xs text-blue-600 flex items-center">
-                              <Clock className="w-3 h-3 mr-1" />
-                              Nessun reminder necessario
-                            </span>
-                          )}
-                          
-                          {/* Info rata pagata */}
-                          {isRataPagata && rata.data_pagamento && (
-                            <span className="text-xs text-green-600 flex items-center">
-                              <CheckCircle className="w-3 h-3 mr-1" />
-                              Pagata il {new Date(rata.data_pagamento).toLocaleDateString('it-IT')}
-                            </span>
-                          )}
+                        <div>
+                          <div className="text-xs uppercase text-gray-500">Previsto</div>
+                          <div>{formatCurrency(installment.expected_amount)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs uppercase text-gray-500">Incassato</div>
+                          <div className="text-green-700">{formatCurrency(installment.paid_amount)}</div>
                         </div>
                       </div>
+                      {planIsInstallments && reminderInfo && (
+                        <div className="mt-2 text-xs text-gray-500 flex items-center">
+                          <Clock className="w-3 h-3 mr-1" />
+                          Stato reminder: {reminderInfo}
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* ✅ MODIFICA: Spiegazione controllo reminder - ADATTATA PER OPERATORI */}
-              <div className="mt-4 p-3 bg-blue-50 rounded-md">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">🔔 Sistema Reminder:</h4>
-                <div className="text-sm text-blue-800 space-y-1">
-                  <p>• <strong>Prima rata:</strong> 💰 Pagamento alla consegna (nessun reminder necessario)</p>
-                  <p>• <strong>Rate successive:</strong> {canEdit ? 'Gestione reminder attivabile rata per rata' : 'Stato reminder visibile (gestibile dai manager)'}</p>
-                  <p>• <strong>Reminder ON:</strong> {canEdit ? 'Il sistema suggerirà l\'invio quando la rata è in scadenza' : 'Sistema attivo per questa rata'}</p>
-                  <p>• <strong>Reminder OFF:</strong> {canEdit ? 'Nessuna notifica per questa rata (per clienti fidati)' : 'Sistema disattivato per questa rata'}</p>
-                  {canEdit && <p>• <strong>Controllo granulare:</strong> Puoi decidere rata per rata in base al cliente</p>}
-                </div>
-              </div>
+                    {canEdit && (
+                      <div className="flex items-center space-x-2">
+                        {installment.is_completed ? (
+                          <button
+                            onClick={() => handleUndoInstallmentPayment(installment)}
+                            disabled={isProcessing}
+                            className="px-3 py-1.5 text-xs border border-gray-200 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-50"
+                          >
+                            Annulla pagamento
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleRegisterInstallmentPayment(installment)}
+                            disabled={isProcessing}
+                            className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+                          >
+                            Registra pagamento
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="px-6 py-5 bg-gray-50 text-gray-500 text-sm flex items-center">
+              <AlertCircle className="w-4 h-4 mr-2" />
+              Nessuna rata pianificata per questo piano.
             </div>
           )}
-
-          {/* ✅ MODIFICA: Sezione per rigenerare rate - NASCOSTA PER OPERATORI */}
-          {canEdit && infoPagamento && (infoPagamento.modalita_saldo === 'due_rate' || infoPagamento.modalita_saldo === 'tre_rate') && rate.length === 0 && !isEffettivamenteSaldato && (
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Rate non ancora generate</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Hai configurato il pagamento a rate ma le scadenze non sono ancora state create.
-                  </p>
-                </div>
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Generando...</span>
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-4 h-4" />
-                      <span>Genera Rate</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500">
+          <AlertTriangle className="w-6 h-6 mx-auto text-orange-500 mb-3" />
+          <p className="text-sm">
+            Nessun piano pagamenti configurato. Imposta il totale del lavoro e scegli la modalità di incasso per attivare promemoria e stato in kanban.
+          </p>
+          {canEdit && (
+            <button
+              onClick={() => setIsSetupOpen(true)}
+              className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Crea nuovo piano
+            </button>
           )}
-        </>
+        </div>
+      )}
+
+      {canEdit && outstandingZero && paymentPlan && !paymentPlan.is_completed && paymentPlan.payment_type === 'installments' && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-5 py-4 flex items-center justify-between">
+          <div className="text-sm">
+            Tutte le rate risultano pagate. Vuoi segnare il piano come completato e aggiornare le statistiche?
+          </div>
+          <button
+            onClick={handleMarkPlanAsCompleted}
+            disabled={ongoingAction === 'complete-plan'}
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            Completa piano
+          </button>
+        </div>
+      )}
+
+      {canEdit && outstandingZero && paymentPlan?.is_completed && busta.stato_attuale !== 'consegnato_pagato' && (
+        <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg px-5 py-4 flex items-center justify-between">
+          <div className="text-sm font-medium">
+            Pagamenti in regola. La busta può essere spostata su "Consegnato & Pagato".
+          </div>
+          <button
+            onClick={handleCloseBusta}
+            disabled={ongoingAction === 'close-busta'}
+            className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+          >
+            Chiudi busta
+          </button>
+        </div>
       )}
     </div>
   );

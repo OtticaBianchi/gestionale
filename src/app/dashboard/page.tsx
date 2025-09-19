@@ -73,28 +73,51 @@ export default async function DashboardPage() {
         da_ordinare,
         note
       ),
-      rate_pagamenti (
+      payment_plan:payment_plans (
         id,
-        numero_rata,
-        data_scadenza,
-        is_pagata,
-        reminder_attivo
+        total_amount,
+        acconto,
+        payment_type,
+        auto_reminders_enabled,
+        reminder_preference,
+        is_completed,
+        payment_installments (
+          id,
+          installment_number,
+          due_date,
+          expected_amount,
+          paid_amount,
+          is_completed,
+          reminder_3_days_sent,
+          reminder_10_days_sent
+        )
       ),
       info_pagamenti (
         is_saldato,
-        modalita_saldo
+        modalita_saldo,
+        importo_acconto,
+        ha_acconto,
+        prezzo_finale,
+        data_saldo,
+        updated_at
       )
     `)
     .order('data_apertura', { ascending: false })
     .order('updated_at', { ascending: false }); // ✅ Ordinamento anche per updated_at
 
-  console.log('🔍 Dashboard - Buste fetch result:', error ? `Error: ${error.message}` : `Success: ${buste?.length || 0} buste`);
-  
-  if (buste) {
-    console.log('🔍 Dashboard - Stati delle buste:', buste.map(b => ({ id: b.readable_id, stato: b.stato_attuale })));
+  if (error) {
+    return renderError(error);
   }
 
-  if (error) {
+  const normalizedBuste = (buste || []).map(normalizePaymentPlanRelation) as BustaWithCliente[];
+
+  console.log('🔍 Dashboard - Buste fetch result:', `Success: ${normalizedBuste.length} buste`);
+  console.log('🔍 Dashboard - Stati delle buste:', normalizedBuste.map(b => ({ id: b.readable_id, stato: b.stato_attuale })));
+
+  return renderDashboard(normalizedBuste);
+}
+
+function renderError(error: { message: string; details?: string | null; hint?: string | null; code?: string | null }) {
     // ✅ SECURITY: Log dettagliato server-side, messaggio generico per utente
     console.error('Errore nel caricamento delle buste:', {
       error: error.message,
@@ -127,11 +150,9 @@ export default async function DashboardPage() {
         </div>
       </div>
     );
-  }
+}
 
-  const busteWithCliente: BustaWithCliente[] = buste || [];
-  console.log('🔍 Dashboard - Rendering with', busteWithCliente.length, 'buste');
-
+function renderDashboard(busteWithCliente: BustaWithCliente[]) {
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
@@ -168,4 +189,29 @@ export default async function DashboardPage() {
       </div>
     </DashboardLayout>
   );
+}
+
+function normalizePaymentPlanRelation(busta: any) {
+  const rawPlan = busta.payment_plan;
+  let normalizedPlan = null;
+
+  if (Array.isArray(rawPlan)) {
+    normalizedPlan = rawPlan[0] ?? null;
+  } else if (rawPlan) {
+    normalizedPlan = rawPlan;
+  }
+
+  if (normalizedPlan) {
+    normalizedPlan = {
+      ...normalizedPlan,
+      payment_installments: Array.isArray(normalizedPlan.payment_installments)
+        ? normalizedPlan.payment_installments
+        : []
+    };
+  }
+
+  return {
+    ...busta,
+    payment_plan: normalizedPlan,
+  };
 }

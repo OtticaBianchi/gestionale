@@ -15,6 +15,13 @@ type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
       profiles: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
     }
   >;
+  payment_plan?: (Database['public']['Tables']['payment_plans']['Row'] & {
+    payment_installments: Database['public']['Tables']['payment_installments']['Row'][] | null;
+  }) | null;
+  info_pagamenti?: Pick<
+    Database['public']['Tables']['info_pagamenti']['Row'],
+    'is_saldato' | 'modalita_saldo' | 'importo_acconto' | 'ha_acconto' | 'prezzo_finale' | 'data_saldo' | 'updated_at'
+  > | null;
 };
 
 interface BustaDetailPageProps {
@@ -47,7 +54,6 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
     }
   );
 
-  // Fetch della busta con tutti i dettagli
   const { data: busta, error } = await supabase
     .from('buste')
     .select(`
@@ -57,6 +63,34 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
       status_history (
         *,
         profiles:operatore_id (full_name)
+      ),
+      payment_plan:payment_plans (
+        id,
+        total_amount,
+        acconto,
+        payment_type,
+        auto_reminders_enabled,
+        reminder_preference,
+        is_completed,
+        payment_installments (
+          id,
+          installment_number,
+          due_date,
+          expected_amount,
+          paid_amount,
+          is_completed,
+          reminder_3_days_sent,
+          reminder_10_days_sent
+        )
+      ),
+      info_pagamenti (
+        is_saldato,
+        modalita_saldo,
+        importo_acconto,
+        ha_acconto,
+        prezzo_finale,
+        data_saldo,
+        updated_at
       )
     `)
     .eq('id', params.id)
@@ -71,7 +105,8 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
     notFound();
   }
 
-  const bustaDettagliata: BustaDettagliata = busta as BustaDettagliata;
+  const normalizedBusta = normalizePaymentPlanRelation(busta);
+  const bustaDettagliata: BustaDettagliata = normalizedBusta as BustaDettagliata;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -137,4 +172,29 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
       </div>
     </div>
   );
+}
+
+function normalizePaymentPlanRelation(busta: any) {
+  const rawPlan = busta.payment_plan;
+  let normalizedPlan = null;
+
+  if (Array.isArray(rawPlan)) {
+    normalizedPlan = rawPlan[0] ?? null;
+  } else if (rawPlan) {
+    normalizedPlan = rawPlan;
+  }
+
+  if (normalizedPlan) {
+    normalizedPlan = {
+      ...normalizedPlan,
+      payment_installments: Array.isArray(normalizedPlan.payment_installments)
+        ? normalizedPlan.payment_installments
+        : []
+    };
+  }
+
+  return {
+    ...busta,
+    payment_plan: normalizedPlan,
+  };
 }

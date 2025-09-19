@@ -32,6 +32,13 @@ type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
       profiles: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
     }
   >;
+  payment_plan?: (Database['public']['Tables']['payment_plans']['Row'] & {
+    payment_installments: Database['public']['Tables']['payment_installments']['Row'][] | null;
+  }) | null;
+  info_pagamenti?: Pick<
+    Database['public']['Tables']['info_pagamenti']['Row'],
+    'is_saldato' | 'modalita_saldo' | 'importo_acconto' | 'ha_acconto' | 'prezzo_finale' | 'data_saldo' | 'updated_at'
+  > | null;
 };
 
 type GenereCliente = 'M' | 'F' | null;

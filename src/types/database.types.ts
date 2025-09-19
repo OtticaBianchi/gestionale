@@ -442,6 +442,103 @@ export type Database = {
             foreignKeyName: "info_pagamenti_busta_id_fkey"
             columns: ["busta_id"]
             isOneToOne: true
+          referencedRelation: "buste"
+          referencedColumns: ["id"]
+        },
+      ]
+      }
+      payment_installments: {
+        Row: {
+          id: string
+          payment_plan_id: string
+          installment_number: number
+          due_date: string
+          expected_amount: number | null
+          paid_amount: number | null
+          is_completed: boolean
+          reminder_3_days_sent: boolean
+          reminder_10_days_sent: boolean
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          payment_plan_id: string
+          installment_number: number
+          due_date: string
+          expected_amount?: number | null
+          paid_amount?: number | null
+          is_completed?: boolean
+          reminder_3_days_sent?: boolean
+          reminder_10_days_sent?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          payment_plan_id?: string
+          installment_number?: number
+          due_date?: string
+          expected_amount?: number | null
+          paid_amount?: number | null
+          is_completed?: boolean
+          reminder_3_days_sent?: boolean
+          reminder_10_days_sent?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_installments_payment_plan_id_fkey"
+            columns: ["payment_plan_id"]
+            isOneToOne: false
+            referencedRelation: "payment_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_plans: {
+        Row: {
+          id: string
+          busta_id: string
+          total_amount: number | null
+          acconto: number | null
+          payment_type: string
+          auto_reminders_enabled: boolean | null
+          reminder_preference: string | null
+          is_completed: boolean
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          busta_id: string
+          total_amount?: number | null
+          acconto?: number | null
+          payment_type: string
+          auto_reminders_enabled?: boolean | null
+          reminder_preference?: string | null
+          is_completed?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          busta_id?: string
+          total_amount?: number | null
+          acconto?: number | null
+          payment_type?: string
+          auto_reminders_enabled?: boolean | null
+          reminder_preference?: string | null
+          is_completed?: boolean
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_plans_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: true
             referencedRelation: "buste"
             referencedColumns: ["id"]
           },
