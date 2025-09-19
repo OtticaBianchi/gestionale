@@ -63,7 +63,8 @@ export async function POST(request: NextRequest) {
 
   try {
     // Route invites to a client-side confirm page that can handle both #access_token and ?code flows
-    const redirectTo = `${new URL(request.url).origin}/auth/confirm?set_password=1`
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+    const redirectTo = `${baseUrl}/auth/confirm?set_password=1`
 
     const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: { full_name, role },
