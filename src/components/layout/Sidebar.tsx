@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
 import {
@@ -36,6 +36,9 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [voiceNotesCount, setVoiceNotesCount] = useState(0);
   const [telegramRequestsCount, setTelegramRequestsCount] = useState(0);
+  const isMountedRef = useRef(true);
+  const voiceNotesFetchLock = useRef(false);
+  const telegramFetchLock = useRef(false);
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -61,46 +64,113 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   }, [supabase]);
 
   // Fetch voice notes count
-  const fetchVoiceNotesCount = async () => {
+  const fetchVoiceNotesCount = useCallback(async (background = false) => {
+    if (voiceNotesFetchLock.current) return;
+    voiceNotesFetchLock.current = true;
+
     try {
-      const response = await fetch('/api/voice-notes');
-      if (response.ok) {
-        const data = await response.json();
-        setVoiceNotesCount(data.notes?.length || 0);
+      const response = await fetch('/api/voice-notes?summary=count', { cache: 'no-store' });
+      if (!response.ok) {
+        if (!background) {
+          console.error('Error fetching voice notes count:', response.statusText);
+        }
+        return;
       }
+
+      const data = await response.json();
+      if (!isMountedRef.current) return;
+      const nextCount = data.count ?? data.notes?.length ?? 0;
+      setVoiceNotesCount(nextCount);
     } catch (error) {
-      console.error('Error fetching voice notes count:', error);
+      if (!background) {
+        console.error('Error fetching voice notes count:', error);
+      }
+    } finally {
+      voiceNotesFetchLock.current = false;
     }
-  };
+  }, []);
 
   // Fetch telegram auth requests count (admin only)
-  const fetchTelegramRequestsCount = async () => {
-    if (userRole !== 'admin') return;
+  const fetchTelegramRequestsCount = useCallback(async (background = false) => {
+    if (!userRole || !['admin', 'manager'].includes(userRole) || telegramFetchLock.current) return;
+    telegramFetchLock.current = true;
 
     try {
-      const response = await fetch('/api/admin/telegram-auth');
-      if (response.ok) {
-        const data = await response.json();
-        setTelegramRequestsCount(data.unauthorizedUsers?.length || 0);
+      const response = await fetch('/api/admin/telegram-auth?summary=count', { cache: 'no-store' });
+      if (!response.ok) {
+        if (!background) {
+          console.error('Error fetching telegram requests count:', response.statusText);
+        }
+        return;
       }
+
+      const data = await response.json();
+      if (!isMountedRef.current) return;
+      const nextCount = data.count ?? data.unauthorizedUsers?.length ?? 0;
+      setTelegramRequestsCount(nextCount);
     } catch (error) {
-      console.error('Error fetching telegram requests count:', error);
+      if (!background) {
+        console.error('Error fetching telegram requests count:', error);
+      }
+    } finally {
+      telegramFetchLock.current = false;
     }
-  };
+  }, [userRole]);
 
   useEffect(() => {
-    fetchVoiceNotesCount();
-    const interval = setInterval(fetchVoiceNotesCount, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   useEffect(() => {
-    if (userRole === 'admin') {
-      fetchTelegramRequestsCount();
-      const interval = setInterval(fetchTelegramRequestsCount, 30000);
-      return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      fetchVoiceNotesCount(true);
+    }, 60000);
+
+    fetchVoiceNotesCount();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchVoiceNotesCount(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [fetchVoiceNotesCount]);
+
+  useEffect(() => {
+    if (!userRole || !['admin', 'manager'].includes(userRole)) {
+      setTelegramRequestsCount(0);
+      return;
     }
-  }, [userRole]);
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      fetchTelegramRequestsCount(true);
+    }, 60000);
+
+    fetchTelegramRequestsCount();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchTelegramRequestsCount(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [userRole, fetchTelegramRequestsCount]);
 
   return (
     <>

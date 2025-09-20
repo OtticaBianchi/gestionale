@@ -6,6 +6,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
 import { User, LogOut, Settings, Loader2, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@/context/UserContext';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
@@ -23,6 +24,7 @@ export default function UserProfileHeader() {
   const [error, setError] = useState<string | null>(null);
   
   const router = useRouter();
+  const { signOut: signOutWithContext } = useUser();
 
   useEffect(() => {
     // ✅ INTEGRAZIONE: TUO pattern isMounted + BUSINESS LOGIC esistente
@@ -140,52 +142,26 @@ export default function UserProfileHeader() {
 
     getProfile();
 
-    // ✅ EXISTING LOGIC: Auth state listener con TUO cleanup pattern
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('🔍 Auth state changed:', event, session?.user?.email);
-        
-        if (!isMounted) return; // ✅ TUO PATTERN: Check mount status
-        
-        if (event === 'SIGNED_OUT') {
-          setUser(null);
-          setProfile(null);
-          router.push('/login');
-        } else if (event === 'SIGNED_IN' && session?.user) {
-          setUser(session.user);
-          // Don't re-fetch profile - let the initial load handle it
-        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          // Handle token refresh - just log, don't re-fetch
-          console.log('🔄 Token refreshed for user:', session.user.email);
-        }
-      }
-    );
+    // Removed duplicate auth listener - UserContext handles all auth state changes
+    // This prevents session conflicts when multiple users are working
 
-    // ✅ TUO PATTERN: Cleanup function with subscription cleanup
+    // ✅ Cleanup function
     return () => {
       isMounted = false;
       clearTimeout(timeoutId); // Clear timeout on unmount
-      subscription.unsubscribe();
     };
   }, []); // ✅ FIX: Remove supabase dependency to prevent infinite loop
 
   const handleSignOut = async () => {
+    if (isSigningOut) return;
+
     try {
       setIsSigningOut(true);
       console.log('🔍 Signing out...');
-      
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
-        console.error('❌ Error signing out:', error);
-        alert('Errore durante il logout');
-      } else {
-        console.log('✅ Signed out successfully');
-        // Auth state listener will handle the redirect
-      }
+      await signOutWithContext('manual');
     } catch (error) {
-      console.error('❌ Unexpected error during sign out:', error);
-      alert('Errore imprevisto durante il logout');
+      console.error('❌ Error during sign out:', error);
+      alert('Errore durante il logout');
     } finally {
       setIsSigningOut(false);
     }
@@ -197,8 +173,8 @@ export default function UserProfileHeader() {
       <div className="bg-white border-b border-gray-200 px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <h1 className="text-lg font-bold text-gray-900">OB VisionHUB</h1>
-            <span className="text-sm text-gray-500">v1.8</span>
+            <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
+            <span className="text-sm text-gray-500">v2.8</span>
           </div>
           
           <div className="flex items-center space-x-2 text-gray-500">
@@ -216,8 +192,8 @@ export default function UserProfileHeader() {
       <div className="bg-white border-b border-gray-200 px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <h1 className="text-lg font-bold text-gray-900">OB VisionHUB</h1>
-            <span className="text-sm text-gray-500">v1.8</span>
+            <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
+            <span className="text-sm text-gray-500">v2.8</span>
           </div>
           
           <div className="flex items-center space-x-3">
@@ -254,8 +230,8 @@ export default function UserProfileHeader() {
       <div className="flex items-center justify-between">
         {/* Logo e Titolo */}
         <div className="flex items-center space-x-2">
-          <h1 className="text-lg font-bold text-gray-900">OB VisionHUB</h1>
-          <span className="text-sm text-gray-500">v1.8</span>
+          <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
+          <span className="text-sm text-gray-500">v2.8</span>
         </div>
 
         {/* Profilo Utente */}

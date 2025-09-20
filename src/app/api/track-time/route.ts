@@ -13,9 +13,14 @@ export async function POST(request: Request) {
     { cookies: { get: (name) => cookieStore.get(name)?.value } }
   )
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (userError) {
+    console.warn('track-time: unable to validate user', userError)
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
+
+  if (!user) {
     return new NextResponse('Unauthorized', { status: 401 })
   }
 
@@ -49,14 +54,14 @@ export async function POST(request: Request) {
     return new NextResponse('OK', { status: 200 })
   } catch (error: any) {
     // ✅ SECURITY: Log dettagliato server-side, messaggio generico client-side
-    console.error('Error invoking Supabase function:', {
-      error: error.message,
-      userId: session.user.id,
+    console.warn('track-time: edge function failed, falling back to noop', {
+      error: error?.message,
+      userId: user.id,
       timestamp: new Date().toISOString(),
       duration
     });
-    
-    // Non esporre dettagli interni al client
-    return new NextResponse('Internal server error occurred while tracking time', { status: 500 });
+
+    // Evita di bloccare il logout o altre operazioni se la funzione fallisce
+    return new NextResponse('Accepted without edge update', { status: 202 });
   }
 }

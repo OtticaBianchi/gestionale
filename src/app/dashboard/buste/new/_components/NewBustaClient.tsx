@@ -48,20 +48,8 @@ export default function NewBustaClient() {
 
     checkAuth();
 
-    // ✅ Ascolta cambiamenti di autenticazione
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_OUT' || !session) {
-          setIsAuthenticated(false);
-          setAuthError('Sessione scaduta');
-        } else if (event === 'SIGNED_IN' && session) {
-          setIsAuthenticated(true);
-          setAuthError(null);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
+    // No need for auth listener - UserContext handles this
+    // Removed duplicate auth listener to prevent session conflicts
   }, []);
 
   // ✅ Gestisci annullamento

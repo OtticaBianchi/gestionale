@@ -173,7 +173,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (user) {
       signOut('idle')
     }
-  }, 10 * 60 * 1000) // 10 minuti
+  }, 60 * 60 * 1000) // 60 minuti (1 ora)
 
   useEffect(() => {
     // Flag per prevenire state updates dopo unmount

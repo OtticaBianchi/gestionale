@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Mic, Play, Pause, Calendar, Clock, User, ArrowLeft, Download, Trash2, CheckCircle, FolderOpen, ExternalLink, Search, Eye, Copy, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useUser } from '@/context/UserContext';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 interface VoiceNote {
   id: string;
@@ -55,7 +56,10 @@ interface ClientSearchResult {
 
 export default function VoiceNotesPage() {
   const { profile } = useUser();
+  const router = useRouter();
   const isAdmin = profile?.role === 'admin';
+  const isManager = profile?.role === 'manager';
+  const canManageNotes = isAdmin || isManager;
   const [voiceNotes, setVoiceNotes] = useState<VoiceNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -66,36 +70,92 @@ export default function VoiceNotesPage() {
   const [selectedNote, setSelectedNote] = useState<VoiceNote | null>(null);
   const [showDuplicateMenu, setShowDuplicateMenu] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const fetchAbortRef = useRef<AbortController | null>(null);
 
   // UI permissions (RLS handles database security)
-  const canDeleteNotes = profile?.role === 'admin';
-  const canCreateNotes = profile?.role === 'admin' || profile?.role === 'manager';
-  const isReadOnly = profile?.role === 'operatore';
+  const canDeleteNotes = isAdmin;
+  const canCreateNotes = canManageNotes;
+  const isReadOnly = !canManageNotes;
 
-  const fetchVoiceNotes = async () => {
+  const fetchVoiceNotes = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
+    if (!canManageNotes) return;
+
+    fetchAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchAbortRef.current = controller;
+
     try {
-      setLoading(true);
+      if (!background) {
+        setLoading(true);
+      }
       const url = filter !== 'all' ? `/api/voice-notes?status=${filter}` : '/api/voice-notes';
       const response = await fetch(url, {
         cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
+        signal: controller.signal,
       });
       if (response.ok) {
         const data = await response.json();
         setVoiceNotes(data.notes || []);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
       console.error('Error fetching voice notes:', error);
     } finally {
-      setLoading(false);
+      if (fetchAbortRef.current === controller) {
+        fetchAbortRef.current = null;
+      }
+      if (!background) {
+        setLoading(false);
+      }
     }
-  };
+  }, [filter, canManageNotes]);
 
   useEffect(() => {
-    fetchVoiceNotes();
-  }, [filter]);
+    if (profile && !canManageNotes) {
+      router.replace('/dashboard?error=admin_required');
+    }
+  }, [profile, canManageNotes, router]);
+
+  useEffect(() => {
+    if (!canManageNotes) {
+      fetchAbortRef.current?.abort();
+      setVoiceNotes([]);
+      setLoading(false);
+      return;
+    }
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const runInitial = async () => {
+      await fetchVoiceNotes();
+      schedule();
+    };
+
+    const schedule = () => {
+      intervalId = setInterval(() => {
+        if (document.visibilityState === 'hidden') return;
+        fetchVoiceNotes({ background: true }).catch(() => {});
+      }, 60000);
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchVoiceNotes({ background: true }).catch(() => {});
+      }
+    };
+
+    runInitial().catch(() => {});
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      fetchAbortRef.current?.abort();
+    };
+  }, [canManageNotes, fetchVoiceNotes]);
 
   const playAudio = async (note: VoiceNote) => {
     try {
@@ -156,6 +216,11 @@ export default function VoiceNotesPage() {
   };
 
   const markAsCompleted = async (noteId: string) => {
+    if (!canManageNotes) {
+      toast.error('Solo amministratori o manager possono modificare le note vocali');
+      return;
+    }
+
     try {
       const response = await fetch(`/api/voice-notes/${noteId}`, {
         method: 'PATCH',
@@ -185,6 +250,11 @@ export default function VoiceNotesPage() {
   };
 
   const deleteNote = async (noteId: string) => {
+    if (!isAdmin) {
+      toast.error('Solo gli amministratori possono eliminare le note vocali');
+      return;
+    }
+
     if (!confirm('Sei sicuro di voler eliminare questa nota vocale?')) return;
     
     try {
@@ -229,6 +299,11 @@ export default function VoiceNotesPage() {
   };
 
   const duplicateBusta = async (bustaId: string, includeItems: boolean) => {
+    if (!canManageNotes) {
+      toast.error('Solo amministratori o manager possono duplicare le buste dalle note vocali');
+      return;
+    }
+
     try {
       const response = await fetch('/api/buste/duplicate', {
         method: 'POST',
@@ -259,6 +334,11 @@ export default function VoiceNotesPage() {
 
   // Enhanced duplicate function that includes voice note transcription
   const duplicateBustaWithTranscription = async (bustaId: string, includeItems: boolean, clientId: string) => {
+    if (!canManageNotes) {
+      toast.error('Solo amministratori o manager possono duplicare le buste dalle note vocali');
+      return;
+    }
+
     if (!selectedNote) {
       toast.error('Nessuna nota vocale selezionata');
       return;
@@ -336,6 +416,11 @@ export default function VoiceNotesPage() {
 
   // Create a new busta from selected note with transcription
   const createBustaFromNote = async (clientId: string) => {
+    if (!canManageNotes) {
+      toast.error('Solo amministratori o manager possono creare buste dalle note vocali');
+      return;
+    }
+
     if (!selectedNote) {
       toast.error('Nessuna nota vocale selezionata');
       return;
@@ -412,6 +497,11 @@ export default function VoiceNotesPage() {
 
   // Link currently selected note to a client (and optionally to a busta)
   const linkNote = async (noteId: string, clientId: string, bustaId?: string) => {
+    if (!canManageNotes) {
+      toast.error('Solo amministratori o manager possono collegare le note vocali');
+      return;
+    }
+
     try {
       const response = await fetch(`/api/voice-notes/${noteId}`, {
         method: 'PATCH',
@@ -437,7 +527,7 @@ export default function VoiceNotesPage() {
       // Optionally close the search panel
       setSelectedNote(null);
       // Refresh to hydrate relations if needed
-      fetchVoiceNotes();
+      fetchVoiceNotes({ background: true });
     } catch (e: any) {
       toast.error(e.message || 'Errore collegamento nota');
     }

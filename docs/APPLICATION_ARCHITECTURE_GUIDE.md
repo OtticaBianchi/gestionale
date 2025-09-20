@@ -571,7 +571,7 @@ What changed in this iteration:
   - Link actions: from the search panel, admins can now:
     - “Collega al Cliente” → sets `voice_notes.cliente_id`.
     - “Collega qui” on any busta → sets `voice_notes.busta_id` (and `cliente_id` accordingly).
-  - On‑demand transcription on link: when linking to a busta and `redo_transcription = true`, we transcribe server‑side (AssemblyAI) if audio is present; then append the resulting text to `buste.note_generali`. The append is idempotent per voice note (marker `[VoiceNote <id>]`).
+  - Auto-transcription at ingest: the Telegram webhook invokes AssemblyAI as soon as the audio arrives, saving the transcript in `voice_notes.transcription` so the card è già leggibile in dashboard. Linking to una busta con `redo_transcription = true` può comunque rigenerare il testo e aggiornare il blocco `[VoiceNote <id>]` in `buste.note_generali`.
   - Webhook simplified for serverless: `/api/telegram/webhook` now processes Telegram updates directly (no bot class instantiation). It validates the secret header, downloads the file via Telegram API, saves a `voice_notes` row, and returns immediately. Idempotent by `telegram_message_id`.
   - Serverless FS safety: temp writes use `/tmp` only; most processing is in‑memory.
   - No auto‑transcription in webhook: notes remain `pending` until linked to a busta; transcription is triggered by link actions only.

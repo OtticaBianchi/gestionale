@@ -56,9 +56,9 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Aggiorna la sessione (questa è la riga più importante!)
+  // Get session ONCE and reuse it
   console.log('🔍 MIDDLEWARE - Getting session...');
-  await supabase.auth.getSession()
+  const { data: { session } } = await supabase.auth.getSession()
 
   const { pathname } = request.nextUrl
 
@@ -69,9 +69,7 @@ export async function middleware(request: NextRequest) {
 
   if (isAdminPath) {
     console.log('🔍 MIDDLEWARE - ADMIN PATH DETECTED:', pathname);
-    
-    const { data: { session } } = await supabase.auth.getSession()
-    
+
     if (!session) {
       console.log('🔍 MIDDLEWARE - ADMIN PATH - No session, redirecting to login');
       const redirectUrl = new URL('/login', request.url)
@@ -102,7 +100,6 @@ export async function middleware(request: NextRequest) {
 
   if (isManagerPath) {
     console.log('🔍 MIDDLEWARE - MANAGER PATH DETECTED:', pathname);
-    const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirectTo', pathname)
@@ -125,9 +122,8 @@ export async function middleware(request: NextRequest) {
   console.log('🔍 MIDDLEWARE - isProtectedPath:', isProtectedPath);
 
   if (isProtectedPath) {
-    const { data: { session } } = await supabase.auth.getSession()
     console.log('🔍 MIDDLEWARE - PROTECTED PATH - Session:', session ? `EXISTS (${session.user.email})` : 'MISSING');
-    
+
     if (!session) {
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirectTo', pathname)
@@ -145,9 +141,8 @@ export async function middleware(request: NextRequest) {
   console.log('🔍 MIDDLEWARE - isAuthPath:', isAuthPath);
 
   if (isAuthPath) {
-    const { data: { session } } = await supabase.auth.getSession()
     console.log('🔍 MIDDLEWARE - AUTH PATH - Session:', session ? `EXISTS (${session.user.email})` : 'MISSING');
-    
+
     if (session) {
       // Determine role to pick home destination
       const { data: profile } = await supabase

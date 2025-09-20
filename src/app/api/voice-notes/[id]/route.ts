@@ -63,8 +63,8 @@ export async function PATCH(
       .select('role')
       .eq('id', user.id)
       .single();
-    if (!me || me.role !== 'admin') {
-      return NextResponse.json({ error: 'Solo gli amministratori possono modificare le note vocali' }, { status: 403 });
+    if (!me || !['admin', 'manager'].includes(me.role)) {
+      return NextResponse.json({ error: 'Solo amministratori o manager possono modificare le note vocali' }, { status: 403 });
     }
     // Use service role client after admin check
     const supabase = createClient(

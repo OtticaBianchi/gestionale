@@ -76,15 +76,6 @@ export async function POST(request: NextRequest) {
         message: 'Nota Telegram salvata con successo' 
       });
     }
-    
-    // ===== LEGACY PWA FORMDATA REQUEST (DEPRECATED) =====
-    else if (contentType?.includes('multipart/form-data')) {
-      return NextResponse.json({ 
-        error: 'PWA interface deprecated - use Telegram bot', 
-        telegram_bot: '@your_bot_username'
-      }, { status: 410 });
-    }
-    
     else {
       return NextResponse.json({ error: 'Unsupported content type' }, { status: 400 });
     }
@@ -100,6 +91,7 @@ export async function GET(request: NextRequest) {
     const supabase = createServerSupabaseClient();
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') as 'pending' | 'processing' | 'completed' | 'failed' | null;
+    const summary = searchParams.get('summary');
     
     // Require auth and determine role
     const { data: { user } } = await supabase.auth.getUser();
@@ -111,10 +103,15 @@ export async function GET(request: NextRequest) {
       .select('role')
       .eq('id', user.id)
       .single();
-    const isAdmin = profile?.role === 'admin';
+    const role = profile?.role;
+    const canManage = role === 'admin' || role === 'manager';
+
+    if (!canManage && summary !== 'count') {
+      return NextResponse.json({ error: 'Solo amministratori o manager possono accedere alle note vocali' }, { status: 403 });
+    }
 
     // Maintenance cleanup (admin only): auto-dismiss and clean audio after 7 days
-    if (isAdmin) {
+    if (role === 'admin') {
       const oneWeekAgo = new Date();
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       
@@ -133,8 +130,28 @@ export async function GET(request: NextRequest) {
     }
 
     // Build query with related data - only show non-dismissed notes
-    let query
-    if (isAdmin) {
+    if (summary === 'count') {
+      let countQuery = supabase
+        .from('voice_notes')
+        .select('id', { count: 'exact', head: true })
+        .is('dismissed_at', null);
+
+      if (status) {
+        countQuery = countQuery.eq('stato', status);
+      }
+
+      const { count, error: countError } = await countQuery;
+
+      if (countError) {
+        console.error('Voice notes count error:', countError);
+        return NextResponse.json({ error: 'Errore conteggio note vocali' }, { status: 500 });
+      }
+
+      return NextResponse.json({ count: count ?? 0 });
+    }
+
+    let query;
+    if (canManage) {
       // Admin sees everything including audio_blob
       query = supabase
         .from('voice_notes')

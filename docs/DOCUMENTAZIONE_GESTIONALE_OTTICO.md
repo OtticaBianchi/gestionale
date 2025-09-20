@@ -329,7 +329,7 @@ Per certe tipologie di lavorazione il workflow può essere semplificato:
 
 **Disponibile solo per Admin e Manager**, l'hub centralizza l'accesso ai moduli specializzati:
 
-#### Console VisionHUB
+#### Console OB Moduli
 - Accesso rapido alla dashboard principale
 - Statistiche aggregate
 - Buste in evidenza
@@ -422,11 +422,11 @@ Il **Voice Triage** risolve un problema operativo cruciale: quando un cliente pa
 
 ### Trascrizione
 
-#### Modalità attuale (on‑demand)
-- La trascrizione NON avviene nel webhook Telegram. Le note vocali vengono salvate come "in attesa" senza testo.
-- La trascrizione viene eseguita solo quando la nota viene collegata a una busta (azione “Collega qui” nella UI di Triage). In quel momento il backend invia l'audio ad AssemblyAI e salva la trascrizione nella nota, oltre ad aggiungere un blocco in `buste.note_generali` con marcatore idempotente `[VoiceNote <id>]`.
-- Collegare solo al Cliente (senza busta) non avvia la trascrizione.
-- Gli amministratori possono riprodurre/scaricare l'audio; gli operatori vedono metadati e trascrizione quando presente.
+#### Modalità attuale (auto)
+- La trascrizione avviene direttamente nel webhook Telegram: appena arriva l'audio lo inviamo ad AssemblyAI, salviamo il testo nella relativa `voice_notes.transcription` e mostriamo subito il contenuto nella dashboard.
+- Collegare la nota a una busta può comunque forzare una ritrascrizione (`redo_transcription`) per avere un testo aggiornato o più accurato; in quel caso aggiorniamo sia la nota sia il blocco in `buste.note_generali` contrassegnato con `[VoiceNote <id>]`.
+- Collegare solo il Cliente mantiene la nota trascritta ma non aggiorna la busta.
+- Gli amministratori e i manager possono riprodurre/scaricare l'audio e gestire lo stato della nota; gli operatori hanno sola lettura.
 
 #### AssemblyAI Integration
 - **API Key**: Configurata in variabili ambiente

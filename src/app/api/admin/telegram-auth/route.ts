@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
     { cookies: { get: (name) => cookieStore.get(name)?.value } }
   );
 
+  const summary = request.nextUrl.searchParams.get('summary');
+
   // Ensure admin
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
@@ -24,9 +26,16 @@ export async function GET(request: NextRequest) {
     .select('role')
     .eq('id', user.id)
     .single();
+  const role = profile?.role;
+  const isAdmin = role === 'admin';
+  const isManager = role === 'manager';
 
-  if (!profile || profile.role !== 'admin') {
+  if (!summary && !isAdmin) {
     return NextResponse.json({ error: 'Solo gli amministratori possono accedere' }, { status: 403 });
+  }
+
+  if (summary && !(isAdmin || isManager)) {
+    return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 });
   }
 
   const adminClient = createClient(
@@ -35,6 +44,17 @@ export async function GET(request: NextRequest) {
   );
 
   try {
+    if (summary === 'count') {
+      const { count, error } = await adminClient
+        .from('telegram_auth_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('authorized', false);
+
+      if (error) throw error;
+
+      return NextResponse.json({ count: count ?? 0 });
+    }
+
     // Get unauthorized users
     const { data: unauthorizedUsers, error } = await adminClient
       .from('telegram_auth_requests')

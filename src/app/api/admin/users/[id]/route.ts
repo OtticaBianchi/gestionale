@@ -132,8 +132,43 @@ export async function DELETE(
   )
 
   try {
-    // Delete profile first (best effort)
-    await adminClient.from('profiles').delete().eq('id', id)
+    // Null out foreign key references before removing the profile/auth user to avoid FK violations
+    const fkCleanupTargets: Array<{ table: string; column: string }> = [
+      { table: 'buste', column: 'creato_da' },
+      { table: 'note', column: 'utente_id' },
+      { table: 'status_history', column: 'operatore_id' },
+      { table: 'follow_up_chiamate', column: 'operatore_id' },
+      { table: 'statistiche_follow_up', column: 'operatore_id' },
+    ]
+
+    for (const target of fkCleanupTargets) {
+      const { error: cleanupError } = await adminClient
+        .from(target.table)
+        .update({ [target.column]: null })
+        .eq(target.column, id)
+
+      if (cleanupError && cleanupError.code !== '42P01') {
+        console.error('Admin delete user cleanup error:', target.table, cleanupError)
+        return NextResponse.json({
+          error: 'Impossibile eliminare l\'utente: pulizia riferimenti fallita',
+          details: cleanupError.message ?? cleanupError,
+        }, { status: 500 })
+      }
+    }
+
+    // Delete profile row (fail loudly if we still have dangling references)
+    const { error: profileError } = await adminClient
+      .from('profiles')
+      .delete()
+      .eq('id', id)
+
+    if (profileError) {
+      console.error('Admin delete user profile error:', profileError)
+      return NextResponse.json({
+        error: 'Impossibile eliminare il profilo associato',
+        details: profileError.message ?? profileError,
+      }, { status: 500 })
+    }
 
     // Delete auth user
     const { error: delErr } = await adminClient.auth.admin.deleteUser(id)

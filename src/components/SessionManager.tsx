@@ -57,6 +57,11 @@ export default function SessionManager() {
       
       setTimeLeft(minutesLeft);
 
+      // ✅ Auto-refresh at 5 minutes before expiry
+      if (minutesLeft <= 5 && minutesLeft > 3) {
+        handleExtendSession(); // Try to refresh automatically
+      }
+
       // ✅ Show warning at 2 minutes
       if (minutesLeft <= 2 && minutesLeft > 0 && !showWarning) {
         setShowWarning(true);
@@ -69,7 +74,7 @@ export default function SessionManager() {
         });
       }
 
-      // ✅ Auto logout at 0 minutes
+      // ✅ Auto logout at 0 minutes (only if refresh failed)
       if (minutesLeft <= 0) {
         handleAutoLogout();
       }
@@ -89,17 +94,32 @@ export default function SessionManager() {
 
   const handleExtendSession = async () => {
     try {
-      const { error } = await supabase.auth.refreshSession();
+      console.log('🔄 Attempting session refresh...');
+      const { data, error } = await supabase.auth.refreshSession();
       if (error) {
         console.error('❌ Session refresh error:', error);
-        toast.error('Errore nel rinnovo sessione');
+        // Don't show error toast for automatic refreshes (only manual ones)
+        if (showWarning) {
+          toast.error('Errore nel rinnovo sessione');
+        }
       } else {
-        toast.success('Sessione rinnovata con successo!');
+        console.log('✅ Session refreshed successfully');
+        // Update expiry time with new session
+        if (data.session) {
+          const newExpiryTime = new Date(data.session.expires_at! * 1000);
+          setSessionExpiry(newExpiryTime);
+        }
+        // Only show success message for manual refreshes
+        if (showWarning) {
+          toast.success('Sessione rinnovata con successo!');
+        }
         setShowWarning(false);
       }
     } catch (error) {
       console.error('❌ Session refresh error:', error);
-      toast.error('Errore nel rinnovo sessione');
+      if (showWarning) {
+        toast.error('Errore nel rinnovo sessione');
+      }
     }
   };
 
