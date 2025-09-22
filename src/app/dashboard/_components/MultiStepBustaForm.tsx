@@ -5,15 +5,40 @@ import { useState, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
 import { Database } from '@/types/database.types';
-import { 
-  User, 
-  Package, 
-  AlertTriangle, 
+import {
+  User,
+  Package,
+  AlertTriangle,
   Save,
   Loader2,
   CheckCircle,
   X
 } from 'lucide-react';
+
+const isValidEmail = (rawEmail: string): boolean => {
+  const email = rawEmail.trim();
+  if (!email) return false;
+  if (email.includes(' ')) return false;
+
+  const atIndex = email.indexOf('@');
+  if (atIndex <= 0) return false;
+  if (email.indexOf('@', atIndex + 1) !== -1) return false;
+
+  const localPart = email.slice(0, atIndex);
+  const domainPart = email.slice(atIndex + 1);
+
+  if (!localPart || !domainPart) return false;
+  if (domainPart.startsWith('-') || domainPart.startsWith('.')) return false;
+  if (domainPart.includes('..')) return false;
+
+  const lastDotIndex = domainPart.lastIndexOf('.');
+  if (lastDotIndex <= 0 || lastDotIndex === domainPart.length - 1) return false;
+
+  const tld = domainPart.slice(lastDotIndex + 1);
+  if (tld.length < 2) return false;
+
+  return true;
+};
 
 // ✅ AGGIUNTA INTERFACCIA PROPS
 interface MultiStepBustaFormProps {
@@ -65,7 +90,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     if (!formData.cliente_telefono || formData.cliente_telefono.replace(/\D/g, '').length < 9) {
       newErrors.cliente_telefono = 'Telefono obbligatorio (min 9 cifre)';
     }
-    if (formData.cliente_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.cliente_email)) {
+    if (formData.cliente_email && !isValidEmail(formData.cliente_email)) {
       newErrors.cliente_email = 'Email non valida';
     }
     

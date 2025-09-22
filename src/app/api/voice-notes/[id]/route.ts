@@ -1,50 +1,194 @@
 export const dynamic = 'force-dynamic' 
 export const runtime = 'nodejs'
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextRequest, NextResponse } from 'next/server'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 
-async function safeTranscribeIfRequested(note: any, redo: boolean) {
+type VoiceNote = {
+  id: string
+  audio_blob?: string | null
+  audio_file_path?: string | null
+  transcription?: string | null
+  note_aggiuntive?: string | null
+  busta_id?: string | null
+}
+
+type SupabaseServiceClient = ReturnType<typeof createClient>
+
+const ALLOWED_FIELDS = [
+  'transcription',
+  'stato',
+  'processed_by',
+  'cliente_id',
+  'busta_id',
+  'redo_transcription',
+] as const
+
+type PatchPayload = Partial<Record<(typeof ALLOWED_FIELDS)[number], unknown>>
+
+async function ensureAdminOrManager() {
+  const serverClient = await createServerSupabaseClient()
+  const {
+    data: { user },
+  } = await serverClient.auth.getUser()
+  if (!user) {
+    return { response: NextResponse.json({ error: 'Non autorizzato' }, { status: 401 }) }
+  }
+
+  const { data: me } = await serverClient
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (!me || !['admin', 'manager'].includes(me.role)) {
+    return {
+      response: NextResponse.json({ error: 'Solo amministratori o manager possono modificare le note vocali' }, {
+        status: 403,
+      }),
+    }
+  }
+
+  return {
+    serviceClient: createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    ) as SupabaseServiceClient,
+  }
+}
+
+async function parsePatchBody(request: NextRequest) {
   try {
-    console.log('🎙️ safeTranscribeIfRequested:', { 
-      noteId: note.id, 
-      redo, 
-      hasAudio: !!note?.audio_blob,
-      existingTranscription: !!note.transcription,
-      existingNotes: !!note.note_aggiuntive
-    });
-    
-    if (!redo) {
-      const existing = note.transcription || note.note_aggiuntive || '';
-      console.log('📝 No redo requested, returning existing:', existing.substring(0, 100));
-      return existing;
+    const body: PatchPayload = await request.json()
+    const hasUnknownKeys = Object.keys(body).some((key) => !ALLOWED_FIELDS.includes(key as any))
+    if (hasUnknownKeys) {
+      return { response: NextResponse.json({ error: 'Campi non supportati nel payload' }, { status: 400 }) }
     }
-    
-    if (!note?.audio_blob) {
-      console.log('❌ No audio_blob found for transcription');
-      return note.transcription || note.note_aggiuntive || '';
+    return { body }
+  } catch {
+    return { response: NextResponse.json({ error: 'JSON non valido' }, { status: 400 }) }
+  }
+}
+
+function buildUpdateData(body: PatchPayload) {
+  const updateData: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  }
+
+  if (body.transcription !== undefined) {
+    updateData.transcription = body.transcription
+  }
+
+  if (body.stato !== undefined) {
+    updateData.stato = body.stato
+    if (body.stato === 'completed' || body.stato === 'failed') {
+      updateData.processed_at = new Date().toISOString()
     }
-    
-    console.log('🔄 Starting transcription with AssemblyAI...');
-    const { transcribeFromBase64 } = await import('@/lib/transcription/assemblyai');
-    // Try to infer mime type from path; default to ogg (Telegram voice)
-    const path: string = (note.audio_file_path || '').toLowerCase();
+  }
+
+  if (body.processed_by !== undefined) {
+    updateData.processed_by = body.processed_by
+  }
+
+  if (body.cliente_id !== undefined) {
+    updateData.cliente_id = body.cliente_id
+  }
+
+  if (body.busta_id !== undefined) {
+    updateData.busta_id = body.busta_id
+  }
+
+  return updateData
+}
+
+async function safeTranscribeIfRequested(supabase: SupabaseServiceClient, noteId: string, redo: boolean) {
+  const { data: latestNote } = await supabase
+    .from('voice_notes')
+    .select('*')
+    .eq('id', noteId)
+    .single()
+
+  if (!latestNote) {
+    return { text: '', note: null as VoiceNote | null }
+  }
+
+  const note = latestNote as VoiceNote
+
+  if (!redo) {
+    const existing = note.transcription || note.note_aggiuntive || ''
+    return { text: existing, note }
+  }
+
+  if (!note.audio_blob) {
+    const existing = note.transcription || note.note_aggiuntive || ''
+    return { text: existing, note }
+  }
+
+  try {
+    console.log('🔄 Starting transcription with AssemblyAI...')
+    const { transcribeFromBase64 } = await import('@/lib/transcription/assemblyai')
+    const path = (note.audio_file_path || '').toLowerCase()
     const inferredMime = path.endsWith('.webm')
       ? 'audio/webm'
       : path.endsWith('.mp3')
         ? 'audio/mpeg'
         : path.endsWith('.m4a') || path.endsWith('.aac')
           ? 'audio/m4a'
-          : 'audio/ogg';
-    const text = await transcribeFromBase64(note.audio_blob, inferredMime);
-    console.log('✅ Transcription completed:', text?.substring(0, 100) + '...');
-    
-    return text || note.transcription || note.note_aggiuntive || '';
-  } catch (e) {
-    console.error('❌ Transcription redo failed:', e);
-    return note.transcription || note.note_aggiuntive || '';
+          : 'audio/ogg'
+    const text = await transcribeFromBase64(note.audio_blob, inferredMime)
+    return { text: text || '', note }
+  } catch (error) {
+    console.error('❌ Transcription redo failed:', error)
+    const fallback = note.transcription || note.note_aggiuntive || ''
+    return { text: fallback, note }
   }
+}
+
+async function updateBustaNotes(
+  supabase: SupabaseServiceClient,
+  bustaId: string,
+  noteId: string,
+  text: string,
+  redoTranscription: boolean
+) {
+  const { data: busta } = await supabase
+    .from('buste')
+    .select('note_generali')
+    .eq('id', bustaId)
+    .single()
+
+  const existingNotes = typeof busta?.note_generali === 'string' ? busta.note_generali : ''
+  const marker = `[VoiceNote ${noteId}]`
+  const nowStr = new Date().toLocaleString('it-IT')
+  const newBlock = `${marker} Nota vocale collegata il ${nowStr}\n${text || '(nessuna trascrizione)'}\n`
+
+  const start = existingNotes.indexOf(marker)
+
+  if (start === -1) {
+    const newNotes = (existingNotes ? `${existingNotes}\n\n` : '') + newBlock
+    await supabase
+      .from('buste')
+      .update({ note_generali: newNotes, updated_at: new Date().toISOString() })
+      .eq('id', bustaId)
+    return
+  }
+
+  if (!redoTranscription || !text.trim()) {
+    return
+  }
+
+  const afterStart = existingNotes.slice(start)
+  const separatorIndex = afterStart.indexOf('\n\n')
+  const end = separatorIndex === -1 ? existingNotes.length : start + separatorIndex
+  const before = existingNotes.slice(0, start)
+  const after = existingNotes.slice(end)
+  const updatedNotes = (before + newBlock + (after.startsWith('\n\n') ? after : after ? `\n\n${after}` : '')).trim()
+
+  await supabase
+    .from('buste')
+    .update({ note_generali: updatedNotes, updated_at: new Date().toISOString() })
+    .eq('id', bustaId)
 }
 
 export async function PATCH(
@@ -52,129 +196,50 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // First, ensure the caller is admin
-    const serverClient = await createServerSupabaseClient();
-    const { data: { user } } = await serverClient.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
-    }
-    const { data: me } = await serverClient
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-    if (!me || !['admin', 'manager'].includes(me.role)) {
-      return NextResponse.json({ error: 'Solo amministratori o manager possono modificare le note vocali' }, { status: 403 });
-    }
-    // Use service role client after admin check
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-    const { id } = await params;
-    const body = await request.json();
-    
-    const { transcription, stato, processed_by, cliente_id, busta_id, redo_transcription } = body;
-
-    // Build update object
-    const updateData: any = {
-      updated_at: new Date().toISOString()
-    };
-
-    if (transcription !== undefined) {
-      updateData.transcription = transcription;
+    const authResult = await ensureAdminOrManager()
+    if (authResult.response) {
+      return authResult.response
     }
 
-    if (stato !== undefined) {
-      updateData.stato = stato;
-      
-      if (stato === 'completed' || stato === 'failed') {
-        updateData.processed_at = new Date().toISOString();
-      }
+    const { body: payload, response: parseError } = await parsePatchBody(request)
+    if (parseError) {
+      return parseError
     }
 
-    if (processed_by !== undefined) {
-      updateData.processed_by = processed_by;
-    }
+    const { id } = await params
+    const updateData = buildUpdateData(payload || {})
 
-    if (cliente_id !== undefined) {
-      updateData.cliente_id = cliente_id;
-    }
-
-    if (busta_id !== undefined) {
-      updateData.busta_id = busta_id;
-    }
-
-    const { data, error } = await supabase
+    const { data, error } = await authResult.serviceClient
       .from('voice_notes')
       .update(updateData)
       .eq('id', id)
       .select()
-      .single();
+      .single()
 
     if (error) {
-      console.error('Database error:', error);
-      return NextResponse.json({ error: 'Errore aggiornamento nota vocale' }, { status: 500 });
+      console.error('Database error:', error)
+      return NextResponse.json({ error: 'Errore aggiornamento nota vocale' }, { status: 500 })
     }
 
     if (!data) {
-      return NextResponse.json({ error: 'Nota vocale non trovata' }, { status: 404 });
+      return NextResponse.json({ error: 'Nota vocale non trovata' }, { status: 404 })
     }
 
-    // If linked to a busta, optionally redo transcription and append/update in busta.note_generali
-    if (busta_id || data.busta_id) {
-      const bustaId = (busta_id || data.busta_id) as string;
-      // Fetch latest note (ensure we have audio_blob, etc.)
-      const { data: latestNote } = await supabase
-        .from('voice_notes')
-        .select('*')
-        .eq('id', id)
-        .single();
+    const redoTranscription = Boolean(payload?.redo_transcription)
+    const targetBustaId = (payload?.busta_id || data.busta_id) as string | undefined
 
-      // Compute text (redo if requested and possible)
-      const text = await safeTranscribeIfRequested(latestNote, !!redo_transcription);
+    if (targetBustaId) {
+      const { text, note } = await safeTranscribeIfRequested(authResult.serviceClient, id, redoTranscription)
 
-      // Update voice note transcription if redone
-      if (redo_transcription && text && text !== latestNote?.transcription) {
-        await supabase
+      if (redoTranscription && note && text && text !== note.transcription) {
+        await authResult.serviceClient
           .from('voice_notes')
           .update({ transcription: text, updated_at: new Date().toISOString() })
-          .eq('id', id);
+          .eq('id', id)
       }
 
-      // Append first time, then update block content if a later transcription succeeds
-      const marker = `[VoiceNote ${id}]`;
-      const { data: busta } = await supabase
-        .from('buste')
-        .select('note_generali')
-        .eq('id', bustaId)
-        .single();
-
-      const existingNotes = busta?.note_generali || '';
-      const start = existingNotes.indexOf(marker);
-      const nowStr = new Date().toLocaleString('it-IT');
-      const newBlock = `${marker} Nota vocale collegata il ${nowStr}\n${text || '(nessuna trascrizione)'}\n`;
-
-      if (start === -1) {
-        // First append
-        const newNotes = (existingNotes ? existingNotes + '\n\n' : '') + newBlock;
-        await supabase
-          .from('buste')
-          .update({ note_generali: newNotes, updated_at: new Date().toISOString() })
-          .eq('id', bustaId);
-      } else if (redo_transcription && text && text.trim().length > 0) {
-        // Replace the existing block content with the fresh transcription
-        // Find the end of the block: next blank line (\n\n) or end of string
-        const afterStart = existingNotes.slice(start);
-        const sepIdx = afterStart.indexOf('\n\n');
-        const end = sepIdx === -1 ? existingNotes.length : start + sepIdx;
-        const before = existingNotes.slice(0, start);
-        const after = existingNotes.slice(end);
-        const updatedNotes = (before + newBlock + (after.startsWith('\n\n') ? after : (after ? '\n\n' + after : ''))).trim();
-        await supabase
-          .from('buste')
-          .update({ note_generali: updatedNotes, updated_at: new Date().toISOString() })
-          .eq('id', bustaId);
+      if (note) {
+        await updateBustaNotes(authResult.serviceClient, targetBustaId, id, text, redoTranscription)
       }
     }
 
@@ -185,8 +250,8 @@ export async function PATCH(
     });
 
   } catch (error) {
-    console.error('Voice note update error:', error);
-    return NextResponse.json({ error: 'Errore interno del server' }, { status: 500 });
+    console.error('Voice note update error:', error)
+    return NextResponse.json({ error: 'Errore interno del server' }, { status: 500 })
   }
 }
 

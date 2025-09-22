@@ -2,130 +2,169 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-export async function GET(request: Request) {
-  console.log('🔍 CALLBACK START');
-  
-  const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
-  let next = searchParams.get('next') ?? '/dashboard'
+const DEFAULT_REDIRECT = '/dashboard'
+const ALLOWED_ROLES = new Set(['admin', 'manager', 'operatore'])
 
-  console.log('🔍 CALLBACK - Code present:', !!code);
-  console.log('🔍 CALLBACK - Next URL:', next);
-  console.log('🔍 CALLBACK - Origin:', origin);
+type SupabaseClient = ReturnType<typeof createServerClient>
 
-  if (code) {
-    console.log('🔍 CALLBACK - Processing code...');
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options })
-          },
-          remove(name: string, options: any) {
-            cookieStore.set({ name, value: '', ...options })
-          },
+type ExchangeResult = { user: any } | { response: NextResponse }
+
+type ProfileResult = { profile: any } | { response: NextResponse }
+
+async function createSupabaseClientWithCookies(): Promise<SupabaseClient> {
+  const cookieStore = await cookies()
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
         },
-      }
-    )
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: '', ...options })
+        },
+      },
+    }
+  )
+}
 
-    try {
-      console.log('🔍 CALLBACK - Exchanging code for session...');
-      // Scambia il codice per la sessione
-      const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-      
-      if (error) {
-        console.error('🔍 CALLBACK ERROR - Exchange failed:', error)
-        return NextResponse.redirect(`${origin}/login?error=auth_error`)
-      }
+async function exchangeCodeForSession(
+  supabase: SupabaseClient,
+  code: string,
+  origin: string
+): Promise<ExchangeResult> {
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
-      console.log('🔍 CALLBACK SUCCESS - User:', data.user?.email);
+  if (error || !data.user) {
+    console.error('🔍 CALLBACK ERROR - Exchange failed:', error)
+    return { response: NextResponse.redirect(`${origin}/login?error=auth_error`) }
+  }
 
-      if (data.user) {
-        console.log('🔍 CALLBACK - Checking user profile...');
-        // Verifica se il profilo esiste, altrimenti crealo
-        let { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single()
+  console.log('🔍 CALLBACK SUCCESS - User:', data.user?.email)
+  return { user: data.user }
+}
 
-        console.log('🔍 CALLBACK - Profile check:', profileError ? `Error: ${profileError.code}` : 'Profile found');
-        console.log('🔍 CALLBACK - User metadata:', JSON.stringify(data.user.user_metadata, null, 2));
+function resolveFullName(user: any) {
+  return (
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.identities?.[0]?.identity_data?.full_name ||
+    user.email?.split('@')[0] ||
+    'Utente'
+  )
+}
 
-        if (profileError && profileError.code === 'PGRST116') {
-          console.log('🔍 CALLBACK - Creating new profile...');
-          console.log('🔍 CALLBACK - User metadata:', JSON.stringify(data.user.user_metadata, null, 2));
-          // Profilo non esiste, crealo
-          const { data: newProfile, error: insertError } = await supabase
-            .from('profiles')
-            .insert({
-              id: data.user.id,
-              full_name: data.user.user_metadata?.full_name || 
-                        data.user.user_metadata?.name || 
-                        data.user.identities?.[0]?.identity_data?.full_name ||
-                        data.user.email?.split('@')[0] || 'Utente',
-              // Use invited role if present, fallback to 'operatore'
-              role: (data.user.user_metadata as any)?.role || 'operatore'
-            })
-            .select()
-            .single()
+async function ensureProfile(
+  supabase: SupabaseClient,
+  user: any,
+  origin: string
+): Promise<ProfileResult> {
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single()
 
-          if (insertError) {
-            console.error('🔍 CALLBACK ERROR - Profile creation failed:', insertError)
-            return NextResponse.redirect(`${origin}/login?error=profile_creation_failed`)
-          } else {
-            console.log('🔍 CALLBACK - Profile created successfully:', newProfile);
-            profile = newProfile; // Update profile variable for onboarding check
-          }
-        } else if (!profileError && profile) {
-          // Sync role from user metadata if invited role differs
-          const invitedRole = (data.user.user_metadata as any)?.role as string | undefined
-          const allowed = new Set(['admin', 'manager', 'operatore'])
-          if (invitedRole && allowed.has(invitedRole) && profile.role !== invitedRole) {
-            const { data: synced, error: syncErr } = await supabase
-              .from('profiles')
-              .update({ role: invitedRole, updated_at: new Date().toISOString() })
-              .eq('id', data.user.id)
-              .select('*')
-              .single()
-            if (!syncErr && synced) {
-              profile = synced
-            }
-          }
-        }
+  if (error && error.code !== 'PGRST116') {
+    console.error('🔍 CALLBACK ERROR - Profile load failed:', error)
+    return { response: NextResponse.redirect(`${origin}/login?error=profile_load_failed`) }
+  }
 
-      console.log('🔍 CALLBACK - Role-based default landing');
-      // If no explicit next, choose by role (admin/manager -> hub)
-      if (!searchParams.get('next')) {
-        const { data: prof } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single()
-        if (prof && (prof.role === 'admin' || prof.role === 'manager')) {
-          next = '/dashboard'  // Everyone goes to dashboard
-        }
-      }
-      }
+  if (!profile) {
+    const initialRole = ALLOWED_ROLES.has(user.user_metadata?.role) ? user.user_metadata.role : 'operatore'
+    const { data: newProfile, error: insertError } = await supabase
+      .from('profiles')
+      .insert({
+        id: user.id,
+        full_name: resolveFullName(user),
+        role: initialRole,
+      })
+      .select('*')
+      .single()
 
-      console.log('🔍 CALLBACK - REDIRECTING TO:', `${origin}${next}`);
-      // Force redirect to dashboard for new users
-      const redirectUrl = `${origin}${next}`;
-      console.log('🔍 CALLBACK - Final redirect URL:', redirectUrl);
-      return NextResponse.redirect(redirectUrl)
-    } catch (error) {
-      console.error('🔍 CALLBACK EXCEPTION:', error)
-      return NextResponse.redirect(`${origin}/login?error=unexpected_error`)
+    if (insertError) {
+      console.error('🔍 CALLBACK ERROR - Profile creation failed:', insertError)
+      return { response: NextResponse.redirect(`${origin}/login?error=profile_creation_failed`) }
+    }
+
+    console.log('🔍 CALLBACK - Profile created successfully:', newProfile)
+    return { profile: newProfile }
+  }
+
+  const invitedRole = user.user_metadata?.role
+  if (invitedRole && ALLOWED_ROLES.has(invitedRole) && profile.role !== invitedRole) {
+    const { data: synced, error: syncError } = await supabase
+      .from('profiles')
+      .update({ role: invitedRole, updated_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .select('*')
+      .single()
+
+    if (!syncError && synced) {
+      return { profile: synced }
     }
   }
 
-  console.log('🔍 CALLBACK - No code provided, redirecting to login');
-  // Se non c'è il codice, reindirizza al login
-  return NextResponse.redirect(`${origin}/login?error=no_code`)
+  return { profile }
+}
+
+async function resolveNextPath(
+  supabase: SupabaseClient,
+  userId: string,
+  requestedNext: string | null
+) {
+  if (requestedNext) {
+    return requestedNext
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  if (profile && (profile.role === 'admin' || profile.role === 'manager')) {
+    return DEFAULT_REDIRECT
+  }
+
+  return DEFAULT_REDIRECT
+}
+
+export async function GET(request: Request) {
+  console.log('🔍 CALLBACK START')
+
+  const url = new URL(request.url)
+  const code = url.searchParams.get('code')
+  const origin = url.origin
+
+  if (!code) {
+    console.log('🔍 CALLBACK - No code provided, redirecting to login')
+    return NextResponse.redirect(`${origin}/login?error=no_code`)
+  }
+
+  const supabase = await createSupabaseClientWithCookies()
+  const exchange = await exchangeCodeForSession(supabase, code, origin)
+  if ('response' in exchange) {
+    return exchange.response
+  }
+
+  const profileResult = await ensureProfile(supabase, exchange.user, origin)
+  if ('response' in profileResult) {
+    return profileResult.response
+  }
+
+  const nextPath = await resolveNextPath(
+    supabase,
+    exchange.user.id,
+    url.searchParams.get('next')
+  )
+
+  const redirectUrl = `${origin}${nextPath}`
+  console.log('🔍 CALLBACK - Redirecting to:', redirectUrl)
+  return NextResponse.redirect(redirectUrl)
 }

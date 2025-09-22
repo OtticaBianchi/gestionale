@@ -76,7 +76,7 @@ export async function POST(request: Request) {
 
         const { error: rpcError } = await admin.rpc('increment_online_time', {
           user_id_param: user.id,
-          duration_param: Math.round(duration)
+          duration_param: duration
         })
 
         if (!rpcError) {

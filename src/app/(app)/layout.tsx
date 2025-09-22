@@ -76,19 +76,12 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) 
   return (
     <>
       {/* Overlay per mobile */}
-      <div
+      <button
+        type="button"
         className={`fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            onClose()
-          }
-        }}
-        role="button"
-        tabIndex={isOpen ? 0 : -1}
         aria-label="Chiudi menu"
-      ></div>
+      ></button>
       
       {/* Sidebar effettiva */}
       <aside className={`fixed top-0 left-0 h-full bg-gray-800 text-white w-64 z-30 transform transition-transform md:relative md:transform-none ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>

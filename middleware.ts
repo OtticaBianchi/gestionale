@@ -133,9 +133,9 @@ export async function middleware(request: NextRequest) {
       redirectUrl.searchParams.set('redirectTo', pathname)
       console.log('🔍 MIDDLEWARE - REDIRECTING TO LOGIN from protected path');
       return NextResponse.redirect(redirectUrl)
-    } else {
-      console.log('🔍 MIDDLEWARE - PROTECTED PATH - Session valid, allowing access');
     }
+
+    console.log('🔍 MIDDLEWARE - PROTECTED PATH - Session valid, allowing access');
   }
 
   // Redirect authenticated users away from auth pages

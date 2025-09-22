@@ -221,24 +221,17 @@ export default function PaymentPlanSetup({
             <h3 className="text-lg font-medium text-gray-900">Modalità di Pagamento</h3>
 
             {/* Saldo Unico */}
-            <div
-              className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+            <label
+              htmlFor="payment-type-saldo"
+              className={`block border rounded-lg p-4 cursor-pointer transition-colors ${
                 paymentType === 'saldo_unico' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
               }`}
-              onClick={() => setPaymentType('saldo_unico')}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setPaymentType('saldo_unico')
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              aria-label="Seleziona pagamento in saldo unico"
             >
               <div className="flex items-center">
                 <input
+                  id="payment-type-saldo"
                   type="radio"
+                  name="payment-type"
                   checked={paymentType === 'saldo_unico'}
                   onChange={() => setPaymentType('saldo_unico')}
                   className="mr-3"
@@ -250,27 +243,20 @@ export default function PaymentPlanSetup({
                   </div>
                 </div>
               </div>
-            </div>
+            </label>
 
             {/* Installments */}
-            <div
-              className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+            <label
+              htmlFor="payment-type-installments"
+              className={`block border rounded-lg p-4 cursor-pointer transition-colors ${
                 paymentType === 'installments' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
               }`}
-              onClick={() => setPaymentType('installments')}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setPaymentType('installments')
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              aria-label="Seleziona pagamento rateale"
             >
               <div className="flex items-center">
                 <input
+                  id="payment-type-installments"
                   type="radio"
+                  name="payment-type"
                   checked={paymentType === 'installments'}
                   onChange={() => setPaymentType('installments')}
                   className="mr-3"
@@ -282,27 +268,20 @@ export default function PaymentPlanSetup({
                   </div>
                 </div>
               </div>
-            </div>
+            </label>
 
             {/* Bank Financing */}
-            <div
-              className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+            <label
+              htmlFor="payment-type-finanziamento"
+              className={`block border rounded-lg p-4 cursor-pointer transition-colors ${
                 paymentType === 'finanziamento_bancario' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
               }`}
-              onClick={() => setPaymentType('finanziamento_bancario')}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setPaymentType('finanziamento_bancario')
-                }
-              }}
-              role="button"
-              tabIndex={0}
-              aria-label="Seleziona finanziamento bancario"
             >
               <div className="flex items-center">
                 <input
+                  id="payment-type-finanziamento"
                   type="radio"
+                  name="payment-type"
                   checked={paymentType === 'finanziamento_bancario'}
                   onChange={() => setPaymentType('finanziamento_bancario')}
                   className="mr-3"
@@ -314,7 +293,7 @@ export default function PaymentPlanSetup({
                   </div>
                 </div>
               </div>
-            </div>
+            </label>
           </div>
 
           {/* Installment Details */}
@@ -398,24 +377,17 @@ export default function PaymentPlanSetup({
                 <h5 className="font-medium text-gray-900">📧 Gestione Promemoria</h5>
 
                 <div className="space-y-2">
-                  <div
-                    className={`border rounded-lg p-3 cursor-pointer ${
+                  <label
+                    htmlFor="reminder-automatic"
+                    className={`block border rounded-lg p-3 cursor-pointer ${
                       reminderPreference === 'automatic' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
                     }`}
-                    onClick={() => setReminderPreference('automatic')}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setReminderPreference('automatic')
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Seleziona promemoria automatici"
                   >
                     <div className="flex items-center">
                       <input
+                        id="reminder-automatic"
                         type="radio"
+                        name="reminder-preference"
                         checked={reminderPreference === 'automatic'}
                         onChange={() => setReminderPreference('automatic')}
                         className="mr-3"
@@ -428,26 +400,19 @@ export default function PaymentPlanSetup({
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </label>
 
-                  <div
-                    className={`border rounded-lg p-3 cursor-pointer ${
+                  <label
+                    htmlFor="reminder-manual"
+                    className={`block border rounded-lg p-3 cursor-pointer ${
                       reminderPreference === 'manual' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
                     }`}
-                    onClick={() => setReminderPreference('manual')}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setReminderPreference('manual')
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Seleziona promemoria manuali"
                   >
                     <div className="flex items-center">
                       <input
+                        id="reminder-manual"
                         type="radio"
+                        name="reminder-preference"
                         checked={reminderPreference === 'manual'}
                         onChange={() => setReminderPreference('manual')}
                         className="mr-3"
@@ -460,14 +425,19 @@ export default function PaymentPlanSetup({
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </label>
 
-                  <div className={`border rounded-lg p-3 cursor-pointer ${
-                    reminderPreference === 'disabled' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                  }`} onClick={() => setReminderPreference('disabled')}>
+                  <label
+                    htmlFor="reminder-disabled"
+                    className={`block border rounded-lg p-3 cursor-pointer ${
+                      reminderPreference === 'disabled' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}
+                  >
                     <div className="flex items-center">
                       <input
+                        id="reminder-disabled"
                         type="radio"
+                        name="reminder-preference"
                         checked={reminderPreference === 'disabled'}
                         onChange={() => setReminderPreference('disabled')}
                         className="mr-3"
@@ -480,7 +450,7 @@ export default function PaymentPlanSetup({
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </label>
                 </div>
               </div>
             </div>

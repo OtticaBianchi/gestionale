@@ -13,7 +13,7 @@ type LogRecord = {
   to_status: string
   user_id: string
   note: string | null
-  metadata: any
+  metadata: Record<string, unknown> | null
   created_at: string
   buste?: {
     readable_id?: string | null
@@ -33,8 +33,15 @@ const STATUS_LABELS: Record<string, string> = {
   consegnato_pagato: 'Consegnato & pagato',
 }
 
+function humanizeStatus(value: string) {
+  return value
+    .split('_')
+    .map((segment) => (segment ? segment[0].toUpperCase() + segment.slice(1) : segment))
+    .join(' ')
+}
+
 function formatStatus(value: string) {
-  return STATUS_LABELS[value] || value.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+  return STATUS_LABELS[value] || humanizeStatus(value)
 }
 
 function parseDate(value?: string) {
@@ -43,24 +50,52 @@ function parseDate(value?: string) {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed
 }
 
-export default async function StoricoMovimentiPage({
-  searchParams,
-}: {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>
-}) {
-  const resolvedSearchParams = (await searchParams) ?? {}
-  const supabase = await createServerSupabaseClient()
+type LogFilters = {
+  bustaFilter: string
+  userFilter: string
+  fromDate?: Date
+  toDateEnd?: Date
+}
 
+const applyLogFilters = (query: any, filters: LogFilters) => {
+  let nextQuery = query
+  const { bustaFilter, userFilter, fromDate, toDateEnd } = filters
+
+  if (bustaFilter) {
+    const looksLikeUuid = /^[0-9a-fA-F-]{32,36}$/.test(bustaFilter)
+    nextQuery = looksLikeUuid
+      ? nextQuery.eq('busta_id', bustaFilter)
+      : nextQuery.ilike('metadata->>readable_id', `%${bustaFilter}%`)
+  }
+
+  if (userFilter) {
+    nextQuery = nextQuery.eq('user_id', userFilter)
+  }
+
+  if (fromDate) {
+    nextQuery = nextQuery.gte('created_at', fromDate.toISOString())
+  }
+
+  if (toDateEnd) {
+    nextQuery = nextQuery.lte('created_at', toDateEnd.toISOString())
+  }
+
+  return nextQuery
+}
+
+type ServerClient = Awaited<ReturnType<typeof createServerSupabaseClient>>
+
+async function ensureAdminAccess(client: ServerClient) {
   const {
     data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
+    error,
+  } = await client.auth.getUser()
 
-  if (authError || !user) {
+  if (error || !user) {
     redirect('/login?redirectTo=/admin/storico-movimenti')
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await client
     .from('profiles')
     .select('role')
     .eq('id', user.id)
@@ -70,16 +105,38 @@ export default async function StoricoMovimentiPage({
     redirect('/dashboard?error=admin_required')
   }
 
-  const bustaFilter = typeof resolvedSearchParams.bustaId === 'string' ? resolvedSearchParams.bustaId.trim() : ''
-  const userFilter = typeof resolvedSearchParams.userId === 'string' ? resolvedSearchParams.userId.trim() : ''
-  const fromFilter = typeof resolvedSearchParams.from === 'string' ? resolvedSearchParams.from : ''
-  const toFilter = typeof resolvedSearchParams.to === 'string' ? resolvedSearchParams.to : ''
+  return user
+}
+
+function extractFilters(searchParams: Record<string, string | string[] | undefined>) {
+  const getParam = (key: string) => {
+    const value = searchParams[key]
+    return typeof value === 'string' ? value.trim() : ''
+  }
+
+  const bustaFilter = getParam('bustaId')
+  const userFilter = getParam('userId')
+  const fromFilter = getParam('from')
+  const toFilter = getParam('to')
 
   const fromDate = parseDate(fromFilter)
   const toDate = parseDate(toFilter)
   const toDateEnd = toDate ? new Date(new Date(toDate).setHours(23, 59, 59, 999)) : undefined
 
-  let query = supabase
+  return {
+    filters: {
+      bustaFilter,
+      userFilter,
+      fromDate,
+      toDateEnd,
+    },
+    fromFilter,
+    toFilter,
+  }
+}
+
+async function loadLogsData(client: ServerClient, filters: LogFilters) {
+  const baseQuery = client
     .from('kanban_update_logs')
     .select(
       `id, busta_id, from_status, to_status, user_id, note, metadata, created_at,
@@ -89,34 +146,33 @@ export default async function StoricoMovimentiPage({
     .order('created_at', { ascending: false })
     .limit(200)
 
-  if (bustaFilter) {
-    const looksLikeUuid = /^[0-9a-fA-F-]{32,36}$/.test(bustaFilter)
-    if (looksLikeUuid) {
-      query = query.eq('busta_id', bustaFilter)
-    } else {
-      query = query.ilike('metadata->>readable_id', `%${bustaFilter}%`)
-    }
-  }
+  const query = applyLogFilters(baseQuery, filters)
 
-  if (userFilter) {
-    query = query.eq('user_id', userFilter)
-  }
-
-  if (fromDate) {
-    query = query.gte('created_at', fromDate.toISOString())
-  }
-
-  if (toDateEnd) {
-    query = query.lte('created_at', toDateEnd.toISOString())
-  }
-
-  const [{ data: logs, error: logsError }, { data: users }] = await Promise.all([
+  return Promise.all([
     query,
-    supabase
+    client
       .from('profiles')
       .select('id, full_name')
       .order('full_name', { ascending: true }),
   ])
+}
+
+export default async function StoricoMovimentiPage({
+  searchParams,
+}: Readonly<{
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}>) {
+  const supabase = await createServerSupabaseClient()
+  const resolvedSearchParams = (await searchParams) ?? {}
+  await ensureAdminAccess(supabase)
+
+  const {
+    filters,
+    fromFilter,
+    toFilter,
+  } = extractFilters(resolvedSearchParams)
+
+  const [{ data: logs, error: logsError }, { data: users }] = await loadLogsData(supabase, filters)
 
   if (logsError) {
     throw new Error(`Errore caricamento storico: ${logsError.message}`)
@@ -126,7 +182,10 @@ export default async function StoricoMovimentiPage({
   const total = rows.length
 
   const formattedRows = rows.map((log) => {
-    const meta = (log.metadata || {}) as { readable_id?: string | null; history_warning?: string | null }
+    const meta = (log.metadata || {}) as {
+      readable_id?: string | null
+      history_warning?: string | null
+    }
     const readableId = meta.readable_id || log.buste?.readable_id || '—'
     const historyWarning = meta.history_warning || null
     return {
@@ -139,6 +198,8 @@ export default async function StoricoMovimentiPage({
   const userOptions = (users || [])
     .map((entry) => ({ id: entry.id, name: entry.full_name || 'Senza nome' }))
     .sort((a, b) => a.name.localeCompare(b.name, 'it'))
+
+  const { bustaFilter, userFilter } = filters
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
