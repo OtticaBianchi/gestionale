@@ -23,8 +23,8 @@ export default function NewBustaClient() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
+        const { data: { user }, error } = await supabase.auth.getUser();
+
         if (error) {
           console.error('Auth error:', error);
           setAuthError('Errore di autenticazione');
@@ -32,7 +32,7 @@ export default function NewBustaClient() {
           return;
         }
 
-        if (!session) {
+        if (!user) {
           setAuthError('Sessione scaduta');
           setIsAuthenticated(false);
           return;

@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 export const dynamic = 'force-dynamic'
 
 export default async function ArchiveModulePage() {
-  const supabase = createServerSupabaseClient()
+  const supabase = await createServerSupabaseClient()
 
   // Auth + role (admin or manager)
   const { data: { user } } = await supabase.auth.getUser()

@@ -16,7 +16,7 @@ const selectable = 'id, nome, referente_nome, telefono, email, web_address, temp
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
     const tipo = searchParams.get('tipo') || ''
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createServerSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
     const tipo = searchParams.get('tipo') || ''
     const payload = await request.json()
@@ -86,4 +86,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Errore interno server' }, { status: 500 })
   }
 }
-

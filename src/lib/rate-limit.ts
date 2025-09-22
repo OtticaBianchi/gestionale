@@ -36,7 +36,8 @@ export function createRateLimit(options: RateLimitOptions = {}) {
     keyGenerator = (req) => {
       // Default: usa IP + User-Agent per identificare il client
       const forwarded = req.headers.get('x-forwarded-for');
-      const ip = forwarded ? forwarded.split(',')[0].trim() : req.ip || 'unknown';
+      const realIp = req.headers.get('x-real-ip');
+      const ip = forwarded ? forwarded.split(',')[0]?.trim() || 'unknown' : realIp || 'unknown';
       const userAgent = req.headers.get('user-agent') || 'unknown';
       return `${ip}:${userAgent}`;
     }

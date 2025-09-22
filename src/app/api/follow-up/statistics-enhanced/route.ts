@@ -3,7 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request) {
   try {
-    const supabase = createServerSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
 
     // Parameters for flexible time aggregation

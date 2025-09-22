@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 // GET - Recupera lista chiamate correnti
 export async function GET(request: Request) {
   try {
-    const supabase = createServerSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
     const includeArchived = searchParams.get('archived') === 'true'
 

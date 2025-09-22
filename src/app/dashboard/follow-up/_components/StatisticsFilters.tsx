@@ -74,10 +74,11 @@ export function StatisticsFilters({
 
       {/* Time View Selection */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label htmlFor="time-view" className="block text-sm font-medium text-gray-700 mb-2">
           Vista Temporale
         </label>
         <select
+          id="time-view"
           value={filters.timeView}
           onChange={(e) => handleFilterChange('timeView', e.target.value)}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
@@ -94,10 +95,11 @@ export function StatisticsFilters({
 
       {/* Group By Selection */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label htmlFor="group-by" className="block text-sm font-medium text-gray-700 mb-2">
           Raggruppa per
         </label>
         <select
+          id="group-by"
           value={filters.groupBy}
           onChange={(e) => handleFilterChange('groupBy', e.target.value)}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
@@ -111,10 +113,11 @@ export function StatisticsFilters({
 
       {/* Operator Selection */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label htmlFor="operator" className="block text-sm font-medium text-gray-700 mb-2">
           Operatore
         </label>
         <select
+          id="operator"
           value={filters.operatorId || ''}
           onChange={(e) => handleFilterChange('operatorId', e.target.value)}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
@@ -132,10 +135,11 @@ export function StatisticsFilters({
       {/* Date Range */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-2">
             Data Inizio
           </label>
           <input
+            id="start-date"
             type="date"
             value={filters.startDate || ''}
             onChange={(e) => handleFilterChange('startDate', e.target.value)}
@@ -145,10 +149,11 @@ export function StatisticsFilters({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-2">
             Data Fine
           </label>
           <input
+            id="end-date"
             type="date"
             value={filters.endDate || ''}
             onChange={(e) => handleFilterChange('endDate', e.target.value)}

@@ -68,6 +68,7 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) 
     // Admin-only utilities
     ...(profile?.role === 'admin' ? [
       { href: '/admin/users', icon: Shield, label: 'Utenti (Admin)' },
+      { href: '/admin/storico-movimenti', icon: Shield, label: 'Storico Movimenti' },
       { href: '/admin/avatar-management', icon: Shield, label: 'Avatar (Admin)' },
     ] : [])
   ]
@@ -75,9 +76,18 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) 
   return (
     <>
       {/* Overlay per mobile */}
-      <div 
+      <div
         className={`fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={onClose}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onClose()
+          }
+        }}
+        role="button"
+        tabIndex={isOpen ? 0 : -1}
+        aria-label="Chiudi menu"
       ></div>
       
       {/* Sidebar effettiva */}

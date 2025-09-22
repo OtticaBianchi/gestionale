@@ -18,7 +18,7 @@ export const fetchCache = 'force-no-store';
 export default async function DashboardPage() {
   console.log('🔍 Dashboard - Starting to load');
   
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

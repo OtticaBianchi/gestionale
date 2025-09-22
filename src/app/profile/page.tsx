@@ -580,10 +580,11 @@ Grazie!`)
       
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="avatar-upload" className="block text-sm font-medium text-gray-700 mb-2">
             Seleziona la tua foto per l'avatar:
           </label>
           <input
+            id="avatar-upload"
             type="file"
             accept="image/*"
             onChange={handleFileSelect}
@@ -653,8 +654,9 @@ Grazie!`)
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* FIX #3: Nome sempre editabile */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nome Completo</label>
+                <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">Nome Completo</label>
                 <input
+                  id="fullName"
                   type="text"
                   name="fullName"
                   value={formData.fullName}
@@ -665,8 +667,9 @@ Grazie!`)
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                 <input
+                  id="email"
                   type="email"
                   name="email"
                   value={formData.email}
@@ -677,9 +680,10 @@ Grazie!`)
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Ruolo</label>
+                <label htmlFor="profile-role" className="block text-sm font-medium text-gray-700 mb-2">Ruolo</label>
                 <div className="flex items-center space-x-2">
                   <input
+                    id="profile-role"
                     type="text"
                     value={formData.role}
                     disabled
@@ -695,8 +699,9 @@ Grazie!`)
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Ultimo Accesso</label>
+                <label htmlFor="last-signin" className="block text-sm font-medium text-gray-700 mb-2">Ultimo Accesso</label>
                 <input
+                  id="last-signin"
                   type="text"
                   value={user?.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('it-IT') : 'N/A'}
                   disabled
@@ -705,8 +710,9 @@ Grazie!`)
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Account Creato</label>
+                <label htmlFor="account-created" className="block text-sm font-medium text-gray-700 mb-2">Account Creato</label>
                 <input
+                  id="account-created"
                   type="text"
                   value={user?.created_at ? new Date(user.created_at).toLocaleString('it-IT') : 'N/A'}
                   disabled
@@ -715,8 +721,9 @@ Grazie!`)
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Profilo Aggiornato</label>
+                <label htmlFor="profile-updated" className="block text-sm font-medium text-gray-700 mb-2">Profilo Aggiornato</label>
                 <input
+                  id="profile-updated"
                   type="text"
                   value={profile?.updated_at ? new Date(profile.updated_at).toLocaleString('it-IT') : 'N/A'}
                   disabled
@@ -882,8 +889,9 @@ function UserManagementRow({ user, savingId, onSave, onDelete }: {
 
         {/* Role */}
         <div className="md:col-span-3">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Ruolo</label>
-          <select 
+          <label htmlFor="user-role" className="block text-sm font-medium text-gray-700 mb-1">Ruolo</label>
+          <select
+            id="user-role" 
             className="w-full border border-gray-300 px-3 py-1 rounded-md focus:ring-blue-500 focus:border-blue-500" 
             value={role} 
             onChange={e => setRole(e.target.value)}

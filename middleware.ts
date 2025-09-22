@@ -56,9 +56,13 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Get session ONCE and reuse it
-  console.log('🔍 MIDDLEWARE - Getting session...');
-  const { data: { session } } = await supabase.auth.getSession()
+  // Get user ONCE and reuse it
+  console.log('🔍 MIDDLEWARE - Getting user via getUser...');
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+  if (userError) {
+    console.warn('🔍 MIDDLEWARE - getUser error:', userError.message)
+  }
 
   const { pathname } = request.nextUrl
 
@@ -70,8 +74,8 @@ export async function middleware(request: NextRequest) {
   if (isAdminPath) {
     console.log('🔍 MIDDLEWARE - ADMIN PATH DETECTED:', pathname);
 
-    if (!session) {
-      console.log('🔍 MIDDLEWARE - ADMIN PATH - No session, redirecting to login');
+    if (!user) {
+      console.log('🔍 MIDDLEWARE - ADMIN PATH - No authenticated user, redirecting to login');
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirectTo', pathname)
       return NextResponse.redirect(redirectUrl)
@@ -81,7 +85,7 @@ export async function middleware(request: NextRequest) {
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
 
     console.log('🔍 MIDDLEWARE - ADMIN CHECK - Profile role:', profile?.role);
@@ -100,7 +104,7 @@ export async function middleware(request: NextRequest) {
 
   if (isManagerPath) {
     console.log('🔍 MIDDLEWARE - MANAGER PATH DETECTED:', pathname);
-    if (!session) {
+    if (!user) {
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirectTo', pathname)
       return NextResponse.redirect(redirectUrl)
@@ -108,7 +112,7 @@ export async function middleware(request: NextRequest) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
     if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
       return NextResponse.redirect(new URL('/dashboard?error=manager_required', request.url))
@@ -122,9 +126,9 @@ export async function middleware(request: NextRequest) {
   console.log('🔍 MIDDLEWARE - isProtectedPath:', isProtectedPath);
 
   if (isProtectedPath) {
-    console.log('🔍 MIDDLEWARE - PROTECTED PATH - Session:', session ? `EXISTS (${session.user.email})` : 'MISSING');
+    console.log('🔍 MIDDLEWARE - PROTECTED PATH - User:', user ? `EXISTS (${user.email})` : 'MISSING');
 
-    if (!session) {
+    if (!user) {
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirectTo', pathname)
       console.log('🔍 MIDDLEWARE - REDIRECTING TO LOGIN from protected path');
@@ -141,21 +145,21 @@ export async function middleware(request: NextRequest) {
   console.log('🔍 MIDDLEWARE - isAuthPath:', isAuthPath);
 
   if (isAuthPath) {
-    console.log('🔍 MIDDLEWARE - AUTH PATH - Session:', session ? `EXISTS (${session.user.email})` : 'MISSING');
+    console.log('🔍 MIDDLEWARE - AUTH PATH - User:', user ? `EXISTS (${user.email})` : 'MISSING');
 
-    if (session) {
+    if (user) {
       // Determine role to pick home destination
       const { data: profile } = await supabase
         .from('profiles')
         .select('role')
-        .eq('id', session.user.id)
+        .eq('id', user.id)
         .single()
       const role = profile?.role || 'operatore'
       const home = '/dashboard' // Everyone goes to dashboard
       console.log('🔍 MIDDLEWARE - AUTH PATH - Redirecting to', home, 'for role:', role)
       return NextResponse.redirect(new URL(home, request.url))
     } else {
-      console.log('🔍 MIDDLEWARE - AUTH PATH - No session, allowing login page');
+      console.log('🔍 MIDDLEWARE - AUTH PATH - No authenticated user, allowing login page');
     }
   }
 

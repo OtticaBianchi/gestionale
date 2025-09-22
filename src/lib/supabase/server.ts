@@ -11,8 +11,8 @@ import { Database } from '@/types/database.types'
  * 
  * @returns Un'istanza del client Supabase per il server.
  */
-export const createServerSupabaseClient = () => {
-  const cookieStore = cookies()
+export const createServerSupabaseClient = async () => {
+  const cookieStore = await cookies()
 
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

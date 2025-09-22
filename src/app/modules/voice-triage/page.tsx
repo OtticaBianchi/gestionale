@@ -7,7 +7,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 export const dynamic = 'force-dynamic'
 
 export default async function VoiceTriageModulePage() {
-  const supabase = createServerSupabaseClient()
+  const supabase = await createServerSupabaseClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login?redirectTo=/modules/voice-triage')

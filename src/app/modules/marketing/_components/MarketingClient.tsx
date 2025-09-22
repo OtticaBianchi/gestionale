@@ -77,7 +77,7 @@ export default function MarketingClient() {
       const brandsSet = new Set(
         allSuppliers.map(supplier => supplier.nome).filter(Boolean)
       )
-      const uniqueBrands = Array.from(brandsSet).sort()
+      const uniqueBrands = Array.from(brandsSet).sort((a, b) => a.localeCompare(b))
 
       setBrands(uniqueBrands)
     } catch (error) {
@@ -124,7 +124,7 @@ export default function MarketingClient() {
       // Date filter
       if (filters.timeframe !== 'all') {
         const monthsAgo = new Date()
-        monthsAgo.setMonth(monthsAgo.getMonth() - parseInt(filters.timeframe))
+        monthsAgo.setMonth(monthsAgo.getMonth() - Number.parseInt(filters.timeframe))
         query = query.gte('data_apertura', monthsAgo.toISOString())
       }
 
@@ -164,8 +164,8 @@ export default function MarketingClient() {
         const prezzo = infoPagamenti?.[0]?.prezzo_finale || 0
 
         // Skip if price filters don't match
-        if (filters.minAmount && prezzo < parseFloat(filters.minAmount)) return
-        if (filters.maxAmount && prezzo > parseFloat(filters.maxAmount)) return
+        if (filters.minAmount && prezzo < Number.parseFloat(filters.minAmount)) return
+        if (filters.maxAmount && prezzo > Number.parseFloat(filters.maxAmount)) return
 
         if (!clientMap.has(clientId)) {
           clientMap.set(clientId, {
@@ -283,8 +283,9 @@ export default function MarketingClient() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Brand Filter */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Marca</label>
+              <label htmlFor="brand-filter" className="block text-sm font-medium text-gray-700">Marca</label>
               <select
+                id="brand-filter"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={filters.brand}
                 onChange={(e) => setFilters(prev => ({ ...prev, brand: e.target.value }))}
@@ -298,8 +299,9 @@ export default function MarketingClient() {
 
             {/* Timeframe */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Periodo</label>
+              <label htmlFor="timeframe-filter" className="block text-sm font-medium text-gray-700">Periodo</label>
               <select
+                id="timeframe-filter"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 value={filters.timeframe}
                 onChange={(e) => setFilters(prev => ({ ...prev, timeframe: e.target.value }))}
@@ -314,8 +316,9 @@ export default function MarketingClient() {
 
             {/* Min Amount */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Spesa Minima €</label>
+              <label htmlFor="min-amount-filter" className="block text-sm font-medium text-gray-700">Spesa Minima €</label>
               <input
+                id="min-amount-filter"
                 type="number"
                 placeholder="0"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -326,8 +329,9 @@ export default function MarketingClient() {
 
             {/* Max Amount */}
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Spesa Massima €</label>
+              <label htmlFor="max-amount-filter" className="block text-sm font-medium text-gray-700">Spesa Massima €</label>
               <input
+                id="max-amount-filter"
                 type="number"
                 placeholder="Nessun limite"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"

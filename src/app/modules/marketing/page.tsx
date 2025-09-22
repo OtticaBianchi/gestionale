@@ -5,11 +5,11 @@ import MarketingClient from './_components/MarketingClient'
 export const dynamic = 'force-dynamic'
 
 export default async function MarketingPage() {
-  const supabase = createServerSupabaseClient()
+  const supabase = await createServerSupabaseClient()
 
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     redirect('/auth/login')
   }
 
@@ -17,7 +17,7 @@ export default async function MarketingPage() {
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
 
   // Only managers and admins can access marketing

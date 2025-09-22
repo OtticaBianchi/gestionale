@@ -196,7 +196,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
         .from('lavorazioni')
         .insert({
           busta_id: busta.id,
-          tipo_montaggio_id: parseInt(nuovaLavorazioneForm.tipo_montaggio_id),
+          tipo_montaggio_id: Number.parseInt(nuovaLavorazioneForm.tipo_montaggio_id),
           stato: 'in_corso',
           data_inizio: nuovaLavorazioneForm.data_inizio,
           responsabile_id: user.id,
@@ -221,7 +221,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
 
       if (error) throw error;
 
-      const tipoMontaggioNome = tipiMontaggio.find(tm => tm.id === parseInt(nuovaLavorazioneForm.tipo_montaggio_id))?.nome || 'Sconosciuto';
+      const tipoMontaggioNome = tipiMontaggio.find(tm => tm.id === Number.parseInt(nuovaLavorazioneForm.tipo_montaggio_id))?.nome || 'Sconosciuto';
       
       let responsabileNome = 'Tu';
       try {
@@ -389,10 +389,11 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="tipo-montaggio" className="block text-sm font-medium text-gray-700 mb-1">
                 Tipo Montaggio *
               </label>
               <select
+                id="tipo-montaggio"
                 value={nuovaLavorazioneForm.tipo_montaggio_id}
                 onChange={(e) => setNuovaLavorazioneForm(prev => ({ ...prev, tipo_montaggio_id: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
@@ -408,10 +409,11 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="data-inizio-lavorazione" className="block text-sm font-medium text-gray-700 mb-1">
                 Data Inizio
               </label>
               <input
+                id="data-inizio-lavorazione"
                 type="date"
                 value={nuovaLavorazioneForm.data_inizio}
                 onChange={(e) => setNuovaLavorazioneForm(prev => ({ ...prev, data_inizio: e.target.value }))}
@@ -420,10 +422,11 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="note-lavorazione" className="block text-sm font-medium text-gray-700 mb-1">
                 Note Lavorazione
               </label>
               <textarea
+                id="note-lavorazione"
                 value={nuovaLavorazioneForm.note}
                 onChange={(e) => setNuovaLavorazioneForm(prev => ({ ...prev, note: e.target.value }))}
                 rows={3}

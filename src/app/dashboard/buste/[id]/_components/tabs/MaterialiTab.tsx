@@ -123,7 +123,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const calcolaTotaleOrdini = (ordini: OrdineMateriale[]): number => {
     return ordini.reduce((sum, ordine) => {
       const prezzo = typeof ordine.prezzo_prodotto === 'number' ? ordine.prezzo_prodotto : 0;
-      return sum + (isNaN(prezzo) ? 0 : prezzo);
+      return sum + (Number.isNaN(prezzo) ? 0 : prezzo);
     }, 0);
   };
 
@@ -308,7 +308,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     let giorniConsegna = 5;
 
     if (nuovoOrdineForm.giorni_consegna_custom) {
-      giorniConsegna = parseInt(nuovoOrdineForm.giorni_consegna_custom);
+      giorniConsegna = Number.parseInt(nuovoOrdineForm.giorni_consegna_custom);
     } else {
       giorniConsegna = getTempiConsegnaByCategoria(nuovoOrdineForm.categoria_prodotto, nuovoOrdineForm.tipo_lenti);
     }
@@ -494,8 +494,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const saveAccontoInfo = async (importoString: string) => {
     if (!canEdit) return;
 
-    const importo = parseFloat(importoString);
-    if (isNaN(importo) || importo < 0) {
+    const importo = Number.parseFloat(importoString);
+    if (Number.isNaN(importo) || importo < 0) {
       return; // Ignora valori non validi
     }
 
@@ -556,7 +556,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       return;
     }
 
-    if (!nuovoOrdineForm.prezzo_prodotto || parseFloat(nuovoOrdineForm.prezzo_prodotto) <= 0) {
+    if (!nuovoOrdineForm.prezzo_prodotto || Number.parseFloat(nuovoOrdineForm.prezzo_prodotto) <= 0) {
       alert('Prezzo prodotto obbligatorio e deve essere maggiore di 0');
       return;
     }
@@ -588,18 +588,18 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       }
 
       // 🔥 INSERT CON da_ordinare = true DI DEFAULT
-      const prezzoProdottoNumero = parseFloat(nuovoOrdineForm.prezzo_prodotto);
+      const prezzoProdottoNumero = Number.parseFloat(nuovoOrdineForm.prezzo_prodotto);
 
       const nuovoOrdineDb = {
         busta_id: busta.id,
         tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
-        tipo_ordine_id: nuovoOrdineForm.tipo_ordine_id ? parseInt(nuovoOrdineForm.tipo_ordine_id) : null,
+        tipo_ordine_id: nuovoOrdineForm.tipo_ordine_id ? Number.parseInt(nuovoOrdineForm.tipo_ordine_id) : null,
         descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
-        prezzo_prodotto: isNaN(prezzoProdottoNumero) ? null : prezzoProdottoNumero,
+        prezzo_prodotto: Number.isNaN(prezzoProdottoNumero) ? null : prezzoProdottoNumero,
         data_ordine: nuovoOrdineForm.data_ordine,
         data_consegna_prevista: calcolaDataConsegnaPrevista(),
         giorni_consegna_medi: nuovoOrdineForm.giorni_consegna_custom
-          ? parseInt(nuovoOrdineForm.giorni_consegna_custom)
+          ? Number.parseInt(nuovoOrdineForm.giorni_consegna_custom)
           : getTempiConsegnaByCategoria(nuovoOrdineForm.categoria_prodotto, nuovoOrdineForm.tipo_lenti),
         stato: 'da_ordinare' as const,
         da_ordinare: true, // ✅ NUOVO: Default da ordinare
@@ -899,11 +899,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         {canEdit && (
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="importo-acconto" className="block text-sm font-medium text-gray-700 mb-1">
                 💰 Importo Acconto
               </label>
               <div className="relative">
                 <input
+                  id="importo-acconto"
                   type="number"
                   step="0.01"
                   min="0"
@@ -1110,11 +1111,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
             {/* ✅ NUOVO: PREZZO PRODOTTO */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="prezzo-prodotto" className="block text-sm font-medium text-gray-700 mb-1">
                 💰 Prezzo Prodotto * <span className="text-red-500">(Obbligatorio)</span>
               </label>
               <div className="relative">
                 <input
+                  id="prezzo-prodotto"
                   type="number"
                   step="0.01"
                   min="0"
@@ -1132,10 +1134,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       
             {/* ===== GESTIONE DATE E TEMPI ===== */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="data-ordine" className="block text-sm font-medium text-gray-700 mb-1">
                 Data Ordine
               </label>
               <input
+                id="data-ordine"
                 type="date"
                 value={nuovoOrdineForm.data_ordine}
                 onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, data_ordine: e.target.value }))}
@@ -1144,13 +1147,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
             </div>
       
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="giorni-consegna-custom" className="block text-sm font-medium text-gray-700 mb-1">
                 Giorni Consegna Custom
                 <span className="text-xs text-gray-500 block">
                   (sovrascrivi automatico)
                 </span>
               </label>
               <input
+                id="giorni-consegna-custom"
                 type="number"
                 value={nuovoOrdineForm.giorni_consegna_custom}
                 onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, giorni_consegna_custom: e.target.value }))}
@@ -1162,10 +1166,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
             </div>
       
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="data-consegna-prevista" className="block text-sm font-medium text-gray-700 mb-1">
                 Data Consegna Prevista
               </label>
               <input
+                id="data-consegna-prevista"
                 type="date"
                 value={calcolaDataConsegnaPrevista()}
                 disabled
@@ -1178,10 +1183,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       
             {/* ===== NOTE RICERCABILI ===== */}
             <div className="lg:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="note-aggiuntive" className="block text-sm font-medium text-gray-700 mb-1">
                 Note Aggiuntive <span className="text-blue-600 text-xs">(ricercabili)</span>
               </label>
               <textarea
+                id="note-aggiuntive"
                 value={nuovoOrdineForm.note}
                 onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, note: e.target.value }))}
                 rows={2}

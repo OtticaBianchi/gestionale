@@ -24,7 +24,6 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/types/database.types';
 import BustaCard from './BustaCard';
 import { 
@@ -240,8 +239,6 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     businessRule?: string;
   }>({ show: false, allowed: false, message: '' });
 
-  const supabase = createClient();
-  
   // ✅ Derived loading state
   const isLoading = swrLoading || isUpdating;
 
@@ -360,14 +357,6 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     }
 
     try {
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        console.error('❌ Auth error:', authError);
-        toast.error("Sessione scaduta - Effettua nuovamente il login");
-        return false;
-      }
-
       // ✅ VALIDAZIONE BUSINESS RULES
       const allowed = isTransitionAllowed(oldStatus, newStatus, tipoLavorazione);
       if (!allowed) {
@@ -376,52 +365,50 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
         return false;
       }
 
-      // ✅ UPDATE DATABASE
-      const updateResult = await supabase
-        .from('buste')
-        .update({ 
-          stato_attuale: newStatus,
-          updated_at: new Date().toISOString()
+      const response = await fetch('/api/buste/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          bustaId,
+          newStatus,
+          oldStatus,
+          tipoLavorazione: tipoLavorazione ?? null
         })
-        .eq('id', bustaId)
-        .select('id, stato_attuale, updated_at');
+      })
 
-      if (updateResult.error) {
-        console.error('❌ Error updating busta:', updateResult.error);
-        toast.error(`Errore database: ${updateResult.error.message}`);
-        return false;
+      const payload = await response.json().catch(() => ({}))
+
+      if (response.status === 401) {
+        toast.error('Sessione scaduta - Effettua nuovamente il login')
+        return false
       }
 
-      if (!updateResult.data || updateResult.data.length === 0) {
-        console.error('❌ No data returned - possible RLS issue');
-        toast.error('Errore: aggiornamento bloccato (permissions?)');
-        return false;
+      if (response.status === 409) {
+        toast.error('Questa busta è già stata aggiornata da un altro operatore')
+        return false
       }
 
-      // Aggiungi record allo status_history
-      const { error: historyError } = await supabase
-        .from('status_history')
-        .insert({
-          busta_id: bustaId,
-          stato: newStatus,
-          data_ingresso: new Date().toISOString(),
-          operatore_id: user.id,
-          note_stato: getTransitionReason(oldStatus, newStatus, tipoLavorazione)
-        });
-
-      if (historyError) {
-        console.error('❌ Error saving history:', historyError);
-        toast.warning('Busta aggiornata, ma errore nel salvataggio storico');
+      if (!response.ok || !payload.success) {
+        const message = payload?.error || 'Errore durante l\'aggiornamento'
+        console.error('❌ Kanban API error:', payload)
+        toast.error(message)
+        return false
       }
 
-      toast.success('Busta aggiornata con successo');
-      return true;
+      if (payload.historyWarning) {
+        toast.warning('Busta aggiornata, ma lo storico non è stato salvato')
+      }
+
+      toast.success('Busta aggiornata con successo')
+      return true
     } catch (error) {
       console.error('❌ Error in updateBustaStatus:', error);
       toast.error('Errore durante l\'aggiornamento');
       return false;
     }
-  }, [supabase, isOnline]);
+  }, [isOnline]);
 
   // ✅ GESTIONI DRAG
   const handleDragStart = useCallback((event: DragStartEvent) => {

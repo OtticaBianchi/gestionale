@@ -37,16 +37,16 @@ export async function POST(request: NextRequest) {
       }
     )
 
-    // Get the current session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    // Get the authenticated user (validates token with Supabase Auth)
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
     
-    console.log('🔐 API - Session check:', {
-      hasSession: !!session,
-      user: session?.user?.email,
-      error: sessionError?.message
+    console.log('🔐 API - User check:', {
+      hasUser: !!user,
+      user: user?.email,
+      error: userError?.message
     })
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({
         error: 'No valid session found. Please request a new password reset link.'
       }, { status: 401 })

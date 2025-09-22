@@ -49,11 +49,11 @@ async function safeTranscribeIfRequested(note: any, redo: boolean) {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // First, ensure the caller is admin
-    const serverClient = createServerSupabaseClient();
+    const serverClient = await createServerSupabaseClient();
     const { data: { user } } = await serverClient.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
@@ -71,7 +71,7 @@ export async function PATCH(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     
     const { transcription, stato, processed_by, cliente_id, busta_id, redo_transcription } = body;
@@ -192,11 +192,11 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // First, ensure the caller is admin using regular client
-    const serverClient = createServerSupabaseClient();
+    const serverClient = await createServerSupabaseClient();
     const { data: { user } } = await serverClient.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
@@ -207,8 +207,8 @@ export async function DELETE(
       .eq('id', user.id)
       .single();
     if (!profile || profile.role !== 'admin') {
-      return NextResponse.json({ 
-        error: 'Solo gli amministratori possono eliminare le note vocali' 
+      return NextResponse.json({
+        error: 'Solo gli amministratori possono eliminare le note vocali'
       }, { status: 403 });
     }
 
@@ -217,7 +217,7 @@ export async function DELETE(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
-    const { id } = params;
+    const { id } = await params;
 
     // Unified deletion: dismiss from UI + clear audio but preserve metadata
     const { error } = await supabase
@@ -249,11 +249,11 @@ export async function DELETE(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Ensure the caller is admin
-    const serverClient = createServerSupabaseClient();
+    const serverClient = await createServerSupabaseClient();
     const { data: { user } } = await serverClient.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
@@ -264,8 +264,8 @@ export async function GET(
       .eq('id', user.id)
       .single();
     if (!profile || profile.role !== 'admin') {
-      return NextResponse.json({ 
-        error: 'Solo gli amministratori possono accedere alle note vocali' 
+      return NextResponse.json({
+        error: 'Solo gli amministratori possono accedere alle note vocali'
       }, { status: 403 });
     }
 
@@ -274,7 +274,7 @@ export async function GET(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
-    const { id } = params;
+    const { id } = await params;
 
     const { data, error } = await supabase
       .from('voice_notes')

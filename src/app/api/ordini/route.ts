@@ -7,7 +7,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 // List ordini_materiali with optional status filter and overdue logic
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createServerSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') // da_ordinare | ordinato | in_arrivo | in_ritardo | consegnato | all
 

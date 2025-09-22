@@ -143,10 +143,11 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
           <div className="space-y-4">
             {/* Stato chiamata */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="stato-chiamata" className="block text-sm font-medium text-gray-700 mb-1">
                 Stato Chiamata
               </label>
               <select
+                id="stato-chiamata"
                 value={formData.stato_chiamata}
                 onChange={(e) => setFormData(prev => ({
                   ...prev,
@@ -163,10 +164,11 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
             {/* Livello soddisfazione (solo se chiamato completato) */}
             {formData.stato_chiamata === 'chiamato_completato' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="livello-soddisfazione" className="block text-sm font-medium text-gray-700 mb-1">
                   Livello di Soddisfazione
                 </label>
                 <select
+                  id="livello-soddisfazione"
                   value={formData.livello_soddisfazione}
                   onChange={(e) => setFormData(prev => ({
                     ...prev,
@@ -187,10 +189,11 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
             {formData.stato_chiamata === 'richiamami' && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="orario-dalle" className="block text-sm font-medium text-gray-700 mb-1">
                     Dalle
                   </label>
                   <input
+                    id="orario-dalle"
                     type="time"
                     value={formData.orario_richiamata_da}
                     onChange={(e) => setFormData(prev => ({
@@ -201,10 +204,11 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="orario-alle" className="block text-sm font-medium text-gray-700 mb-1">
                     Alle
                   </label>
                   <input
+                    id="orario-alle"
                     type="time"
                     value={formData.orario_richiamata_a}
                     onChange={(e) => setFormData(prev => ({
@@ -219,10 +223,11 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
 
             {/* Note */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="note-chiamata" className="block text-sm font-medium text-gray-700 mb-1">
                 Note
               </label>
               <textarea
+                id="note-chiamata"
                 value={formData.note_chiamata}
                 onChange={(e) => setFormData(prev => ({
                   ...prev,

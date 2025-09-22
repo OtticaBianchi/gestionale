@@ -73,7 +73,7 @@ export default function PaymentPlanSetup({
   };
 
   const getTotalInstallments = () => {
-    return installments.reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0);
+    return installments.reduce((sum, i) => sum + (Number.parseFloat(i.amount) || 0), 0);
   };
 
   const getBalance = () => {
@@ -83,7 +83,7 @@ export default function PaymentPlanSetup({
   const isValidInstallmentPlan = () => {
     if (paymentType !== 'installments') return true;
 
-    const hasAllAmounts = installments.every(i => i.amount && parseFloat(i.amount) > 0);
+    const hasAllAmounts = installments.every(i => i.amount && Number.parseFloat(i.amount) > 0);
     const hasAllDates = installments.every(i => i.dueDate);
     const balanceIsZero = Math.abs(getBalance()) < 0.01;
 
@@ -131,7 +131,7 @@ export default function PaymentPlanSetup({
           payment_plan_id: plan.id,
           installment_number: index + 1,
           due_date: inst.dueDate,
-          expected_amount: parseFloat(inst.amount),
+          expected_amount: Number.parseFloat(inst.amount),
           paid_amount: 0,
           is_completed: false,
           reminder_3_days_sent: false,
@@ -221,9 +221,21 @@ export default function PaymentPlanSetup({
             <h3 className="text-lg font-medium text-gray-900">Modalità di Pagamento</h3>
 
             {/* Saldo Unico */}
-            <div className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-              paymentType === 'saldo_unico' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-            }`} onClick={() => setPaymentType('saldo_unico')}>
+            <div
+              className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                paymentType === 'saldo_unico' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+              onClick={() => setPaymentType('saldo_unico')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setPaymentType('saldo_unico')
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label="Seleziona pagamento in saldo unico"
+            >
               <div className="flex items-center">
                 <input
                   type="radio"
@@ -241,9 +253,21 @@ export default function PaymentPlanSetup({
             </div>
 
             {/* Installments */}
-            <div className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-              paymentType === 'installments' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-            }`} onClick={() => setPaymentType('installments')}>
+            <div
+              className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                paymentType === 'installments' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+              onClick={() => setPaymentType('installments')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setPaymentType('installments')
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label="Seleziona pagamento rateale"
+            >
               <div className="flex items-center">
                 <input
                   type="radio"
@@ -261,9 +285,21 @@ export default function PaymentPlanSetup({
             </div>
 
             {/* Bank Financing */}
-            <div className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-              paymentType === 'finanziamento_bancario' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-            }`} onClick={() => setPaymentType('finanziamento_bancario')}>
+            <div
+              className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                paymentType === 'finanziamento_bancario' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+              }`}
+              onClick={() => setPaymentType('finanziamento_bancario')}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setPaymentType('finanziamento_bancario')
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label="Seleziona finanziamento bancario"
+            >
               <div className="flex items-center">
                 <input
                   type="radio"
@@ -362,9 +398,21 @@ export default function PaymentPlanSetup({
                 <h5 className="font-medium text-gray-900">📧 Gestione Promemoria</h5>
 
                 <div className="space-y-2">
-                  <div className={`border rounded-lg p-3 cursor-pointer ${
-                    reminderPreference === 'automatic' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                  }`} onClick={() => setReminderPreference('automatic')}>
+                  <div
+                    className={`border rounded-lg p-3 cursor-pointer ${
+                      reminderPreference === 'automatic' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}
+                    onClick={() => setReminderPreference('automatic')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setReminderPreference('automatic')
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Seleziona promemoria automatici"
+                  >
                     <div className="flex items-center">
                       <input
                         type="radio"
@@ -382,9 +430,21 @@ export default function PaymentPlanSetup({
                     </div>
                   </div>
 
-                  <div className={`border rounded-lg p-3 cursor-pointer ${
-                    reminderPreference === 'manual' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-                  }`} onClick={() => setReminderPreference('manual')}>
+                  <div
+                    className={`border rounded-lg p-3 cursor-pointer ${
+                      reminderPreference === 'manual' ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    }`}
+                    onClick={() => setReminderPreference('manual')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setReminderPreference('manual')
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Seleziona promemoria manuali"
+                  >
                     <div className="flex items-center">
                       <input
                         type="radio"

@@ -8,14 +8,14 @@ import { createClient } from '@supabase/supabase-js'
 // Manager/Admin endpoint to update safe operational fields on ordini_materiali
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     if (!id) return NextResponse.json({ error: 'ID mancante' }, { status: 400 })
 
     // Auth + role check
-    const server = createServerSupabaseClient()
+    const server = await createServerSupabaseClient()
     const { data: { user } } = await server.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     const { data: profile } = await server

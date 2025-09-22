@@ -59,7 +59,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     if (!formData.cliente_nome.trim() || formData.cliente_nome.length < 2) {
       newErrors.cliente_nome = 'Nome obbligatorio (min 2 caratteri)';
     }
-    if (!formData.cliente_data_nascita || isNaN(Date.parse(formData.cliente_data_nascita))) {
+    if (!formData.cliente_data_nascita || Number.isNaN(Date.parse(formData.cliente_data_nascita))) {
       newErrors.cliente_data_nascita = 'Data nascita obbligatoria';
     }
     if (!formData.cliente_telefono || formData.cliente_telefono.replace(/\D/g, '').length < 9) {
@@ -293,9 +293,10 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cognome *</label>
-                <input 
-                  type="text" 
+                <label htmlFor="cliente-cognome" className="block text-sm font-medium text-gray-700 mb-1">Cognome *</label>
+                <input
+                  id="cliente-cognome"
+                  type="text"
                   value={formData.cliente_cognome}
                   onChange={(e) => handleInputChange('cliente_cognome', e.target.value)}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
@@ -309,9 +310,10 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
-                <input 
-                  type="text" 
+                <label htmlFor="cliente-nome" className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+                <input
+                  id="cliente-nome"
+                  type="text"
                   value={formData.cliente_nome}
                   onChange={(e) => handleInputChange('cliente_nome', e.target.value)}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
@@ -325,9 +327,10 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Data Nascita *</label>
-                <input 
-                  type="date" 
+                <label htmlFor="cliente-data-nascita" className="block text-sm font-medium text-gray-700 mb-1">Data Nascita *</label>
+                <input
+                  id="cliente-data-nascita"
+                  type="date"
                   value={formData.cliente_data_nascita}
                   onChange={(e) => handleInputChange('cliente_data_nascita', e.target.value)}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
@@ -341,8 +344,9 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
 
               {/* ✅ CAMPO GENERE */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Genere</label>
-                <select 
+                <label htmlFor="cliente-genere" className="block text-sm font-medium text-gray-700 mb-1">Genere</label>
+                <select
+                  id="cliente-genere"
                   value={formData.cliente_genere}
                   onChange={(e) => handleInputChange('cliente_genere', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -354,9 +358,10 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Telefono *</label>
-                <input 
-                  type="tel" 
+                <label htmlFor="cliente-telefono" className="block text-sm font-medium text-gray-700 mb-1">Telefono *</label>
+                <input
+                  id="cliente-telefono"
+                  type="tel"
                   value={formData.cliente_telefono}
                   onChange={(e) => handleInputChange('cliente_telefono', e.target.value)}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
@@ -370,9 +375,10 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input 
-                  type="email" 
+                <label htmlFor="cliente-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  id="cliente-email"
+                  type="email"
                   value={formData.cliente_email}
                   onChange={(e) => handleInputChange('cliente_email', e.target.value)}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
@@ -387,8 +393,9 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
 
               {/* Note Cliente */}
               <div className="md:col-span-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Note Cliente</label>
-                <textarea 
+                <label htmlFor="cliente-note" className="block text-sm font-medium text-gray-700 mb-1">Note Cliente</label>
+                <textarea
+                  id="cliente-note"
                   value={formData.cliente_note}
                   onChange={(e) => handleInputChange('cliente_note', e.target.value)}
                   rows={2}
@@ -411,8 +418,9 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo Lavorazione</label>
-                <select 
+                <label htmlFor="tipo-lavorazione" className="block text-sm font-medium text-gray-700 mb-1">Tipo Lavorazione</label>
+                <select
+                  id="tipo-lavorazione"
                   value={formData.tipo_lavorazione}
                   onChange={(e) => handleInputChange('tipo_lavorazione', e.target.value)}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -464,8 +472,9 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Note Generali</label>
-                <textarea 
+                <label htmlFor="note-generali" className="block text-sm font-medium text-gray-700 mb-1">Note Generali</label>
+                <textarea
+                  id="note-generali"
                   value={formData.note_generali}
                   onChange={(e) => handleInputChange('note_generali', e.target.value)}
                   rows={3}

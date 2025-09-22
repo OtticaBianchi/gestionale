@@ -20,9 +20,9 @@ const TABLES_WITH_UPDATED_AT = new Set([
   'fornitori_sport',
 ])
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = createServerSupabaseClient()
+    const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
     const tipo = searchParams.get('tipo') || ''
     const payload = await request.json()
@@ -49,7 +49,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const { createClient } = await import('@supabase/supabase-js')
     const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
-    const { data, error } = await admin.from(table).update(updates).eq('id', params.id).select(selectable).single()
+    const { id } = await params
+    const { data, error } = await admin.from(table).update(updates).eq('id', id).select(selectable).single()
     if (error) throw error
     return NextResponse.json({ item: data })
   } catch (e: any) {

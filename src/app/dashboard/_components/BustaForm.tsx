@@ -27,7 +27,7 @@ type WorkType = Database['public']['Enums']['work_type'];
 const formSchema = z.object({
   cliente_cognome: z.string().min(2, "Il cognome è obbligatorio"),
   cliente_nome: z.string().min(2, "Il nome è obbligatorio"),
-  cliente_data_nascita: z.string().refine(val => val && !isNaN(Date.parse(val)), { message: "Data non valida" }),
+  cliente_data_nascita: z.string().refine(val => val && !Number.isNaN(Date.parse(val)), { message: "Data non valida" }),
   cliente_telefono: z.string().min(9, "Numero di cellulare non valido"),
   cliente_email: z.string().email("Email non valida").optional().or(z.literal('')),
   tipo_lavorazione: z.string().optional(),

@@ -282,9 +282,10 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
         {busta.clienti ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-500">Nome *</label>
+              <label htmlFor="edit-cliente-nome" className="block text-sm font-medium text-gray-500">Nome *</label>
               {canEdit && isEditing ? (
                 <input
+                  id="edit-cliente-nome"
                   type="text"
                   value={editForm.cliente_nome}
                   onChange={(e) => setEditForm(prev => ({ ...prev, cliente_nome: e.target.value }))}
@@ -297,9 +298,10 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-500">Cognome *</label>
+              <label htmlFor="edit-cliente-cognome" className="block text-sm font-medium text-gray-500">Cognome *</label>
               {canEdit && isEditing ? (
                 <input
+                  id="edit-cliente-cognome"
                   type="text"
                   value={editForm.cliente_cognome}
                   onChange={(e) => setEditForm(prev => ({ ...prev, cliente_cognome: e.target.value }))}
@@ -312,9 +314,10 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-500">Data di Nascita</label>
+              <label htmlFor="edit-cliente-data-nascita" className="block text-sm font-medium text-gray-500">Data di Nascita</label>
               {canEdit && isEditing ? (
                 <input
+                  id="edit-cliente-data-nascita"
                   type="date"
                   value={editForm.cliente_data_nascita}
                   onChange={(e) => setEditForm(prev => ({ ...prev, cliente_data_nascita: e.target.value }))}
@@ -332,9 +335,10 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
 
             {/* ✅ NUOVO CAMPO GENERE */}
             <div>
-              <label className="block text-sm font-medium text-gray-500">Genere</label>
+              <label htmlFor="edit-cliente-genere" className="block text-sm font-medium text-gray-500">Genere</label>
               {canEdit && isEditing ? (
                 <select
+                  id="edit-cliente-genere"
                   value={editForm.cliente_genere || ''}
                   onChange={(e) => setEditForm(prev => ({ 
                     ...prev, 
@@ -356,9 +360,10 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-500">Telefono</label>
+              <label htmlFor="edit-cliente-telefono" className="block text-sm font-medium text-gray-500">Telefono</label>
               {canEdit && isEditing ? (
                 <input
+                  id="edit-cliente-telefono"
                   type="tel"
                   value={editForm.cliente_telefono}
                   onChange={(e) => setEditForm(prev => ({ ...prev, cliente_telefono: e.target.value }))}
@@ -378,9 +383,10 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-500">Email</label>
+              <label htmlFor="edit-cliente-email" className="block text-sm font-medium text-gray-500">Email</label>
               {canEdit && isEditing ? (
                 <input
+                  id="edit-cliente-email"
                   type="email"
                   value={editForm.cliente_email}
                   onChange={(e) => setEditForm(prev => ({ ...prev, cliente_email: e.target.value }))}
@@ -400,9 +406,10 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
             </div>
             
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-500">Note Cliente</label>
+              <label htmlFor="edit-cliente-note" className="block text-sm font-medium text-gray-500">Note Cliente</label>
               {canEdit && isEditing ? (
                 <textarea
+                  id="edit-cliente-note"
                   value={editForm.cliente_note}
                   onChange={(e) => setEditForm(prev => ({ ...prev, cliente_note: e.target.value }))}
                   rows={2}

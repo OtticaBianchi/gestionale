@@ -640,7 +640,7 @@ export default function VoiceNotesPage() {
               <option value="completed">Completate</option>
             </select>
             <button
-              onClick={fetchVoiceNotes}
+              onClick={() => fetchVoiceNotes()}
               className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
             >
               Aggiorna
@@ -980,7 +980,9 @@ export default function VoiceNotesPage() {
       </div>
 
       {/* Audio element for playback */}
-      <audio ref={audioRef} className="hidden" />
+      <audio ref={audioRef} className="hidden">
+        <track kind="captions" src="" srcLang="it" label="Italian" />
+      </audio>
     </div>
   );
 }

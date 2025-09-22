@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 // BYPASS endpoint for testing follow-up generation with minimal filters
 export async function POST() {
   try {
-    const supabase = createServerSupabaseClient()
+    const supabase = await createServerSupabaseClient()
 
     // Verifica autenticazione
     const { data: { user }, error: authError } = await supabase.auth.getUser()

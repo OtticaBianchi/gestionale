@@ -1009,6 +1009,54 @@ export type Database = {
           },
         ]
       }
+      kanban_update_logs: {
+        Row: {
+          id: string
+          busta_id: string
+          from_status: string
+          to_status: string
+          user_id: string
+          note: string | null
+          metadata: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          busta_id: string
+          from_status: string
+          to_status: string
+          user_id: string
+          note?: string | null
+          metadata?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          busta_id?: string
+          from_status?: string
+          to_status?: string
+          user_id?: string
+          note?: string | null
+          metadata?: Json | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kanban_update_logs_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: false
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kanban_update_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tipi_lavorazione: {
         Row: {
           codice: string

@@ -179,6 +179,15 @@ export default function Sidebar({ className = '' }: SidebarProps) {
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
           onClick={() => setIsMobileOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              setIsMobileOpen(false)
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="Chiudi menu"
         />
       )}
 

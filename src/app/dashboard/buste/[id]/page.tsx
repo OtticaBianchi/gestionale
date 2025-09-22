@@ -25,13 +25,13 @@ type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
 };
 
 interface BustaDetailPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export default async function BustaDetailPage({ params }: BustaDetailPageProps) {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -93,7 +93,7 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
         updated_at
       )
     `)
-    .eq('id', params.id)
+    .eq('id', (await params).id)
     .order('data_ingresso', { 
       ascending: false,
       foreignTable: 'status_history' 

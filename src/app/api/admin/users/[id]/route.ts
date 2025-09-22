@@ -9,16 +9,16 @@ import { strictRateLimit } from '@/lib/rate-limit'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   // Rate limit
   const rl = await strictRateLimit(request)
   if (rl) return rl
 
-  const { id } = params
+  const { id } = await params
   if (!id) return NextResponse.json({ error: 'User ID mancante' }, { status: 400 })
 
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -97,16 +97,16 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   // Rate limit strictly for destructive action
   const rl = await strictRateLimit(request)
   if (rl) return rl
 
-  const { id } = params
+  const { id } = await params
   if (!id) return NextResponse.json({ error: 'User ID mancante' }, { status: 400 })
 
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

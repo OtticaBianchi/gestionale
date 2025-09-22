@@ -3,7 +3,7 @@
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export default async function testDatabaseQuery() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
 
   try {
     console.log('Fetching buste from database...');

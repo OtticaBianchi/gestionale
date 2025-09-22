@@ -8,7 +8,7 @@ import { ArrowLeft, User, Shield, Bell, Palette, Download, HelpCircle } from 'lu
 export const dynamic = 'force-dynamic';
 
 export default async function SettingsPage() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -92,8 +92,9 @@ export default async function SettingsPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Nome Completo</label>
+                <label htmlFor="settings-full-name" className="block text-sm font-medium text-gray-700 mb-2">Nome Completo</label>
                 <input
+                  id="settings-full-name"
                   type="text"
                   value={profile?.full_name || ''}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
@@ -103,8 +104,9 @@ export default async function SettingsPage() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                <label htmlFor="settings-email" className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                 <input
+                  id="settings-email"
                   type="email"
                   value={user.email || ''}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
@@ -114,8 +116,9 @@ export default async function SettingsPage() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Ruolo</label>
+                <label htmlFor="settings-role" className="block text-sm font-medium text-gray-700 mb-2">Ruolo</label>
                 <input
+                  id="settings-role"
                   type="text"
                   value={profile?.role || 'operatore'}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
@@ -124,8 +127,9 @@ export default async function SettingsPage() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Ultimo Accesso</label>
+                <label htmlFor="settings-last-access" className="block text-sm font-medium text-gray-700 mb-2">Ultimo Accesso</label>
                 <input
+                  id="settings-last-access"
                   type="text"
                   value={user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('it-IT') : 'N/A'}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"

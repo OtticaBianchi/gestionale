@@ -4,11 +4,11 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 // PATCH - Aggiorna stato chiamata
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createServerSupabaseClient()
-    const { id } = params
+    const supabase = await createServerSupabaseClient()
+    const { id } = await params
     const updateData = await request.json()
 
     // Verifica autenticazione
@@ -90,11 +90,11 @@ export async function PATCH(
 // DELETE - Cancella chiamata (soft delete -> archivia)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = createServerSupabaseClient()
-    const { id } = params
+    const supabase = await createServerSupabaseClient()
+    const { id } = await params
 
     // Verifica autenticazione
     const { data: { user }, error: authError } = await supabase.auth.getUser()

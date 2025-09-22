@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 // DEBUG endpoint to inspect database state for follow-up generation
 export async function GET() {
   try {
-    const supabase = createServerSupabaseClient()
+    const supabase = await createServerSupabaseClient()
 
     // Verifica autenticazione
     const { data: { user }, error: authError } = await supabase.auth.getUser()
