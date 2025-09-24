@@ -38,6 +38,7 @@ import LavorazioneTab from './tabs/LavorazioneTab';
 import NotificheTab from './tabs/NotificheTab';
 import PagamentoTab from './tabs/PagamentoTab';
 import BustaInfoSidebar from './shared/BustaInfoSidebar';
+import QuickAddErrorForm from '@/components/error-tracking/QuickAddErrorForm';
 
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
   clienti: Database['public']['Tables']['clienti']['Row'] | null;
@@ -93,6 +94,9 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
   const [deleteStep, setDeleteStep] = useState(1);
   const [isDeleting, setIsDeleting] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+
+  // Error tracking modal state
+  const [showErrorForm, setShowErrorForm] = useState(false);
 
   const router = useRouter();
   const supabase = createBrowserClient<Database>(
@@ -316,17 +320,31 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                 </p>
               </div>
 
-              {/* ===== PULSANTE DELETE - SOLO PER ADMIN ===== */}
-              {userRole === 'admin' && (
-                <button
-                  onClick={() => setShowDeleteModal(true)}
-                  className="flex items-center space-x-2 px-3 py-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors border border-red-200 shadow-sm"
-                  title="Cancella busta (solo amministratore)"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span className="text-sm font-medium">Elimina</span>
-                </button>
-              )}
+              <div className="flex items-center space-x-3">
+                {/* ===== PULSANTE SEGNALA ERRORE - PER MANAGER/ADMIN ===== */}
+                {(userRole === 'admin' || userRole === 'manager') && (
+                  <button
+                    onClick={() => setShowErrorForm(true)}
+                    className="flex items-center space-x-2 px-3 py-2 bg-orange-50 text-orange-600 rounded-md hover:bg-orange-100 transition-colors border border-orange-200 shadow-sm"
+                    title="Segnala errore su questa busta"
+                  >
+                    <AlertTriangle className="w-4 h-4" />
+                    <span className="text-sm font-medium">Segnala Errore</span>
+                  </button>
+                )}
+
+                {/* ===== PULSANTE DELETE - SOLO PER ADMIN ===== */}
+                {userRole === 'admin' && (
+                  <button
+                    onClick={() => setShowDeleteModal(true)}
+                    className="flex items-center space-x-2 px-3 py-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors border border-red-200 shadow-sm"
+                    title="Cancella busta (solo amministratore)"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="text-sm font-medium">Elimina</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -412,9 +430,21 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
           <div className="lg:col-span-1">
             <BustaInfoSidebar busta={busta} />
           </div>
-          
+
         </div>
       </div>
+
+      {/* Error Tracking Modal */}
+      <QuickAddErrorForm
+        isOpen={showErrorForm}
+        onClose={() => setShowErrorForm(false)}
+        onSuccess={() => {
+          setShowErrorForm(false);
+          // Optionally refresh data or show success message
+        }}
+        prefilledBustaId={busta.id}
+        prefilledClienteId={busta.clienti?.id}
+      />
     </div>
   );
 }

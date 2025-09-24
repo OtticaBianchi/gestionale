@@ -24,6 +24,8 @@
     "chrono-node": "^2.8.4",
     "dotenv": "^17.2.1",
     "form-data": "^4.0.4",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.3",
     "lucide-react": "^0.525.0",
     "multer": "^2.0.2",
     "next": "^15.5.3",

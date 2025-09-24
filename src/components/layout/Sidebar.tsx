@@ -20,7 +20,8 @@ import {
   Building2,
   Activity,
   Mail,
-  RotateCcw
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react';
 import SidebarSection from './SidebarSection';
 import SidebarItem from './SidebarItem';
@@ -263,6 +264,12 @@ export default function Sidebar({ className = '' }: SidebarProps) {
               label="Ricerca Avanzata"
               isCollapsed={isCollapsed}
               disabled={userRole === 'operatore'}
+            />
+            <SidebarItem
+              href="/errori"
+              icon={AlertTriangle}
+              label="Tracciamento Errori"
+              isCollapsed={isCollapsed}
             />
             <SidebarItem
               href="/modules/archive"
