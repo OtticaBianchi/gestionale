@@ -5,7 +5,7 @@
 ## 🏗️ Application Overview
 
 **Tech Stack:**
-- **Frontend:** Next.js 14 (App Router), React, TypeScript, Tailwind CSS
+- **Frontend:** Next.js 15 (App Router), React, TypeScript, Tailwind CSS
 - **Backend:** Next.js API Routes, Supabase (PostgreSQL)
 - **Authentication:** Supabase Auth
 - **File Storage:** Supabase Storage
@@ -24,6 +24,7 @@ src/
 │   ├── dashboard/         # Main application interface
 │   ├── admin/             # Admin-only pages
 │   ├── modules/           # Role-based modules
+│   ├── procedure/         # Procedures management system
 │   └── profile/           # User profile & management
 ├── components/            # Reusable UI components
 ├── context/               # React context providers
@@ -282,17 +283,17 @@ Key Derived Values (for UI and reports):
 
 UI and Flow:
 - MaterialiTab (`/dashboard/buste/[id]` → Materiali)
-  - New “Conferma ordine + Acconto” action: enter Deposit amount, Method, Reference/Note, Date (defaults to today); or "Nessun acconto".
+  - New "Conferma ordine + Acconto" action: enter Deposit amount, Method, Reference/Note, Date (defaults to today); or "Nessun acconto".
   - On submit: creates a `payments` row with purpose=deposit; sets `plan_type='deposit_then_balance'` and `status='awaiting_delivery'`; moves busta to `materiali_ordinati`.
 - PagamentiTab
   - Always-visible header: Total | Paid | Outstanding | Status badge.
-  - “Imposta totale” (editable until delivery) if not already computed via items.
-  - At `pronto_ritiro`: primary CTA “Registra saldo” (prefill Outstanding); on success, if Outstanding=0 → suggest “Segna consegnato_pagato”.
+  - "Imposta totale" (editable until delivery) if not already computed via items.
+  - At `pronto_ritiro`: primary CTA "Registra saldo" (prefill Outstanding); on success, if Outstanding=0 → suggest "Segna consegnato_pagato".
   - Friendly plan: quick presets (2 or 3 rate) to suggest amounts/dates; still record actual cash-ins as `payments` (no hard schedule table required).
   - Consumer credit: record one payment with method=credit; store provider/contract; status becomes `paid`.
 
 Busta Closure and Archive:
-- When Outstanding = 0, surface a prominent “Chiudi busta” action to move to `consegnato_pagato`.
+- When Outstanding = 0, surface a prominent "Chiudi busta" action to move to `consegnato_pagato`.
 - Auto-archive: after 7 days in `consegnato_pagato`, the busta no longer appears in active Kanban (kept for history and reports).
 
 API Endpoints:
@@ -313,6 +314,133 @@ Reporting (first-class):
 - Staff performance: sum by `received_by`.
 
 Implementation Note (ASAP): prioritize this module to unlock reliable revenue dashboards and reduce missed installments.
+
+---
+
+### 7. **FOLLOW-UP SYSTEM** ✅ **COMPLETED**
+
+**Purpose**: Automated post-sale customer satisfaction call tracking with intelligent prioritization based on purchase value and type.
+
+**Interface**: `/dashboard/follow-up`
+- Call list management with priority-based sorting
+- Real-time statistics dashboard with multiple time views
+- Enhanced statistics with trend analysis and performance insights
+- Integration with existing customer and busta data
+
+**Database Schema**:
+```sql
+follow_up_chiamate (
+  id UUID PRIMARY KEY,
+  busta_id UUID REFERENCES buste(id),
+  data_generazione DATE DEFAULT CURRENT_DATE,
+  data_chiamata TIMESTAMP,
+  operatore_id UUID REFERENCES profiles(id),
+  stato_chiamata TEXT CHECK (stato_chiamata IN ('da_chiamare', 'chiamato_completato', 'non_vuole_essere_contattato', 'non_risponde', 'cellulare_staccato', 'numero_sbagliato', 'richiamami')),
+  livello_soddisfazione TEXT CHECK (livello_soddisfazione IN ('molto_soddisfatto', 'soddisfatto', 'poco_soddisfatto', 'insoddisfatto')),
+  note_chiamata TEXT,
+  orario_richiamata_da TIME,
+  orario_richiamata_a TIME,
+  priorita TEXT CHECK (priorita IN ('alta', 'normale', 'bassa'))
+)
+
+statistiche_follow_up (
+  id UUID PRIMARY KEY,
+  data_riferimento DATE DEFAULT CURRENT_DATE,
+  operatore_id UUID REFERENCES profiles(id),
+  chiamate_totali INTEGER DEFAULT 0,
+  chiamate_completate INTEGER DEFAULT 0,
+  molto_soddisfatti INTEGER DEFAULT 0,
+  soddisfatti INTEGER DEFAULT 0,
+  poco_soddisfatti INTEGER DEFAULT 0,
+  insoddisfatti INTEGER DEFAULT 0
+)
+```
+
+**Smart Prioritization Logic**:
+- **Alta**: €400+ OCV/OV (complete glasses with lenses) - immediate calls
+- **Normale**: First LAC purchase OR €100+ LV (lenses only) - standard calls
+- **Bassa**: €400+ OS (sunglasses) - end of list calls
+- **WhatsApp Only**: OS €100-400 (future implementation)
+
+**Call Generation**:
+- Automatic generation for buste delivered 14-7 days ago
+- Excludes already processed calls
+- Priority-based ordering
+- Product descriptions included for context
+
+**Statistics & Analytics**:
+- Multiple time views (day, week, month, quarter, semester, year)
+- Per-operator performance tracking
+- Real-time insights and recommendations
+- Completion rates and satisfaction metrics
+
+**Integration Points**:
+- Links with buste and cliente data
+- LAC first purchase tracking in MaterialiTab
+- Follow-up button in DashboardActions.tsx
+
+---
+
+### 8. **ERROR TRACKING SYSTEM** ✅ **COMPLETED**
+
+**Purpose**: Comprehensive team performance monitoring with error cost tracking and automated warning letter generation.
+
+**Interface**: `/errori`
+- Role-based access (operatore: view only, manager/admin: write access)
+- Error registration with automatic cost estimation
+- Performance analytics with employee ranking
+- Automated report generation (weekly to annual)
+
+**Database Schema**:
+```sql
+error_tracking (
+  id UUID PRIMARY KEY,
+  busta_id UUID REFERENCES buste(id),
+  employee_id UUID REFERENCES profiles(id),
+  cliente_id UUID REFERENCES clienti(id),
+  error_type TEXT,                           -- anagrafica_cliente, materiali_ordine, etc.
+  error_category TEXT CHECK (error_category IN ('critico', 'medio', 'basso')),
+  error_description TEXT NOT NULL,
+  cost_type TEXT CHECK (cost_type IN ('real', 'estimate')),
+  cost_amount DECIMAL(10,2) NOT NULL,
+  cost_detail TEXT,
+  client_impacted BOOLEAN DEFAULT FALSE,
+  requires_reorder BOOLEAN DEFAULT FALSE,
+  time_lost_minutes INTEGER DEFAULT 0,
+  reported_by UUID REFERENCES profiles(id),
+  resolution_status TEXT CHECK (resolution_status IN ('open', 'in_progress', 'resolved', 'cannot_resolve')),
+  reported_at TIMESTAMP DEFAULT NOW()
+)
+```
+
+**Error Categories**:
+- **Critico** (€200-500): Major rework, lost clients, significant problems
+- **Medio** (€50-200): Callbacks, delays, moderate issues
+- **Basso** (€5-50): Minor corrections, small mistakes
+
+**Error Types**:
+- anagrafica_cliente, materiali_ordine, comunicazione_cliente
+- misurazioni_vista, controllo_qualita, consegna_prodotto
+- gestione_pagamenti, voice_note_processing, busta_creation, altro
+
+**Warning Letter System**:
+- **Verbal Warnings**: Record-only entries
+- **Written Warnings**: PDF generation with company letterhead
+- **Disciplinary Actions**: Formal letters with legal language
+- **Email Delivery**: Automated sending with PDF attachments
+- **Templates**: Pre-formatted with employee statistics and error details
+
+**Reporting System**:
+- **HTML Reports**: Weekly, monthly, quarterly, semestral, annual
+- **Automated Generation**: One-click report creation with full styling
+- **Performance Analytics**: Employee ranking, cost analysis, trend monitoring
+- **Export Options**: Downloadable HTML files with complete formatting
+
+**Cost Tracking**:
+- **Real Costs**: Actual expenses with detailed breakdown
+- **Estimated Costs**: Automatic calculation based on error type/category
+- **Time Tracking**: Minutes lost per error for productivity analysis
+- **Total Impact**: Comprehensive cost analysis per employee/period
 
 ## 🔌 API Endpoints Structure
 
@@ -337,6 +465,23 @@ Implementation Note (ASAP): prioritize this module to unlock reliable revenue da
 ├── buste/
 │   └── [id]/
 │       └── finance/      # PATCH - Update finance (plan_type, totals, due dates)
+├── follow-up/            # Follow-up system
+│   ├── route.ts          # GET/POST - List/generate calls
+│   ├── calls/            # GET - List calls with filters
+│   ├── calls/[id]/       # PATCH - Update call status
+│   ├── generate/         # POST - Generate new call lists
+│   ├── statistics/       # GET - Performance statistics
+│   ├── statistics-enhanced/ # GET - Enhanced analytics
+│   ├── debug/            # GET - Debug database state
+│   └── generate-bypass/  # POST - Testing bypass generation
+├── error-tracking/       # Error tracking system
+│   ├── route.ts          # GET/POST/PATCH - List/create/update errors
+│   ├── report/           # POST - Generate HTML reports
+│   ├── weekly-report/    # POST - Generate weekly reports
+│   └── warning-letters/  # POST - Generate warning letters
+├── fornitori/            # Supplier management
+│   ├── route.ts          # GET/POST - List/create suppliers
+│   └── [id]/             # PATCH - Update supplier
 └── telegram/             # Telegram integration
     └── webhook/          # POST - Telegram webhook
 ```
@@ -562,35 +707,174 @@ Order Management → Dashboard
 
 ---
 
-## 🔄 Recent Changes (Voice Notes, Orders, Suppliers)
+## 🔄 Recent Changes (Voice Notes, Orders, Suppliers, Follow-up, Error Tracking)
 
 What changed in this iteration:
 
-- Voice Notes
-  - Compact UI: smaller cards, denser grid, trimmed typography for faster scanning in `/dashboard/voice-notes`.
-  - Link actions: from the search panel, admins can now:
-    - “Collega al Cliente” → sets `voice_notes.cliente_id`.
-    - “Collega qui” on any busta → sets `voice_notes.busta_id` (and `cliente_id` accordingly).
-  - Auto-transcription at ingest: the Telegram webhook invokes AssemblyAI as soon as the audio arrives, saving the transcript in `voice_notes.transcription` so the card è già leggibile in dashboard. Linking to una busta con `redo_transcription = true` può comunque rigenerare il testo e aggiornare il blocco `[VoiceNote <id>]` in `buste.note_generali`.
-  - Webhook simplified for serverless: `/api/telegram/webhook` now processes Telegram updates directly (no bot class instantiation). It validates the secret header, downloads the file via Telegram API, saves a `voice_notes` row, and returns immediately. Idempotent by `telegram_message_id`.
-  - Serverless FS safety: temp writes use `/tmp` only; most processing is in‑memory.
-  - No auto‑transcription in webhook: notes remain `pending` until linked to a busta; transcription is triggered by link actions only.
-  - Audio retention: audio payload is purged after 7 days from completion (`processed_at`) to save DB space (we keep metadata and transcription). Admin GET on the list triggers a cleanup update; a dedicated cron endpoint is planned.
+### **Voice Notes System**
+- Compact UI: smaller cards, denser grid, trimmed typography for faster scanning in `/dashboard/voice-notes`.
+- Link actions: from the search panel, admins can now:
+  - "Collega al Cliente" → sets `voice_notes.cliente_id`.
+  - "Collega qui" on any busta → sets `voice_notes.busta_id` (and `cliente_id` accordingly).
+- Auto-transcription at ingest: the Telegram webhook invokes AssemblyAI as soon as the audio arrives, saving the transcript in `voice_notes.transcription` so the card è già leggibile in dashboard. Linking to una busta con `redo_transcription = true` può comunque rigenerare il testo e aggiornare il blocco `[VoiceNote <id>]` in `buste.note_generali`.
+- Webhook simplified for serverless: `/api/telegram/webhook` now processes Telegram updates directly (no bot class instantiation). It validates the secret header, downloads the file via Telegram API, saves a `voice_notes` row, and returns immediately. Idempotent by `telegram_message_id`.
+- Serverless FS safety: temp writes use `/tmp` only; most processing is in‑memory.
+- Audio retention: audio payload is purged after 7 days from completion (`processed_at`) to save DB space (we keep metadata and transcription). Admin GET on the list triggers a cleanup update; a dedicated cron endpoint is planned.
 
-- Orders (Filtri Ordini)
-  - “Chiama” replaced with “Apri portale”: supplier portal link opens in a new tab if `web_address` is set; email button remains.
-  - Method badge prefers `Portale` when URL exists.
-  - Quick access button “Gestisci fornitori” added to `/dashboard/filtri-ordini` header.
+### **Orders & Suppliers System**
+- "Chiama" replaced with "Apri portale": supplier portal link opens in a new tab if `web_address` is set; email button remains.
+- Method badge prefers `Portale` when URL exists.
+- Quick access button "Gestisci fornitori" added to `/dashboard/filtri-ordini` header.
+- New page: `/modules/fornitori` (manager/admin) with tabs for categories and inline edit.
+- Fields: `nome`, `referente_nome`, `telefono`, `email`, `web_address`, `tempi_consegna_medi`, `note`.
+- API: `GET/POST /api/fornitori?tipo=...` and `PATCH /api/fornitori/[id]?tipo=...` (service-role after role check).
+- DB: added `referente_nome` to all supplier tables via `scripts/add_supplier_referente.sql`.
+- Seeds: placeholder portals in `scripts/seed_supplier_portals.sql`.
 
-- Suppliers Management (Manager)
-  - New page: `/modules/fornitori` (manager/admin) with tabs for categories and inline edit.
-  - Fields: `nome`, `referente_nome`, `telefono`, `email`, `web_address`, `tempi_consegna_medi`, `note`.
-  - API: `GET/POST /api/fornitori?tipo=...` and `PATCH /api/fornitori/[id]?tipo=...` (service-role after role check).
-  - DB: added `referente_nome` to all supplier tables via `scripts/add_supplier_referente.sql`.
-  - Seeds: placeholder portals in `scripts/seed_supplier_portals.sql`.
+### **Follow-up System** ✅ **COMPLETED (Sept 14, 2025)**
+- **Purpose**: Automated post-sale customer satisfaction call tracking
+- **Interface**: `/dashboard/follow-up` with call management and real-time statistics
+- **Database**: `follow_up_chiamate`, `statistiche_follow_up` tables
+- **Smart Prioritization Logic**:
+  - **Alta**: €400+ OCV/OV (lenses + frames)
+  - **Normale**: First LAC purchase or €100+ LV (lenses only)
+  - **Bassa**: €400+ OS (sunglasses)
+- **Call States**: da_chiamare, chiamato_completato, non_vuole_essere_contattato, non_risponde, cellulare_staccato, numero_sbagliato, richiamami
+- **Satisfaction Levels**: molto_soddisfatto, soddisfatto, poco_soddisfatto, insoddisfatto
+- **Time-based Generation**: Automatic list creation for deliveries 14-7 days ago
+- **Statistics Dashboard**: Multiple time views (day/week/month), operator performance tracking
+- **LAC First Purchase**: Checkbox in MaterialiTab for tracking first LAC orders
+- **Enhanced Features**: Debugging tools, enhanced statistics, product descriptions display
+
+### **Error Tracking System** ✅ **COMPLETED**
+- **Purpose**: Comprehensive team performance monitoring and error cost tracking
+- **Interface**: `/errori` with role-based access (operatore view, manager/admin write)
+- **Database**: `error_tracking` table with complete audit trail
+- **Error Categories**:
+  - **Critico**: €200-500 range (major rework, lost clients)
+  - **Medio**: €50-200 range (callbacks, delays)
+  - **Basso**: €5-50 range (minor corrections)
+- **Error Types**: anagrafica_cliente, materiali_ordine, comunicazione_cliente, misurazioni_vista, controllo_qualita, consegna_prodotto, gestione_pagamenti, voice_note_processing, busta_creation, altro
+- **Letter Generation System**:
+  - Verbal warnings (record only)
+  - Written warnings (PDF generation)
+  - Disciplinary actions (formal letters)
+  - Email delivery system with attachments
+- **Automated Reporting**: Weekly, monthly, quarterly, semestral, annual HTML reports
+- **Cost Tracking**: Real vs estimated costs, automatic calculation, time lost tracking
+- **Performance Analytics**: Employee ranking, cost analysis, trend monitoring
+- **Integration**: Links to buste and clienti for context
 
 Notes:
 - Current voice-notes storage uses `voice_notes.audio_blob` (base64). We clear it after retention; consider migrating to Supabase Storage + signed URLs later.
+- Follow-up system includes comprehensive debugging infrastructure for troubleshooting generation issues.
+- Error tracking system provides complete audit trail for team performance management.
+- Procedures management system provides searchable digital manual with role-based access control.
+
+---
+
+### 9. **PROCEDURES MANAGEMENT SYSTEM** ✅ **COMPLETED**
+
+**Purpose**: Digital manual system for operational procedures with search, filtering, and administrative management.
+
+**Interface**: `/procedure`
+- Main procedures library with search and filtering capabilities
+- Individual procedure view with Markdown rendering and favorites
+- Admin management dashboard (`/procedure/admin`) for CRUD operations
+- Admin edit form (`/procedure/admin/[slug]`) for comprehensive procedure editing
+
+**Key Features:**
+- **Searchable procedure library** with full-text search and multi-dimensional filtering
+- **Role-based access control** (view for all users, admin edit/create/delete)
+- **Categories & types** for organized content structure (11 categories, 4 types)
+- **Favorites system** for bookmarking important procedures
+- **PDF export** functionality for offline use
+- **Markdown content** with visual formatting, checklists, and error indicators
+- **View tracking** and analytics for usage insights
+- **Mini help** summaries for quick reference
+
+**Database Schema:**
+```sql
+procedures (
+  id UUID PRIMARY KEY,
+  title TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  description TEXT,
+  content TEXT NOT NULL, -- Markdown format
+  context_category TEXT CHECK (context_category IN ('accoglienza', 'vendita', 'appuntamenti', 'sala_controllo', 'lavorazioni', 'consegna', 'customer_care', 'amministrazione', 'it', 'sport', 'straordinarie')),
+  procedure_type TEXT CHECK (procedure_type IN ('checklist', 'istruzioni', 'formazione', 'errori_frequenti')),
+  target_roles TEXT[] DEFAULT '{}',
+  search_tags TEXT[] DEFAULT '{}',
+  is_featured BOOLEAN DEFAULT false,
+  is_active BOOLEAN DEFAULT true,
+  view_count INTEGER DEFAULT 0,
+  mini_help_title TEXT,
+  mini_help_summary TEXT,
+  mini_help_action TEXT,
+  created_by UUID REFERENCES profiles(id),
+  updated_by UUID REFERENCES profiles(id),
+  last_reviewed_at DATE,
+  last_reviewed_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+)
+
+procedure_favorites (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id),
+  procedure_id UUID REFERENCES procedures(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, procedure_id)
+)
+
+procedure_access_log (
+  id UUID PRIMARY KEY,
+  procedure_id UUID REFERENCES procedures(id),
+  user_id UUID REFERENCES profiles(id),
+  accessed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+)
+
+procedure_dependencies (
+  id UUID PRIMARY KEY,
+  procedure_id UUID REFERENCES procedures(id),
+  depends_on_id UUID REFERENCES procedures(id),
+  relationship_type TEXT CHECK (relationship_type IN ('prerequisite', 'related', 'follows')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(procedure_id, depends_on_id)
+)
+```
+
+**API Endpoints:**
+- `GET /api/procedures` - List procedures with search/filtering (all users)
+- `GET /api/procedures/[slug]` - Single procedure view with analytics (all users)
+- `POST /api/procedures/[slug]/favorite` - Toggle favorites (all users)
+- `PUT /api/procedures/[slug]` - Update procedure (admin only)
+- `DELETE /api/procedures/[slug]` - Soft delete (admin only)
+- `POST /api/procedures` - Create new procedure (admin only)
+- `GET /api/procedures/[slug]/pdf` - Export as HTML/PDF (admin only)
+
+**Categories (11):**
+🏠 Accoglienza, 💰 Vendita, 📅 Appuntamenti, 🎛️ Sala Controllo, ⚙️ Lavorazioni, 📦 Consegna, 📞 Customer Care, 📊 Amministrazione, 💻 IT, 🏆 Sport, ⚡ Straordinarie
+
+**Types (4):** Checklist, Istruzioni, Formazione, Errori Frequenti
+
+**Target Roles (6):** Addetti Vendita, Optometrista, Titolare, Manager/Responsabile, Laboratorio, Responsabile Sport
+
+**Key Files:**
+- `src/app/procedure/page.tsx` - Main procedures interface
+- `src/app/procedure/[slug]/page.tsx` - Individual procedure view
+- `src/app/procedure/admin/page.tsx` - Admin management dashboard
+- `src/app/procedure/admin/[slug]/page.tsx` - Edit procedure form
+- `src/app/api/procedures/route.ts` - Main API endpoint
+- `src/app/api/procedures/[slug]/route.ts` - Individual procedure CRUD
+- `scripts/procedures_migration.sql` - Database schema
+- `scripts/seed_procedures.sql` - Initial data migration
+
+**Migration Process:**
+1. Run `scripts/procedures_migration.sql` to create schema
+2. Run `scripts/seed_procedures.sql` to import existing procedures
+3. Migrated 5 procedures from `procedure_personale/` folder
+4. Added procedures link to main navigation sidebar
 
 ---
 

@@ -11,9 +11,10 @@
 7. [Sistema di Note Vocali](#sistema-di-note-vocali)
 8. [Gestione Ordini e Materiali](#gestione-ordini-e-materiali)
 9. [Sistema di Pagamenti](#sistema-di-pagamenti)
-10. [Integrazione Telegram](#integrazione-telegram)
-11. [Console Operativa](#console-operativa)
-12. [Sicurezza e Controllo Accessi](#sicurezza-e-controllo-accessi)
+10. [Sistema di Gestione Procedure](#sistema-di-gestione-procedure)
+11. [Integrazione Telegram](#integrazione-telegram)
+12. [Console Operativa](#console-operativa)
+13. [Sicurezza e Controllo Accessi](#sicurezza-e-controllo-accessi)
 
 ---
 
@@ -405,6 +406,233 @@ Il **Voice Triage** risolve un problema operativo cruciale: quando un cliente pa
 3. **Trascrizione automatica**: AssemblyAI converte audio in testo
 4. **Storage sicuro**: Audio e testo salvati nel database
 5. **Triage admin**: Admin ascolta, legge trascrizione, esegue azioni necessarie
+
+---
+
+## Sistema di Gestione Procedure
+
+Il **Sistema di Gestione Procedure** trasforma la conoscenza operativa di Ottica Bianchi da documenti cartacei sparsi in un manuale digitale centralizzato, ricercabile e facilmente gestibile.
+
+### Obiettivi del Sistema
+
+- **Digitalizzazione delle procedure**: Trasformazione del materiale da `procedure_personale/` in formato digitale
+- **Accesso centralizzato**: Punto unico per tutte le procedure operative
+- **Ricerca avanzata**: Trovare rapidamente la procedura giusta per situazione/ruolo
+- **Gestione ruoli**: Visualizzazione per tutti, modifica solo per admin
+- **Tracciabilità**: Monitoraggio di visualizzazioni e aggiornamenti
+
+### Struttura delle Procedure
+
+#### Categorie (11)
+Le procedure sono organizzate in 11 categorie operative:
+
+- 🏠 **Accoglienza**: Procedure per l'accoglienza clienti e primi contatti
+- 💰 **Vendita**: Processi di vendita e consulenza
+- 📅 **Appuntamenti**: Gestione agenda e programmazione visite
+- 🎛️ **Sala Controllo**: Controlli qualità e verifiche tecniche
+- ⚙️ **Lavorazioni**: Processi di montaggio e lavorazione
+- 📦 **Consegna**: Procedure di consegna e ritiro prodotti
+- 📞 **Customer Care**: Follow-up e assistenza post-vendita
+- 📊 **Amministrazione**: Processi amministrativi e gestionali
+- 💻 **IT**: Procedure tecniche e informatiche
+- 🏆 **Sport**: Procedure specifiche per ottica sportiva
+- ⚡ **Straordinarie**: Procedure per situazioni eccezionali
+
+#### Tipologie (4)
+Ogni procedura è classificata per tipologia:
+
+- **Checklist**: Liste di controllo step-by-step con checkbox
+- **Istruzioni**: Guide operative dettagliate con spiegazioni
+- **Formazione**: Materiali per training e onboarding
+- **Errori Frequenti**: Troubleshooting e correzioni comuni
+
+#### Ruoli Destinatari (6)
+Le procedure sono targettizzate per ruoli specifici:
+
+- **Addetti Vendita**: Personale front-office e vendita
+- **Optometrista**: Personale tecnico specializzato
+- **Titolare**: Proprietà e decisioni strategiche
+- **Manager/Responsabile**: Gestione operativa e supervisione
+- **Laboratorio**: Personale tecnico di lavorazione
+- **Responsabile Sport**: Specialista ottica sportiva
+
+### Funzionalità Principali
+
+#### Per Tutti gli Utenti
+- **Visualizzazione procedure** con rendering Markdown avanzato
+- **Ricerca full-text** su titoli, descrizioni e tag
+- **Filtri multi-dimensionali** per categoria, tipo e ruolo
+- **Sistema favoriti** per bookmark delle procedure più utilizzate
+- **Visualizzazione recenti** delle procedure consultate di recente
+- **Procedure in evidenza** per contenuti prioritari
+
+#### Per Amministratori
+- **Gestione completa CRUD** (Create, Read, Update, Delete)
+- **Editor Markdown** con anteprima e sintassi highlights
+- **Gestione categorizzazione** e assegnazione ruoli
+- **Export PDF** per stampa e distribuzione offline
+- **Analytics di utilizzo** con contatori di visualizzazione
+- **Gestione metadati** e revisioni
+
+### Struttura Database
+
+#### Tabella `procedures`
+```sql
+procedures (
+  id UUID PRIMARY KEY,
+  title TEXT NOT NULL,                    -- Titolo della procedura
+  slug TEXT UNIQUE NOT NULL,              -- URL-friendly identifier
+  description TEXT,                       -- Descrizione breve
+  content TEXT NOT NULL,                  -- Contenuto Markdown completo
+  context_category TEXT,                  -- Categoria (11 opzioni)
+  procedure_type TEXT,                    -- Tipo (4 opzioni)
+  target_roles TEXT[] DEFAULT '{}',       -- Array ruoli destinatari
+  search_tags TEXT[] DEFAULT '{}',        -- Tag per ricerca
+  is_featured BOOLEAN DEFAULT false,      -- Procedura in evidenza
+  is_active BOOLEAN DEFAULT true,         -- Soft delete flag
+  view_count INTEGER DEFAULT 0,           -- Contatore visualizzazioni
+  mini_help_title TEXT,                   -- Titolo aiuto rapido
+  mini_help_summary TEXT,                 -- Riassunto per card
+  mini_help_action TEXT,                  -- Azione rapida suggerita
+  created_by UUID REFERENCES profiles(id),
+  updated_by UUID REFERENCES profiles(id),
+  last_reviewed_at DATE,
+  last_reviewed_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+)
+```
+
+#### Tabelle di Supporto
+```sql
+-- Sistema favoriti utente
+procedure_favorites (
+  user_id UUID REFERENCES profiles(id),
+  procedure_id UUID REFERENCES procedures(id),
+  UNIQUE(user_id, procedure_id)
+)
+
+-- Log accessi per analytics
+procedure_access_log (
+  procedure_id UUID REFERENCES procedures(id),
+  user_id UUID REFERENCES profiles(id),
+  accessed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+)
+
+-- Relazioni tra procedure (future)
+procedure_dependencies (
+  procedure_id UUID REFERENCES procedures(id),
+  depends_on_id UUID REFERENCES procedures(id),
+  relationship_type TEXT -- 'prerequisite', 'related', 'follows'
+)
+```
+
+### Interfacce Utente
+
+#### Pagina Principale (`/procedure`)
+- **Layout a card** con preview visuale delle categorie
+- **Tabs di navigazione**: In Evidenza, Tutte, Recenti, Preferite
+- **Barra di ricerca** con filtri avanzati
+- **Mini-help cards** con riassunti rapidi
+- **Design responsive** per mobile e desktop
+
+#### Visualizzazione Procedura (`/procedure/[slug]`)
+- **Rendering Markdown** con styling professionale
+- **Supporto per checklist** con simboli ✅ ❌
+- **Breadcrumb navigation** e metadati
+- **Pulsante favoriti** e tracking visualizzazioni
+- **Navigazione procedure correlate**
+
+#### Dashboard Admin (`/procedure/admin`)
+- **Tabella gestionale** con tutte le procedure
+- **Statistiche utilizzo** (visualizzazioni, ultima modifica)
+- **Azioni rapide**: Visualizza, Modifica, Esporta PDF, Elimina
+- **Filtri e ricerca** per gestione di grandi volumi
+
+#### Editor Admin (`/procedure/admin/[slug]`)
+- **Form completo** per tutti i campi della procedura
+- **Editor Markdown** con syntax highlighting
+- **Selezione categorie e ruoli** con checkbox
+- **Anteprima real-time** del contenuto
+- **Validazione e salvataggio** con feedback utente
+
+### API Endpoints
+
+#### Endpoint Pubblici (Utenti Autenticati)
+```
+GET /api/procedures
+- Lista procedure con ricerca e filtri
+- Parametri: search, context_category, procedure_type, target_role, featured, favorites, recent
+
+GET /api/procedures/[slug]
+- Dettaglio singola procedura
+- Include status favoriti e incrementa view_count
+
+POST /api/procedures/[slug]/favorite
+- Toggle status favoriti per l'utente corrente
+```
+
+#### Endpoint Admin
+```
+POST /api/procedures
+- Creazione nuova procedura (solo admin)
+
+PUT /api/procedures/[slug]
+- Aggiornamento procedura esistente (solo admin)
+- Auto-genera nuovo slug se cambia il titolo
+
+DELETE /api/procedures/[slug]
+- Soft delete procedura (is_active = false) (solo admin)
+
+GET /api/procedures/[slug]/pdf
+- Export HTML/PDF per stampa (solo admin)
+```
+
+### Migrazione e Seeding
+
+#### Processo di Migrazione
+1. **Schema Creation**: Esecuzione `scripts/procedures_migration.sql`
+2. **Data Import**: Esecuzione `scripts/seed_procedures.sql`
+3. **Integrazione UI**: Aggiunta link nella sidebar principale
+
+#### Procedure Migrate
+Dal folder `procedure_personale/` sono state migrate 5 procedure:
+
+1. **Procedura Introduttiva – Benvenuto in Ottica Bianchi** (Accoglienza/Formazione)
+2. **Procedura Creazione Busta Lavoro** (Lavorazioni/Checklist)
+3. **Gestione Pause** (Amministrazione/Istruzioni)
+4. **Consegna Occhiali con Lenti Progressive** (Consegna/Istruzioni)
+5. **Procedura Ricontatto Clienti Lenti Varifocali** (Customer Care/Checklist)
+
+### Sicurezza e Controlli
+
+#### Controllo Accessi
+- **Visualizzazione**: Tutti gli utenti autenticati
+- **Modifica/Creazione/Eliminazione**: Solo utenti con ruolo `admin`
+- **RLS Policies**: Protezione a livello database
+- **Service Role**: Operazioni admin utilizzano service role key
+
+#### Audit Trail
+- **Tracking modifiche**: Campi `updated_by` e `updated_at`
+- **Log accessi**: Tabella `procedure_access_log`
+- **Soft delete**: Mantenimento storico con `is_active = false`
+- **Versioning**: Campo `last_reviewed_at` per tracking revisioni
+
+### Integrazioni
+
+#### Con Sistema Esistente
+- **Sidebar Navigation**: Link principale nel menu "Gestione"
+- **Role System**: Integrazione con sistema ruoli esistente
+- **Supabase Auth**: Utilizzo autenticazione centralizzata
+- **Design System**: Coerenza con UI/UX dell'applicazione
+
+#### Future Integrazioni
+- **Notifiche**: Alert per aggiornamenti procedure
+- **Workflow**: Collegamento con stati buste per procedure contestuali
+- **Training**: Sistema di certificazione completamento procedure
+- **Mobile App**: Accesso offline alle procedure più critiche
+
+---
 
 ### Integrazione Telegram
 
@@ -919,33 +1147,77 @@ Il sistema rappresenta un esempio eccellente di come la tecnologia moderna possa
 
 ---
 
-## Aggiornamenti Recenti (UI, Fornitori, Note Vocali)
+## Aggiornamenti Recenti (UI, Fornitori, Note Vocali, Follow-up, Error Tracking)
 
 Questa sezione riassume le principali modifiche implementate in questa iterazione.
 
-- Filtri Ordini (Da Ordinare)
-  - Il pulsante “Chiama” è stato sostituito da “Apri portale”: se il fornitore ha `web_address`, si apre il sito B2B in una nuova scheda per inserire l’ordine; rimane disponibile il pulsante Email.
-  - La vista ora mostra “Portale” come metodo preferito quando presente l’URL.
-  - Aggiunto pulsante “Gestisci fornitori” nella testata per accesso rapido.
+### **Filtri Ordini e Gestione Fornitori**
+- Il pulsante "Chiama" è stato sostituito da "Apri portale": se il fornitore ha `web_address`, si apre il sito B2B in una nuova scheda per inserire l'ordine; rimane disponibile il pulsante Email.
+- La vista ora mostra "Portale" come metodo preferito quando presente l'URL.
+- Aggiunto pulsante "Gestisci fornitori" nella testata per accesso rapido.
+- Nuovo modulo: `/modules/fornitori` con tab per categoria (lenti, montature, lac, sport, lab. esterno).
+- Campi gestiti: `nome`, `referente_nome`, `telefono`, `email`, `web_address` (URL ordini), `tempi_consegna_medi`, `note`.
+- API protette per creare/aggiornare fornitori; aggiunta colonna `referente_nome` a tutte le tabelle fornitori.
+- Script utili: `scripts/add_supplier_referente.sql` e `scripts/seed_supplier_portals.sql` (placeholders da sostituire con URL reali).
 
-- Gestione Fornitori (Manager/Admin)
-  - Nuovo modulo: `/modules/fornitori` con tab per categoria (lenti, montature, lac, sport, lab. esterno).
-  - Campi gestiti: `nome`, `referente_nome`, `telefono`, `email`, `web_address` (URL ordini), `tempi_consegna_medi`, `note`.
-  - API protette per creare/aggiornare fornitori; aggiunta colonna `referente_nome` a tutte le tabelle fornitori.
-  - Script utili: `scripts/add_supplier_referente.sql` e `scripts/seed_supplier_portals.sql` (placeholders da sostituire con URL reali).
+### **Note Vocali (Voice Triage)**
+- UI più compatta: card ridotte, griglia più densa, testo e icone più piccoli per consultazione rapida.
+- Collegamento rapido: dalla ricerca cliente è possibile collegare la nota a un Cliente ("Collega al Cliente") o a una specifica Busta ("Collega qui").
+- Ritrascrizione su collegamento: se l'audio è ancora presente e si richiede la ritrascrizione, il sistema invia l'audio ad AssemblyAI e, al termine, aggiunge automaticamente il testo a `note_generali` della busta (con marcatore `[VoiceNote <id>]`, idempotente).
+- Retention: dopo 7 giorni dal completamento (`processed_at`), l'audio viene rimosso dal database (svuotiamo `audio_blob` e azzeriamo `file_size`); restano metadati e trascrizione. È prevista un'API di manutenzione schedulata (cron) per sostituire la pulizia lato GET admin.
 
-- Note Vocali (Voice Triage)
-  - UI più compatta: card ridotte, griglia più densa, testo e icone più piccoli per consultazione rapida.
-  - Collegamento rapido: dalla ricerca cliente è possibile collegare la nota a un Cliente (“Collega al Cliente”) o a una specifica Busta (“Collega qui”).
-  - Ritrascrizione su collegamento: se l’audio è ancora presente e si richiede la ritrascrizione, il sistema invia l’audio ad AssemblyAI e, al termine, aggiunge automaticamente il testo a `note_generali` della busta (con marcatore `[VoiceNote <id>]`, idempotente).
-  - Retention: dopo 7 giorni dal completamento (`processed_at`), l’audio viene rimosso dal database (svuotiamo `audio_blob` e azzeriamo `file_size`); restano metadati e trascrizione. È prevista un’API di manutenzione schedulata (cron) per sostituire la pulizia lato GET admin.
+### **Sistema Follow-up** ✅ **COMPLETATO (14 Settembre 2025)**
+- **Scopo**: Tracciamento automatico chiamate di soddisfazione post-vendita con prioritizzazione intelligente basata su valore e tipo acquisto.
+- **Interfaccia**: `/dashboard/follow-up` con gestione liste chiamate e dashboard statistiche real-time.
+- **Logica Prioritizzazione**:
+  - **Alta**: €400+ OCV/OV (occhiali completi con lenti) - chiamate immediate
+  - **Normale**: Primo acquisto LAC O €100+ LV (solo lenti) - chiamate standard
+  - **Bassa**: €400+ OS (occhiali da sole) - fine lista chiamate
+- **Stati Chiamata**: da_chiamare, chiamato_completato, non_vuole_essere_contattato, non_risponde, cellulare_staccato, numero_sbagliato, richiamami
+- **Livelli Soddisfazione**: molto_soddisfatto, soddisfatto, poco_soddisfatto, insoddisfatto
+- **Generazione Automatica**: Liste create per consegne 14-7 giorni fa con esclusione già processate
+- **Analytics Avanzate**: Viste temporali multiple, performance operatori, insights real-time
+- **Integrazione**: Checkbox primo acquisto LAC in MaterialiTab, collegamento dati buste/clienti
+- **Funzionalità Debug**: Infrastruttura completa per troubleshooting generazione liste
 
-- Pagamenti (ASAP – revisione modellazione)
-  - Confermata l’adozione del modello semplificato `buste_finance` + `payments` per rendere immediata la registrazione incassi, saldo e chiusura busta. Dettagli in Application Architecture Guide.
+### **Sistema Error Tracking** ✅ **COMPLETATO**
+- **Scopo**: Monitoraggio completo performance team con tracciamento costi errori e generazione automatica lettere richiamo.
+- **Interfaccia**: `/errori` con accesso basato su ruoli (operatore: sola lettura, manager/admin: scrittura)
+- **Categorie Errori**:
+  - **Critico**: €200-500 (rifacimenti importanti, clienti persi)
+  - **Medio**: €50-200 (ricontatti, ritardi)
+  - **Basso**: €5-50 (correzioni minori)
+- **Tipi Errore**: anagrafica_cliente, materiali_ordine, comunicazione_cliente, misurazioni_vista, controllo_qualita, consegna_prodotto, gestione_pagamenti, voice_note_processing, busta_creation, altro
+- **Sistema Lettere Richiamo**:
+  - Richiami verbali (solo registrazione)
+  - Richiami scritti (generazione PDF)
+  - Provvedimenti disciplinari (lettere formali)
+  - Sistema email con allegati PDF
+- **Reportistica Automatica**: Report HTML settimanali, mensili, trimestrali, semestrali, annuali
+- **Tracciamento Costi**: Costi reali vs stimati, calcolo automatico, tracking tempo perso
+- **Analytics Performance**: Ranking dipendenti, analisi costi, monitoraggio trend
+- **Integrazione**: Collegamenti a buste e clienti per contesto completo
 
-### Messaggio per il team di domani
+### **Pagamenti (ASAP – revisione modellazione)**
+- Confermata l'adozione del modello semplificato `buste_finance` + `payments` per rendere immediata la registrazione incassi, saldo e chiusura busta. Dettagli in Application Architecture Guide.
 
-- Migliorare l’affidabilità della pipeline Telegram → Nota vocale → Trascrizione: deve funzionare “come un orologio svizzero”.
-  - Aggiungere retry/backoff, idempotenza per `telegram_message_id`, logging/alerting più ricchi e job periodico per ritentare trascrizioni fallite.
-  - Introdurre un endpoint di manutenzione per archiviazione/eliminazione note: dopo 7 giorni dal completamento archiviare le note collegate (busta/cliente) e cancellare quelle non collegate.
-  - Valutare migrazione dell’audio da `audio_blob` a Supabase Storage con URL firmati per ridurre peso DB e migliorare streaming.
+### **Messaggi Implementazione**
+
+**Follow-up System**:
+- Sistema "Swiss clock" per affidabilità: retry/backoff, idempotenza, logging dettagliato
+- Debug infrastructure completa per troubleshooting
+- Enhanced statistics con trend analysis e performance insights
+- LAC first purchase tracking completamente integrato
+
+**Error Tracking System**:
+- Audit trail completo per gestione performance team
+- Warning letter system con templates professionali
+- Cost tracking comprehensivo con real-time analytics
+- Integration completa con workflow esistente
+
+**Note Tecniche**:
+- Follow-up system include infrastruttura debug completa per troubleshooting generazione liste
+- Error tracking system fornisce audit trail completo per gestione performance team
+- Migliorare l'affidabilità della pipeline Telegram → Nota vocale → Trascrizione: deve funzionare "come un orologio svizzero"
+- Introdurre endpoint manutenzione per archiviazione/eliminazione note dopo 7 giorni
+- Valutare migrazione audio da `audio_blob` a Supabase Storage con URL firmati

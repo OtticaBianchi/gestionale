@@ -21,7 +21,8 @@ import {
   Activity,
   Mail,
   RotateCcw,
-  AlertTriangle
+  AlertTriangle,
+  BookOpen
 } from 'lucide-react';
 import SidebarSection from './SidebarSection';
 import SidebarItem from './SidebarItem';
@@ -314,30 +315,36 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             />
           </SidebarSection>
 
-          {/* GESTIONE Section (Manager+ only) */}
-          {userRole !== 'operatore' && (
-            <SidebarSection
-              title="Gestione"
-              icon={Settings}
+          {/* GESTIONE Section */}
+          <SidebarSection
+            title="Gestione"
+            icon={Settings}
+            isCollapsed={isCollapsed}
+          >
+            <SidebarItem
+              href="/procedure"
+              icon={BookOpen}
+              label="Procedure"
               isCollapsed={isCollapsed}
-            >
+            />
+            {userRole !== 'operatore' && (
               <SidebarItem
                 href="/modules/fornitori"
                 icon={Building2}
                 label="Fornitori"
                 isCollapsed={isCollapsed}
               />
-              {userRole === 'admin' && (
-                <SidebarItem
-                  href="/admin/users"
-                  icon={Users}
-                  label="Utenti"
-                  isCollapsed={isCollapsed}
-                  badge={telegramRequestsCount > 0 ? telegramRequestsCount.toString() : undefined}
-                />
-              )}
-            </SidebarSection>
-          )}
+            )}
+            {userRole === 'admin' && (
+              <SidebarItem
+                href="/admin/users"
+                icon={Users}
+                label="Utenti"
+                isCollapsed={isCollapsed}
+                badge={telegramRequestsCount > 0 ? telegramRequestsCount.toString() : undefined}
+              />
+            )}
+          </SidebarSection>
         </div>
       </div>
 
