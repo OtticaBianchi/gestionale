@@ -11,7 +11,7 @@ Il sistema di follow-up chiamate è stato progettato per automatizzare e traccia
 ## 🎯 Obiettivi Raggiunti
 
 ### 1. **Automazione Intelligente**
-- Generazione automatica liste chiamate basata su criteri temporali (14-7 giorni dalla consegna)
+- Generazione automatica liste chiamate basata su criteri temporali (18-11 giorni dalla consegna)
 - Prioritizzazione automatica basata su tipo acquisto e valore economico
 - Esclusione automatica di clienti già contattati con successo
 
@@ -105,7 +105,7 @@ ALTER TABLE materiali ADD COLUMN primo_acquisto_lac BOOLEAN DEFAULT FALSE;
 
 #### `POST /api/follow-up/generate`
 - **Scopo**: Genera nuova lista chiamate follow-up
-- **Logica**: Query buste consegnate 14-7 giorni fa, calcola priorità, esclude già chiamate
+- **Logica**: Query buste consegnate 18-11 giorni fa, calcola priorità, esclude già chiamate
 - **Output**: Lista clienti da contattare ordinata per priorità e anzianità
 
 #### `GET /api/follow-up/calls`

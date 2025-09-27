@@ -7,7 +7,8 @@ import {
   CallStatus,
   SatisfactionLevel,
   CALL_STATUS_LABELS,
-  SATISFACTION_LABELS
+  SATISFACTION_LABELS,
+  COMPLETED_CALL_STATES
 } from '../_types'
 
 interface CallItemProps {
@@ -46,7 +47,15 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
       }
 
       await onUpdate(call.id, updateData)
-      setShowDetails(false)
+
+      // Gli stati completati faranno sparire l'intera card dalla lista,
+      // quindi non serve chiudere il form manualmente
+      if (COMPLETED_CALL_STATES.includes(formData.stato_chiamata)) {
+        // Mostra un feedback visivo prima che la card sparisca
+        console.log(`✅ Chiamata completata per ${call.cliente_nome} ${call.cliente_cognome}`)
+      } else {
+        setShowDetails(false)
+      }
     } catch (error) {
       console.error('Errore aggiornamento:', error)
     } finally {
@@ -60,7 +69,6 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
       chiamato_completato: 'bg-green-100 text-green-800',
       non_vuole_essere_contattato: 'bg-gray-100 text-gray-800',
       non_risponde: 'bg-orange-100 text-orange-800',
-      cellulare_staccato: 'bg-red-100 text-red-800',
       numero_sbagliato: 'bg-red-100 text-red-800',
       richiamami: 'bg-yellow-100 text-yellow-800'
     }
@@ -77,12 +85,7 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
     return colors[satisfaction]
   }
 
-  const isCompleted = [
-    'chiamato_completato',
-    'non_vuole_essere_contattato',
-    'numero_sbagliato',
-    'cellulare_staccato'
-  ].includes(call.stato_chiamata)
+  const isCompleted = COMPLETED_CALL_STATES.includes(call.stato_chiamata)
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">

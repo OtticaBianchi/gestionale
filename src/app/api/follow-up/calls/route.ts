@@ -7,6 +7,7 @@ export async function GET(request: Request) {
     const supabase = await createServerSupabaseClient()
     const { searchParams } = new URL(request.url)
     const includeArchived = searchParams.get('archived') === 'true'
+    const includeCompleted = searchParams.get('completed') === 'true'
 
     // Verifica autenticazione
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -64,6 +65,12 @@ export async function GET(request: Request) {
 
     if (!includeArchived) {
       query = query.eq('archiviato', false)
+    }
+
+    // Filter out completed calls from the active list unless explicitly requested
+    if (!includeCompleted) {
+      const completedStates = ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato']
+      query = query.not('stato_chiamata', 'in', `(${completedStates.join(',')})`)
     }
 
     const { data: chiamate, error } = await query

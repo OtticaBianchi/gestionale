@@ -29,8 +29,7 @@ export async function PATCH(
     if (updateData.stato_chiamata && [
       'chiamato_completato',
       'non_vuole_essere_contattato',
-      'numero_sbagliato',
-      'cellulare_staccato'
+      'numero_sbagliato'
     ].includes(updateData.stato_chiamata)) {
       patch.data_chiamata = now
       patch.data_completamento = now.split('T')[0] // Solo la data

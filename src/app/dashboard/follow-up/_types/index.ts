@@ -3,7 +3,6 @@ export type CallStatus =
   | 'chiamato_completato'
   | 'non_vuole_essere_contattato'
   | 'non_risponde'
-  | 'cellulare_staccato'
   | 'numero_sbagliato'
   | 'richiamami'
 
@@ -88,7 +87,6 @@ export const CALL_STATUS_LABELS: Record<CallStatus, string> = {
   chiamato_completato: 'Chiamata completata',
   non_vuole_essere_contattato: 'Non vuole essere contattato',
   non_risponde: 'Non risponde',
-  cellulare_staccato: 'Cellulare staccato',
   numero_sbagliato: 'Numero sbagliato',
   richiamami: 'Richiamami più tardi'
 }
@@ -111,3 +109,10 @@ export const PRIORITY_COLORS: Record<CallPriority, string> = {
   normale: 'bg-yellow-100 text-yellow-800',
   bassa: 'bg-green-100 text-green-800'
 }
+
+// Stati che vengono considerati "completati" e devono sparire dalla lista attiva
+export const COMPLETED_CALL_STATES: CallStatus[] = [
+  'chiamato_completato',
+  'non_vuole_essere_contattato',
+  'numero_sbagliato'
+]

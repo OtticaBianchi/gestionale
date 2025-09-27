@@ -241,7 +241,7 @@ function aggregateStatistics(rawData: any[], timeView: string, groupBy: string) 
         insoddisfatti: 0,
         non_vuole_contatto: 0,
         numeri_sbagliati: 0,
-        cellulari_staccati: 0,
+        cellulari_staccati: 0, // Deprecated: merged with non_risponde
         non_risponde: 0,
         da_richiamare: 0
       })
@@ -256,7 +256,7 @@ function aggregateStatistics(rawData: any[], timeView: string, groupBy: string) 
     group.insoddisfatti += stat.insoddisfatti || 0
     group.non_vuole_contatto += stat.non_vuole_contatto || 0
     group.numeri_sbagliati += stat.numeri_sbagliati || 0
-    group.cellulari_staccati += stat.cellulari_staccati || 0
+    // group.cellulari_staccati += stat.cellulari_staccati || 0 // Deprecated
     group.non_risponde += stat.non_risponde || 0
     group.da_richiamare += stat.da_richiamare || 0
   })
@@ -308,7 +308,7 @@ function calculateSummary(data: any[]) {
     totale_soddisfatti: acc.totale_soddisfatti + (stat.soddisfatti || 0),
     totale_poco_soddisfatti: acc.totale_poco_soddisfatti + (stat.poco_soddisfatti || 0),
     totale_insoddisfatti: acc.totale_insoddisfatti + (stat.insoddisfatti || 0),
-    totale_problemi_tecnici: acc.totale_problemi_tecnici + (stat.numeri_sbagliati || 0) + (stat.cellulari_staccati || 0),
+    totale_problemi_tecnici: acc.totale_problemi_tecnici + (stat.numeri_sbagliati || 0), // cellulari_staccati deprecated
     totale_da_richiamare: acc.totale_da_richiamare + (stat.da_richiamare || 0)
   }), {
     totale_chiamate: 0,

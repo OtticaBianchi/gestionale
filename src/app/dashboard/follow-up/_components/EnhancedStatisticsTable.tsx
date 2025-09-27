@@ -141,13 +141,8 @@ export function EnhancedStatisticsTable({ data, timeView, groupBy }: EnhancedSta
                       <span className="font-medium text-red-600">{stat.numeri_sbagliati}</span>
                     </div>
                   )}
-                  {stat.cellulari_staccati > 0 && (
-                    <div className="flex justify-between">
-                      <span>📴 Staccati:</span>
-                      <span className="font-medium text-red-600">{stat.cellulari_staccati}</span>
-                    </div>
-                  )}
-                  {stat.numeri_sbagliati === 0 && stat.cellulari_staccati === 0 && (
+                  {/* cellulari_staccati deprecated - merged with non_risponde */}
+                  {stat.numeri_sbagliati === 0 && (
                     <span className="text-green-600 font-medium">✅ Nessun problema</span>
                   )}
                 </div>
@@ -206,7 +201,7 @@ export function EnhancedStatisticsTable({ data, timeView, groupBy }: EnhancedSta
           <td className="px-6 py-3 text-xs text-gray-600">
             <div className="space-y-1">
               <div>❌ {data.reduce((sum, stat) => sum + stat.numeri_sbagliati, 0)}</div>
-              <div>📴 {data.reduce((sum, stat) => sum + stat.cellulari_staccati, 0)}</div>
+              {/* <div>📴 {data.reduce((sum, stat) => sum + stat.cellulari_staccati, 0)}</div> */}
             </div>
           </td>
         </tr>

@@ -37,7 +37,8 @@ export async function GET() {
 
     // 4. Check recent consegnato_pagato (last 30 days for broader view)
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+    const eighteenDaysAgo = new Date(Date.now() - 18 * 24 * 60 * 60 * 1000).toISOString()
+    const elevenDaysAgo = new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString()
 
     const { data: recentBuste, count: recentCount } = await supabase
       .from('buste')
@@ -45,11 +46,11 @@ export async function GET() {
       .eq('stato_attuale', 'consegnato_pagato')
       .gte('updated_at', thirtyDaysAgo)
 
-    const { data: fourteenDayBuste, count: fourteenDayCount } = await supabase
+    const { data: eighteenDayBuste, count: eighteenDayCount } = await supabase
       .from('buste')
       .select('id, readable_id, updated_at, cliente_id', { count: 'exact' })
       .eq('stato_attuale', 'consegnato_pagato')
-      .gte('updated_at', fourteenDaysAgo)
+      .gte('updated_at', eighteenDaysAgo)
 
     // 5. Check clienti with phone numbers
     const { count: clientiWithPhone } = await supabase
@@ -63,7 +64,8 @@ export async function GET() {
       .from('buste')
       .select('id, readable_id, updated_at, cliente_id', { count: 'exact' })
       .eq('stato_attuale', 'consegnato_pagato')
-      .gte('updated_at', fourteenDaysAgo)
+      .gte('updated_at', eighteenDaysAgo)
+      .lte('updated_at', elevenDaysAgo)
 
     // 7. Check with phone filter
     const { data: eligibleWithPhone, count: eligibleWithPhoneCount } = await supabase
@@ -80,7 +82,8 @@ export async function GET() {
         )
       `, { count: 'exact' })
       .eq('stato_attuale', 'consegnato_pagato')
-      .gte('updated_at', fourteenDaysAgo)
+      .gte('updated_at', eighteenDaysAgo)
+      .lte('updated_at', elevenDaysAgo)
       .not('clienti.telefono', 'is', null)
       .neq('clienti.telefono', '')
 
@@ -115,14 +118,15 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       searchDates: {
         thirtyDaysAgo,
-        fourteenDaysAgo,
+        eighteenDaysAgo,
+        elevenDaysAgo,
         today: new Date().toISOString()
       },
       counts: {
         totalBuste,
         consegnatoPagatoBuste: consegnatoCount,
         recentConsegnato30Days: recentCount,
-        recentConsegnato14Days: fourteenDayCount,
+        recentConsegnato18Days: eighteenDayCount,
         clientiWithValidPhone: clientiWithPhone,
         eligibleWithoutPhoneFilter: eligibleWithoutPhoneCount,
         eligibleWithPhoneFilter: eligibleWithPhoneCount,
@@ -133,7 +137,7 @@ export async function GET() {
       eligibleSample: eligibleWithPhone?.slice(0, 3), // Show eligible buste sample
       analysis: {
         hasConsegnatoBuste: (consegnatoCount || 0) > 0,
-        hasRecentBuste: (fourteenDayCount || 0) > 0,
+        hasRecentBuste: (eighteenDayCount || 0) > 0,
         hasEligibleBuste: (eligibleWithPhoneCount || 0) > 0,
         phoneFilterImpact: (eligibleWithoutPhoneCount || 0) - (eligibleWithPhoneCount || 0)
       }

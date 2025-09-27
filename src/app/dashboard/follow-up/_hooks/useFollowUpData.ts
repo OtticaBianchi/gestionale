@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { FollowUpCall, CallUpdateData, FollowUpStatistics, StatisticsSummary } from '../_types'
+import { FollowUpCall, CallUpdateData, FollowUpStatistics, StatisticsSummary, COMPLETED_CALL_STATES } from '../_types'
 
 export function useFollowUpData() {
   const [callList, setCallList] = useState<FollowUpCall[]>([])
@@ -32,7 +32,11 @@ export function useFollowUpData() {
       const result = await response.json()
 
       if (result.success) {
-        setCallList(result.data)
+        // Filter out any completed calls from the client side as well (defensive programming)
+        const activeCallList = result.data.filter((call: any) =>
+          !COMPLETED_CALL_STATES.includes(call.stato_chiamata)
+        )
+        setCallList(activeCallList)
         setError(null)
       } else {
         throw new Error(result.error || 'Errore caricamento chiamate')
@@ -108,12 +112,17 @@ export function useFollowUpData() {
       const result = await response.json()
 
       if (result.success) {
-        // Aggiorna la lista locale
-        setCallList(prev => prev.map(call =>
-          call.id === callId
-            ? { ...call, ...updateData }
-            : call
-        ))
+        // Se il nuovo stato è "completato", rimuovi la chiamata dalla lista
+        if (COMPLETED_CALL_STATES.includes(updateData.stato_chiamata)) {
+          setCallList(prev => prev.filter(call => call.id !== callId))
+        } else {
+          // Altrimenti aggiorna normalmente (per stati come "richiamami", "non_risponde")
+          setCallList(prev => prev.map(call =>
+            call.id === callId
+              ? { ...call, ...updateData }
+              : call
+          ))
+        }
 
         // Ricarica le statistiche per riflettere i cambiamenti
         loadStatistics()
@@ -160,6 +169,12 @@ export function useFollowUpData() {
     refreshData: () => {
       loadCallList()
       loadStatistics()
+    },
+    cleanupCompletedCalls: () => {
+      // Immediately remove any completed calls from the current state
+      setCallList(prev => prev.filter(call =>
+        !COMPLETED_CALL_STATES.includes(call.stato_chiamata)
+      ))
     }
   }
 }

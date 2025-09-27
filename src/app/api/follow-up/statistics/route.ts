@@ -65,7 +65,7 @@ export async function GET(request: Request) {
       totale_soddisfatti: acc.totale_soddisfatti + stat.soddisfatti,
       totale_poco_soddisfatti: acc.totale_poco_soddisfatti + stat.poco_soddisfatti,
       totale_insoddisfatti: acc.totale_insoddisfatti + stat.insoddisfatti,
-      totale_problemi_tecnici: acc.totale_problemi_tecnici + stat.numeri_sbagliati + stat.cellulari_staccati,
+      totale_problemi_tecnici: acc.totale_problemi_tecnici + stat.numeri_sbagliati, // cellulari_staccati deprecated
       totale_da_richiamare: acc.totale_da_richiamare + stat.da_richiamare
     }), {
       totale_chiamate: 0,

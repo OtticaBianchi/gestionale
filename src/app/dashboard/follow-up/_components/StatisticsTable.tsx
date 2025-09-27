@@ -51,7 +51,7 @@ export function StatisticsTable({ data }: StatisticsTableProps) {
               stat.molto_soddisfatti + stat.soddisfatti,
               stat.chiamate_completate
             )
-            const problemiTotali = stat.numeri_sbagliati + stat.cellulari_staccati
+            const problemiTotali = stat.numeri_sbagliati // cellulari_staccati deprecated
 
             return (
               <tr key={stat.id} className="hover:bg-gray-50">
@@ -121,9 +121,7 @@ export function StatisticsTable({ data }: StatisticsTableProps) {
                     <div className="text-red-600">
                       Num. sbagliati: {stat.numeri_sbagliati}
                     </div>
-                    <div className="text-red-600">
-                      Tel. staccati: {stat.cellulari_staccati}
-                    </div>
+                    {/* Tel. staccati deprecated - merged with non_risponde */}
                     <div className="text-orange-600">
                       Non risponde: {stat.non_risponde}
                     </div>

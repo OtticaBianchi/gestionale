@@ -17,7 +17,8 @@ export function FollowUpClient() {
     statistics,
     isLoading,
     generateList,
-    updateCall
+    updateCall,
+    cleanupCompletedCalls
   } = useFollowUpData()
 
   return (
@@ -30,10 +31,19 @@ export function FollowUpClient() {
         />
 
         {activeTab === 'calls' && (
-          <GenerateListButton
-            onGenerate={generateList}
-            isLoading={isLoading}
-          />
+          <div className="flex space-x-2">
+            <button
+              onClick={cleanupCompletedCalls}
+              className="px-3 py-2 text-sm font-medium text-orange-700 bg-orange-100 rounded-md hover:bg-orange-200 transition-colors"
+              title="Rimuovi chiamate completate visibili"
+            >
+              🧹 Pulisci
+            </button>
+            <GenerateListButton
+              onGenerate={generateList}
+              isLoading={isLoading}
+            />
+          </div>
         )}
       </div>
 

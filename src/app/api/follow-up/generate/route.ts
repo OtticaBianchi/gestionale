@@ -11,13 +11,13 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Query per generare lista follow-up - cerca buste che sono state consegnate 7-14 giorni fa
-    // Evita i primi 7 giorni per dare tempo di risolvere eventuali problemi immediati
+    // Query per generare lista follow-up - cerca buste che sono state consegnate 11-18 giorni fa
+    // Evita i primi 11 giorni per dare tempo di risolvere eventuali problemi immediati
     console.log('🔍 DEBUG: Starting follow-up generation...')
 
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    console.log('📅 DEBUG: Looking for buste delivered between:', fourteenDaysAgo, 'and', sevenDaysAgo)
+    const eighteenDaysAgo = new Date(Date.now() - 18 * 24 * 60 * 60 * 1000).toISOString()
+    const elevenDaysAgo = new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString()
+    console.log('📅 DEBUG: Looking for buste delivered between:', eighteenDaysAgo, 'and', elevenDaysAgo)
 
     const { data: fallbackData, error: fallbackError } = await supabase
       .from('buste')
@@ -44,8 +44,8 @@ export async function POST() {
         )
       `)
       .eq('stato_attuale', 'consegnato_pagato')
-      .gte('updated_at', fourteenDaysAgo)
-      .lte('updated_at', sevenDaysAgo)
+      .gte('updated_at', eighteenDaysAgo)
+      .lte('updated_at', elevenDaysAgo)
       .not('clienti.telefono', 'is', null)
       .neq('clienti.telefono', '')
 
@@ -61,7 +61,7 @@ export async function POST() {
       console.log('⚠️ DEBUG: No buste found matching criteria')
       console.log('🔍 DEBUG: Search criteria:')
       console.log('  - stato_attuale: consegnato_pagato')
-      console.log('  - updated_at >= ', fourteenDaysAgo)
+      console.log('  - updated_at between ', eighteenDaysAgo, 'and', elevenDaysAgo)
       console.log('  - clienti.telefono is not null and not empty')
     } else {
       console.log('✅ DEBUG: Found', fallbackData.length, 'potential buste')
@@ -69,12 +69,12 @@ export async function POST() {
     }
 
     // Recupera le buste già in follow-up COMPLETATE per escluderle
-    // Stati finali che non devono riapparire: chiamato_completato, non_vuole_essere_contattato, numero_sbagliato, cellulare_staccato
+    // Stati finali che non devono riapparire: chiamato_completato, non_vuole_essere_contattato, numero_sbagliato
     // Stati che devono continuare ad apparire: non_risponde, richiamami
     const { data: existingFollowUps } = await supabase
       .from('follow_up_chiamate')
       .select('busta_id')
-      .in('stato_chiamata', ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato', 'cellulare_staccato'])
+      .in('stato_chiamata', ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato'])
 
     const existingBusteIds = new Set(existingFollowUps?.map(f => f.busta_id) || [])
     console.log('🚫 DEBUG: Found', existingBusteIds.size, 'buste with final/completed states to exclude')
@@ -88,11 +88,11 @@ export async function POST() {
           return false
         }
 
-        // Verifica che sia nel range 7-14 giorni (già filtrato nella query, ma ricontrolliamo)
+        // Verifica che sia nel range 11-18 giorni (già filtrato nella query, ma ricontrolliamo)
         const dataConsegna = new Date(busta.updated_at || Date.now())
         const giorniTrascorsi = Math.floor((Date.now() - dataConsegna.getTime()) / (1000 * 60 * 60 * 24))
 
-        return giorniTrascorsi >= 7 && giorniTrascorsi <= 14 // Range 7-14 giorni
+        return giorniTrascorsi >= 11 && giorniTrascorsi <= 18 // Range 11-18 giorni
       })
       .map(busta => {
         const cliente = Array.isArray(busta.clienti) ? busta.clienti[0] : busta.clienti
@@ -180,8 +180,8 @@ export async function POST() {
         rawQueryCount: fallbackData?.length || 0,
         excludedCount: existingBusteIds.size,
         finalCount: processedData.length,
-        searchDateRange: `${fourteenDaysAgo} to ${sevenDaysAgo}`,
-        dayRange: '7-14 days ago'
+        searchDateRange: `${eighteenDaysAgo} to ${elevenDaysAgo}`,
+        dayRange: '11-18 days ago'
       }
     })
 
