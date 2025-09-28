@@ -545,171 +545,184 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   };
 
   // ===== HANDLE NUOVO ORDINE - ✅ AGGIORNATO CON da_ordinare =====
-  const handleSalvaNuovoOrdine = async () => {
+  // ===== ORDER VALIDATION =====
+  const validateOrderForm = () => {
     if (!nuovoOrdineForm.descrizione_prodotto.trim()) {
-      alert('Descrizione prodotto obbligatoria');
-      return;
+      throw new Error('Descrizione prodotto obbligatoria');
     }
-    
     if (!nuovoOrdineForm.categoria_prodotto) {
-      alert('Categoria prodotto obbligatoria');
-      return;
+      throw new Error('Categoria prodotto obbligatoria');
     }
-
     if (!nuovoOrdineForm.prezzo_prodotto || Number.parseFloat(nuovoOrdineForm.prezzo_prodotto) <= 0) {
-      alert('Prezzo prodotto obbligatorio e deve essere maggiore di 0');
-      return;
+      throw new Error('Prezzo prodotto obbligatorio e deve essere maggiore di 0');
+    }
+  };
+
+  // ===== SUPPLIER MAPPING =====
+  const getSupplierField = () => {
+    if (!nuovoOrdineForm.fornitore_id) return null;
+
+    const supplierMap = {
+      'lenti': { fornitore_lenti_id: nuovoOrdineForm.fornitore_id },
+      'lac': { fornitore_lac_id: nuovoOrdineForm.fornitore_id },
+      'montature': { fornitore_montature_id: nuovoOrdineForm.fornitore_id },
+      'lab.esterno': { fornitore_lab_esterno_id: nuovoOrdineForm.fornitore_id },
+      'sport': { fornitore_sport_id: nuovoOrdineForm.fornitore_id }
+    };
+
+    return supplierMap[nuovoOrdineForm.categoria_prodotto as keyof typeof supplierMap] || null;
+  };
+
+  // ===== DATABASE ORDER CREATION =====
+  const createOrderData = () => {
+    const prezzoProdottoNumero = Number.parseFloat(nuovoOrdineForm.prezzo_prodotto);
+    const fornitoreTableField = getSupplierField();
+
+    return {
+      busta_id: busta.id,
+      tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
+      tipo_ordine_id: nuovoOrdineForm.tipo_ordine_id ? Number.parseInt(nuovoOrdineForm.tipo_ordine_id) : null,
+      descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
+      prezzo_prodotto: Number.isNaN(prezzoProdottoNumero) ? null : prezzoProdottoNumero,
+      data_ordine: nuovoOrdineForm.data_ordine,
+      data_consegna_prevista: calcolaDataConsegnaPrevista(),
+      giorni_consegna_medi: nuovoOrdineForm.giorni_consegna_custom
+        ? Number.parseInt(nuovoOrdineForm.giorni_consegna_custom)
+        : getTempiConsegnaByCategoria(nuovoOrdineForm.categoria_prodotto, nuovoOrdineForm.tipo_lenti),
+      stato: 'da_ordinare' as const,
+      da_ordinare: true,
+      note: nuovoOrdineForm.note.trim() || null,
+      ...fornitoreTableField
+    };
+  };
+
+  const insertOrderToDatabase = async (orderData: any) => {
+    const { data: ordineCreato, error } = await supabase
+      .from('ordini_materiali')
+      .insert(orderData)
+      .select(`
+        *,
+        fornitori_lenti:fornitori_lenti(nome),
+        fornitori_lac:fornitori_lac(nome),
+        fornitori_montature:fornitori_montature(nome),
+        fornitori_lab_esterno:fornitori_lab_esterno(nome),
+        fornitori_sport:fornitori_sport(nome),
+        tipi_lenti:tipi_lenti(nome, giorni_consegna_stimati),
+        tipi_ordine:tipi_ordine(nome)
+      `)
+      .single();
+
+    if (error) {
+      console.error('❌ Errore creazione ordine:', error);
+      throw error;
     }
 
+    return ordineCreato;
+  };
+
+  // ===== DATA TRANSFORMATION =====
+  const transformOrderData = (ordineCreato: any): OrdineMateriale => {
+    return {
+      ...ordineCreato,
+      stato: ordineCreato.stato || 'ordinato',
+      da_ordinare: ordineCreato.da_ordinare ?? true,
+      tipi_lenti: ordineCreato.tipi_lenti && typeof ordineCreato.tipi_lenti === 'object' && 'nome' in ordineCreato.tipi_lenti
+        ? {
+            ...ordineCreato.tipi_lenti,
+            giorni_consegna_stimati: ordineCreato.tipi_lenti.giorni_consegna_stimati || 5
+          }
+        : null,
+      fornitori_lab_esterno: ordineCreato.fornitori_lab_esterno && typeof ordineCreato.fornitori_lab_esterno === 'object' && 'nome' in ordineCreato.fornitori_lab_esterno
+        ? ordineCreato.fornitori_lab_esterno
+        : null,
+      fornitori_lenti: ordineCreato.fornitori_lenti && typeof ordineCreato.fornitori_lenti === 'object' && 'nome' in ordineCreato.fornitori_lenti
+        ? ordineCreato.fornitori_lenti
+        : null,
+      fornitori_lac: ordineCreato.fornitori_lac && typeof ordineCreato.fornitori_lac === 'object' && 'nome' in ordineCreato.fornitori_lac
+        ? ordineCreato.fornitori_lac
+        : null,
+      fornitori_montature: ordineCreato.fornitori_montature && typeof ordineCreato.fornitori_montature === 'object' && 'nome' in ordineCreato.fornitori_montature
+        ? ordineCreato.fornitori_montature
+        : null,
+      fornitori_sport: ordineCreato.fornitori_sport && typeof ordineCreato.fornitori_sport === 'object' && 'nome' in ordineCreato.fornitori_sport
+        ? ordineCreato.fornitori_sport
+        : null,
+      tipi_ordine: ordineCreato.tipi_ordine && typeof ordineCreato.tipi_ordine === 'object' && 'nome' in ordineCreato.tipi_ordine
+        ? ordineCreato.tipi_ordine
+        : null,
+    } as OrdineMateriale;
+  };
+
+  // ===== LAC MATERIAL ENTRY =====
+  const createLacMaterialEntry = async () => {
+    if (nuovoOrdineForm.categoria_prodotto !== 'lac') return;
+
+    console.log('🔄 Creazione entry materiali per LAC con primo_acquisto_lac:', nuovoOrdineForm.primo_acquisto_lac);
+
+    const materialeEntry = {
+      busta_id: busta.id,
+      tipo: 'LAC',
+      primo_acquisto_lac: nuovoOrdineForm.primo_acquisto_lac,
+      note: `Collegato all'ordine: ${nuovoOrdineForm.descrizione_prodotto}`,
+      stato: 'attivo'
+    };
+
+    const { error: materialeError } = await supabase
+      .from('materiali')
+      .insert(materialeEntry);
+
+    if (materialeError) {
+      console.error('⚠️ Errore creazione entry materiali:', materialeError);
+    } else {
+      console.log('✅ Entry materiali LAC creata per follow-up system');
+    }
+  };
+
+  // ===== FORM RESET =====
+  const resetOrderForm = () => {
+    setNuovoOrdineForm({
+      categoria_prodotto: '',
+      fornitore_id: '',
+      tipo_lenti: '',
+      tipo_ordine_id: '',
+      descrizione_prodotto: '',
+      prezzo_prodotto: '',
+      data_ordine: new Date().toISOString().split('T')[0],
+      giorni_consegna_custom: '',
+      note: '',
+      primo_acquisto_lac: false
+    });
+    setShowNuovoOrdineForm(false);
+  };
+
+  // ===== MAIN ORDER SAVE FUNCTION =====
+  const handleSalvaNuovoOrdine = async () => {
     setIsSaving(true);
     try {
+      validateOrderForm();
+
       console.log('🔄 Creazione nuovo ordine con da_ordinare:', nuovoOrdineForm);
-      
-      // Determina la tabella fornitore e l'ID basato sulla categoria
-      let fornitoreTableField = null;
-      if (nuovoOrdineForm.fornitore_id) {
-        switch (nuovoOrdineForm.categoria_prodotto) {
-          case 'lenti':
-            fornitoreTableField = { fornitore_lenti_id: nuovoOrdineForm.fornitore_id };
-            break;
-          case 'lac':
-            fornitoreTableField = { fornitore_lac_id: nuovoOrdineForm.fornitore_id };
-            break;
-          case 'montature':
-            fornitoreTableField = { fornitore_montature_id: nuovoOrdineForm.fornitore_id };
-            break;
-          case 'lab.esterno':
-            fornitoreTableField = { fornitore_lab_esterno_id: nuovoOrdineForm.fornitore_id };
-            break;
-          case 'sport':
-            fornitoreTableField = { fornitore_sport_id: nuovoOrdineForm.fornitore_id };
-            break;
-        }
-      }
 
-      // 🔥 INSERT CON da_ordinare = true DI DEFAULT
-      const prezzoProdottoNumero = Number.parseFloat(nuovoOrdineForm.prezzo_prodotto);
+      const orderData = createOrderData();
+      console.log('🔍 Dati inserimento con da_ordinare:', orderData);
 
-      const nuovoOrdineDb = {
-        busta_id: busta.id,
-        tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
-        tipo_ordine_id: nuovoOrdineForm.tipo_ordine_id ? Number.parseInt(nuovoOrdineForm.tipo_ordine_id) : null,
-        descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
-        prezzo_prodotto: Number.isNaN(prezzoProdottoNumero) ? null : prezzoProdottoNumero,
-        data_ordine: nuovoOrdineForm.data_ordine,
-        data_consegna_prevista: calcolaDataConsegnaPrevista(),
-        giorni_consegna_medi: nuovoOrdineForm.giorni_consegna_custom
-          ? Number.parseInt(nuovoOrdineForm.giorni_consegna_custom)
-          : getTempiConsegnaByCategoria(nuovoOrdineForm.categoria_prodotto, nuovoOrdineForm.tipo_lenti),
-        stato: 'da_ordinare' as const,
-        da_ordinare: true, // ✅ NUOVO: Default da ordinare
-        note: nuovoOrdineForm.note.trim() || null,
-        ...fornitoreTableField
-      };
-
-      console.log('🔍 Dati inserimento con da_ordinare:', nuovoOrdineDb);
-
-      const { data: ordineCreato, error } = await supabase
-        .from('ordini_materiali')
-        .insert(nuovoOrdineDb)
-        .select(`
-          *,
-          fornitori_lenti:fornitori_lenti(nome),
-          fornitori_lac:fornitori_lac(nome), 
-          fornitori_montature:fornitori_montature(nome),
-          fornitori_lab_esterno:fornitori_lab_esterno(nome),
-          fornitori_sport:fornitori_sport(nome),
-          tipi_lenti:tipi_lenti(nome, giorni_consegna_stimati),
-          tipi_ordine:tipi_ordine(nome)
-        `)
-        .single();
-
-      if (error) {
-        console.error('❌ Errore creazione ordine:', error);
-        throw error;
-      }
-
+      const ordineCreato = await insertOrderToDatabase(orderData);
       console.log('✅ Ordine creato con da_ordinare:', ordineCreato);
 
-      const ordineConTipiCorretti = {
-        ...ordineCreato,
-        stato: ordineCreato.stato || 'ordinato',
-        da_ordinare: ordineCreato.da_ordinare ?? true,
-        tipi_lenti: ordineCreato.tipi_lenti && typeof ordineCreato.tipi_lenti === 'object' && 'nome' in ordineCreato.tipi_lenti
-          ? {
-              ...ordineCreato.tipi_lenti,
-              giorni_consegna_stimati: ordineCreato.tipi_lenti.giorni_consegna_stimati || 5
-            }
-          : null,
-        fornitori_lab_esterno: ordineCreato.fornitori_lab_esterno && typeof ordineCreato.fornitori_lab_esterno === 'object' && 'nome' in ordineCreato.fornitori_lab_esterno
-          ? ordineCreato.fornitori_lab_esterno
-          : null,
-        fornitori_lenti: ordineCreato.fornitori_lenti && typeof ordineCreato.fornitori_lenti === 'object' && 'nome' in ordineCreato.fornitori_lenti
-          ? ordineCreato.fornitori_lenti
-          : null,
-        fornitori_lac: ordineCreato.fornitori_lac && typeof ordineCreato.fornitori_lac === 'object' && 'nome' in ordineCreato.fornitori_lac
-          ? ordineCreato.fornitori_lac
-          : null,
-        fornitori_montature: ordineCreato.fornitori_montature && typeof ordineCreato.fornitori_montature === 'object' && 'nome' in ordineCreato.fornitori_montature
-          ? ordineCreato.fornitori_montature
-          : null,
-        fornitori_sport: ordineCreato.fornitori_sport && typeof ordineCreato.fornitori_sport === 'object' && 'nome' in ordineCreato.fornitori_sport
-          ? ordineCreato.fornitori_sport
-          : null,
-        tipi_ordine: ordineCreato.tipi_ordine && typeof ordineCreato.tipi_ordine === 'object' && 'nome' in ordineCreato.tipi_ordine
-          ? ordineCreato.tipi_ordine
-          : null,
-      } as OrdineMateriale;
+      const ordineConTipiCorretti = transformOrderData(ordineCreato);
 
-      // Aggiorna la lista locale
+      // Update local state
       const ordiniAggiornati = [ordineConTipiCorretti, ...ordiniMateriali];
       setOrdiniMateriali(ordiniAggiornati);
 
-      // Aggiorna prezzo totale
+      // Update total price and cache
       await aggiornaPrezzoTotale(ordiniAggiornati);
-
-      // ✅ SWR: Invalidate cache after creating new order
       await mutate('/api/buste');
 
-      // ✅ NUOVO: Se categoria è LAC, crea entry in materiali per follow-up
-      if (nuovoOrdineForm.categoria_prodotto === 'lac') {
-        console.log('🔄 Creazione entry materiali per LAC con primo_acquisto_lac:', nuovoOrdineForm.primo_acquisto_lac);
+      // Create LAC material entry if needed
+      await createLacMaterialEntry();
 
-        const materialeEntry = {
-          busta_id: busta.id,
-          tipo: 'LAC',
-          primo_acquisto_lac: nuovoOrdineForm.primo_acquisto_lac,
-          note: `Collegato all'ordine: ${nuovoOrdineForm.descrizione_prodotto}`,
-          stato: 'attivo'
-        };
-
-        const { error: materialeError } = await supabase
-          .from('materiali')
-          .insert(materialeEntry);
-
-        if (materialeError) {
-          console.error('⚠️ Errore creazione entry materiali:', materialeError);
-          // Non blocchiamo il flusso, ma logghiamo l'errore
-        } else {
-          console.log('✅ Entry materiali LAC creata per follow-up system');
-        }
-      }
-
-      // Reset form
-      setNuovoOrdineForm({
-        categoria_prodotto: '',
-        fornitore_id: '',
-        tipo_lenti: '',
-        tipo_ordine_id: '',
-        descrizione_prodotto: '',
-        prezzo_prodotto: '', // ✅ RESET PREZZO
-        data_ordine: new Date().toISOString().split('T')[0],
-        giorni_consegna_custom: '',
-        note: '',
-        primo_acquisto_lac: false
-      });
-      setShowNuovoOrdineForm(false);
-
+      resetOrderForm();
       console.log('✅ Ordine con da_ordinare=true salvato nel database');
 
     } catch (error: any) {
@@ -976,10 +989,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
             
             {/* ===== STEP 1: CATEGORIA PRODOTTO ===== */}
             <div className="lg:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                1. Categoria Prodotto *
-              </label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <fieldset>
+                <legend className="block text-sm font-medium text-gray-700 mb-2">
+                  1. Categoria Prodotto *
+                </legend>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                   { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti da vista/sole' },
                   { value: 'lac', label: '👁️ LAC', desc: 'Lenti a Contatto' },
@@ -1006,16 +1020,18 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                     <div className="text-xs text-gray-500 mt-1">{categoria.desc}</div>
                   </button>
                 ))}
-              </div>
+                </div>
+              </fieldset>
             </div>
       
             {/* ===== STEP 2: TIPO LENTI (Solo per categoria 'lenti') ===== */}
             {nuovoOrdineForm.categoria_prodotto === 'lenti' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="tipo-lenti" className="block text-sm font-medium text-gray-700 mb-1">
                   2. Tipo Lenti *
                 </label>
                 <select
+                  id="tipo-lenti"
                   value={nuovoOrdineForm.tipo_lenti}
                   onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, tipo_lenti: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
@@ -1076,10 +1092,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
             {/* ===== MODALITÀ ORDINE ===== */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="modalita-ordine" className="block text-sm font-medium text-gray-700 mb-1">
                 Modalità Ordine
               </label>
               <select
+                id="modalita-ordine"
                 value={nuovoOrdineForm.tipo_ordine_id}
                 onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, tipo_ordine_id: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
@@ -1093,10 +1110,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       
             {/* ===== DESCRIZIONE PRODOTTO OBBLIGATORIA ===== */}
             <div className="lg:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="descrizione-prodotto" className="block text-sm font-medium text-gray-700 mb-1">
                 Descrizione Prodotto * <span className="text-red-500">(Obbligatorio)</span>
               </label>
               <textarea
+                id="descrizione-prodotto"
                 value={nuovoOrdineForm.descrizione_prodotto}
                 onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, descrizione_prodotto: e.target.value }))}
                 rows={2}
@@ -1220,7 +1238,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               </button>
               <button
                 onClick={handleSalvaNuovoOrdine}
-                disabled={!nuovoOrdineForm.descrizione_prodotto.trim() || !nuovoOrdineForm.categoria_prodotto || !nuovoOrdineForm.prezzo_prodotto || parseFloat(nuovoOrdineForm.prezzo_prodotto) <= 0 || isSaving}
+                disabled={!nuovoOrdineForm.descrizione_prodotto.trim() || !nuovoOrdineForm.categoria_prodotto || !nuovoOrdineForm.prezzo_prodotto || Number.parseFloat(nuovoOrdineForm.prezzo_prodotto) <= 0 || isSaving}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               >
                 {isSaving ? (

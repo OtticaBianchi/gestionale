@@ -488,11 +488,12 @@ OB Moduli v2.9 - ${today}
 
               {/* Tipo Lettera */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  <FileText className="w-4 h-4 inline mr-2" />
-                  Tipo di Richiamo
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <fieldset>
+                  <legend className="block text-sm font-medium text-gray-700 mb-3">
+                    <FileText className="w-4 h-4 inline mr-2" />
+                    Tipo di Richiamo
+                  </legend>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                     <input
                       type="radio"
@@ -532,15 +533,17 @@ OB Moduli v2.9 - ${today}
                       <div className="text-sm text-red-600">Per errori gravi o recidivi</div>
                     </div>
                   </label>
-                </div>
+                  </div>
+                </fieldset>
               </div>
 
               {/* Note Aggiuntive */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="note-aggiuntive" className="block text-sm font-medium text-gray-700 mb-2">
                   Note Aggiuntive (Opzionale)
                 </label>
                 <textarea
+                  id="note-aggiuntive"
                   value={customText}
                   onChange={(e) => setCustomText(e.target.value)}
                   rows={4}
@@ -685,10 +688,11 @@ OB Moduli v2.9 - ${today}
           <div className="p-6 space-y-4">
             {/* Recipient Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="recipient-email" className="block text-sm font-medium text-gray-700 mb-2">
                 Email Destinatario *
               </label>
               <input
+                id="recipient-email"
                 type="email"
                 value={recipientEmail}
                 onChange={(e) => setRecipientEmail(e.target.value)}
@@ -700,10 +704,11 @@ OB Moduli v2.9 - ${today}
 
             {/* CC Emails */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="cc-emails" className="block text-sm font-medium text-gray-700 mb-2">
                 CC (Opzionale)
               </label>
               <input
+                id="cc-emails"
                 type="text"
                 value={ccEmails}
                 onChange={(e) => setCcEmails(e.target.value)}
@@ -715,10 +720,11 @@ OB Moduli v2.9 - ${today}
 
             {/* Custom Message */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="custom-message" className="block text-sm font-medium text-gray-700 mb-2">
                 Messaggio Aggiuntivo (Opzionale)
               </label>
               <textarea
+                id="custom-message"
                 value={customMessage}
                 onChange={(e) => setCustomMessage(e.target.value)}
                 rows={3}

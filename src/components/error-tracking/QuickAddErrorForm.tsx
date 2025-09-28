@@ -211,8 +211,8 @@ export default function QuickAddErrorForm({
     try {
       const payload = {
         ...formData,
-        custom_cost: formData.custom_cost ? parseFloat(formData.custom_cost) : undefined,
-        time_lost_minutes: parseInt(formData.time_lost_minutes) || 0,
+        custom_cost: formData.custom_cost ? Number.parseFloat(formData.custom_cost) : undefined,
+        time_lost_minutes: Number.parseInt(formData.time_lost_minutes) || 0,
         cost_detail: formData.cost_type === 'real' ? formData.cost_detail : null
       }
 
@@ -277,10 +277,11 @@ export default function QuickAddErrorForm({
           {/* Tipo e categoria errore */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="error-type" className="block text-sm font-medium text-gray-700 mb-2">
                 Tipo Errore *
               </label>
               <select
+                id="error-type"
                 value={formData.error_type}
                 onChange={(e) => setFormData(prev => ({...prev, error_type: e.target.value}))}
                 required
@@ -294,10 +295,11 @@ export default function QuickAddErrorForm({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="error-category" className="block text-sm font-medium text-gray-700 mb-2">
                 Gravità *
               </label>
               <select
+                id="error-category"
                 value={formData.error_category}
                 onChange={(e) => setFormData(prev => ({...prev, error_category: e.target.value}))}
                 required
@@ -315,10 +317,11 @@ export default function QuickAddErrorForm({
 
           {/* Descrizione errore */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="error-description" className="block text-sm font-medium text-gray-700 mb-2">
               Descrizione Errore *
             </label>
             <textarea
+              id="error-description"
               value={formData.error_description}
               onChange={(e) => setFormData(prev => ({...prev, error_description: e.target.value}))}
               required
@@ -330,11 +333,12 @@ export default function QuickAddErrorForm({
 
           {/* Tipo di costo */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <DollarSign className="w-4 h-4 inline mr-2" />
-              Tipo di Costo
-            </label>
-            <div className="grid grid-cols-2 gap-4">
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700 mb-2">
+                <DollarSign className="w-4 h-4 inline mr-2" />
+                Tipo di Costo
+              </legend>
+              <div className="grid grid-cols-2 gap-4">
               <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
                 <input
                   type="radio"
@@ -361,17 +365,19 @@ export default function QuickAddErrorForm({
                   <div className="text-sm text-gray-500">Importo effettivo</div>
                 </div>
               </label>
-            </div>
+              </div>
+            </fieldset>
           </div>
 
           {/* Campi costo basati sul tipo */}
           {formData.cost_type === 'real' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="custom-cost" className="block text-sm font-medium text-gray-700 mb-2">
                   Costo Effettivo (€) *
                 </label>
                 <input
+                  id="custom-cost"
                   type="number"
                   step="0.01"
                   min="0"
@@ -383,10 +389,11 @@ export default function QuickAddErrorForm({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="cost-detail" className="block text-sm font-medium text-gray-700 mb-2">
                   Dettaglio Costo *
                 </label>
                 <input
+                  id="cost-detail"
                   type="text"
                   value={formData.cost_detail}
                   onChange={(e) => setFormData(prev => ({...prev, cost_detail: e.target.value}))}
@@ -400,11 +407,12 @@ export default function QuickAddErrorForm({
 
           {formData.cost_type === 'estimate' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="override-estimate" className="block text-sm font-medium text-gray-700 mb-2">
                 <DollarSign className="w-4 h-4 inline mr-2" />
                 Sovrascrivi Stima Automatica (Opzionale)
               </label>
               <input
+                id="override-estimate"
                 type="number"
                 step="0.01"
                 min="0"
@@ -426,11 +434,12 @@ export default function QuickAddErrorForm({
 
           {/* Ricerca Cliente */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="search-cliente" className="block text-sm font-medium text-gray-700 mb-2">
               Cliente Coinvolto (opzionale)
             </label>
             <div className="relative">
               <input
+                id="search-cliente"
                 type="text"
                 value={searchCliente}
                 onChange={(e) => {
@@ -467,12 +476,13 @@ export default function QuickAddErrorForm({
 
           {/* Ricerca Busta */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="search-busta" className="block text-sm font-medium text-gray-700 mb-2">
               <FileText className="w-4 h-4 inline mr-2" />
               Busta Coinvolta (opzionale)
             </label>
             <div className="relative">
               <input
+                id="search-busta"
                 type="text"
                 value={searchBusta}
                 onChange={(e) => {
@@ -509,11 +519,12 @@ export default function QuickAddErrorForm({
 
           {/* Tempo perso */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="time-lost" className="block text-sm font-medium text-gray-700 mb-2">
               <Clock className="w-4 h-4 inline mr-2" />
               Tempo Perso (minuti)
             </label>
             <input
+              id="time-lost"
               type="number"
               value={formData.time_lost_minutes}
               onChange={(e) => setFormData(prev => ({...prev, time_lost_minutes: e.target.value}))}
@@ -558,7 +569,7 @@ export default function QuickAddErrorForm({
               <div className="flex items-center gap-2 text-blue-800">
                 <DollarSign className="w-5 h-5" />
                 <span className="font-medium">
-                  Costo finale: €{formData.custom_cost ? parseFloat(formData.custom_cost).toFixed(2) : estimatedCost?.toFixed(2)}
+                  Costo finale: €{formData.custom_cost ? Number.parseFloat(formData.custom_cost).toFixed(2) : estimatedCost?.toFixed(2)}
                 </span>
               </div>
               <p className="text-sm text-blue-600 mt-1">
@@ -575,7 +586,7 @@ export default function QuickAddErrorForm({
               <div className="flex items-center gap-2 text-green-800">
                 <DollarSign className="w-5 h-5" />
                 <span className="font-medium">
-                  Costo reale: €{parseFloat(formData.custom_cost).toFixed(2)}
+                  Costo reale: €{Number.parseFloat(formData.custom_cost).toFixed(2)}
                 </span>
               </div>
               <p className="text-sm text-green-600 mt-1">

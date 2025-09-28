@@ -71,25 +71,25 @@ export default function BustaInfoSidebar({ busta }: BustaInfoSidebarProps) {
         
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-500">Data Apertura</label>
+            <span className="block text-sm font-medium text-gray-500">Data Apertura</span>
             <p className="text-gray-900">{formatDate(busta.data_apertura)}</p>
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium text-gray-500">Giorni Aperti</label>
+            <span className="block text-sm font-medium text-gray-500">Giorni Aperti</span>
             <p className="text-lg font-semibold text-blue-600">
               {calculateDaysOpen(busta.data_apertura)} giorni
             </p>
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium text-gray-500">Creato da</label>
+            <span className="block text-sm font-medium text-gray-500">Creato da</span>
             <p className="text-gray-900">{busta.profiles?.full_name || 'Utente sconosciuto'}</p>
           </div>
-          
+
           {busta.updated_at && (
             <div>
-              <label className="block text-sm font-medium text-gray-500">Ultimo Aggiornamento</label>
+              <span className="block text-sm font-medium text-gray-500">Ultimo Aggiornamento</span>
               <p className="text-gray-900 text-sm">{formatDate(busta.updated_at)}</p>
             </div>
           )}

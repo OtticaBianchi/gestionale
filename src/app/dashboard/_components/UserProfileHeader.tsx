@@ -38,104 +38,133 @@ export default function UserProfileHeader() {
       }
     }, 15000);
     
+    // Authentication function - handles user authentication check
+    const authenticateUser = async () => {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError) {
+        console.error('❌ Error getting user:', userError);
+        throw new Error('Errore di autenticazione');
+      }
+
+      if (!user) {
+        console.log('❌ No user found, showing error state');
+        throw new Error('Utente non autenticato');
+      }
+
+      return user;
+    };
+
+    // Profile fetching function - gets existing profile from database
+    const fetchUserProfile = async (userId: string) => {
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error('❌ Error getting profile:', profileError);
+        throw new Error('Errore caricamento profilo');
+      }
+
+      return { profile, error: profileError };
+    };
+
+    // Profile creation function - creates new profile when missing
+    const createUserProfile = async (user: any) => {
+      console.log('📝 Creating missing profile...');
+
+      // Prefer role and full_name from user metadata if present (invited users)
+      const invitedRole = (user.user_metadata as any)?.role || 'operatore';
+      const invitedName = (user.user_metadata as any)?.full_name || user.email?.split('@')[0] || 'Utente';
+
+      const { data: newProfile, error: createError } = await supabase
+        .from('profiles')
+        .insert({
+          id: user.id,
+          full_name: invitedName,
+          role: invitedRole
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('❌ Error creating profile:', createError);
+        throw new Error('Errore creazione profilo');
+      }
+
+      return newProfile;
+    };
+
+    // Role synchronization function - syncs role from metadata
+    const syncProfileRole = async (user: any, profile: Profile) => {
+      const metaRole = (user.user_metadata as any)?.role as string | undefined;
+      const allowed = new Set(['admin', 'manager', 'operatore']);
+
+      if (!metaRole || !allowed.has(metaRole) || profile.role === metaRole) {
+        return profile;
+      }
+
+      console.log('🔄 Syncing profile role from metadata:', profile.role, '->', metaRole);
+
+      const { data: synced, error: syncErr } = await supabase
+        .from('profiles')
+        .update({ role: metaRole, updated_at: new Date().toISOString() })
+        .eq('id', user.id)
+        .select('*')
+        .single();
+
+      if (syncErr) {
+        console.warn('⚠️ Role sync failed (non-blocking):', syncErr);
+        return profile;
+      }
+
+      return synced;
+    };
+
+    // Main orchestrator function - coordinates all profile operations
     const getProfile = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        
-        // ✅ EXISTING LOGIC: Authentication check
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
-        if (!isMounted) return; // ✅ TUO PATTERN: Early return se unmounted
-        
-        if (userError) {
-          console.error('❌ Error getting user:', userError);
-          setError('Errore di autenticazione');
-          return;
-        }
 
-        if (!user) {
-          console.log('❌ No user found, showing error state');
-          setError('Utente non autenticato');
-          return; 
-        }
+        // Step 1: Authenticate user
+        const user = await authenticateUser();
+        if (!isMounted) return;
 
         setUser(user);
 
-        // ✅ EXISTING LOGIC: Get profile with your single() fix
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single(); // ✅ TUO FIX: Ensure single row
+        // Step 2: Fetch existing profile
+        const { profile, error: profileError } = await fetchUserProfile(user.id);
+        if (!isMounted) return;
 
-        if (!isMounted) return; // ✅ TUO PATTERN: Check mount status
+        let finalProfile: Profile;
 
-        if (profileError) {
-          console.error('❌ Error getting profile:', profileError);
-          
-          // ✅ EXISTING LOGIC: Create missing profile
-          if (profileError.code === 'PGRST116') {
-            console.log('📝 Creating missing profile...');
-            
-            // Prefer role and full_name from user metadata if present (invited users)
-            const invitedRole = (user.user_metadata as any)?.role || 'operatore'
-            const invitedName = (user.user_metadata as any)?.full_name || user.email?.split('@')[0] || 'Utente'
-
-            const { data: newProfile, error: createError } = await supabase
-              .from('profiles')
-              .insert({
-                id: user.id,
-                full_name: invitedName,
-                role: invitedRole
-              })
-              .select()
-              .single();
-
-            if (!isMounted) return; // ✅ TUO PATTERN: Check after async
-
-            if (createError) {
-              console.error('❌ Error creating profile:', createError);
-              setError('Errore creazione profilo');
-            } else {
-              setProfile(newProfile);
-            }
-          } else {
-            setError('Errore caricamento profilo');
-          }
+        // Step 3: Handle missing profile by creating it
+        if (profileError?.code === 'PGRST116') {
+          finalProfile = await createUserProfile(user);
+          if (!isMounted) return;
+        } else if (profile) {
+          // Step 4: Sync role from metadata if needed
+          finalProfile = await syncProfileRole(user, profile);
+          if (!isMounted) return;
         } else {
-          // If profile exists but metadata suggests a higher role (from invite), sync it once
-          const metaRole = (user.user_metadata as any)?.role as string | undefined
-          const allowed = new Set(['admin', 'manager', 'operatore'])
-          if (metaRole && allowed.has(metaRole) && profile.role !== metaRole) {
-            console.log('🔄 Syncing profile role from metadata:', profile.role, '->', metaRole)
-            const { data: synced, error: syncErr } = await supabase
-              .from('profiles')
-              .update({ role: metaRole, updated_at: new Date().toISOString() })
-              .eq('id', user.id)
-              .select('*')
-              .single()
-            if (syncErr) {
-              console.warn('⚠️ Role sync failed (non-blocking):', syncErr)
-              setProfile(profile)
-            } else {
-              setProfile(synced)
-            }
-          } else {
-            setProfile(profile);
-          }
+          throw new Error('Profilo non disponibile');
         }
+
+        setProfile(finalProfile);
 
       } catch (error) {
         console.error('❌ Error in getProfile:', error);
         if (isMounted) {
-          setError('Errore imprevisto');
+          setError(error instanceof Error ? error.message : 'Errore imprevisto');
         }
       } finally {
-        // ✅ TUO PATTERN: Protected finally block
+        // Protected finally block
         if (isMounted) {
           setIsLoading(false);
-          clearTimeout(timeoutId); // Clear timeout on successful load
+          clearTimeout(timeoutId);
         }
       }
     };

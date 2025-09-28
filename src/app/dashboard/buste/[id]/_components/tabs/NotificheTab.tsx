@@ -141,47 +141,70 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
     setFreeNote('');
   };
 
-  // Invio messaggio o nota
-  const inviaMessaggio = async (tipo: 'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente', testoCustom?: string) => {
+  // ===== VALIDATION FUNCTIONS =====
+  const validateMessageInput = (tipo: 'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente') => {
     if (!currentUser) {
-      alert('Dati operatore mancanti.');
-      return;
+      throw new Error('Dati operatore mancanti.');
     }
     if (tipo !== 'nota_comunicazione_cliente' && !busta.clienti) {
-      alert('Dati cliente mancanti.');
-      return;
+      throw new Error('Dati cliente mancanti.');
     }
+  };
+
+  const getMessageText = (tipo: 'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente', testoCustom?: string) => {
     const testoFinale = testoCustom ?? (tipo === 'nota_comunicazione_cliente' ? freeNote : generaMessaggio(tipo));
     if (!testoFinale.trim()) {
-      alert('Il testo non può essere vuoto.');
-      return;
+      throw new Error('Il testo non può essere vuoto.');
     }
+    return testoFinale;
+  };
 
+  // ===== DATABASE OPERATIONS =====
+  const createCommunicationRecord = async (
+    tipo: 'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente',
+    testoFinale: string
+  ) => {
+    const { data: nuovaComunicazione, error } = await supabase
+      .from('comunicazioni')
+      .insert({
+        busta_id: busta.id,
+        tipo_messaggio: tipo,
+        testo_messaggio: testoFinale,
+        data_invio: new Date().toISOString(),
+        destinatario_tipo: "cliente",
+        destinatario_nome: busta.clienti ? `${busta.clienti.cognome} ${busta.clienti.nome}` : "",
+        destinatario_contatto: busta.clienti?.telefono ?? "",
+        canale_invio: 'whatsapp',
+        stato_invio: 'inviato',
+        inviato_da: currentUser!.id,
+        nome_operatore: currentUser!.full_name
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return nuovaComunicazione;
+  };
+
+  const updateCommunicationsState = (nuovaComunicazione: any) => {
+    setComunicazioni(prev => [nuovaComunicazione, ...prev]);
+    setEditingMessageType(null);
+    setCustomMessage('');
+    setFreeNote('');
+  };
+
+  // ===== MAIN MESSAGE FUNCTION =====
+  const inviaMessaggio = async (tipo: 'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente', testoCustom?: string) => {
     setIsSendingMessage(true);
+
     try {
-      const { data: nuovaComunicazione, error } = await supabase
-        .from('comunicazioni')
-        .insert({
-          busta_id: busta.id,
-          tipo_messaggio: tipo,
-          testo_messaggio: testoFinale,
-          data_invio: new Date().toISOString(),
-          destinatario_tipo: "cliente",
-          destinatario_nome: busta.clienti ? `${busta.clienti.cognome} ${busta.clienti.nome}` : "",
-          destinatario_contatto: busta.clienti?.telefono ?? "",
-          canale_invio: 'whatsapp',
-          stato_invio: 'inviato',
-          inviato_da: currentUser.id,
-          nome_operatore: currentUser.full_name
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      setComunicazioni(prev => [nuovaComunicazione, ...prev]);
-      setEditingMessageType(null);
-      setCustomMessage('');
-      setFreeNote('');
+      validateMessageInput(tipo);
+      const testoFinale = getMessageText(tipo, testoCustom);
+      const nuovaComunicazione = await createCommunicationRecord(tipo, testoFinale);
+
+      updateCommunicationsState(nuovaComunicazione);
       alert('Registrazione effettuata!');
+
     } catch (error: any) {
       alert(`Errore nell'invio: ${error.message}`);
     } finally {

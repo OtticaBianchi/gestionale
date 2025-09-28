@@ -282,10 +282,11 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="procedure-title" className="block text-sm font-medium text-gray-700 mb-2">
                   Titolo *
                 </label>
                 <input
+                  id="procedure-title"
                   type="text"
                   value={procedure.title}
                   onChange={(e) => handleFieldChange('title', e.target.value)}
@@ -309,10 +310,11 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
             </div>
 
             <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="procedure-description" className="block text-sm font-medium text-gray-700 mb-2">
                 Descrizione
               </label>
               <textarea
+                id="procedure-description"
                 value={procedure.description}
                 onChange={(e) => handleFieldChange('description', e.target.value)}
                 rows={2}
@@ -327,10 +329,11 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="procedure-category" className="block text-sm font-medium text-gray-700 mb-2">
                   Categoria *
                 </label>
                 <select
+                  id="procedure-category"
                   value={procedure.context_category}
                   onChange={(e) => handleFieldChange('context_category', e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -343,10 +346,11 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="procedure-type" className="block text-sm font-medium text-gray-700 mb-2">
                   Tipo *
                 </label>
                 <select
+                  id="procedure-type"
                   value={procedure.procedure_type}
                   onChange={(e) => handleFieldChange('procedure_type', e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -360,10 +364,11 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
             </div>
 
             <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="search-tags" className="block text-sm font-medium text-gray-700 mb-2">
                 Tag di ricerca (separate da virgola)
               </label>
               <input
+                id="search-tags"
                 type="text"
                 value={procedure.search_tags.join(', ')}
                 onChange={(e) => handleSearchTagsChange(e.target.value)}
@@ -401,10 +406,11 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="mini-help-title" className="block text-sm font-medium text-gray-700 mb-2">
                   Titolo breve
                 </label>
                 <input
+                  id="mini-help-title"
                   type="text"
                   value={procedure.mini_help_title}
                   onChange={(e) => handleFieldChange('mini_help_title', e.target.value)}
@@ -413,10 +419,11 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="mini-help-summary" className="block text-sm font-medium text-gray-700 mb-2">
                   Riassunto
                 </label>
                 <textarea
+                  id="mini-help-summary"
                   value={procedure.mini_help_summary}
                   onChange={(e) => handleFieldChange('mini_help_summary', e.target.value)}
                   rows={2}
@@ -425,10 +432,11 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="mini-help-action" className="block text-sm font-medium text-gray-700 mb-2">
                   Azione rapida
                 </label>
                 <textarea
+                  id="mini-help-action"
                   value={procedure.mini_help_action}
                   onChange={(e) => handleFieldChange('mini_help_action', e.target.value)}
                   rows={2}

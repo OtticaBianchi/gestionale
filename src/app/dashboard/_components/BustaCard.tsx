@@ -206,11 +206,8 @@ const getInstallmentAlert = (
   return null;
 };
 
-export default function BustaCard({ busta }: BustaCardProps) {
-  const daysOpen = calculateDaysOpen(busta.data_apertura);
-  const cliente = busta.clienti;
-  const ordini = busta.ordini_materiali || [];
-  const ordiniOrdinati = [...ordini].sort((a, b) => {
+const sortOrdersByPriority = (ordini: OrdineMaterialeEssenziale[]) => {
+  return [...ordini].sort((a, b) => {
     const priorita: Record<string, number> = { rifiutato: 3, in_ritardo: 2 };
     const statoA = a.stato || 'ordinato';
     const statoB = b.stato || 'ordinato';
@@ -219,10 +216,12 @@ export default function BustaCard({ busta }: BustaCardProps) {
     if (prioA !== prioB) return prioB - prioA;
     return a.descrizione_prodotto.localeCompare(b.descrizione_prodotto);
   });
+};
 
-  const delayLevel = getDelayLevel(ordini);
+const processPaymentData = (busta: BustaWithCliente) => {
   const paymentPlan = busta.payment_plan;
   const legacyInfo = busta.info_pagamenti;
+
   const installments: InstallmentOverview[] = (paymentPlan?.payment_installments || []).map(inst => ({
     installment_number: inst.installment_number,
     due_date: inst.due_date,
@@ -235,13 +234,32 @@ export default function BustaCard({ busta }: BustaCardProps) {
   const paidInstallmentsAmount = installments.reduce((sum, inst) => sum + (inst.paid_amount || 0), 0);
   const paidCount = installments.filter(inst => inst.is_completed).length;
   const totalInstallments = installments.length;
-
-  let normalizedPlanType = paymentPlan
-    ? normalizePlanType(paymentPlan.payment_type)
-    : mapLegacyPaymentType(legacyInfo?.modalita_saldo);
   const planCompleted = paymentPlan?.is_completed ?? (legacyInfo?.is_saldato === true);
   const outstandingRaw = totalAmount - Math.max(acconto, 0) - paidInstallmentsAmount;
   const outstanding = planCompleted ? 0 : Math.max(outstandingRaw, 0);
+
+  return {
+    paymentPlan,
+    legacyInfo,
+    installments,
+    totalAmount,
+    acconto,
+    paidCount,
+    totalInstallments,
+    planCompleted,
+    outstanding
+  };
+};
+
+const determinePlanType = (
+  paymentPlan: any,
+  legacyInfo: any,
+  totalAmount: number,
+  totalInstallments: number
+) => {
+  let normalizedPlanType = paymentPlan
+    ? normalizePlanType(paymentPlan.payment_type)
+    : mapLegacyPaymentType(legacyInfo?.modalita_saldo);
 
   const hasInstallmentsPlan = normalizedPlanType === 'installments' && totalInstallments > 0 && totalAmount > 0;
   const hasSaldoPlan = normalizedPlanType === 'saldo_unico' && totalAmount > 0;
@@ -251,21 +269,57 @@ export default function BustaCard({ busta }: BustaCardProps) {
     normalizedPlanType = 'none';
   }
 
+  return normalizedPlanType;
+};
+
+const generateBadgesAndAlerts = (
+  busta: BustaWithCliente,
+  normalizedPlanType: 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'none',
+  paymentData: ReturnType<typeof processPaymentData>
+) => {
   const shouldShowSetupWarning = normalizedPlanType === 'none' &&
     (busta.stato_attuale === 'pronto_ritiro' || busta.stato_attuale === 'consegnato_pagato');
 
   const paymentBadge = buildPaymentBadge(
     normalizedPlanType,
-    outstanding,
-    paidCount,
-    totalInstallments,
-    planCompleted,
-    totalAmount,
-    acconto,
+    paymentData.outstanding,
+    paymentData.paidCount,
+    paymentData.totalInstallments,
+    paymentData.planCompleted,
+    paymentData.totalAmount,
+    paymentData.acconto,
     shouldShowSetupWarning
   );
 
-  const installmentAlert = getInstallmentAlert(normalizedPlanType, installments, planCompleted);
+  const installmentAlert = getInstallmentAlert(
+    normalizedPlanType,
+    paymentData.installments,
+    paymentData.planCompleted
+  );
+
+  return { paymentBadge, installmentAlert };
+};
+
+export default function BustaCard({ busta }: BustaCardProps) {
+  const daysOpen = calculateDaysOpen(busta.data_apertura);
+  const cliente = busta.clienti;
+  const ordini = busta.ordini_materiali || [];
+  const ordiniOrdinati = sortOrdersByPriority(ordini);
+  const delayLevel = getDelayLevel(ordini);
+
+  const paymentData = processPaymentData(busta);
+  const normalizedPlanType = determinePlanType(
+    paymentData.paymentPlan,
+    paymentData.legacyInfo,
+    paymentData.totalAmount,
+    paymentData.totalInstallments
+  );
+
+  const { paymentBadge, installmentAlert } = generateBadgesAndAlerts(
+    busta,
+    normalizedPlanType,
+    paymentData
+  );
 
   const priorityStyles: Record<string, string> = {
     normale: 'border-l-gray-400',
@@ -384,7 +438,7 @@ export default function BustaCard({ busta }: BustaCardProps) {
             {normalizedPlanType !== 'none' && (
               <span className="flex items-center gap-1">
                 <Euro className="h-3 w-3" />
-                {outstanding > 0.5 ? `Residuo ${formatCurrency(outstanding)}` : 'Saldo ok'}
+                {paymentData.outstanding > 0.5 ? `Residuo ${formatCurrency(paymentData.outstanding)}` : 'Saldo ok'}
               </span>
             )}
           </div>

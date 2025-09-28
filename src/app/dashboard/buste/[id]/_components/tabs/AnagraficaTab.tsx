@@ -89,112 +89,126 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
     return tipoLav === 'OCV' || tipoLav === 'LV';
   };
 
-  // ===== SAVE FUNCTION =====
-  const handleSave = async () => {
-    setIsSaving(true);
-    setSaveSuccess(false);
-    
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Utente non autenticato");
+  // ===== VALIDATION FUNCTIONS =====
+  const validateFormData = () => {
+    if (!editForm.cliente_nome.trim() || !editForm.cliente_cognome.trim()) {
+      throw new Error("Nome e cognome sono obbligatori");
+    }
+  };
 
-      // ✅ Validazione dati cliente
-      if (!editForm.cliente_nome.trim() || !editForm.cliente_cognome.trim()) {
-        throw new Error("Nome e cognome sono obbligatori");
-      }
+  const validateWorkType = (): Database['public']['Enums']['work_type'] | null => {
+    const validWorkTypes = [
+      'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'ACC', 'RIC', 'RIP',
+      'SA', 'SG', 'CT', 'ES', 'REL', 'FT', 'SPRT'
+    ] as const;
 
-      // ✅ Gestione tipo_lavorazione
-      const validWorkTypes = [
-        'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'ACC', 'RIC', 'RIP', 
-        'SA', 'SG', 'CT', 'ES', 'REL', 'FT', 'SPRT'
-      ] as const;
-      
-      let tipoLavorazioneValue: Database['public']['Enums']['work_type'] | null = null;
-      
-      if (editForm.tipo_lavorazione && editForm.tipo_lavorazione.trim() !== '') {
-        if (validWorkTypes.includes(editForm.tipo_lavorazione as any)) {
-          tipoLavorazioneValue = editForm.tipo_lavorazione as Database['public']['Enums']['work_type'];
-        } else {
-          throw new Error(`Tipo lavorazione non valido: ${editForm.tipo_lavorazione}`);
-        }
-      }
+    if (!editForm.tipo_lavorazione || editForm.tipo_lavorazione.trim() === '') {
+      return null;
+    }
 
-      console.log('🔍 Saving busta and client data...');
+    if (validWorkTypes.includes(editForm.tipo_lavorazione as any)) {
+      return editForm.tipo_lavorazione as Database['public']['Enums']['work_type'];
+    } else {
+      throw new Error(`Tipo lavorazione non valido: ${editForm.tipo_lavorazione}`);
+    }
+  };
 
-      // ✅ FIX: Aggiorna prima il cliente (se esiste) - INCLUSO GENERE
-      if (busta.clienti && busta.cliente_id) {
-        const { error: clientError } = await supabase
-          .from('clienti')
-          .update({
-            nome: editForm.cliente_nome.trim(),
-            cognome: editForm.cliente_cognome.trim(),
-            data_nascita: editForm.cliente_data_nascita || null,
-            genere: editForm.cliente_genere,  // ✅ NUOVO CAMPO
-            telefono: editForm.cliente_telefono.trim() || null,
-            email: editForm.cliente_email.trim() || null,
-            note_cliente: editForm.cliente_note.trim() || null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', busta.cliente_id);
+  // ===== DATABASE UPDATE FUNCTIONS =====
+  const updateClientData = async () => {
+    if (!busta.clienti || !busta.cliente_id) return;
 
-        if (clientError) {
-          console.error('❌ Client update error:', clientError);
-          throw new Error(`Errore aggiornamento cliente: ${clientError.message}`);
-        }
-      }
+    const { error: clientError } = await supabase
+      .from('clienti')
+      .update({
+        nome: editForm.cliente_nome.trim(),
+        cognome: editForm.cliente_cognome.trim(),
+        data_nascita: editForm.cliente_data_nascita || null,
+        genere: editForm.cliente_genere,
+        telefono: editForm.cliente_telefono.trim() || null,
+        email: editForm.cliente_email.trim() || null,
+        note_cliente: editForm.cliente_note.trim() || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', busta.cliente_id);
 
-      // ✅ Aggiorna la busta
-      const { error: bustaError } = await supabase
-        .from('buste')
-        .update({
-          tipo_lavorazione: tipoLavorazioneValue,
-          priorita: editForm.priorita,
-          note_generali: editForm.note_generali.trim() || null,
-          is_suspended: editForm.is_suspended,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', busta.id);
+    if (clientError) {
+      console.error('❌ Client update error:', clientError);
+      throw new Error(`Errore aggiornamento cliente: ${clientError.message}`);
+    }
+  };
 
-      if (bustaError) {
-        console.error('❌ Busta update error:', bustaError);
-        throw new Error(`Errore aggiornamento busta: ${bustaError.message}`);
-      }
-
-      console.log('✅ Busta and client updated successfully');
-
-      // ✅ Aggiorna lo stato locale
-      const updatedBusta = {
-        ...busta,
+  const updateBustaData = async (tipoLavorazioneValue: Database['public']['Enums']['work_type'] | null) => {
+    const { error: bustaError } = await supabase
+      .from('buste')
+      .update({
         tipo_lavorazione: tipoLavorazioneValue,
         priorita: editForm.priorita,
         note_generali: editForm.note_generali.trim() || null,
         is_suspended: editForm.is_suspended,
-        updated_at: new Date().toISOString(),
-        clienti: busta.clienti ? {
-          ...busta.clienti,
-          nome: editForm.cliente_nome.trim(),
-          cognome: editForm.cliente_cognome.trim(),
-          data_nascita: editForm.cliente_data_nascita || null,
-          genere: editForm.cliente_genere,  // ✅ NUOVO CAMPO
-          telefono: editForm.cliente_telefono.trim() || null,
-          email: editForm.cliente_email.trim() || null,
-          note_cliente: editForm.cliente_note.trim() || null,
-        } : null
-      };
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', busta.id);
 
-      onBustaUpdate(updatedBusta);
+    if (bustaError) {
+      console.error('❌ Busta update error:', bustaError);
+      throw new Error(`Errore aggiornamento busta: ${bustaError.message}`);
+    }
+  };
 
-      // ✅ SWR: Invalidate cache after busta update
-      await mutate('/api/buste');
+  const updateLocalState = (tipoLavorazioneValue: Database['public']['Enums']['work_type'] | null) => {
+    const updatedBusta = {
+      ...busta,
+      tipo_lavorazione: tipoLavorazioneValue,
+      priorita: editForm.priorita,
+      note_generali: editForm.note_generali.trim() || null,
+      is_suspended: editForm.is_suspended,
+      updated_at: new Date().toISOString(),
+      clienti: busta.clienti ? {
+        ...busta.clienti,
+        nome: editForm.cliente_nome.trim(),
+        cognome: editForm.cliente_cognome.trim(),
+        data_nascita: editForm.cliente_data_nascita || null,
+        genere: editForm.cliente_genere,
+        telefono: editForm.cliente_telefono.trim() || null,
+        email: editForm.cliente_email.trim() || null,
+        note_cliente: editForm.cliente_note.trim() || null,
+      } : null
+    };
 
-      // ✅ SUCCESS
-      setSaveSuccess(true);
-      setIsEditing(false);
+    onBustaUpdate(updatedBusta);
+  };
 
-      // Reset success message dopo 3 secondi
-      setTimeout(() => {
-        setSaveSuccess(false);
-      }, 3000);
+  const handleSaveSuccess = async () => {
+    await mutate('/api/buste');
+    setSaveSuccess(true);
+    setIsEditing(false);
+
+    setTimeout(() => {
+      setSaveSuccess(false);
+    }, 3000);
+  };
+
+  // ===== MAIN SAVE FUNCTION =====
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveSuccess(false);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Utente non autenticato");
+
+      validateFormData();
+      const tipoLavorazioneValue = validateWorkType();
+
+      console.log('🔍 Saving busta and client data...');
+
+      await updateClientData();
+      await updateBustaData(tipoLavorazioneValue);
+
+      console.log('✅ Busta and client updated successfully');
+
+      updateLocalState(tipoLavorazioneValue);
+      await handleSaveSuccess();
 
     } catch (error: any) {
       console.error('❌ Errore nel salvataggio:', error);
@@ -480,9 +494,10 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-500">Tipo Lavorazione</label>
+            <label htmlFor="tipo-lavorazione" className="block text-sm font-medium text-gray-500">Tipo Lavorazione</label>
             {canEdit && isEditing ? (
               <select
+                id="tipo-lavorazione"
                 value={editForm.tipo_lavorazione}
                 onChange={(e) => setEditForm(prev => ({ ...prev, tipo_lavorazione: e.target.value }))}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
@@ -511,9 +526,10 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-gray-500">Priorità</label>
+            <label htmlFor="priorita" className="block text-sm font-medium text-gray-500">Priorità</label>
             {canEdit && isEditing ? (
               <select
+                id="priorita"
                 value={editForm.priorita}
                 onChange={(e) => setEditForm(prev => ({ ...prev, priorita: e.target.value as any }))}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
@@ -551,9 +567,10 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
           )}
           
           <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-gray-500">Note Generali</label>
+            <label htmlFor="note-generali" className="block text-sm font-medium text-gray-500">Note Generali</label>
             {canEdit && isEditing ? (
               <textarea
+                id="note-generali"
                 value={editForm.note_generali}
                 onChange={(e) => setEditForm(prev => ({ ...prev, note_generali: e.target.value }))}
                 rows={3}

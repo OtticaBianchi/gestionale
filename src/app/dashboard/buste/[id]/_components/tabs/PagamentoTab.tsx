@@ -196,50 +196,66 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busta.id]);
 
+  const fetchPaymentPlan = async () => {
+    const { data: planData, error: planError } = await supabase
+      .from('payment_plans')
+      .select('*, payment_installments(*)')
+      .eq('busta_id', busta.id)
+      .maybeSingle();
+
+    if (planError && planError.code !== 'PGRST116') {
+      throw planError;
+    }
+
+    return planData;
+  };
+
+  const fetchPaymentInfo = async () => {
+    const { data: infoData, error: infoError } = await supabase
+      .from('info_pagamenti')
+      .select('is_saldato, modalita_saldo, importo_acconto, ha_acconto, prezzo_finale, data_saldo, updated_at')
+      .eq('busta_id', busta.id)
+      .maybeSingle();
+
+    if (infoError && infoError.code !== 'PGRST116') {
+      throw infoError;
+    }
+
+    return infoData;
+  };
+
+  const syncAccontoWithPlan = async (planData: any, infoData: any) => {
+    if (planData && infoData && typeof infoData.importo_acconto === 'number') {
+      const delta = Math.abs((planData.acconto || 0) - infoData.importo_acconto);
+      if (delta > 0.49) {
+        await supabase
+          .from('payment_plans')
+          .update({ acconto: infoData.importo_acconto })
+          .eq('id', planData.id);
+        planData.acconto = infoData.importo_acconto;
+      }
+    }
+  };
+
+  const updateStateFromData = (planData: any, infoData: any) => {
+    setPaymentPlan(planData ?? null);
+    setInstallments(planData?.payment_installments ?? []);
+    setInfoPagamento(infoData ?? null);
+
+    if (planData?.total_amount) {
+      setTotalDraft(String(planData.total_amount));
+    } else if (infoData?.prezzo_finale) {
+      setTotalDraft(String(infoData.prezzo_finale));
+    }
+  };
+
   const loadPaymentContext = async () => {
     setIsLoading(true);
     try {
-      const { data: planData, error: planError } = await supabase
-        .from('payment_plans')
-        .select('*, payment_installments(*)')
-        .eq('busta_id', busta.id)
-        .maybeSingle();
-
-      if (planError && planError.code !== 'PGRST116') {
-        throw planError;
-      }
-
-      const { data: infoData, error: infoError } = await supabase
-        .from('info_pagamenti')
-        .select('is_saldato, modalita_saldo, importo_acconto, ha_acconto, prezzo_finale, data_saldo, updated_at')
-        .eq('busta_id', busta.id)
-        .maybeSingle();
-
-      if (infoError && infoError.code !== 'PGRST116') {
-        throw infoError;
-      }
-
-      // Keep plan aligned with latest acconto value coming from Materiali tab
-      if (planData && infoData && typeof infoData.importo_acconto === 'number') {
-        const delta = Math.abs((planData.acconto || 0) - infoData.importo_acconto);
-        if (delta > 0.49) {
-          await supabase
-            .from('payment_plans')
-            .update({ acconto: infoData.importo_acconto })
-            .eq('id', planData.id);
-          planData.acconto = infoData.importo_acconto;
-        }
-      }
-
-      setPaymentPlan(planData ?? null);
-      setInstallments(planData?.payment_installments ?? []);
-      setInfoPagamento(infoData ?? null);
-
-      if (planData?.total_amount) {
-        setTotalDraft(String(planData.total_amount));
-      } else if (infoData?.prezzo_finale) {
-        setTotalDraft(String(infoData.prezzo_finale));
-      }
+      const planData = await fetchPaymentPlan();
+      const infoData = await fetchPaymentInfo();
+      await syncAccontoWithPlan(planData, infoData);
+      updateStateFromData(planData, infoData);
     } catch (error) {
       console.error('❌ Error loading payment context:', error);
     } finally {
@@ -279,38 +295,51 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     }
   };
 
-  const saveTotalAmount = async () => {
-    if (!canEdit || totalDraft === '') return;
+  const validateTotalAmount = (draft: string) => {
+    if (!canEdit || draft === '') return null;
 
-    const parsed = Number.parseFloat(totalDraft);
+    const parsed = Number.parseFloat(draft);
     if (!Number.isFinite(parsed) || parsed <= 0) {
       alert('Inserisci un totale valido prima di salvare.');
-      return;
+      return null;
     }
+
+    return parsed;
+  };
+
+  const updateInfoPagamenti = async (totalAmount: number) => {
+    const upsertPayload = {
+      busta_id: busta.id,
+      prezzo_finale: totalAmount,
+      updated_at: new Date().toISOString()
+    } satisfies Partial<InfoPagamentoRecord> & { busta_id: string };
+
+    const { error } = await supabase
+      .from('info_pagamenti')
+      .upsert(upsertPayload, { onConflict: 'busta_id' });
+
+    if (error) throw error;
+  };
+
+  const updatePaymentPlanTotal = async (totalAmount: number) => {
+    if (paymentPlan) {
+      const { error } = await supabase
+        .from('payment_plans')
+        .update({ total_amount: totalAmount })
+        .eq('id', paymentPlan.id);
+
+      if (error) throw error;
+    }
+  };
+
+  const saveTotalAmount = async () => {
+    const validAmount = validateTotalAmount(totalDraft);
+    if (!validAmount) return;
 
     setIsSavingTotal(true);
     try {
-      const upsertPayload = {
-        busta_id: busta.id,
-        prezzo_finale: parsed,
-        updated_at: new Date().toISOString()
-      } satisfies Partial<InfoPagamentoRecord> & { busta_id: string };
-
-      const { error: infoError } = await supabase
-        .from('info_pagamenti')
-        .upsert(upsertPayload, { onConflict: 'busta_id' });
-
-      if (infoError) throw infoError;
-
-      if (paymentPlan) {
-        const { error: planError } = await supabase
-          .from('payment_plans')
-          .update({ total_amount: parsed })
-          .eq('id', paymentPlan.id);
-
-        if (planError) throw planError;
-      }
-
+      await updateInfoPagamenti(validAmount);
+      await updatePaymentPlanTotal(validAmount);
       await loadPaymentContext();
       await mutate('/api/buste');
     } catch (error: any) {
@@ -321,32 +350,42 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     }
   };
 
-  const handleRegisterInstallmentPayment = async (installment: PaymentInstallmentRecord) => {
-    if (!canEdit) return;
-
+  const promptForPaymentAmount = (installment: PaymentInstallmentRecord) => {
     const defaultValue = installment.expected_amount || 0;
     const input = prompt('Importo incassato per questa rata', defaultValue ? String(defaultValue) : '');
-    if (input === null) return; // user cancelled
+    if (input === null) return null; // user cancelled
 
     const parsed = Number.parseFloat(input);
     if (!Number.isFinite(parsed) || parsed <= 0) {
       alert('Inserisci un importo valido per registrare il pagamento.');
-      return;
+      return null;
     }
+
+    return parsed;
+  };
+
+  const updateInstallmentPayment = async (installmentId: string, amount: number, isCompleted: boolean) => {
+    const { error } = await supabase
+      .from('payment_installments')
+      .update({
+        paid_amount: amount,
+        is_completed: isCompleted,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', installmentId);
+
+    if (error) throw error;
+  };
+
+  const handleRegisterInstallmentPayment = async (installment: PaymentInstallmentRecord) => {
+    if (!canEdit) return;
+
+    const paymentAmount = promptForPaymentAmount(installment);
+    if (!paymentAmount) return;
 
     setOngoingAction(`pay-${installment.id}`);
     try {
-      const { error } = await supabase
-        .from('payment_installments')
-        .update({
-          paid_amount: parsed,
-          is_completed: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', installment.id);
-
-      if (error) throw error;
-
+      await updateInstallmentPayment(installment.id, paymentAmount, true);
       await loadPaymentContext();
       await mutate('/api/buste');
     } catch (error: any) {
@@ -363,17 +402,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
 
     setOngoingAction(`undo-${installment.id}`);
     try {
-      const { error } = await supabase
-        .from('payment_installments')
-        .update({
-          paid_amount: 0,
-          is_completed: false,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', installment.id);
-
-      if (error) throw error;
-
+      await updateInstallmentPayment(installment.id, 0, false);
       await loadPaymentContext();
       await mutate('/api/buste');
     } catch (error: any) {

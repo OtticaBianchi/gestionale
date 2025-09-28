@@ -316,7 +316,11 @@ export default function PaymentPlanSetup({
                     Rata {index + 1}
                   </div>
                   <div className="relative flex-1">
+                    <label htmlFor={`installment-amount-${installment.id}`} className="sr-only">
+                      Importo rata {index + 1}
+                    </label>
                     <input
+                      id={`installment-amount-${installment.id}`}
                       type="number"
                       step="0.01"
                       min="0"
@@ -330,7 +334,11 @@ export default function PaymentPlanSetup({
                     </div>
                   </div>
                   <div className="flex-1">
+                    <label htmlFor={`installment-date-${installment.id}`} className="sr-only">
+                      Data scadenza rata {index + 1}
+                    </label>
                     <input
+                      id={`installment-date-${installment.id}`}
                       type="date"
                       value={installment.dueDate}
                       onChange={(e) => updateInstallment(installment.id, 'dueDate', e.target.value)}
@@ -341,6 +349,7 @@ export default function PaymentPlanSetup({
                     <button
                       onClick={() => removeInstallment(installment.id)}
                       className="text-red-600 hover:text-red-800"
+                      aria-label={`Rimuovi rata ${index + 1}`}
                     >
                       <Minus className="w-4 h-4" />
                     </button>
