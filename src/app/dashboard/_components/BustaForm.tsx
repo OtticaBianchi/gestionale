@@ -29,7 +29,26 @@ const formSchema = z.object({
   cliente_nome: z.string().min(2, "Il nome è obbligatorio"),
   cliente_data_nascita: z.string().refine(val => val && !Number.isNaN(Date.parse(val)), { message: "Data non valida" }),
   cliente_telefono: z.string().min(9, "Numero di cellulare non valido"),
-  cliente_email: z.string().email("Email non valida").optional().or(z.literal('')),
+  cliente_email: z.string()
+    .min(1, "L'email è obbligatoria")
+    .refine(val => {
+      // Check basic format: something@something.ext
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(val)) return false;
+
+      // Check for common typos
+      const lowerEmail = val.toLowerCase();
+      if (lowerEmail.includes('claud')) return false; // catches claude, claudio typos
+      if (lowerEmail.includes('gnail')) return false; // catches gmail typo
+      if (lowerEmail.endsWith('.con')) return false; // catches .com typo
+
+      return true;
+    }, {
+      message: "Email non valida. Verifica che non ci siano errori di battitura (es. 'gnail' invece di 'gmail', '.con' invece di '.com')"
+    }),
+  cliente_genere: z.enum(['M', 'F'], {
+    errorMap: () => ({ message: "Seleziona il genere" })
+  }),
   tipo_lavorazione: z.string().optional(),
   priorita: z.enum(['normale', 'urgente', 'critica']),
   note_generali: z.string().optional(),
@@ -55,6 +74,16 @@ const tipoLavorazioneOptions = [
   { value: 'FT', label: 'FT - Fattura', icon: '🧾' }
 ];
 
+type ClienteSuggestion = {
+  id: string;
+  cognome: string;
+  nome: string;
+  data_nascita: string | null;
+  telefono: string | null;
+  email: string | null;
+  genere: string | null;
+};
+
 export default function BustaForm() {
   const router = useRouter();
   const supabase = createBrowserClient<Database>(
@@ -64,6 +93,8 @@ export default function BustaForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [tipiLavorazione, setTipiLavorazione] = useState<{codice: string, descrizione: string}[]>([]);
+  const [clienteSuggestions, setClienteSuggestions] = useState<ClienteSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Carica i tipi di lavorazione dal database
   React.useEffect(() => {
@@ -81,7 +112,7 @@ export default function BustaForm() {
     loadTipiLavorazione();
   }, []);
 
-  const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       priorita: 'normale',
@@ -90,6 +121,100 @@ export default function BustaForm() {
   });
 
   const watchedPriorita = watch('priorita');
+  const watchedCognome = watch('cliente_cognome');
+  const watchedTelefono = watch('cliente_telefono');
+
+  // Search for clients by surname
+  React.useEffect(() => {
+    const searchClients = async () => {
+      if (!watchedCognome || watchedCognome.length < 2) {
+        setClienteSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('clienti')
+          .select('id, cognome, nome, data_nascita, telefono, email, genere')
+          .ilike('cognome', `${watchedCognome}%`)
+          .order('cognome', { ascending: true })
+          .limit(10);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          setClienteSuggestions(data);
+          setShowSuggestions(true);
+        } else {
+          setClienteSuggestions([]);
+          setShowSuggestions(false);
+        }
+      } catch (error) {
+        console.error('Error searching clients:', error);
+        setClienteSuggestions([]);
+        setShowSuggestions(false);
+      }
+    };
+
+    const debounce = setTimeout(searchClients, 300);
+    return () => clearTimeout(debounce);
+  }, [watchedCognome, supabase]);
+
+  // Search for clients by phone number
+  React.useEffect(() => {
+    const searchClientsByPhone = async () => {
+      if (!watchedTelefono || watchedTelefono.length < 6) {
+        return; // Don't clear suggestions if searching by surname
+      }
+
+      try {
+        // Remove spaces and special chars for comparison
+        const cleanPhone = watchedTelefono.replace(/[\s\-\.]/g, '');
+
+        const { data, error } = await supabase
+          .from('clienti')
+          .select('id, cognome, nome, data_nascita, telefono, email, genere')
+          .ilike('telefono', `%${cleanPhone}%`)
+          .limit(10);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          setClienteSuggestions(data);
+          setShowSuggestions(true);
+        }
+      } catch (error) {
+        console.error('Error searching clients by phone:', error);
+      }
+    };
+
+    const debounce = setTimeout(searchClientsByPhone, 300);
+    return () => clearTimeout(debounce);
+  }, [watchedTelefono, supabase]);
+
+  const handleSelectClient = (client: ClienteSuggestion) => {
+    setValue('cliente_cognome', client.cognome);
+    setValue('cliente_nome', client.nome);
+    setValue('cliente_data_nascita', client.data_nascita || '');
+    setValue('cliente_telefono', client.telefono || '');
+    setValue('cliente_email', client.email || '');
+    setValue('cliente_genere', (client.genere as 'M' | 'F') || 'M');
+    setShowSuggestions(false);
+  };
+
+  // Close suggestions when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.autocomplete-container')) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     setIsSubmitting(true);
@@ -122,6 +247,7 @@ export default function BustaForm() {
                     data_nascita: data.cliente_data_nascita,
                     telefono: data.cliente_telefono,
                     email: data.cliente_email,
+                    genere: data.cliente_genere,
                 })
                 .select('id')
                 .single();
@@ -198,22 +324,53 @@ export default function BustaForm() {
             </div>
             
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
+              <div className="space-y-2 relative autocomplete-container">
                 <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                   <User className="w-4 h-4 text-gray-400" />
                   Cognome *
                 </label>
-                <input 
-                  type="text" 
-                  {...register('cliente_cognome')} 
+                <input
+                  type="text"
+                  {...register('cliente_cognome')}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="Inserisci il cognome"
+                  autoComplete="off"
+                  onFocus={() => {
+                    if (clienteSuggestions.length > 0) setShowSuggestions(true);
+                  }}
                 />
                 {errors.cliente_cognome && (
                   <p className="text-red-600 text-sm flex items-center gap-1">
                     <AlertTriangle className="w-4 h-4" />
                     {errors.cliente_cognome.message}
                   </p>
+                )}
+
+                {/* Autocomplete Suggestions */}
+                {showSuggestions && clienteSuggestions.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="px-3 py-2 bg-blue-50 border-b border-blue-100 text-xs text-blue-700 font-medium">
+                      Clienti trovati - Clicca per compilare automaticamente
+                    </div>
+                    {clienteSuggestions.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => handleSelectClient(client)}
+                        className="w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="font-medium text-gray-900">
+                          {client.cognome} {client.nome}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {client.data_nascita && new Date(client.data_nascita).toLocaleDateString('it-IT')}
+                          {client.data_nascita && client.telefono && ' • '}
+                          {client.telefono}
+                          {client.email && ` • ${client.email}`}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
 
@@ -254,16 +411,20 @@ export default function BustaForm() {
                 )}
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 relative autocomplete-container">
                 <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                   <Phone className="w-4 h-4 text-gray-400" />
                   Telefono *
                 </label>
-                <input 
-                  type="tel" 
-                  {...register('cliente_telefono')} 
+                <input
+                  type="tel"
+                  {...register('cliente_telefono')}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="+39 123 456 7890"
+                  autoComplete="off"
+                  onFocus={() => {
+                    if (clienteSuggestions.length > 0) setShowSuggestions(true);
+                  }}
                 />
                 {errors.cliente_telefono && (
                   <p className="text-red-600 text-sm flex items-center gap-1">
@@ -271,16 +432,64 @@ export default function BustaForm() {
                     {errors.cliente_telefono.message}
                   </p>
                 )}
+
+                {/* Autocomplete Suggestions for Phone */}
+                {showSuggestions && clienteSuggestions.length > 0 && watchedTelefono && watchedTelefono.length >= 6 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="px-3 py-2 bg-green-50 border-b border-green-100 text-xs text-green-700 font-medium">
+                      Clienti trovati per numero - Clicca per compilare automaticamente
+                    </div>
+                    {clienteSuggestions.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => handleSelectClient(client)}
+                        className="w-full px-4 py-3 text-left hover:bg-green-50 transition-colors border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="font-medium text-gray-900">
+                          {client.cognome} {client.nome}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {client.data_nascita && new Date(client.data_nascita).toLocaleDateString('it-IT')}
+                          {client.data_nascita && client.telefono && ' • '}
+                          {client.telefono}
+                          {client.email && ` • ${client.email}`}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <User className="w-4 h-4 text-gray-400" />
+                  Genere *
+                </label>
+                <select
+                  {...register('cliente_genere')}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                >
+                  <option value="">-- Seleziona --</option>
+                  <option value="M">Maschio</option>
+                  <option value="F">Femmina</option>
+                </select>
+                {errors.cliente_genere && (
+                  <p className="text-red-600 text-sm flex items-center gap-1">
+                    <AlertTriangle className="w-4 h-4" />
+                    {errors.cliente_genere.message}
+                  </p>
+                )}
               </div>
 
               <div className="md:col-span-2 space-y-2">
                 <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                   <Mail className="w-4 h-4 text-gray-400" />
-                  Email (opzionale)
+                  Email *
                 </label>
-                <input 
-                  type="email" 
-                  {...register('cliente_email')} 
+                <input
+                  type="email"
+                  {...register('cliente_email')}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                   placeholder="email@esempio.com"
                 />

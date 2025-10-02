@@ -85,6 +85,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const [fornitoriMontature, setFornitoriMontature] = useState<Fornitore[]>([]);
   const [fornitoriLabEsterno, setFornitoriLabEsterno] = useState<Fornitore[]>([]);
   const [fornitoriSport, setFornitoriSport] = useState<Fornitore[]>([]);
+  const [fornitoriAccessori, setFornitoriAccessori] = useState<Fornitore[]>([]); // ✅ NUOVO: Accessori
   
   const [showNuovoOrdineForm, setShowNuovoOrdineForm] = useState(false);
   const [isLoadingOrdini, setIsLoadingOrdini] = useState(false);
@@ -103,12 +104,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
   // Nuovo ordine form con categorie
   const [nuovoOrdineForm, setNuovoOrdineForm] = useState({
-    categoria_prodotto: '' as 'lenti' | 'lac' | 'montature' | 'lab.esterno' | 'sport' | '',
+    categoria_prodotto: '' as 'lenti' | 'lac' | 'montature' | 'lab.esterno' | 'sport' | 'accessori' | '', // ✅ AGGIUNTO: accessori
     fornitore_id: '',
     tipo_lenti: '',
     tipo_ordine_id: '',
     descrizione_prodotto: '',
-    prezzo_prodotto: '', // ✅ NUOVO: Prezzo del singolo prodotto
     data_ordine: new Date().toISOString().split('T')[0],
     giorni_consegna_custom: '',
     note: '',
@@ -120,37 +120,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const calcolaTotaleOrdini = (ordini: OrdineMateriale[]): number => {
-    return ordini.reduce((sum, ordine) => {
-      const prezzo = typeof ordine.prezzo_prodotto === 'number' ? ordine.prezzo_prodotto : 0;
-      return sum + (Number.isNaN(prezzo) ? 0 : prezzo);
-    }, 0);
-  };
-
-  const aggiornaPrezzoTotale = async (ordini: OrdineMateriale[]) => {
-    if (!canEdit) return;
-
-    const totale = Number(calcolaTotaleOrdini(ordini).toFixed(2));
-
-    try {
-      const { error } = await supabase
-        .from('info_pagamenti')
-        .upsert({
-          busta_id: busta.id,
-          prezzo_finale: totale,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'busta_id' });
-
-      if (error) {
-        console.error('❌ Errore aggiornamento prezzo finale:', error);
-        return;
-      }
-
-      await mutate('/api/buste');
-    } catch (error) {
-      console.error('❌ Errore sincronizzazione prezzo finale:', error);
-    }
-  };
+  // ✅ REMOVED: No more automatic price calculation
+  // Price is now manually entered in PagamentoTab
 
   // ===== EFFECTS =====
   useEffect(() => {
@@ -227,15 +198,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           : null,
         tipi_ordine: ordine.tipi_ordine && typeof ordine.tipi_ordine === 'object' && 'nome' in ordine.tipi_ordine
           ? ordine.tipi_ordine
-          : null,
-        prezzo_prodotto: (ordine as any).prezzo_prodotto ?? (ordine as any).costo ?? null
+          : null
       })) as OrdineMateriale[];
-      
-      setOrdiniMateriali(ordiniTipizzati);
 
-      if (canEdit) {
-        await aggiornaPrezzoTotale(ordiniTipizzati);
-      }
+      setOrdiniMateriali(ordiniTipizzati);
 
       // Load reference data se non già caricati
       if (tipiOrdine.length === 0) {
@@ -248,12 +214,13 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         if (tipiLentiData.data) setTipiLenti(tipiLentiData.data);
 
         // ===== CARICA FORNITORI DALLE TABELLE SPECIALIZZATE =====
-        const [fornitoriLentiData, fornitoriLacData, fornitoriMontaturaData, fornitoriLabEsternoData, fornitoriSportData] = await Promise.all([
+        const [fornitoriLentiData, fornitoriLacData, fornitoriMontaturaData, fornitoriLabEsternoData, fornitoriSportData, fornitoriAccessoriData] = await Promise.all([
           supabase.from('fornitori_lenti').select('*'),
           supabase.from('fornitori_lac').select('*'),
           supabase.from('fornitori_montature').select('*'),
           supabase.from('fornitori_lab_esterno').select('*'),
-          supabase.from('fornitori_sport').select('*')
+          supabase.from('fornitori_sport').select('*'),
+          supabase.from('fornitori_lac').select('*') // ✅ NUOVO: Accessori usa fornitori LAC per ora
         ]);
 
         if (fornitoriLentiData.data) setFornitoriLenti(fornitoriLentiData.data);
@@ -261,6 +228,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         if (fornitoriMontaturaData.data) setFornitoriMontature(fornitoriMontaturaData.data);
         if (fornitoriLabEsternoData.data) setFornitoriLabEsterno(fornitoriLabEsternoData.data);
         if (fornitoriSportData.data) setFornitoriSport(fornitoriSportData.data);
+        if (fornitoriAccessoriData.data) setFornitoriAccessori(fornitoriAccessoriData.data); // ✅ NUOVO
       }
     } catch (error) {
       console.error('❌ Error loading materiali data:', error);
@@ -278,6 +246,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       case 'montature': return fornitoriMontature;
       case 'lab.esterno': return fornitoriLabEsterno;
       case 'sport': return fornitoriSport;
+      case 'accessori': return fornitoriAccessori; // ✅ NUOVO
       default: return [];
     }
   };
@@ -296,9 +265,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       'montature': 4,
       'sport': 5,
       'lab.esterno': 5,
-      'lenti': 5
+      'lenti': 5,
+      'accessori': 2 // ✅ NUOVO: Accessori solitamente disponibili velocemente
     };
-    
+
     return tempiDefault[categoria as keyof typeof tempiDefault] || 5;
   };
 
@@ -553,9 +523,6 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     if (!nuovoOrdineForm.categoria_prodotto) {
       throw new Error('Categoria prodotto obbligatoria');
     }
-    if (!nuovoOrdineForm.prezzo_prodotto || Number.parseFloat(nuovoOrdineForm.prezzo_prodotto) <= 0) {
-      throw new Error('Prezzo prodotto obbligatorio e deve essere maggiore di 0');
-    }
   };
 
   // ===== SUPPLIER MAPPING =====
@@ -567,7 +534,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       'lac': { fornitore_lac_id: nuovoOrdineForm.fornitore_id },
       'montature': { fornitore_montature_id: nuovoOrdineForm.fornitore_id },
       'lab.esterno': { fornitore_lab_esterno_id: nuovoOrdineForm.fornitore_id },
-      'sport': { fornitore_sport_id: nuovoOrdineForm.fornitore_id }
+      'sport': { fornitore_sport_id: nuovoOrdineForm.fornitore_id },
+      'accessori': { fornitore_lac_id: nuovoOrdineForm.fornitore_id } // ✅ NUOVO: Accessori usa LAC per ora
     };
 
     return supplierMap[nuovoOrdineForm.categoria_prodotto as keyof typeof supplierMap] || null;
@@ -575,7 +543,6 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
   // ===== DATABASE ORDER CREATION =====
   const createOrderData = () => {
-    const prezzoProdottoNumero = Number.parseFloat(nuovoOrdineForm.prezzo_prodotto);
     const fornitoreTableField = getSupplierField();
 
     return {
@@ -583,7 +550,6 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
       tipo_ordine_id: nuovoOrdineForm.tipo_ordine_id ? Number.parseInt(nuovoOrdineForm.tipo_ordine_id) : null,
       descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
-      prezzo_prodotto: Number.isNaN(prezzoProdottoNumero) ? null : prezzoProdottoNumero,
       data_ordine: nuovoOrdineForm.data_ordine,
       data_consegna_prevista: calcolaDataConsegnaPrevista(),
       giorni_consegna_medi: nuovoOrdineForm.giorni_consegna_custom
@@ -686,7 +652,6 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       tipo_lenti: '',
       tipo_ordine_id: '',
       descrizione_prodotto: '',
-      prezzo_prodotto: '',
       data_ordine: new Date().toISOString().split('T')[0],
       giorni_consegna_custom: '',
       note: '',
@@ -715,8 +680,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       const ordiniAggiornati = [ordineConTipiCorretti, ...ordiniMateriali];
       setOrdiniMateriali(ordiniAggiornati);
 
-      // Update total price and cache
-      await aggiornaPrezzoTotale(ordiniAggiornati);
+      // Invalidate cache
       await mutate('/api/buste');
 
       // Create LAC material entry if needed
@@ -856,8 +820,6 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       const ordiniAggiornati = ordiniMateriali.filter(ordine => ordine.id !== ordineId);
       setOrdiniMateriali(ordiniAggiornati);
 
-      await aggiornaPrezzoTotale(ordiniAggiornati);
-
       // ✅ SWR: Invalidate cache after order deletion
       await mutate('/api/buste');
 
@@ -993,13 +955,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 <legend className="block text-sm font-medium text-gray-700 mb-2">
                   1. Categoria Prodotto *
                 </legend>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 {[
                   { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti da vista/sole' },
                   { value: 'lac', label: '👁️ LAC', desc: 'Lenti a Contatto' },
                   { value: 'montature', label: '👓 Montature', desc: 'Occhiali/Sole' },
                   { value: 'lab.esterno', label: '🏭 Lab.Esterno', desc: 'Lavorazioni Esterne' },
-                  { value: 'sport', label: '🏃 Sport', desc: 'Articoli Sportivi' }
+                  { value: 'sport', label: '🏃 Sport', desc: 'Articoli Sportivi' },
+                  { value: 'accessori', label: '📎 Accessori', desc: 'Custodie, cordini, etc.' } // ✅ NUOVO
                 ].map(categoria => (
                   <button
                     key={categoria.value}
@@ -1127,29 +1090,6 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               </p>
             </div>
 
-            {/* ✅ NUOVO: PREZZO PRODOTTO */}
-            <div>
-              <label htmlFor="prezzo-prodotto" className="block text-sm font-medium text-gray-700 mb-1">
-                💰 Prezzo Prodotto * <span className="text-red-500">(Obbligatorio)</span>
-              </label>
-              <div className="relative">
-                <input
-                  id="prezzo-prodotto"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={nuovoOrdineForm.prezzo_prodotto}
-                  onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, prezzo_prodotto: e.target.value }))}
-                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="0.00"
-                  required
-                />
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-500 text-sm">€</span>
-                </div>
-              </div>
-            </div>
-      
             {/* ===== GESTIONE DATE E TEMPI ===== */}
             <div>
               <label htmlFor="data-ordine" className="block text-sm font-medium text-gray-700 mb-1">
@@ -1238,7 +1178,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               </button>
               <button
                 onClick={handleSalvaNuovoOrdine}
-                disabled={!nuovoOrdineForm.descrizione_prodotto.trim() || !nuovoOrdineForm.categoria_prodotto || !nuovoOrdineForm.prezzo_prodotto || Number.parseFloat(nuovoOrdineForm.prezzo_prodotto) <= 0 || isSaving}
+                disabled={!nuovoOrdineForm.descrizione_prodotto.trim() || !nuovoOrdineForm.categoria_prodotto || isSaving}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               >
                 {isSaving ? (
