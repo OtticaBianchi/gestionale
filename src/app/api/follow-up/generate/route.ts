@@ -68,13 +68,13 @@ export async function POST() {
       console.log('📋 DEBUG: Sample busta:', JSON.stringify(fallbackData[0], null, 2))
     }
 
-    // Recupera le buste già in follow-up COMPLETATE per escluderle
-    // Stati finali che non devono riapparire: chiamato_completato, non_vuole_essere_contattato, numero_sbagliato
-    // Stati che devono continuare ad apparire: non_risponde, richiamami
+    // Recupera le buste già in follow-up per escluderle
+    // Stati che NON devono riapparire: da_chiamare, chiamato_completato, non_vuole_essere_contattato, numero_sbagliato
+    // Stati che devono continuare ad apparire: non_risponde, richiamami (cliente temporaneamente non disponibile)
     const { data: existingFollowUps } = await supabase
       .from('follow_up_chiamate')
       .select('busta_id')
-      .in('stato_chiamata', ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato'])
+      .in('stato_chiamata', ['da_chiamare', 'chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato'])
 
     const existingBusteIds = new Set(existingFollowUps?.map(f => f.busta_id) || [])
     console.log('🚫 DEBUG: Found', existingBusteIds.size, 'buste with final/completed states to exclude')
@@ -82,8 +82,8 @@ export async function POST() {
     // Processa i dati manualmente
     const processedData = fallbackData
       ?.filter(busta => {
-        // Esclude solo buste con stati FINALI (chiamato_completato, non_vuole_essere_contattato, etc.)
-        // Le buste con stati temporanei (non_risponde, richiamami) continuano ad apparire
+        // Esclude buste già presenti con stati: da_chiamare, chiamato_completato, non_vuole_essere_contattato, numero_sbagliato
+        // Le buste con stati temporanei (non_risponde, richiamami) continuano ad apparire perché il cliente potrebbe rispondere successivamente
         if (existingBusteIds.has(busta.id)) {
           return false
         }

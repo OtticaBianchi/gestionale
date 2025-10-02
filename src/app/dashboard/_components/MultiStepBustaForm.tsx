@@ -64,7 +64,14 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     note_generali: ''
   });
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-  
+
+  // ✅ CLIENT SEARCH STATE
+  const [searchType, setSearchType] = useState<'cognome' | 'telefono'>('cognome');
+  const [searchValue, setSearchValue] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+
   // Prevent double submit
   const isSubmittingRef = useRef(false);
   
@@ -104,6 +111,95 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
+  };
+
+  // ✅ SEARCH CLIENTS FUNCTION
+  const handleSearchClients = async () => {
+    if (!searchValue.trim()) {
+      setFormError('Inserisci un valore per la ricerca');
+      return;
+    }
+
+    setIsSearching(true);
+    setFormError(null);
+
+    try {
+      let query = supabase.from('clienti').select('*');
+
+      if (searchType === 'cognome') {
+        // Search by last name (case-insensitive, starts with)
+        query = query.ilike('cognome', `${searchValue}%`);
+      } else {
+        // Search by phone (exact match, removing spaces/dashes)
+        const cleanPhone = searchValue.replace(/[\s\-]/g, '');
+        query = query.ilike('telefono', `%${cleanPhone}%`);
+      }
+
+      const { data, error } = await query.order('cognome').order('nome').limit(20);
+
+      if (error) throw error;
+
+      setSearchResults(data || []);
+      setShowResults(true);
+
+      if (!data || data.length === 0) {
+        setFormError(`Nessun cliente trovato con ${searchType === 'cognome' ? 'cognome' : 'telefono'}: "${searchValue}"`);
+      }
+    } catch (error: any) {
+      console.error('Search error:', error);
+      setFormError(`Errore nella ricerca: ${error.message}`);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // ✅ AUTOFILL FROM SELECTED CLIENT
+  const handleSelectClient = (client: any) => {
+    setFormData({
+      ...formData,
+      cliente_cognome: client.cognome || '',
+      cliente_nome: client.nome || '',
+      cliente_data_nascita: client.data_nascita || '',
+      cliente_genere: client.genere || '',
+      cliente_telefono: client.telefono || '',
+      cliente_email: client.email || '',
+      cliente_note: client.note_cliente || '',
+    });
+
+    // Clear search
+    setShowResults(false);
+    setSearchValue('');
+    setSearchResults([]);
+    setFormError(null);
+
+    // Show success message
+    const successMsg = `Cliente selezionato: ${client.cognome} ${client.nome}`;
+    setFormError(null);
+    setTimeout(() => {
+      alert(successMsg);
+    }, 100);
+  };
+
+  // ✅ CLEAR SEARCH AND START NEW CLIENT
+  const handleNewClient = () => {
+    setShowResults(false);
+    setSearchValue('');
+    setSearchResults([]);
+    setFormData({
+      cliente_cognome: '',
+      cliente_nome: '',
+      cliente_data_nascita: '',
+      cliente_genere: '',
+      cliente_telefono: '',
+      cliente_email: '',
+      cliente_note: '',
+      tipo_lavorazione: formData.tipo_lavorazione,
+      priorita: formData.priorita,
+      note_generali: formData.note_generali
+    });
+    setErrors({});
+    setFormError(null);
   };
 
   const handleSubmit = async () => {
@@ -308,7 +404,149 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
         </div>
 
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-          
+
+          {/* ✅ CLIENT SEARCH SECTION */}
+          <div className="mb-6 pb-6 border-b border-gray-200">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <User className="w-5 h-5 mr-2 text-blue-600" />
+                  Cerca Cliente Esistente
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Prima di creare una nuova anagrafica, verifica se il cliente è già presente nel sistema.
+                  Cerca per cognome o numero di telefono.
+                </p>
+              </div>
+            </div>
+
+            {/* Search Controls */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex flex-col md:flex-row gap-3">
+                {/* Search Type Selector */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchType('cognome');
+                      setSearchValue('');
+                      setShowResults(false);
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      searchType === 'cognome'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    📝 Cognome
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchType('telefono');
+                      setSearchValue('');
+                      setShowResults(false);
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      searchType === 'telefono'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    📞 Telefono
+                  </button>
+                </div>
+
+                {/* Search Input */}
+                <div className="flex-1 flex gap-2">
+                  <input
+                    type={searchType === 'telefono' ? 'tel' : 'text'}
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearchClients()}
+                    placeholder={searchType === 'cognome' ? 'Es: Rossi' : 'Es: 333 123 4567'}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSearchClients}
+                    disabled={isSearching || !searchValue.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  >
+                    {isSearching ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="hidden sm:inline">Ricerca...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>🔍</span>
+                        <span className="hidden sm:inline">Cerca</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Search Results */}
+              {showResults && searchResults.length > 0 && (
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-gray-700">
+                      📋 Risultati ({searchResults.length}):
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={handleNewClient}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      ➕ Nuovo Cliente
+                    </button>
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {searchResults.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => handleSelectClient(client)}
+                        className="w-full text-left p-3 bg-white border border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {client.cognome} {client.nome}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              📅 {client.data_nascita ? new Date(client.data_nascita).toLocaleDateString('it-IT') : 'N/A'}
+                              {client.telefono && ` • 📞 ${client.telefono}`}
+                            </p>
+                          </div>
+                          <span className="text-blue-600">→</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* No Results Message */}
+              {showResults && searchResults.length === 0 && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">
+                    Nessun cliente trovato. Puoi procedere con l'inserimento di un nuovo cliente.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleNewClient}
+                    className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    ➕ Inserisci Nuovo Cliente
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Cliente Section */}
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">

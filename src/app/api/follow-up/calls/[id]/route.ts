@@ -33,6 +33,19 @@ export async function PATCH(
     ].includes(updateData.stato_chiamata)) {
       patch.data_chiamata = now
       patch.data_completamento = now.split('T')[0] // Solo la data
+
+      // ✅ AUTO-ADD NOTES for specific states
+      if (updateData.stato_chiamata === 'non_vuole_essere_contattato') {
+        const autoNote = 'Il cliente chiede di non essere disturbato.'
+        patch.note_chiamata = updateData.note_chiamata
+          ? `${updateData.note_chiamata}\n${autoNote}`
+          : autoNote
+      } else if (updateData.stato_chiamata === 'numero_sbagliato') {
+        const autoNote = 'Numero di telefono errato, impossibile contattare il cliente.'
+        patch.note_chiamata = updateData.note_chiamata
+          ? `${updateData.note_chiamata}\n${autoNote}`
+          : autoNote
+      }
     }
 
     // Se è "richiamami", rimuovi la data di completamento

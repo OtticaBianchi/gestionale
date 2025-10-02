@@ -31,8 +31,9 @@ export const ALLOWED_TRANSITIONS: Record<WorkflowState, WorkflowState[]> = {
     'consegnato_pagato'        // WORKFLOW SPECIALI: Fattura, Relazione
   ],
 
-  // MATERIALI_ORDINATI: Può avanzare o ri-ordinare
+  // MATERIALI_ORDINATI: Può avanzare, ri-ordinare o tornare indietro
   'materiali_ordinati': [
+    'nuove',                   // Errore: ordine sbagliato, torna a nuove
     'materiali_parzialmente_arrivati', // Arriva qualcosa
     'materiali_arrivati',      // Arriva tutto insieme
     'materiali_ordinati',      // Ri-ordine per problemi/errori
@@ -41,29 +42,34 @@ export const ALLOWED_TRANSITIONS: Record<WorkflowState, WorkflowState[]> = {
 
   // MATERIALI_PARZIALMENTE_ARRIVATI: Normale workflow o problemi
   'materiali_parzialmente_arrivati': [
-    'materiali_arrivati',      // Arriva il resto
+    'nuove',                   // Errore: annulla tutto
     'materiali_ordinati',      // Problema: ri-ordinare tutto
+    'materiali_arrivati',      // Arriva il resto
     'in_lavorazione'           // Possiamo iniziare con quello che c'è
   ],
 
   // MATERIALI_ARRIVATI: Pronti per lavorazione o problemi
   'materiali_arrivati': [
-    'in_lavorazione',          // Workflow normale
+    'nuove',                   // Errore: annulla tutto
     'materiali_ordinati',      // Materiali danneggiati/sbagliati
     'materiali_parzialmente_arrivati', // Qualcosa si rompe/perde
+    'in_lavorazione',          // Workflow normale
     'pronto_ritiro'            // Lavorazione esterna già fatta
   ],
 
   // IN_LAVORAZIONE: Avanza o torna per problemi tecnici
   'in_lavorazione': [
-    'pronto_ritiro',           // Lavorazione completata
+    'nuove',                   // Errore: annulla tutto e ricomincia
     'materiali_ordinati',      // Problema grave: serve ri-ordinare
     'materiali_parzialmente_arrivati', // Manca qualcosa durante lavorazione
-    'in_lavorazione'           // Cambio lavoratore/turno
+    'materiali_arrivati',      // Torna indietro: materiali pronti ma lavorazione da rifare
+    'in_lavorazione',          // Cambio lavoratore/turno
+    'pronto_ritiro'            // Lavorazione completata
   ],
 
-  // PRONTO_RITIRO: Solo consegna (no tornare indietro)
+  // PRONTO_RITIRO: Consegna o problemi dell'ultimo minuto
   'pronto_ritiro': [
+    'in_lavorazione',          // Problema trovato: torna in lavorazione
     'consegnato_pagato'        // Cliente ritira
   ],
 
@@ -78,24 +84,31 @@ export const TRANSITION_REASONS: Record<string, string> = {
   'nuove->in_lavorazione': 'Solo montaggio/aggiustamento',
   'nuove->pronto_ritiro': 'Riparazione immediata',
   'nuove->consegnato_pagato': 'Workflow speciale: Fattura/Relazione/Servizio immediato',
-  
+
+  'materiali_ordinati->nuove': 'Errore: ordine sbagliato, ricomincia da capo',
   'materiali_ordinati->materiali_parzialmente_arrivati': 'Arrivata parte dell\'ordine',
   'materiali_ordinati->materiali_arrivati': 'Ordine completo arrivato',
   'materiali_ordinati->materiali_ordinati': 'Ri-ordine per errore/problema',
   'materiali_ordinati->pronto_ritiro': 'Riparazione esterna completata',
-  
-  'materiali_parzialmente_arrivati->materiali_arrivati': 'Arrivato il resto',
+
+  'materiali_parzialmente_arrivati->nuove': 'Errore: annulla tutto e ricomincia',
   'materiali_parzialmente_arrivati->materiali_ordinati': 'Problema: ri-ordinare tutto',
+  'materiali_parzialmente_arrivati->materiali_arrivati': 'Arrivato il resto',
   'materiali_parzialmente_arrivati->in_lavorazione': 'Iniziare con materiali disponibili',
-  
-  'materiali_arrivati->in_lavorazione': 'Inizia lavorazione',
+
+  'materiali_arrivati->nuove': 'Errore: annulla tutto e ricomincia',
   'materiali_arrivati->materiali_ordinati': 'Materiali danneggiati/sbagliati',
+  'materiali_arrivati->materiali_parzialmente_arrivati': 'Problema: manca qualcosa',
+  'materiali_arrivati->in_lavorazione': 'Inizia lavorazione',
   'materiali_arrivati->pronto_ritiro': 'Lavorazione esterna già completata',
-  
-  'in_lavorazione->pronto_ritiro': 'Lavorazione completata',
+
+  'in_lavorazione->nuove': 'Errore critico: annulla tutto e ricomincia',
   'in_lavorazione->materiali_ordinati': 'Errore grave: serve ri-ordinare',
   'in_lavorazione->materiali_parzialmente_arrivati': 'Scoperto che manca qualcosa',
-  
+  'in_lavorazione->materiali_arrivati': 'Problema lavorazione: ricomincia',
+  'in_lavorazione->pronto_ritiro': 'Lavorazione completata',
+
+  'pronto_ritiro->in_lavorazione': 'Problema trovato: torna in lavorazione',
   'pronto_ritiro->consegnato_pagato': 'Cliente ha ritirato e pagato'
 };
 
