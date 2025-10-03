@@ -350,7 +350,7 @@ L'header della dashboard fornisce azioni rapide:
 const DashboardActions = () => {
   const actions = [
     { label: 'Nuova Busta', action: () => router.push('/dashboard/buste/new') },
-    { label: 'Gestisci Ordini', action: () => router.push('/dashboard/filtri-ordini') },
+    { label: 'Gestisci Ordini', action: () => router.push('/modules/operations') },
     { label: 'Follow-up', action: () => router.push('/dashboard/follow-up') },
     { label: 'Errori', action: () => router.push('/errori') }
   ]

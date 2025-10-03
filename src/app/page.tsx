@@ -68,11 +68,11 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '2.91', date: '02/10/2025', description: 'Ricerca clienti per cognome/telefono, fix duplicati follow-up, workflow Kanban bidirezionale, correzione 8 vulnerabilità sicurezza database.' },
+    { version: '2.90', date: '01/10/2025', description: 'Categoria Accessori implementata, policies RLS lavorazioni corrette, auto-note follow-up, sidebar scrollabile.' },
     { version: '2.8.0', date: '19/09/2024', description: 'Sistema di tracking pagamenti migliorato e calcolo tempi di consegna aggiornato.' },
     { version: '2.7.0', date: '15/09/2024', description: 'Sistema Marketing completo con filtri brand e segmentazione clienti inattivi.' },
     { version: '2.6.0', date: '10/09/2024', description: 'Sistema di autenticazione Telegram Bot implementato.' },
-    { version: '2.5.0', date: '08/09/2024', description: 'Nuovo menu sidebar e sistema di follow-up avanzato.' },
-    { version: '2.4.0', date: '05/09/2024', description: 'Trascrizione note vocali funzionante e miglioramenti AssemblyAI.' },
   ]
 
   return (

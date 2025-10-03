@@ -15,7 +15,7 @@ export const LazyNotificheTab = lazy(() => import('@/app/dashboard/buste/[id]/_c
 // ✅ Pagine specializzate - sicure perché non in dashboard principale
 // PWA voice interface removed - using Telegram bot instead
 export const LazyRicercaAvanzataPage = lazy(() => import('@/app/dashboard/ricerca-avanzata/page'));
-export const LazyFiltriOrdiniPage = lazy(() => import('@/app/dashboard/filtri-ordini/page'));
+// LazyFiltriOrdiniPage removed - replaced by /modules/operations (Oct 2025)
 
 // 🚫 NON INCLUDERE:
 // - KanbanBoard (stato SWR critico)

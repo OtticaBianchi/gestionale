@@ -141,6 +141,18 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     }
   }, [ordiniMateriali.length, canEdit]); // Trigger quando cambiano ordini o permessi
 
+  // ✅ NUOVO EFFECT: Auto-aggiornamento ordini "in ritardo"
+  useEffect(() => {
+    if (ordiniMateriali.length > 0 && canEdit) {
+      // Controlla se ci sono ordini che dovrebbero essere in ritardo
+      const ordiniDaAggiornare = ordiniMateriali.filter(dovrebbeEssereInRitardo);
+      if (ordiniDaAggiornare.length > 0) {
+        console.log(`⚠️ Controllo automatico: ${ordiniDaAggiornare.length} ordini in ritardo`);
+        aggiornaOrdiniInRitardo();
+      }
+    }
+  }, [ordiniMateriali.length, canEdit]); // Trigger quando cambiano ordini o permessi
+
 
   // ===== LOAD MATERIALI DATA =====
   const loadMaterialiData = async () => {
@@ -363,10 +375,27 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     if (!ordine.data_ordine) return false;
 
     const oggi = new Date();
+    oggi.setHours(0, 0, 0, 0); // Reset time for accurate date-only comparison
     const dataInArrivo = calcolaDataInArrivo(ordine.data_ordine);
+    dataInArrivo.setHours(0, 0, 0, 0);
 
     // Se oggi >= data in arrivo, allora dovrebbe essere "in_arrivo"
     return oggi >= dataInArrivo;
+  };
+
+  // ===== CONTROLLA SE ORDINE DOVREBBE ESSERE "IN RITARDO" =====
+  const dovrebbeEssereInRitardo = (ordine: OrdineMateriale) => {
+    // Solo ordini "in_arrivo" o "ordinato" possono diventare "in_ritardo"
+    if (!['ordinato', 'in_arrivo'].includes(ordine.stato || 'ordinato')) return false;
+    if (!ordine.data_consegna_prevista) return false;
+
+    const oggi = new Date();
+    oggi.setHours(0, 0, 0, 0);
+    const dataConsegnaPrevista = new Date(ordine.data_consegna_prevista);
+    dataConsegnaPrevista.setHours(0, 0, 0, 0);
+
+    // Se oggi > data consegna prevista, allora è in ritardo
+    return oggi > dataConsegnaPrevista;
   };
 
   // ===== AGGIORNA AUTOMATICAMENTE GLI ORDINI CHE DOVREBBERO ESSERE "IN ARRIVO" =====
@@ -384,12 +413,16 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       const updatePromises = ordiniDaAggiornare.map(async (ordine) => {
         console.log(`📦→🚚 Auto-update: ${ordine.id} (ordinato il ${ordine.data_ordine})`);
 
+        // Calcola la data CORRETTA quando dovrebbe essere diventato "in_arrivo"
+        const dataInArrivoCorretta = calcolaDataInArrivo(ordine.data_ordine!);
+        const dataInArrivoFormattata = dataInArrivoCorretta.toLocaleDateString('it-IT');
+
         const resp = await fetch(`/api/ordini/${ordine.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             stato: 'in_arrivo',
-            note: ordine.note ? `${ordine.note}\n[Auto-aggiornato: In arrivo da ${new Date().toLocaleDateString('it-IT')}]` : `[Auto-aggiornato: In arrivo da ${new Date().toLocaleDateString('it-IT')}]`
+            note: ordine.note ? `${ordine.note}\n[Auto-aggiornato: In arrivo da ${dataInArrivoFormattata}]` : `[Auto-aggiornato: In arrivo da ${dataInArrivoFormattata}]`
           })
         });
 
@@ -409,9 +442,13 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         // Aggiorna stato locale
         setOrdiniMateriali(prev => prev.map(ordine => {
           if (ordiniDaAggiornare.find(o => o.id === ordine.id)) {
+            // Calcola la data CORRETTA quando dovrebbe essere diventato "in_arrivo"
+            const dataInArrivoCorretta = calcolaDataInArrivo(ordine.data_ordine!);
+            const dataInArrivoFormattata = dataInArrivoCorretta.toLocaleDateString('it-IT');
+
             const noteAggiornate = ordine.note
-              ? `${ordine.note}\n[Auto-aggiornato: In arrivo da ${new Date().toLocaleDateString('it-IT')}]`
-              : `[Auto-aggiornato: In arrivo da ${new Date().toLocaleDateString('it-IT')}]`;
+              ? `${ordine.note}\n[Auto-aggiornato: In arrivo da ${dataInArrivoFormattata}]`
+              : `[Auto-aggiornato: In arrivo da ${dataInArrivoFormattata}]`;
 
             return {
               ...ordine,
@@ -430,6 +467,88 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
     } catch (error) {
       console.error('❌ Errore aggiornamento automatico ordini in arrivo:', error);
+    }
+  };
+
+  // ===== AGGIORNA AUTOMATICAMENTE GLI ORDINI CHE SONO "IN RITARDO" =====
+  const aggiornaOrdiniInRitardo = async () => {
+    try {
+      const ordiniDaAggiornare = ordiniMateriali.filter(dovrebbeEssereInRitardo);
+
+      if (ordiniDaAggiornare.length === 0) {
+        return; // Nessun ordine da aggiornare
+      }
+
+      console.log(`⚠️ Aggiornamento automatico: ${ordiniDaAggiornare.length} ordini in ritardo`);
+
+      // Aggiorna tutti gli ordini che sono in ritardo
+      const updatePromises = ordiniDaAggiornare.map(async (ordine) => {
+        const oggi = new Date();
+        oggi.setHours(0, 0, 0, 0);
+        const dataConsegnaPrevista = new Date(ordine.data_consegna_prevista);
+        dataConsegnaPrevista.setHours(0, 0, 0, 0);
+        const giorniRitardo = Math.floor((oggi.getTime() - dataConsegnaPrevista.getTime()) / (1000 * 60 * 60 * 24));
+
+        console.log(`🚨 Auto-update: ${ordine.id} in ritardo di ${giorniRitardo} giorni (previsto: ${ordine.data_consegna_prevista})`);
+
+        const dataRitardoFormattata = oggi.toLocaleDateString('it-IT');
+
+        const resp = await fetch(`/api/ordini/${ordine.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stato: 'in_ritardo',
+            note: ordine.note
+              ? `${ordine.note}\n[Auto-aggiornato: In ritardo da ${dataRitardoFormattata} - ${giorniRitardo} giorni]`
+              : `[Auto-aggiornato: In ritardo da ${dataRitardoFormattata} - ${giorniRitardo} giorni]`
+          })
+        });
+
+        if (!resp.ok) {
+          const error = await resp.json();
+          console.error(`❌ Errore aggiornamento ordine ${ordine.id}:`, error);
+          return null;
+        }
+
+        return await resp.json();
+      });
+
+      const risultati = await Promise.all(updatePromises);
+      const successi = risultati.filter(r => r !== null);
+
+      if (successi.length > 0) {
+        // Aggiorna stato locale
+        setOrdiniMateriali(prev => prev.map(ordine => {
+          if (ordiniDaAggiornare.find(o => o.id === ordine.id)) {
+            const oggi = new Date();
+            oggi.setHours(0, 0, 0, 0);
+            const dataConsegnaPrevista = new Date(ordine.data_consegna_prevista);
+            dataConsegnaPrevista.setHours(0, 0, 0, 0);
+            const giorniRitardo = Math.floor((oggi.getTime() - dataConsegnaPrevista.getTime()) / (1000 * 60 * 60 * 24));
+
+            const dataRitardoFormattata = oggi.toLocaleDateString('it-IT');
+
+            const noteAggiornate = ordine.note
+              ? `${ordine.note}\n[Auto-aggiornato: In ritardo da ${dataRitardoFormattata} - ${giorniRitardo} giorni]`
+              : `[Auto-aggiornato: In ritardo da ${dataRitardoFormattata} - ${giorniRitardo} giorni]`;
+
+            return {
+              ...ordine,
+              stato: 'in_ritardo' as const,
+              note: noteAggiornate
+            };
+          }
+          return ordine;
+        }));
+
+        // Invalida cache
+        await mutate('/api/buste');
+
+        console.log(`✅ Aggiornati ${successi.length} ordini a "in_ritardo"`);
+      }
+
+    } catch (error) {
+      console.error('❌ Errore aggiornamento automatico ordini in ritardo:', error);
     }
   };
 
@@ -1308,13 +1427,13 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                         )}
                         
                         <div className="flex items-center space-x-2">
-                          {/* Nessuna icona se tutto ok */}
-                          {statoOrdine === 'ordinato' && giorniRitardo > 0 && giorniRitardo <= 2 && (
+                          {/* Mostra icone di warning anche per ordini "in_arrivo" se sono in ritardo */}
+                          {['ordinato', 'in_arrivo'].includes(statoOrdine) && giorniRitardo > 0 && giorniRitardo <= 2 && (
                             <span className="text-yellow-500 text-xl ml-2" title={`${giorniRitardo} giorno${giorniRitardo > 1 ? 'i' : ''} di ritardo`}>
                               ⚠️
                             </span>
                           )}
-                          {statoOrdine === 'ordinato' && giorniRitardo > 2 && (
+                          {['ordinato', 'in_arrivo'].includes(statoOrdine) && giorniRitardo > 2 && (
                             <span className="text-red-600 text-xl ml-2" title={`${giorniRitardo} giorni di ritardo grave`}>
                               🚨
                             </span>
@@ -1407,14 +1526,21 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                           value={statoOrdine}
                           onChange={(e) => handleAggiornaStatoOrdine(ordine.id, e.target.value)}
                           className="px-2 py-1 text-xs rounded border border-gray-300 focus:border-blue-500"
+                          title="Solo stati manuali disponibili. Stati automatici gestiti dal sistema"
                         >
-                          <option value="da_ordinare">🛒 Da Ordinare</option>
-                          <option value="ordinato">📦 Ordinato</option>
-                          <option value="in_arrivo">🚚 In Arrivo</option>
-                          <option value="in_ritardo">⏰ In Ritardo</option>
+                          {/* Mostra lo stato corrente se automatico (disabled placeholder) */}
+                          {['da_ordinare', 'ordinato', 'in_arrivo', 'in_ritardo'].includes(statoOrdine) && (
+                            <option value={statoOrdine} disabled>
+                              {statoOrdine === 'da_ordinare' && '🛒 Da Ordinare (auto)'}
+                              {statoOrdine === 'ordinato' && '📦 Ordinato (auto)'}
+                              {statoOrdine === 'in_arrivo' && '🚚 In Arrivo (auto)'}
+                              {statoOrdine === 'in_ritardo' && '⏰ In Ritardo (auto)'}
+                            </option>
+                          )}
+                          {/* Stati manuali selezionabili */}
+                          <option value="consegnato">✅ Consegnato</option>
                           <option value="accettato_con_riserva">🔄 Con Riserva</option>
                           <option value="rifiutato">❌ Rifiutato</option>
-                          <option value="consegnato">✅ Consegnato</option>
                         </select>
                   
                         {canDelete && (
