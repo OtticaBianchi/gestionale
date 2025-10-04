@@ -21,12 +21,12 @@ export async function GET(request: NextRequest) {
 
     // Check if user is admin
     const { data: profile } = await userSupabase
-      .from('utenti')
-      .select('ruolo')
-      .eq('supabase_uid', user.id)
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
       .single();
 
-    if (profile?.ruolo !== 'admin') {
+    if (profile?.role !== 'admin') {
       return NextResponse.json({
         success: false,
         error: 'Accesso non autorizzato',
