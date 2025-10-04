@@ -1,13 +1,13 @@
 // API Route: /api/analytics
 // Business Intelligence Dashboard - Optimized Query Structure
 
-import { createClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { Database } from '@/types/database.types';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
+    const supabase = await createServerSupabaseClient();
 
     const searchParams = request.nextUrl.searchParams;
     const startDate = searchParams.get('start_date');
