@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         created_at,
         busta_id,
         tipo_lenti_id,
-        tipi_lenti:tipo_lenti_id(nome, tipo),
+        tipi_lenti:tipo_lenti_id(nome),
         fornitori_montature:fornitore_montature_id(nome),
         fornitori_sport:fornitore_sport_id(nome),
         fornitori_lenti:fornitore_lenti_id(nome),
@@ -125,8 +125,8 @@ export async function GET(request: NextRequest) {
     const tipoLentiStats: Record<string, number> = {};
     filteredOrdini.forEach(ordine => {
       if (ordine.tipo_lenti_id) {
-        const tipo = (ordine.tipi_lenti as any)?.tipo || 'Non specificato';
-        tipoLentiStats[tipo] = (tipoLentiStats[tipo] || 0) + 1;
+        const nome = (ordine.tipi_lenti as any)?.nome || 'Non specificato';
+        tipoLentiStats[nome] = (tipoLentiStats[nome] || 0) + 1;
       }
     });
 
