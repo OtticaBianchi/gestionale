@@ -1,18 +1,28 @@
 // API Route: /api/analytics
 // Business Intelligence Dashboard - Optimized Query Structure
 
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { Database } from '@/types/database.types';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   try {
     // Check user authentication first
-    const userSupabase = await createServerSupabaseClient();
-    const { data: { user }, error: authError } = await userSupabase.auth.getUser();
+    const cookieStore = await cookies();
+    const userSupabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { get: (name) => cookieStore.get(name)?.value } }
+    );
 
-    if (authError || !user) {
+    const { data: { user } } = await userSupabase.auth.getUser();
+
+    if (!user) {
       return NextResponse.json({
         success: false,
         error: 'Non autenticato',
@@ -26,7 +36,7 @@ export async function GET(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (profile?.role !== 'admin') {
+    if (!profile || profile.role !== 'admin') {
       return NextResponse.json({
         success: false,
         error: 'Accesso non autorizzato',
