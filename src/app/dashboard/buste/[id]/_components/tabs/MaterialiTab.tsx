@@ -1201,11 +1201,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, descrizione_prodotto: e.target.value }))}
                 rows={2}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Descrivi dettagliatamente il prodotto ordinato (es. Lenti progressive Zeiss 1.67 antiriflesso DuraVision, potere +2.00/-1.25x180°)"
+                placeholder="Usa parole chiave: progressive, office, monofocali, antiriflesso, polarizzazione, fotocromatico, potere..."
                 required
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Inserire tutte le caratteristiche tecniche del prodotto
+              <p className="text-xs text-gray-600 mt-1">
+                📝 <strong>Esempio:</strong> "Progressive 1.67 antiriflesso + fotocromatico | OD: +2.00 -1.25×180° ADD +2.50 | OS: +1.75 -1.00×10° ADD +2.50"
               </p>
             </div>
 

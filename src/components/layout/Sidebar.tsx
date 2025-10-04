@@ -188,15 +188,15 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
       {/* Sidebar */}
       <div className={`
-        fixed top-0 left-0 h-full bg-white border-r border-gray-200 z-50
-        transition-all duration-300 ease-in-out
+        fixed top-0 left-0 h-screen bg-white border-r border-gray-200 z-50
+        transition-all duration-300 ease-in-out flex flex-col
         ${isCollapsed ? 'w-16' : 'w-64'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${className}
       `}>
 
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
           {!isCollapsed && (
             <h2 className="text-lg font-semibold text-gray-900">
               Menu
@@ -215,7 +215,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
         </div>
 
         {/* Menu Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 space-y-6 min-h-0">
 
           {/* DASHBOARD Section */}
           <SidebarSection
@@ -234,8 +234,6 @@ export default function Sidebar({ className = '' }: SidebarProps) {
               icon={Activity}
               label="Analytics"
               isCollapsed={isCollapsed}
-              disabled={true}
-              className="opacity-50"
             />
           </SidebarSection>
 
