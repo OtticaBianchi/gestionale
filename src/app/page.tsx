@@ -68,11 +68,11 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '3.0.1', date: '04/10/2025', description: 'Nuova pagina Analytics con dashboard Business Intelligence, statistiche dettagliate su lavorazioni, fornitori, fatturato, grafici interattivi e trend mensili.' },
     { version: '2.91', date: '02/10/2025', description: 'Ricerca clienti per cognome/telefono, fix duplicati follow-up, workflow Kanban bidirezionale, correzione 8 vulnerabilità sicurezza database.' },
     { version: '2.90', date: '01/10/2025', description: 'Categoria Accessori implementata, policies RLS lavorazioni corrette, auto-note follow-up, sidebar scrollabile.' },
     { version: '2.8.0', date: '19/09/2024', description: 'Sistema di tracking pagamenti migliorato e calcolo tempi di consegna aggiornato.' },
     { version: '2.7.0', date: '15/09/2024', description: 'Sistema Marketing completo con filtri brand e segmentazione clienti inattivi.' },
-    { version: '2.6.0', date: '10/09/2024', description: 'Sistema di autenticazione Telegram Bot implementato.' },
   ]
 
   return (
