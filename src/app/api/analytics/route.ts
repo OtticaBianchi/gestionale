@@ -1,13 +1,43 @@
 // API Route: /api/analytics
 // Business Intelligence Dashboard - Optimized Query Structure
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { Database } from '@/types/database.types';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerSupabaseClient();
+    // Check user authentication first
+    const userSupabase = await createServerSupabaseClient();
+    const { data: { user }, error: authError } = await userSupabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json({
+        success: false,
+        error: 'Non autenticato',
+      }, { status: 401 });
+    }
+
+    // Check if user is admin
+    const { data: profile } = await userSupabase
+      .from('utenti')
+      .select('ruolo')
+      .eq('supabase_uid', user.id)
+      .single();
+
+    if (profile?.ruolo !== 'admin') {
+      return NextResponse.json({
+        success: false,
+        error: 'Accesso non autorizzato',
+      }, { status: 403 });
+    }
+
+    // Use service role client to bypass RLS for analytics
+    const supabase = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const searchParams = request.nextUrl.searchParams;
     const startDate = searchParams.get('start_date');

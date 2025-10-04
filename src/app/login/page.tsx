@@ -174,6 +174,26 @@ function LoginForm() {
         <div className="text-sm text-center text-gray-500">
           La creazione di account è consentita solo su invito
         </div>
+
+        <div className="mt-6 pt-6 border-t border-gray-200">
+          <div className="text-xs text-center text-gray-400 mb-2">
+            Versione 3.0.1
+          </div>
+          <details className="text-xs text-gray-500">
+            <summary className="cursor-pointer text-center hover:text-gray-700 font-medium">
+              Novità e aggiornamenti
+            </summary>
+            <div className="mt-3 space-y-2 text-left bg-gray-50 p-3 rounded">
+              <div className="font-semibold text-gray-700">v3.0.1 - Ottobre 2025</div>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>Nuova pagina Analytics con dashboard Business Intelligence</li>
+                <li>Statistiche dettagliate su lavorazioni, fornitori e fatturato</li>
+                <li>Grafici interattivi e trend mensili</li>
+                <li>Analisi per genere e tipo di lavorazione</li>
+              </ul>
+            </div>
+          </details>
+        </div>
       </div>
     </div>
   )
