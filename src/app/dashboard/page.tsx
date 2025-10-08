@@ -9,6 +9,7 @@ import { BustaWithCliente } from '@/types/shared.types';
 import DashboardActions from './_components/DashboardActions';
 import ErrorActions from './_components/ErrorActions';
 import DashboardLayout from '@/components/layout/DashboardLayout';
+import { shouldArchiveBusta } from '@/lib/buste/archiveRules';
 
 // ✅ FIX: Forza il dynamic rendering e disabilita la cache
 export const dynamic = 'force-dynamic';
@@ -110,11 +111,12 @@ export default async function DashboardPage() {
   }
 
   const normalizedBuste = (buste || []).map(normalizePaymentPlanRelation) as BustaWithCliente[];
+  const activeBuste = normalizedBuste.filter(busta => !shouldArchiveBusta(busta));
 
-  console.log('🔍 Dashboard - Buste fetch result:', `Success: ${normalizedBuste.length} buste`);
-  console.log('🔍 Dashboard - Stati delle buste:', normalizedBuste.map(b => ({ id: b.readable_id, stato: b.stato_attuale })));
+  console.log('🔍 Dashboard - Buste fetch result:', `Success: ${normalizedBuste.length} totali, ${activeBuste.length} attive`);
+  console.log('🔍 Dashboard - Stati delle buste attive:', activeBuste.map(b => ({ id: b.readable_id, stato: b.stato_attuale })));
 
-  return renderDashboard(normalizedBuste);
+  return renderDashboard(activeBuste);
 }
 
 function renderError(error: { message: string; details?: string | null; hint?: string | null; code?: string | null }) {

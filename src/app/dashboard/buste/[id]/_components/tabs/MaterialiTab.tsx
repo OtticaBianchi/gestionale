@@ -26,6 +26,8 @@ import {
   Euro,
   Save
 } from 'lucide-react';
+import type { WorkflowState } from '@/app/dashboard/_components/WorkflowLogic';
+import { areAllOrdersCancelled } from '@/lib/buste/archiveRules';
 
 // ===== TYPES LOCALI =====
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
@@ -65,6 +67,20 @@ type Fornitore = {
 
 type TipoOrdine = Database['public']['Tables']['tipi_ordine']['Row'];
 type TipoLenti = Database['public']['Tables']['tipi_lenti']['Row'];
+type AutoAdvanceState = 'nuove' | 'materiali_ordinati' | 'materiali_arrivati';
+type AutoAdvanceTarget = 'materiali_ordinati' | 'materiali_arrivati';
+const MANAGED_WORKFLOW_STATES: readonly AutoAdvanceState[] = ['nuove', 'materiali_ordinati', 'materiali_arrivati'] as const;
+const WORKFLOW_STATES: readonly WorkflowState[] = [
+  'nuove',
+  'materiali_ordinati',
+  'materiali_arrivati',
+  'in_lavorazione',
+  'pronto_ritiro',
+  'consegnato_pagato'
+] as const;
+
+const resolveWorkflowState = (state: string): WorkflowState =>
+  (WORKFLOW_STATES.includes(state as WorkflowState) ? (state as WorkflowState) : 'nuove');
 
 // Props del componente
 interface MaterialiTabProps {
@@ -90,6 +106,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const [showNuovoOrdineForm, setShowNuovoOrdineForm] = useState(false);
   const [isLoadingOrdini, setIsLoadingOrdini] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowState>(resolveWorkflowState(busta.stato_attuale));
 
   // ✅ NUOVO: State per acconto (down payment) della busta
   const [accontoInfo, setAccontoInfo] = useState({
@@ -119,6 +136,97 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  useEffect(() => {
+    setWorkflowStatus(resolveWorkflowState(busta.stato_attuale));
+  }, [busta.stato_attuale]);
+
+  const autoAdvanceBusta = async (
+    oldStatus: AutoAdvanceState,
+    newStatus: AutoAdvanceTarget,
+    context: string
+  ): Promise<boolean> => {
+    console.log(`🔄 Auto-advance (${context}): ${oldStatus} → ${newStatus}`);
+    try {
+      const response = await fetch('/api/buste/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bustaId: busta.id,
+          oldStatus,
+          newStatus
+        })
+      });
+
+      if (!response.ok) {
+        let errorData: any = null;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          console.warn('⚠️ Auto-advance: impossibile leggere l\'errore di risposta', parseError);
+        }
+        console.warn(`⚠️ Auto-advance fallito (${context}):`, errorData);
+        return false;
+      }
+
+      console.log(`✅ Auto-advance completato (${context})`);
+      setWorkflowStatus(newStatus);
+      await mutate('/api/buste');
+      return true;
+    } catch (autoAdvanceError) {
+      console.error(`❌ Errore auto-advance (${context}):`, autoAdvanceError);
+      return false;
+    }
+  };
+
+  const syncBustaWorkflowWithOrdini = async (ordini: OrdineMateriale[], context: string) => {
+    if (ordini.length === 0) return;
+
+    if (areAllOrdersCancelled(ordini)) {
+      console.log(`📁 Archiviazione automatica (${context}): tutti gli ordini sono stati annullati`);
+      setWorkflowStatus('materiali_ordinati');
+      await mutate('/api/buste');
+      return;
+    }
+
+    const tuttiPronti = ordini.every(ordinePronto);
+    const desiredStatus: AutoAdvanceTarget = tuttiPronti ? 'materiali_arrivati' : 'materiali_ordinati';
+
+    const currentWorkflow = workflowStatus;
+    const isManagedCurrent = MANAGED_WORKFLOW_STATES.includes(currentWorkflow as AutoAdvanceState);
+
+    if (isManagedCurrent && currentWorkflow === desiredStatus) {
+      return;
+    }
+
+    if (!isManagedCurrent) {
+      return;
+    }
+
+    const attemptsQueue: AutoAdvanceState[] = [
+      currentWorkflow as AutoAdvanceState
+    ];
+
+    if (desiredStatus === 'materiali_ordinati') {
+      attemptsQueue.push('materiali_arrivati', 'nuove');
+    } else {
+      attemptsQueue.push('materiali_ordinati', 'nuove');
+    }
+
+    const attempted = new Set<AutoAdvanceState>();
+
+    for (const fromState of attemptsQueue) {
+      if (!MANAGED_WORKFLOW_STATES.includes(fromState)) continue;
+      if (fromState === desiredStatus) continue;
+      if (attempted.has(fromState)) continue;
+      attempted.add(fromState);
+
+      const success = await autoAdvanceBusta(fromState, desiredStatus, `${context} (sync stato busta)`);
+      if (success) {
+        break;
+      }
+    }
+  };
 
   // ===== HELPER FUNCTIONS =====
 
@@ -778,7 +886,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const createLacMaterialEntry = async () => {
     if (nuovoOrdineForm.categoria_prodotto !== 'lac') return;
 
-    console.log('🔄 Creazione entry materiali per LAC con primo_acquisto_lac:', nuovoOrdineForm.primo_acquisto_lac);
+    console.log('🔄 Creazione/aggiornamento entry materiali per LAC con primo_acquisto_lac:', nuovoOrdineForm.primo_acquisto_lac);
 
     const materialeEntry = {
       busta_id: busta.id,
@@ -788,12 +896,42 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       stato: 'attivo'
     };
 
-    const { error: materialeError } = await supabase
+    const { data: existingEntry, error: fetchError } = await supabase
+      .from('materiali')
+      .select('id')
+      .eq('busta_id', busta.id)
+      .eq('tipo', 'LAC')
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('⚠️ Errore verifica entry materiali LAC:', fetchError?.message ?? fetchError);
+      return;
+    }
+
+    if (existingEntry?.id) {
+      const { error: updateError } = await supabase
+        .from('materiali')
+        .update({
+          primo_acquisto_lac: materialeEntry.primo_acquisto_lac,
+          note: materialeEntry.note,
+          stato: materialeEntry.stato,
+        })
+        .eq('id', existingEntry.id);
+
+      if (updateError) {
+        console.error('⚠️ Errore aggiornamento entry materiali LAC:', updateError?.message ?? updateError);
+      } else {
+        console.log('ℹ️ Entry materiali LAC già presente, aggiornata con le nuove informazioni');
+      }
+      return;
+    }
+
+    const { error: insertError } = await supabase
       .from('materiali')
       .insert(materialeEntry);
 
-    if (materialeError) {
-      console.error('⚠️ Errore creazione entry materiali:', materialeError);
+    if (insertError) {
+      console.error('⚠️ Errore creazione entry materiali:', insertError?.message ?? insertError);
     } else {
       console.log('✅ Entry materiali LAC creata per follow-up system');
     }
@@ -838,36 +976,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       // Invalidate cache
       await mutate('/api/buste');
 
-      // ===== STEP 4: AUTO-ADVANCE nuove → materiali_ordinati =====
-      // Se questo è il PRIMO ordine e la busta è ancora in stato 'nuove',
-      // avanza automaticamente a 'materiali_ordinati'
-      if (ordiniAggiornati.length === 1 && busta.stato_attuale === 'nuove') {
-        console.log('🔄 Auto-advance: nuove → materiali_ordinati (primo ordine creato)');
-
-        try {
-          const response = await fetch('/api/buste/update-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              bustaId: busta.id,
-              oldStatus: 'nuove',
-              newStatus: 'materiali_ordinati'
-            })
-          });
-
-          if (!response.ok) {
-            const errorData = await response.json();
-            console.warn('⚠️ Auto-advance fallito:', errorData);
-          } else {
-            console.log('✅ Auto-advance completato: busta → materiali_ordinati');
-            // Re-invalidate cache to sync new status
-            await mutate('/api/buste');
-          }
-        } catch (autoAdvanceError) {
-          console.error('❌ Errore auto-advance:', autoAdvanceError);
-          // Non blocchiamo il flusso se l'auto-advance fallisce
-        }
-      }
+      await syncBustaWorkflowWithOrdini(ordiniAggiornati, 'creazione ordine');
 
       // Create LAC material entry if needed
       await createLacMaterialEntry();
@@ -893,6 +1002,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       const ordine = ordiniMateriali.find(o => o.id === ordineId);
       if (!ordine) {
         throw new Error('Ordine non trovato');
+      }
+      if ((ordine.stato || '').toLowerCase() === 'annullato') {
+        alert('Questo ordine è annullato e non può essere modificato.');
+        return;
       }
 
       const oggi = new Date().toISOString().split('T')[0];
@@ -922,17 +1035,25 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       console.log('✅ da_ordinare, stato e delivery date aggiornati nel database');
 
       // 🔥 FIX: Aggiorna stato locale con TUTTI i campi
-      setOrdiniMateriali(prev => prev.map(o =>
-        o.id === ordineId
-          ? {
-              ...o,
-              ...updateData
-            }
-          : o
-      ));
+      let ordiniAggiornati: OrdineMateriale[] = [];
+      setOrdiniMateriali(prev => {
+        const next = prev.map(o =>
+          o.id === ordineId
+            ? {
+                ...o,
+                ...updateData
+              }
+            : o
+        );
+        ordiniAggiornati = next;
+        return next;
+      });
 
       // ✅ SWR: Invalidate cache after order state change
       await mutate('/api/buste');
+      if (ordiniAggiornati.length > 0) {
+        await syncBustaWorkflowWithOrdini(ordiniAggiornati, 'aggiornamento da_ordinare');
+      }
 
     } catch (error: any) {
       console.error('❌ Error toggle da_ordinare:', error);
@@ -950,8 +1071,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         updated_at: new Date().toISOString()
       };
 
-      // Se viene segnato come consegnato, aggiungi data consegna effettiva
-      if (nuovoStato === 'consegnato') {
+      if (nuovoStato === 'annullato') {
+        updateData.da_ordinare = false;
+        updateData.data_ordine = null;
+        updateData.data_consegna_prevista = null;
+        updateData.data_consegna_effettiva = null;
+      } else if (nuovoStato === 'consegnato') {
         updateData.data_consegna_effettiva = new Date().toISOString().split('T')[0];
       }
 
@@ -975,49 +1100,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
       // ✅ SWR: Invalidate cache after order status update
       await mutate('/api/buste');
-
-      // ===== STEP 5: AUTO-ADVANCE materiali_ordinati → materiali_arrivati =====
-      // Se la busta è in stato 'materiali_ordinati' e TUTTI gli ordini sono pronti,
-      // avanza automaticamente a 'materiali_arrivati'
-      if (busta.stato_attuale === 'materiali_ordinati') {
-        // Blocca se c'è almeno un ordine rifiutato
-        const haRifiutati = ordiniAggiornati.some(o => o.stato === 'rifiutato');
-
-        if (haRifiutati) {
-          console.log('⚠️ Auto-advance bloccato: ci sono ordini rifiutati');
-        } else {
-          // Controlla se TUTTI gli ordini sono pronti
-          const tuttiPronti = ordiniAggiornati.every(ordine => ordinePronto(ordine));
-
-          if (tuttiPronti && ordiniAggiornati.length > 0) {
-            console.log('🔄 Auto-advance: materiali_ordinati → materiali_arrivati (tutti gli ordini pronti)');
-
-            try {
-              const response = await fetch('/api/buste/update-status', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  bustaId: busta.id,
-                  oldStatus: 'materiali_ordinati',
-                  newStatus: 'materiali_arrivati'
-                })
-              });
-
-              if (!response.ok) {
-                const errorData = await response.json();
-                console.warn('⚠️ Auto-advance fallito:', errorData);
-              } else {
-                console.log('✅ Auto-advance completato: busta → materiali_arrivati');
-                // Re-invalidate cache to sync new status
-                await mutate('/api/buste');
-              }
-            } catch (autoAdvanceError) {
-              console.error('❌ Errore auto-advance:', autoAdvanceError);
-              // Non blocchiamo il flusso se l'auto-advance fallisce
-            }
-          }
-        }
-      }
+      await syncBustaWorkflowWithOrdini(ordiniAggiornati, 'aggiornamento stato ordine');
 
     } catch (error: any) {
       console.error('❌ Error updating ordine:', error);
@@ -1052,6 +1135,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
       // ✅ SWR: Invalidate cache after order deletion
       await mutate('/api/buste');
+      if (ordiniAggiornati.length > 0) {
+        await syncBustaWorkflowWithOrdini(ordiniAggiornati, 'eliminazione ordine');
+      }
 
     } catch (error: any) {
       console.error('❌ Error deleting ordine:', error);
@@ -1491,33 +1577,47 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           <div className="divide-y divide-gray-200">
             {ordiniMateriali.map((ordine) => {
               const oggi = new Date();
-              const dataConsegnaPrevista = new Date(ordine.data_consegna_prevista);
-              const statoOrdine = ordine.stato || 'ordinato';
-              const giorniRitardo = statoOrdine !== 'consegnato' && oggi > dataConsegnaPrevista 
-                ? Math.floor((oggi.getTime() - dataConsegnaPrevista.getTime()) / (1000 * 60 * 60 * 24))
-                : 0;
-              
+              const statoOrdine = (ordine.stato || 'ordinato') as string;
+              const isAnnullato = statoOrdine === 'annullato';
               const isArrivato = statoOrdine === 'consegnato';
+              const dataConsegnaPrevista = ordine.data_consegna_prevista
+                ? new Date(ordine.data_consegna_prevista)
+                : null;
+              const shouldShowDelayWarnings =
+                !isAnnullato && !!dataConsegnaPrevista && ['ordinato', 'in_arrivo'].includes(statoOrdine);
+              const giorniRitardo =
+                shouldShowDelayWarnings && dataConsegnaPrevista && oggi > dataConsegnaPrevista
+                  ? Math.floor((oggi.getTime() - dataConsegnaPrevista.getTime()) / (1000 * 60 * 60 * 24))
+                  : 0;
+
               const daOrdinare = ordine.da_ordinare ?? true;
-              
+
               let nomeFornitore = 'Non specificato';
               if (ordine.fornitori_lenti?.nome) nomeFornitore = ordine.fornitori_lenti.nome;
               else if (ordine.fornitori_lac?.nome) nomeFornitore = ordine.fornitori_lac.nome;
               else if (ordine.fornitori_montature?.nome) nomeFornitore = ordine.fornitori_montature.nome;
               else if (ordine.fornitori_lab_esterno?.nome) nomeFornitore = ordine.fornitori_lab_esterno.nome;
               else if (ordine.fornitori_sport?.nome) nomeFornitore = ordine.fornitori_sport.nome;
-              
+
+              const cardBaseClasses = isAnnullato
+                ? 'bg-slate-100/70 border border-slate-200 cursor-not-allowed'
+                : 'hover:bg-gray-50';
+              const titoloOrdineClass = isAnnullato
+                ? 'text-lg font-medium text-gray-500'
+                : 'text-lg font-medium text-gray-900';
+              const infoRowTextClass = isAnnullato ? 'text-gray-400' : 'text-gray-600';
+
               return (
-                <div key={ordine.id} className="p-6 hover:bg-gray-50 transition-colors">
+                <div key={ordine.id} className={`p-6 transition-colors ${cardBaseClasses}`}>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
-                        <h4 className="text-lg font-medium text-gray-900">
+                        <h4 className={titoloOrdineClass}>
                           {ordine.descrizione_prodotto}
                         </h4>
                         
                         {/* ✅ MODIFICA: Toggle da_ordinare - NASCOSTO PER OPERATORI */}
-                        {canEdit && (
+                        {canEdit && !isAnnullato && (
                           <button
                             onClick={() => handleToggleDaOrdinare(ordine.id, daOrdinare)}
                             className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
@@ -1542,7 +1642,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                         )}
                         
                         {/* ✅ Per operatori, mostra solo lo stato senza possibilità di cambiarlo */}
-                        {!canEdit && (
+                        {!canEdit && !isAnnullato && (
                           <span className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium ${
                             daOrdinare 
                               ? 'bg-orange-100 text-orange-700' 
@@ -1564,12 +1664,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                         
                         <div className="flex items-center space-x-2">
                           {/* Mostra icone di warning anche per ordini "in_arrivo" se sono in ritardo */}
-                          {['ordinato', 'in_arrivo'].includes(statoOrdine) && giorniRitardo > 0 && giorniRitardo <= 2 && (
+                          {!isAnnullato && ['ordinato', 'in_arrivo'].includes(statoOrdine) && giorniRitardo > 0 && giorniRitardo <= 2 && (
                             <span className="text-yellow-500 text-xl ml-2" title={`${giorniRitardo} giorno${giorniRitardo > 1 ? 'i' : ''} di ritardo`}>
                               ⚠️
                             </span>
                           )}
-                          {['ordinato', 'in_arrivo'].includes(statoOrdine) && giorniRitardo > 2 && (
+                          {!isAnnullato && ['ordinato', 'in_arrivo'].includes(statoOrdine) && giorniRitardo > 2 && (
                             <span className="text-red-600 text-xl ml-2" title={`${giorniRitardo} giorni di ritardo grave`}>
                               🚨
                             </span>
@@ -1588,14 +1688,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             {statoOrdine.replace(/_/g, ' ').toUpperCase()}
                           </span>
                         </div>
-                      </div>
+                        </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-600">
-                        <div className="flex items-center space-x-2">
-                          <Factory className="w-4 h-4 text-gray-400" />
-                          <span>
-                            <strong>Fornitore:</strong> {nomeFornitore}
-                          </span>
+                        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm ${infoRowTextClass}`}>
+                          <div className="flex items-center space-x-2">
+                            <Factory className="w-4 h-4 text-gray-400" />
+                            <span>
+                              <strong>Fornitore:</strong> {nomeFornitore}
+                            </span>
                         </div>
                         
                         <div className="flex items-center space-x-2">
@@ -1604,20 +1704,23 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             <strong>Via:</strong> {ordine.tipi_ordine?.nome || 'Non specificato'}
                           </span>
                         </div>
+                        {ordine.data_ordine && (
+                          <div className="flex items-center space-x-2">
+                            <Calendar className="w-4 h-4 text-gray-400" />
+                            <span>
+                              <strong>Ordinato:</strong> {new Date(ordine.data_ordine).toLocaleDateString('it-IT')}
+                            </span>
+                          </div>
+                        )}
                         
-                        <div className="flex items-center space-x-2">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          <span>
-                            <strong>Ordinato:</strong> {new Date(ordine.data_ordine).toLocaleDateString('it-IT')}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <Clock className="w-4 h-4 text-gray-400" />
-                          <span>
-                            <strong>Previsto:</strong> {new Date(ordine.data_consegna_prevista).toLocaleDateString('it-IT')}
-                          </span>
-                        </div>
+                        {ordine.data_consegna_prevista && (
+                          <div className="flex items-center space-x-2">
+                            <Clock className="w-4 h-4 text-gray-400" />
+                            <span>
+                              <strong>Previsto:</strong> {new Date(ordine.data_consegna_prevista).toLocaleDateString('it-IT')}
+                            </span>
+                          </div>
+                        )}
 
                         {ordine.tipi_lenti?.nome && (
                           <div className="flex items-center space-x-2">
@@ -1648,8 +1751,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                       </div>
 
                       {ordine.note && (
-                        <div className="mt-3 p-3 bg-gray-50 rounded-md">
-                          <p className="text-sm text-gray-700">
+                        <div className={`mt-3 p-3 rounded-md ${isAnnullato ? 'bg-slate-100 border border-slate-200' : 'bg-gray-50'}`}>
+                          <p className={`text-sm ${isAnnullato ? 'text-gray-500' : 'text-gray-700'}`}>
                             <strong>Note:</strong> {ordine.note}
                           </p>
                         </div>

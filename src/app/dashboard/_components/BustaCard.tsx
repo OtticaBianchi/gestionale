@@ -53,7 +53,8 @@ const getStatoOrdineEmoji = (stato: string | null) => {
     in_ritardo: '⏰',
     accettato_con_riserva: '🔄',
     rifiutato: '❌',
-    consegnato: '✅'
+    consegnato: '✅',
+    annullato: '🚫'
   };
   return stati[(stato || 'ordinato')] || '📦';
 };
@@ -402,23 +403,38 @@ export default function BustaCard({ busta }: BustaCardProps) {
             <p className="text-xs text-gray-400 italic">Nessun prodotto ordinato</p>
           ) : (
             <div className="space-y-2">
-              {ordiniOrdinati.slice(0, 3).map((ordine) => (
-                <div key={ordine.id} className="flex items-start gap-2">
-                  <span className="text-sm flex-shrink-0 mt-0.5">{getStatoOrdineEmoji(ordine.stato)}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-900 leading-tight" title={ordine.descrizione_prodotto}>
-                      {ordine.descrizione_prodotto.length > 50
-                        ? `${ordine.descrizione_prodotto.substring(0, 50)}...`
-                        : ordine.descrizione_prodotto}
-                    </p>
-                    {ordine.note && (
-                      <p className="text-xs text-gray-500 italic mt-1" title={ordine.note}>
-                        "{ordine.note.length > 30 ? `${ordine.note.substring(0, 30)}...` : ordine.note}"
+              {ordiniOrdinati.slice(0, 3).map((ordine) => {
+                const isCancelled = (ordine.stato || '').toLowerCase() === 'annullato';
+                const descrizioneBreve = ordine.descrizione_prodotto.length > 50
+                  ? `${ordine.descrizione_prodotto.substring(0, 50)}...`
+                  : ordine.descrizione_prodotto;
+
+                return (
+                  <div key={ordine.id} className="flex items-start gap-2">
+                    <span className={`text-sm flex-shrink-0 mt-0.5 ${isCancelled ? 'text-gray-400' : ''}`}>
+                      {getStatoOrdineEmoji(ordine.stato)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className={`text-xs leading-tight ${isCancelled ? 'text-gray-400' : 'text-gray-900'}`}
+                        title={ordine.descrizione_prodotto}
+                      >
+                        {descrizioneBreve}
                       </p>
-                    )}
+                      {ordine.note && (
+                        <p
+                          className={`text-xs italic mt-1 ${isCancelled ? 'text-gray-300' : 'text-gray-500'}`}
+                          title={ordine.note}
+                        >
+                          "
+                          {ordine.note.length > 30 ? `${ordine.note.substring(0, 30)}...` : ordine.note}
+                          "
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {ordini.length > 3 && (
                 <p className="text-xs text-gray-500 italic pl-6">
                   +{ordini.length - 3} altri prodotti...

@@ -2,19 +2,12 @@
 import useSWR from 'swr';
 import { createClient } from '@/lib/supabase/client';
 import { BustaWithCliente } from '@/types/shared.types';
+import { shouldArchiveBusta } from '@/lib/buste/archiveRules';
 
 const SWR_KEY = '/api/buste';
 
 // Funzione helper per determinare se una busta è archiviata
-const isArchived = (busta: any): boolean => {
-  if (busta.stato_attuale !== 'consegnato_pagato') return false;
-  
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const updatedAt = new Date(busta.updated_at);
-  
-  return updatedAt < sevenDaysAgo;
-};
+const isArchived = (busta: any): boolean => shouldArchiveBusta(busta);
 
 // Controllo archiviazione una volta al giorno
 const shouldCheckArchiving = (): boolean => {

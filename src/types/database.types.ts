@@ -756,8 +756,8 @@ export type Database = {
           creato_da: string | null
           da_ordinare: boolean | null
           data_consegna_effettiva: string | null
-          data_consegna_prevista: string
-          data_ordine: string
+          data_consegna_prevista: string | null
+          data_ordine: string | null
           descrizione_prodotto: string
           fornitore_id: string | null
           fornitore_lab_esterno_id: string | null
@@ -783,8 +783,8 @@ export type Database = {
           creato_da?: string | null
           da_ordinare?: boolean | null
           data_consegna_effettiva?: string | null
-          data_consegna_prevista: string
-          data_ordine?: string
+          data_consegna_prevista: string | null
+          data_ordine?: string | null
           descrizione_prodotto: string
           fornitore_id?: string | null
           fornitore_lab_esterno_id?: string | null
@@ -810,8 +810,8 @@ export type Database = {
           creato_da?: string | null
           da_ordinare?: boolean | null
           data_consegna_effettiva?: string | null
-          data_consegna_prevista?: string
-          data_ordine?: string
+          data_consegna_prevista?: string | null
+          data_ordine?: string | null
           descrizione_prodotto?: string
           fornitore_id?: string | null
           fornitore_lab_esterno_id?: string | null

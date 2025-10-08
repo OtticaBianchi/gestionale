@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { shouldArchiveBusta } from '@/lib/buste/archiveRules'
 
 type SearchType = 'all' | 'cliente' | 'prodotto' | 'fornitore'
 
@@ -266,18 +267,13 @@ export async function GET(request: NextRequest) {
     const searchTerm = query.trim()
     console.log('🔍 Advanced search:', { searchTerm, type, includeArchived })
 
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const now = new Date()
 
     const ctx: SearchContext = {
       supabase,
       searchTerm,
       includeArchived,
-      isBustaArchived: (busta) => {
-        if (busta.stato_attuale !== 'consegnato_pagato') return false
-        const updatedAt = new Date(busta.updated_at)
-        return updatedAt < sevenDaysAgo
-      },
+      isBustaArchived: (busta) => shouldArchiveBusta(busta, { now }),
     }
 
     const tasks: Promise<SearchResult[]>[] = []

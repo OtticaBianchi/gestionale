@@ -51,8 +51,8 @@ type OrdineEnhanced = {
   descrizione_prodotto: string
   stato: 'da_ordinare' | 'ordinato' | 'in_arrivo' | 'in_ritardo' | 'consegnato' | 'accettato_con_riserva' | 'rifiutato'
   da_ordinare: boolean | null
-  data_ordine: string
-  data_consegna_prevista: string
+  data_ordine: string | null
+  data_consegna_prevista: string | null
   data_consegna_effettiva: string | null
   note: string | null
   created_at: string
