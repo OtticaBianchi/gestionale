@@ -4,71 +4,97 @@
 
 ## 1. Scopo
 
-Accompagnare il cliente al primo utilizzo delle lenti progressive riducendo spaesamento e insoddisfazioni, tramite regolazioni precise dell’occhiale e istruzioni d’uso chiare.
+Accompagnare il cliente al primo utilizzo delle lenti progressive assicurando adattamento rapido, comfort visivo e riduzione dei ritorni per “non adattamento”.
 
 ## 2. Quando applicarla
 
-Alla consegna di occhiali con lenti progressive (primo acquisto o sostituzione).
+Alla consegna di occhiali con lenti progressive, sia per prima applicazione sia per sostituzione.
 
 ## 3. Chi è responsabile
 
-Addetti vendita.
+Addetti vendita. Coinvolgere l’optometrista se servono verifiche ottiche o ri-centratura.
 
 ## 4. Checklist operativa
 
-- [ ] **Postura cliente:** far accomodare il cliente **seduto** su sedia stabile, schiena dritta, sguardo all’orizzonte.
-- [ ] **Assetto montatura:** verificare e regolare **appoggio nasale**, **orizzontalità** e **simmetria**; controllare **inclinazione pantoscopica** e **distanza vertice** coerenti con la centratura rilevata.
-- [ ] **Allineamento visivo:** con luce frontale, far fissare un punto a 4–5 m e verificare che lo sguardo passi nel **canale di progressione**; micro-regolazioni se necessario.
-- [ ] **Spiegazione essenziale di funzionamento:**
-  - **Lontano:** testa e occhi in avanti, guardare attraverso la **zona alta**.
-  - **Intermedio (PC):** abbassare leggermente lo sguardo, spostare **la testa** per cercare la zona nitida, non gli occhi ai lati.
-  - **Vicino (lettura):** abbassare maggiormente lo sguardo usando la **zona bassa**.
-  - **Regola d’oro:** **muovere la testa, non solo gli occhi**.
-- [ ] **Esercizi guidati da seduti (1–2 minuti):**
-  - Cartello/dettaglio lontano → mettere a fuoco.
-  - Schermo/oggetto a ~60–70 cm → trovare la finestra nitida ruotando **la testa**.
-  - Foglio/telefono a ~35–40 cm → leggere 2–3 righe muovendo **la testa** per seguire la riga.
-- [ ] **Attenzioni nelle prime 48 ore:**
-  - **Scale e marciapiedi:** scendere **ruotando la testa** verso i gradini, non guardare di lato con la coda dell’occhio.
-  - **Auto:** se prima esperienza, evitare tragitti lunghi immediati; iniziare con brevi percorrenze diurne.
-  - **PC:** top schermo **poco sotto** la linea degli occhi; distanza ~60–70 cm.
-- [ ] **Adattamento atteso e istruzioni d’uso:**
-  - Abituazione tipica in **2–7 giorni** (a volte 2–3 settimane).  
-  - Indossare gli occhiali **continuativamente** per favorire l’adattamento; evitare “on/off” con vecchi occhiali.
-- [ ] **Conferma comfort da seduti:** chiedere percezione di nitidezza su lontano/intermedio/vicino; se necessario micro-regolazioni di montatura.
-- [ ] **Consegna e materiali:** panno e istruzioni pulizia; indicazioni su custodia e manutenzione.
-- [ ] **Follow-up programmato:** fissare controllo gratuito di adattamento a **7–10 giorni**; indicare contatto rapido in caso di nausea/visione instabile persistente.
+### 1) Preparazione postazione
+
+- [ ] Sedia stabile alla giusta altezza, ambiente tranquillo e ben illuminato.
+- [ ] Lenti e montatura pulite.
+- [ ] A portata di mano: cacciaviti, panno, cartello lontano (4–5 m), oggetto intermedio (60–70 cm), foglio/telefono (35–40 cm).
+
+### 2) Posizionamento cliente
+
+- [ ] **Seduto**, schiena dritta, sguardo orizzontale.
+- [ ] Evitare testa inclinata o posture rigide: serve allineamento naturale.
+
+### 3) Regolazioni meccaniche
+
+- [ ] **Appoggio nasale**: simmetrico e confortevole.
+- [ ] **Orizzontalità**: nessuna inclinazione laterale.
+- [ ] **Pantoscopia**: circa 8–12°.
+- [ ] **Distanza vertice** coerente con la centratura registrata.
+- [ ] Con luce frontale: fissare a 4–5 m e verificare che lo sguardo attraversi il **canale di progressione**; fare micro-regolazioni.
+
+### 4) Spiegazione essenziale (3 zone)
+
+| Zona                | Postura/Movimento                          | Attenzione                |
+| **Lontano**         | Testa e occhi avanti, zona alta            | Non abbassare lo sguardo |
+| **Intermedio (PC)** | Leggero abbassamento, **muovere la testa** | Non cercare con la coda dell’occhio |
+| **Vicino (lettura)**| Più abbassamento, zona bassa               | Postura rilassata |
+
+**Regola d’oro:** **muovere la testa**, non solo gli occhi.
+
+### 5) Esercizi guidati (1–2 minuti, da seduti)
+
+- [ ] **Lontano**: mettere a fuoco cartello/oggetto a 4–5 m.
+- [ ] **Intermedio**: oggetto/schermo a 60–70 cm, trovare la finestra nitida **ruotando la testa**.
+- [ ] **Vicino**: leggere 2–3 righe a 35–40 cm muovendo **la testa** per seguire le righe.
+- [ ] Ripetere finché esecuzione fluida.
+
+### 6) Consigli e precauzioni
+
+- [ ] **Prime 48 ore**: su scale/marciapiedi guardare i gradini **ruotando la testa**; in auto iniziare con brevi tragitti diurni.
+- [ ] **PC**: bordo superiore dello schermo **poco sotto** la linea degli occhi; distanza ~60–70 cm.
+- [ ] **Adattamento**: tipico 2–7 giorni (a volte 2–3 settimane). Indossare **continuativamente**, evitare alternanza coi vecchi occhiali.
+
+### 7) Conferma e consegna
+
+- [ ] Verificare comfort e nitidezza nelle 3 zone.
+- [ ] Fare eventuali micro-regolazioni.
+- [ ] Consegnare panno, istruzioni di pulizia e custodia.
+- [ ] Prenotare **follow-up gratuito** a 7–10 giorni o prima se nausea/visione instabile.
 
 ## 5. Cosa NON fare
 
-- ❌ **Consegnare in piedi** o senza regolazioni fini della montatura.
-- ❌ Dire al cliente di “usare gli occhi ai lati” per cercare nitidezza; va **ruotata la testa**.
-- ❌ Negare il possibile “effetto onde/nuoto” iniziale; va normalizzato e spiegato come superarlo.
-- ❌ Lasciare il cliente senza prova guidata di lontano/intermedio/vicino.
-- ❌ Promettere adattamento istantaneo o sminuire disagi persistenti oltre 10–14 giorni.
+- ❌ Consegnare **in piedi** o senza regolazioni fini.
+- ❌ Dire di “usare gli occhi ai lati”.
+- ❌ Negare l’eventuale “effetto onde” iniziale.
+- ❌ Saltare la prova guidata delle 3 zone.
+- ❌ Promettere adattamento immediato o minimizzare disagi oltre 10–14 giorni.
 
 ## 6. Indicatori di qualità
 
-- Cliente esegue correttamente i 3 **compiti da seduto** (lontano, intermedio, vicino) prima di uscire.
-- Regolazioni stabili, assenza di pressioni/instabilità segnalate a fine consegna.
-- Tasso di ritorni per “non adattamento” **< 5%**; richieste di ritaratura risolte in un singolo intervento.
+| Indicatore | Target |
+|---|---|
+| Cliente esegue correttamente i 3 compiti (lontano/intermedio/vicino) | 100% |
+| Assenza di pressioni/instabilità a fine consegna | 100% |
+| Ritorni per non adattamento | < 5% |
+| Ritarature risolte al primo intervento | ≥ 90% |
 
 ## 7. Note pratiche
 
-- **Progressive di prima adozione:** insistere sull’uso continuo nei primi giorni.
-- **Utilizzo al PC prolungato:** valutare accessorio dedicato (occupazionale) se il cliente lavora molte ore al monitor.
-- La maggior parte dei disagi deriva da **assetto montatura non ottimale**: rifare controlli meccanici prima di ipotizzare problemi ottici.
+- Prima adozione: insistere sull’uso continuativo.
+- PC prolungato: valutare lente occupazionale.
+- Disagi persistenti: prima ricontrollare **assetto montatura**.
 
 ## 8. Revisione
 
-- Ultima revisione: 25/09/2025  
-- Responsabile aggiornamento: Addetti vendita
+- Ultima revisione: 07/10/2025  
+- Responsabile aggiornamento: Manager responsabile reparto vista
 
 ---
 
-### Mini-Help (per pulsante “?”)
+### Mini-Help (“?”)
 
-**Titolo sintetico:** Consegna Progressive  
 **In sintesi:** cliente **seduto**, montatura regolata, testa che guida lo sguardo.  
-**Azione rapida:** prova lontano → intermedio → vicino; fissare follow-up a 7–10 giorni.  
-👉 [Leggi procedura completa]
+**Azione rapida:** prova lontano → intermedio → vicino → fissa follow-up (7–10 gg).

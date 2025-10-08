@@ -120,6 +120,20 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
+  // ===== HELPER FUNCTIONS =====
+
+  // Check se ordine è "da negozio" (già in stock)
+  const isDaNegozio = (ordine: OrdineMateriale): boolean => {
+    return ordine.tipi_ordine?.nome?.toLowerCase() === 'negozio';
+  };
+
+  // Check se ordine è "pronto" per avanzamento busta
+  const ordinePronto = (ordine: OrdineMateriale): boolean => {
+    return isDaNegozio(ordine) ||  // Prodotto già a negozio
+           ordine.stato === 'consegnato' ||
+           ordine.stato === 'accettato_con_riserva';
+  };
+
   // ✅ REMOVED: No more automatic price calculation
   // Price is now manually entered in PagamentoTab
 

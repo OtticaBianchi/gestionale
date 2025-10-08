@@ -28,6 +28,10 @@
 
 ## 3. Sala controllo
 
+### Procedura: Preparazione sala controllo
+  
+**Tag:** sala_controllo, checklist, optometrista
+
 ### Procedura: Preparazione cliente in sala controllo
   
 **Tag:** sala_controllo, checklist, optometrista  
@@ -40,7 +44,7 @@
 
 **Tag:** sala_controllo, istruzioni, optometrista  
 
-### Procedura: Chiusura visita e inserimento dati nel gestionale
+### Procedura: Chiusura controllo e inserimento dati nel gestionale
 
 **Tag:** sala_controllo, checklist, optometrista  
 
