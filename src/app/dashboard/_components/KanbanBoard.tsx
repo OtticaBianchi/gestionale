@@ -43,11 +43,10 @@ interface KanbanBoardProps {
   buste: BustaWithCliente[];
 }
 
-// Colonne Kanban in ordine
+// Colonne Kanban in ordine (6 stati - rimosso materiali_parzialmente_arrivati)
 const columns: (Database['public']['Tables']['buste']['Row']['stato_attuale'])[] = [
   'nuove',
   'materiali_ordinati',
-  'materiali_parzialmente_arrivati',
   'materiali_arrivati',
   'in_lavorazione',
   'pronto_ritiro',
@@ -59,7 +58,6 @@ const getColumnName = (status: string) => {
   const names: { [key: string]: string } = {
     'nuove': 'Nuove',
     'materiali_ordinati': 'Mat. Ordinati',
-    'materiali_parzialmente_arrivati': 'Mat. Parziali',
     'materiali_arrivati': 'Mat. Arrivati',
     'in_lavorazione': 'In Lavorazione',
     'pronto_ritiro': 'Pronto Ritiro',

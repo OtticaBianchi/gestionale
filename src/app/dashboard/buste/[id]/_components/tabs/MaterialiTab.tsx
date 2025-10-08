@@ -678,6 +678,28 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const createOrderData = () => {
     const fornitoreTableField = getSupplierField();
 
+    // Check if tipo_ordine is "negozio"
+    const tipoSelezionato = tipiOrdine.find(t => t.id === Number(nuovoOrdineForm.tipo_ordine_id));
+    const isNegozio = tipoSelezionato?.nome?.toLowerCase() === 'negozio';
+
+    // Se è "negozio", salta tutte le date e imposta come già consegnato
+    if (isNegozio) {
+      return {
+        busta_id: busta.id,
+        tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
+        tipo_ordine_id: Number.parseInt(nuovoOrdineForm.tipo_ordine_id),
+        descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
+        data_ordine: null, // Nessuna data ordine
+        data_consegna_prevista: null, // Nessuna data consegna
+        giorni_consegna_medi: null,
+        stato: 'consegnato' as const, // Già disponibile!
+        da_ordinare: false, // Non va ordinato
+        note: nuovoOrdineForm.note.trim() || null,
+        ...fornitoreTableField
+      };
+    }
+
+    // Ordine normale con date
     return {
       busta_id: busta.id,
       tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
@@ -816,6 +838,37 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       // Invalidate cache
       await mutate('/api/buste');
 
+      // ===== STEP 4: AUTO-ADVANCE nuove → materiali_ordinati =====
+      // Se questo è il PRIMO ordine e la busta è ancora in stato 'nuove',
+      // avanza automaticamente a 'materiali_ordinati'
+      if (ordiniAggiornati.length === 1 && busta.stato_attuale === 'nuove') {
+        console.log('🔄 Auto-advance: nuove → materiali_ordinati (primo ordine creato)');
+
+        try {
+          const response = await fetch('/api/buste/update-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              bustaId: busta.id,
+              oldStatus: 'nuove',
+              newStatus: 'materiali_ordinati'
+            })
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.warn('⚠️ Auto-advance fallito:', errorData);
+          } else {
+            console.log('✅ Auto-advance completato: busta → materiali_ordinati');
+            // Re-invalidate cache to sync new status
+            await mutate('/api/buste');
+          }
+        } catch (autoAdvanceError) {
+          console.error('❌ Errore auto-advance:', autoAdvanceError);
+          // Non blocchiamo il flusso se l'auto-advance fallisce
+        }
+      }
+
       // Create LAC material entry if needed
       await createLacMaterialEntry();
 
@@ -913,14 +966,58 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       console.log('✅ Stato ordine aggiornato nel database');
 
       // Aggiorna stato locale
-      setOrdiniMateriali(prev => prev.map(ordine => 
-        ordine.id === ordineId 
+      const ordiniAggiornati = ordiniMateriali.map(ordine =>
+        ordine.id === ordineId
           ? { ...ordine, ...updateData }
           : ordine
-      ));
+      );
+      setOrdiniMateriali(ordiniAggiornati);
 
       // ✅ SWR: Invalidate cache after order status update
       await mutate('/api/buste');
+
+      // ===== STEP 5: AUTO-ADVANCE materiali_ordinati → materiali_arrivati =====
+      // Se la busta è in stato 'materiali_ordinati' e TUTTI gli ordini sono pronti,
+      // avanza automaticamente a 'materiali_arrivati'
+      if (busta.stato_attuale === 'materiali_ordinati') {
+        // Blocca se c'è almeno un ordine rifiutato
+        const haRifiutati = ordiniAggiornati.some(o => o.stato === 'rifiutato');
+
+        if (haRifiutati) {
+          console.log('⚠️ Auto-advance bloccato: ci sono ordini rifiutati');
+        } else {
+          // Controlla se TUTTI gli ordini sono pronti
+          const tuttiPronti = ordiniAggiornati.every(ordine => ordinePronto(ordine));
+
+          if (tuttiPronti && ordiniAggiornati.length > 0) {
+            console.log('🔄 Auto-advance: materiali_ordinati → materiali_arrivati (tutti gli ordini pronti)');
+
+            try {
+              const response = await fetch('/api/buste/update-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  bustaId: busta.id,
+                  oldStatus: 'materiali_ordinati',
+                  newStatus: 'materiali_arrivati'
+                })
+              });
+
+              if (!response.ok) {
+                const errorData = await response.json();
+                console.warn('⚠️ Auto-advance fallito:', errorData);
+              } else {
+                console.log('✅ Auto-advance completato: busta → materiali_arrivati');
+                // Re-invalidate cache to sync new status
+                await mutate('/api/buste');
+              }
+            } catch (autoAdvanceError) {
+              console.error('❌ Errore auto-advance:', autoAdvanceError);
+              // Non blocchiamo il flusso se l'auto-advance fallisce
+            }
+          }
+        }
+      }
 
     } catch (error: any) {
       console.error('❌ Error updating ordine:', error);
@@ -1203,7 +1300,24 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 ))}
               </select>
             </div>
-      
+
+            {/* ===== ALERT SE "NEGOZIO" SELEZIONATO ===== */}
+            {(() => {
+              const tipoSelezionato = tipiOrdine.find(t => t.id === Number(nuovoOrdineForm.tipo_ordine_id));
+              const isNegozio = tipoSelezionato?.nome?.toLowerCase() === 'negozio';
+              return isNegozio ? (
+                <div className="lg:col-span-3 bg-green-50 border border-green-200 p-3 rounded-lg">
+                  <p className="text-sm text-green-800 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4" />
+                    <strong>Prodotto già disponibile in negozio</strong> - pronto per il montaggio
+                  </p>
+                  <p className="text-xs text-green-600 mt-1">
+                    ℹ️ Non è necessario inserire date di ordine o consegna (il fornitore indica da chi è stato acquistato in origine)
+                  </p>
+                </div>
+              ) : null;
+            })()}
+
             {/* ===== DESCRIZIONE PRODOTTO OBBLIGATORIA ===== */}
             <div className="lg:col-span-2">
               <label htmlFor="descrizione-prodotto" className="block text-sm font-medium text-gray-700 mb-1">
@@ -1223,54 +1337,62 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               </p>
             </div>
 
-            {/* ===== GESTIONE DATE E TEMPI ===== */}
-            <div>
-              <label htmlFor="data-ordine" className="block text-sm font-medium text-gray-700 mb-1">
-                Data Ordine
-              </label>
-              <input
-                id="data-ordine"
-                type="date"
-                value={nuovoOrdineForm.data_ordine}
-                onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, data_ordine: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-      
-            <div>
-              <label htmlFor="giorni-consegna-custom" className="block text-sm font-medium text-gray-700 mb-1">
-                Giorni Consegna Custom
-                <span className="text-xs text-gray-500 block">
-                  (sovrascrivi automatico)
-                </span>
-              </label>
-              <input
-                id="giorni-consegna-custom"
-                type="number"
-                value={nuovoOrdineForm.giorni_consegna_custom}
-                onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, giorni_consegna_custom: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                placeholder="es. 7"
-                min="1"
-                max="30"
-              />
-            </div>
-      
-            <div>
-              <label htmlFor="data-consegna-prevista" className="block text-sm font-medium text-gray-700 mb-1">
-                Data Consegna Prevista
-              </label>
-              <input
-                id="data-consegna-prevista"
-                type="date"
-                value={calcolaDataConsegnaPrevista()}
-                disabled
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Calcolata su giorni lavorativi (Lun-Sab)
-              </p>
-            </div>
+            {/* ===== GESTIONE DATE E TEMPI - NASCOSTE SE "NEGOZIO" ===== */}
+            {(() => {
+              const tipoSelezionato = tipiOrdine.find(t => t.id === Number(nuovoOrdineForm.tipo_ordine_id));
+              const isNegozio = tipoSelezionato?.nome?.toLowerCase() === 'negozio';
+              return !isNegozio ? (
+                <>
+                  <div>
+                    <label htmlFor="data-ordine" className="block text-sm font-medium text-gray-700 mb-1">
+                      Data Ordine
+                    </label>
+                    <input
+                      id="data-ordine"
+                      type="date"
+                      value={nuovoOrdineForm.data_ordine}
+                      onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, data_ordine: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="giorni-consegna-custom" className="block text-sm font-medium text-gray-700 mb-1">
+                      Giorni Consegna Custom
+                      <span className="text-xs text-gray-500 block">
+                        (sovrascrivi automatico)
+                      </span>
+                    </label>
+                    <input
+                      id="giorni-consegna-custom"
+                      type="number"
+                      value={nuovoOrdineForm.giorni_consegna_custom}
+                      onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, giorni_consegna_custom: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="es. 7"
+                      min="1"
+                      max="30"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="data-consegna-prevista" className="block text-sm font-medium text-gray-700 mb-1">
+                      Data Consegna Prevista
+                    </label>
+                    <input
+                      id="data-consegna-prevista"
+                      type="date"
+                      value={calcolaDataConsegnaPrevista()}
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Calcolata su giorni lavorativi (Lun-Sab)
+                    </p>
+                  </div>
+                </>
+              ) : null;
+            })()}
       
             {/* ===== NOTE RICERCABILI ===== */}
             <div className="lg:col-span-3">
@@ -1460,6 +1582,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             statoOrdine === 'ordinato' ? 'bg-blue-100 text-blue-800' :
                             statoOrdine === 'da_ordinare' ? 'bg-purple-100 text-purple-800' :
                             statoOrdine === 'rifiutato' ? 'bg-gray-100 text-gray-800' :
+                            statoOrdine === 'annullato' ? 'bg-slate-100 text-slate-600' :
                             'bg-orange-100 text-orange-800'
                             }`}>
                             {statoOrdine.replace(/_/g, ' ').toUpperCase()}
@@ -1555,6 +1678,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                           <option value="consegnato">✅ Consegnato</option>
                           <option value="accettato_con_riserva">🔄 Con Riserva</option>
                           <option value="rifiutato">❌ Rifiutato</option>
+                          <option value="annullato">🚫 Annullato</option>
                         </select>
                   
                         {canDelete && (

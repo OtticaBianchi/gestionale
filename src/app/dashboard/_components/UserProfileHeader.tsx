@@ -203,9 +203,9 @@ export default function UserProfileHeader() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
-            <span className="text-sm text-gray-500">v2.8</span>
+            <span className="text-sm text-gray-500">v3.1.0</span>
           </div>
-          
+
           <div className="flex items-center space-x-2 text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-sm">Caricamento profilo...</span>
@@ -222,9 +222,9 @@ export default function UserProfileHeader() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
-            <span className="text-sm text-gray-500">v2.8</span>
+            <span className="text-sm text-gray-500">v3.1.0</span>
           </div>
-          
+
           <div className="flex items-center space-x-3">
             {error && (
               <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-2">
@@ -260,7 +260,7 @@ export default function UserProfileHeader() {
         {/* Logo e Titolo */}
         <div className="flex items-center space-x-2">
           <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
-          <span className="text-sm text-gray-500">v2.8</span>
+          <span className="text-sm text-gray-500">v3.1.0</span>
         </div>
 
         {/* Profilo Utente */}

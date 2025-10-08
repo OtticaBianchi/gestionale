@@ -177,19 +177,25 @@ function LoginForm() {
 
         <div className="mt-6 pt-6 border-t border-gray-200">
           <div className="text-xs text-center text-gray-400 mb-2">
-            Versione 3.0.1
+            Versione 3.1.0
           </div>
           <details className="text-xs text-gray-500">
             <summary className="cursor-pointer text-center hover:text-gray-700 font-medium">
               Novità e aggiornamenti
             </summary>
             <div className="mt-3 space-y-2 text-left bg-gray-50 p-3 rounded">
-              <div className="font-semibold text-gray-700">v3.0.1 - Ottobre 2025</div>
+              <div className="font-semibold text-gray-700">v3.1.0 - Ottobre 2025</div>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>Workflow automatizzato: avanzamento automatico buste</li>
+                <li>Ordini "da negozio" per prodotti già in stock</li>
+                <li>Stato "annullato" per ordini cancellati</li>
+                <li>Workflow semplificato a 6 stati</li>
+              </ul>
+              <div className="font-semibold text-gray-700 mt-3">v3.0.1 - Ottobre 2025</div>
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li>Nuova pagina Analytics con dashboard Business Intelligence</li>
                 <li>Statistiche dettagliate su lavorazioni, fornitori e fatturato</li>
                 <li>Grafici interattivi e trend mensili</li>
-                <li>Analisi per genere e tipo di lavorazione</li>
               </ul>
             </div>
           </details>

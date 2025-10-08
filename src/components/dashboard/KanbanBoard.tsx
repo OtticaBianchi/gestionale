@@ -16,11 +16,10 @@ interface KanbanBoardProps {
   initialBuste: BustaWithCliente[];
 }
 
-// Definiamo l'ordine e i titoli delle colonne
+// Definiamo l'ordine e i titoli delle colonne (6 stati)
 const STATUS_COLUMNS: { status: JobStatus; title: string }[] = [
   { status: 'nuove', title: 'Nuove' },
   { status: 'materiali_ordinati', title: 'Materiali Ordinati' },
-  { status: 'materiali_parzialmente_arrivati', title: 'Arrivi Parziali' },
   { status: 'materiali_arrivati', title: 'Materiali Arrivati' },
   { status: 'in_lavorazione', title: 'In Lavorazione' },
   { status: 'pronto_ritiro', title: 'Pronto per Ritiro' },
@@ -34,7 +33,6 @@ export function KanbanBoard({ initialBuste }: KanbanBoardProps) {
     const groups: Record<JobStatus, BustaWithCliente[]> = {
       nuove: [],
       materiali_ordinati: [],
-      materiali_parzialmente_arrivati: [],
       materiali_arrivati: [],
       in_lavorazione: [],
       pronto_ritiro: [],

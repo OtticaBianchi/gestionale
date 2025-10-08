@@ -58,8 +58,8 @@ export default function StatsBar({ buste }: StatsBarProps) {
       const newStats: Stats = {
         totaleBuste: buste.length,
         nuove: buste.filter(b => b.stato_attuale === 'nuove').length,
-        inLavorazione: buste.filter(b => 
-          ['materiali_ordinati', 'materiali_parzialmente_arrivati', 'materiali_arrivati', 'in_lavorazione'].includes(b.stato_attuale)
+        inLavorazione: buste.filter(b =>
+          ['materiali_ordinati', 'materiali_arrivati', 'in_lavorazione'].includes(b.stato_attuale)
         ).length,
         pronteRitiro: buste.filter(b => b.stato_attuale === 'pronto_ritiro').length,
         urgenti: buste.filter(b => b.priorita === 'urgente').length,

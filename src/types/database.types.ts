@@ -1544,7 +1544,6 @@ export type Database = {
       job_status:
         | "nuove"
         | "materiali_ordinati"
-        | "materiali_parzialmente_arrivati"
         | "materiali_arrivati"
         | "in_lavorazione"
         | "pronto_ritiro"
@@ -1556,6 +1555,7 @@ export type Database = {
         | "consegnato"
         | "accettato_con_riserva"
         | "rifiutato"
+        | "annullato"
         | "da_ordinare"
       work_type:
         | "OCV"
@@ -1705,7 +1705,6 @@ export const Constants = {
       job_status: [
         "nuove",
         "materiali_ordinati",
-        "materiali_parzialmente_arrivati",
         "materiali_arrivati",
         "in_lavorazione",
         "pronto_ritiro",
@@ -1718,6 +1717,7 @@ export const Constants = {
         "consegnato",
         "accettato_con_riserva",
         "rifiutato",
+        "annullato",
         "da_ordinare",
       ],
       work_type: [
