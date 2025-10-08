@@ -605,6 +605,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
       // Aggiorna tutti gli ordini che sono in ritardo
       const updatePromises = ordiniDaAggiornare.map(async (ordine) => {
+        if (!ordine.data_consegna_prevista) {
+          console.warn(`⚠️ Skip aggiornamento ritardo: ordine ${ordine.id} senza data_consegna_prevista`);
+          return null;
+        }
+
         const oggi = new Date();
         oggi.setHours(0, 0, 0, 0);
         const dataConsegnaPrevista = new Date(ordine.data_consegna_prevista);
@@ -641,7 +646,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       if (successi.length > 0) {
         // Aggiorna stato locale
         setOrdiniMateriali(prev => prev.map(ordine => {
-          if (ordiniDaAggiornare.find(o => o.id === ordine.id)) {
+         if (ordiniDaAggiornare.find(o => o.id === ordine.id)) {
+            if (!ordine.data_consegna_prevista) {
+              return ordine;
+            }
             const oggi = new Date();
             oggi.setHours(0, 0, 0, 0);
             const dataConsegnaPrevista = new Date(ordine.data_consegna_prevista);
