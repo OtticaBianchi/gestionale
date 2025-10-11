@@ -173,7 +173,47 @@ async function ensureAuthorizedUser(
 
   console.log('🔐 Allow-list entry:', jsonSafe(allowedEntry))
 
-  if (!allowedEntry?.profile_id) {
+  let effectiveProfileId = allowedEntry?.profile_id
+  let displayLabel = allowedEntry?.label
+
+  if (!effectiveProfileId) {
+    const { data: legacyProfile, error: legacyError } = await supabase
+      .from('profiles')
+      .select('id, full_name, telegram_bot_access')
+      .eq('telegram_user_id', telegramUserId)
+      .eq('telegram_bot_access', true)
+      .maybeSingle()
+
+    if (legacyError && legacyError.code !== 'PGRST116') {
+      console.error('❌ Legacy profile lookup failed:', legacyError.message)
+    }
+
+    if (legacyProfile?.id) {
+      effectiveProfileId = legacyProfile.id
+      displayLabel = legacyProfile.full_name || telegramUserId
+
+      const { error: backfillError } = await supabase
+        .from('telegram_allowed_users')
+        .upsert(
+          {
+            telegram_user_id: telegramUserId,
+            profile_id: effectiveProfileId,
+            label: displayLabel,
+            can_use_bot: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'telegram_user_id' }
+        )
+
+      if (backfillError) {
+        console.error('❌ Failed to backfill allow-list entry:', backfillError.message)
+      } else {
+        console.log('🔄 Backfilled allow-list entry for legacy authorized user:', telegramUserId)
+      }
+    }
+  }
+
+  if (!effectiveProfileId) {
     const response = await handleUnauthorizedUser(supabase, botToken, fromUser, telegramUserId)
     return { response }
   }
@@ -181,23 +221,23 @@ async function ensureAuthorizedUser(
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('id, full_name, telegram_bot_access, telegram_user_id')
-    .eq('id', allowedEntry.profile_id)
+    .eq('id', effectiveProfileId)
     .maybeSingle()
 
   if (profileError) {
     console.error('❌ Profile lookup failed for allow-list entry:', profileError.message)
   }
 
-  const profileData = profile || { id: allowedEntry.profile_id, full_name: allowedEntry.label, telegram_bot_access: false }
+  const profileData = profile || { id: effectiveProfileId, full_name: displayLabel, telegram_bot_access: false }
 
   if (!profileData.telegram_bot_access || profileData.telegram_user_id !== telegramUserId) {
     await supabase
       .from('profiles')
       .update({ telegram_bot_access: true, telegram_user_id: telegramUserId })
-      .eq('id', allowedEntry.profile_id)
+      .eq('id', effectiveProfileId)
   }
 
-  const displayName = profileData.full_name || allowedEntry.label || `Profile ${allowedEntry.profile_id}`
+  const displayName = profileData.full_name || displayLabel || `Profile ${effectiveProfileId}`
   console.log('✅ Authorized user:', displayName, '(' + telegramUserId + ')')
 
   return { authorizedUser: profileData }

@@ -80,10 +80,7 @@ export default function VoiceNotesPage() {
   const fetchVoiceNotes = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
     if (!canManageNotes) return;
 
-    if (fetchAbortRef.current) {
-      fetchAbortRef.current.abort('reload');
-      fetchAbortRef.current = null;
-    }
+    fetchAbortRef.current?.abort();
     const controller = new AbortController();
     fetchAbortRef.current = controller;
 
@@ -104,7 +101,7 @@ export default function VoiceNotesPage() {
         setVoiceNotes(data.notes || []);
       }
     } catch (error: any) {
-      if (error?.name === 'AbortError' || error === 'reload') {
+      if (error?.name === 'AbortError') {
         return;
       }
       console.error('Error fetching voice notes:', error);
@@ -126,7 +123,7 @@ export default function VoiceNotesPage() {
 
   useEffect(() => {
     if (!canManageNotes) {
-      fetchAbortRef.current?.abort('permissions-change');
+      fetchAbortRef.current?.abort();
       setVoiceNotes([]);
       setLoading(false);
       return;
@@ -158,7 +155,7 @@ export default function VoiceNotesPage() {
     return () => {
       if (intervalId) clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibility);
-      fetchAbortRef.current?.abort('unmount');
+      fetchAbortRef.current?.abort();
     };
   }, [canManageNotes, fetchVoiceNotes]);
 
