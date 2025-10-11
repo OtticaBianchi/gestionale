@@ -56,6 +56,7 @@ export default function AdminUsersPage() {
   const [telegramRequests, setTelegramRequests] = useState<TelegramAuthRequest[]>([])
   const [telegramLoading, setTelegramLoading] = useState(false)
   const [showTelegramRequests, setShowTelegramRequests] = useState(false)
+  const [telegramActionId, setTelegramActionId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isLoading) {
@@ -114,6 +115,7 @@ export default function AdminUsersPage() {
   const authorizeTelegramUser = async (telegramUserId: string, profileId: string) => {
     try {
       setError('')
+      setTelegramActionId(telegramUserId)
       const res = await fetch('/api/admin/telegram-auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -127,6 +129,31 @@ export default function AdminUsersPage() {
       fetchTelegramRequests()
     } catch (e: any) {
       setError(e.message)
+    } finally {
+      setTelegramActionId(null)
+    }
+  }
+
+  const rejectTelegramRequest = async (telegramUserId: string) => {
+    if (!confirm('Rifiutare questa richiesta Telegram?')) return
+    try {
+      setError('')
+      setTelegramActionId(telegramUserId)
+      const res = await fetch('/api/admin/telegram-auth', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramUserId })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Errore eliminazione richiesta')
+      setTelegramRequests(prev => prev.filter(req => req.telegram_user_id !== telegramUserId))
+      setSuccess('Richiesta Telegram eliminata')
+      setTimeout(() => setSuccess(''), 2000)
+      fetchTelegramRequests()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setTelegramActionId(null)
     }
   }
 
@@ -291,6 +318,8 @@ export default function AdminUsersPage() {
                     request={req}
                     users={users}
                     onAuthorize={authorizeTelegramUser}
+                    onReject={rejectTelegramRequest}
+                    isProcessing={telegramActionId === req.telegram_user_id}
                   />
                 ))}
               </div>
@@ -404,10 +433,12 @@ function UserRow({ user, savingId, onSave, onDelete }: {
   )
 }
 
-function TelegramRequestRow({ request, users, onAuthorize }: {
+function TelegramRequestRow({ request, users, onAuthorize, onReject, isProcessing }: {
   request: TelegramAuthRequest,
   users: AdminUser[],
-  onAuthorize: (telegramUserId: string, profileId: string) => Promise<void>
+  onAuthorize: (telegramUserId: string, profileId: string) => Promise<void>,
+  onReject: (telegramUserId: string) => Promise<void>,
+  isProcessing: boolean
 }) {
   const [selectedUserId, setSelectedUserId] = useState('')
 
@@ -443,12 +474,26 @@ function TelegramRequestRow({ request, users, onAuthorize }: {
           ))}
         </select>
         <button
-          onClick={() => selectedUserId && onAuthorize(request.telegram_user_id, selectedUserId)}
-          disabled={!selectedUserId}
+          onClick={async () => {
+            if (!selectedUserId || isProcessing) return
+            await onAuthorize(request.telegram_user_id, selectedUserId)
+          }}
+          disabled={!selectedUserId || isProcessing}
           className="inline-flex items-center gap-1 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 disabled:opacity-50"
         >
           <Link className="w-4 h-4" />
           Autorizza
+        </button>
+        <button
+          onClick={async () => {
+            if (isProcessing) return
+            await onReject(request.telegram_user_id)
+          }}
+          disabled={isProcessing}
+          className="inline-flex items-center gap-1 bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:opacity-50"
+        >
+          <X className="w-4 h-4" />
+          Rifiuta
         </button>
       </div>
     </div>

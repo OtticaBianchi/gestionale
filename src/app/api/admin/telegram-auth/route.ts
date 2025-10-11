@@ -129,3 +129,58 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Errore autorizzazione', details: error.message }, { status: 500 });
   }
 }
+
+// DELETE: Remove an unauthorized request
+export async function DELETE(request: NextRequest) {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { get: (name) => cookieStore.get(name)?.value } }
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile || profile.role !== 'admin') {
+    return NextResponse.json({ error: 'Solo gli amministratori possono accedere' }, { status: 403 });
+  }
+
+  let payload: { telegramUserId?: string } = {};
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Body JSON richiesto' }, { status: 400 });
+  }
+
+  const telegramUserId = payload.telegramUserId;
+  if (!telegramUserId) {
+    return NextResponse.json({ error: 'telegramUserId richiesto' }, { status: 400 });
+  }
+
+  const adminClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  try {
+    const { error } = await adminClient
+      .from('telegram_auth_requests')
+      .delete()
+      .eq('telegram_user_id', telegramUserId)
+      .eq('authorized', false);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Telegram auth delete error:', error);
+    return NextResponse.json({ error: 'Errore eliminazione richiesta', details: error.message }, { status: 500 });
+  }
+}

@@ -80,7 +80,10 @@ export default function VoiceNotesPage() {
   const fetchVoiceNotes = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
     if (!canManageNotes) return;
 
-    fetchAbortRef.current?.abort();
+    if (fetchAbortRef.current) {
+      fetchAbortRef.current.abort('reload');
+      fetchAbortRef.current = null;
+    }
     const controller = new AbortController();
     fetchAbortRef.current = controller;
 
@@ -101,7 +104,9 @@ export default function VoiceNotesPage() {
         setVoiceNotes(data.notes || []);
       }
     } catch (error: any) {
-      if (error.name === 'AbortError') return;
+      if (error?.name === 'AbortError' || error === 'reload') {
+        return;
+      }
       console.error('Error fetching voice notes:', error);
     } finally {
       if (fetchAbortRef.current === controller) {
@@ -121,7 +126,7 @@ export default function VoiceNotesPage() {
 
   useEffect(() => {
     if (!canManageNotes) {
-      fetchAbortRef.current?.abort();
+      fetchAbortRef.current?.abort('permissions-change');
       setVoiceNotes([]);
       setLoading(false);
       return;
@@ -153,7 +158,7 @@ export default function VoiceNotesPage() {
     return () => {
       if (intervalId) clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibility);
-      fetchAbortRef.current?.abort();
+      fetchAbortRef.current?.abort('unmount');
     };
   }, [canManageNotes, fetchVoiceNotes]);
 
@@ -980,9 +985,7 @@ export default function VoiceNotesPage() {
       </div>
 
       {/* Audio element for playback */}
-      <audio ref={audioRef} className="hidden">
-        <track kind="captions" src="" srcLang="it" label="Italian" />
-      </audio>
+      <audio ref={audioRef} className="hidden" />
     </div>
   );
 }

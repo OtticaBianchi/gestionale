@@ -112,19 +112,32 @@ async function handleUnauthorizedUser(
       }
     )
 
-  await supabase
-    .rpc('increment_message_count', {
-      user_id: telegramUserId,
-    })
-    .catch(() => {
-      supabase
-        .from('telegram_auth_requests')
-        .update({
-          message_count: supabase.sql`message_count + 1`,
-          last_seen_at: new Date().toISOString(),
-        })
-        .eq('telegram_user_id', telegramUserId)
-    })
+  const { error: incrementError } = await supabase.rpc('increment_message_count', {
+    user_id: telegramUserId,
+  })
+
+  if (incrementError) {
+    console.warn('⚠️ Failed to increment message count via RPC:', incrementError.message)
+    const { data: existing, error: fetchError } = await supabase
+      .from('telegram_auth_requests')
+      .select('message_count')
+      .eq('telegram_user_id', telegramUserId)
+      .single()
+
+    const currentCount = fetchError ? 0 : (existing?.message_count ?? 0)
+    const nextCount = currentCount + 1
+    const { error: updateError } = await supabase
+      .from('telegram_auth_requests')
+      .update({
+        last_seen_at: new Date().toISOString(),
+        message_count: nextCount,
+      })
+      .eq('telegram_user_id', telegramUserId)
+
+    if (updateError) {
+      console.error('❌ Failed to update message count fallback:', updateError.message)
+    }
+  }
 
   console.log('🚫 Unauthorized Telegram user:', telegramUserId, fromUser?.username)
 
