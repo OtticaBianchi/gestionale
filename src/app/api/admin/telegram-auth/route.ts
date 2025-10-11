@@ -117,6 +117,31 @@ export async function POST(request: NextRequest) {
 
     if (updateError) throw updateError;
 
+    const { data: profileRow, error: profileFetchError } = await adminClient
+      .from('profiles')
+      .select('full_name')
+      .eq('id', profileId)
+      .single();
+
+    if (profileFetchError) throw profileFetchError;
+
+    const label = profileRow?.full_name || telegramUserId;
+
+    const { error: allowListError } = await adminClient
+      .from('telegram_allowed_users')
+      .upsert(
+        {
+          telegram_user_id: telegramUserId,
+          profile_id: profileId,
+          label,
+          can_use_bot: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'telegram_user_id' }
+      );
+
+    if (allowListError) throw allowListError;
+
     // Mark as authorized in auth requests
     await adminClient
       .from('telegram_auth_requests')
