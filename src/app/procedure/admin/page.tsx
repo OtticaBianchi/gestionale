@@ -9,10 +9,8 @@ import {
   Edit,
   Trash2,
   Download,
-  Star,
   Eye,
-  Search,
-  Filter
+  Search
 } from 'lucide-react'
 import { Database } from '@/types/database.types'
 
@@ -24,7 +22,6 @@ type Procedure = {
   context_category: string
   procedure_type: string
   target_roles: string[]
-  is_featured: boolean
   view_count: number
   last_reviewed_at: string
   created_at: string
@@ -283,17 +280,10 @@ export default function ProceduresAdminPage() {
                   {procedures.map((procedure) => (
                     <tr key={procedure.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          {procedure.is_featured && (
-                            <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                          )}
-                          <div>
-                            <div className="font-medium text-gray-900">{procedure.title}</div>
-                            {procedure.description && (
-                              <div className="text-sm text-gray-500 line-clamp-1">{procedure.description}</div>
-                            )}
-                          </div>
-                        </div>
+                        <div className="font-medium text-gray-900">{procedure.title}</div>
+                        {procedure.description && (
+                          <div className="text-sm text-gray-500 line-clamp-1">{procedure.description}</div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">

@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Save,
   AlertTriangle,
-  Star,
   Users,
   FileText,
   CheckSquare,
@@ -30,7 +29,6 @@ type Procedure = {
   procedure_type: string
   target_roles: string[]
   search_tags: string[]
-  is_featured: boolean
   mini_help_title: string
   mini_help_summary: string
   mini_help_action: string
@@ -280,7 +278,7 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Informazioni Base</h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div>
                 <label htmlFor="procedure-title" className="block text-sm font-medium text-gray-700 mb-2">
                   Titolo *
@@ -293,19 +291,6 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   required
                 />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={procedure.is_featured}
-                    onChange={(e) => handleFieldChange('is_featured', e.target.checked)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <Star className="w-4 h-4" />
-                  <span className="text-sm font-medium text-gray-700">In evidenza</span>
-                </label>
               </div>
             </div>
 

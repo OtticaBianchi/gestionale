@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import {
   Search,
-  Filter,
   ArrowLeft,
-  Star,
   Clock,
   Plus,
   FileText,
@@ -24,7 +22,6 @@ import {
   Monitor,
   Trophy,
   Zap,
-  Download,
   BookOpen,
   Heart,
   TrendingUp,
@@ -41,7 +38,6 @@ type Procedure = {
   procedure_type: string
   target_roles: string[]
   search_tags: string[]
-  is_featured: boolean
   is_favorited?: boolean
   view_count: number
   mini_help_title: string
@@ -55,8 +51,6 @@ type Procedure = {
 export default function ProceduresPage() {
   const router = useRouter()
   const [procedures, setProcedures] = useState<Procedure[]>([])
-  const [featuredProcedures, setFeaturedProcedures] = useState<Procedure[]>([])
-  const [recentProcedures, setRecentProcedures] = useState<Procedure[]>([])
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string>('')
 
@@ -65,8 +59,7 @@ export default function ProceduresPage() {
   const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedType, setSelectedType] = useState('')
   const [selectedRole, setSelectedRole] = useState('')
-  const [showFavorites, setShowFavorites] = useState(false)
-  const [activeTab, setActiveTab] = useState<'all' | 'featured' | 'recent' | 'favorites'>('featured')
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -105,7 +98,7 @@ export default function ProceduresPage() {
 
   useEffect(() => {
     fetchUserRole()
-    fetchProcedures('featured')
+    fetchProcedures()
   }, [])
 
   const fetchUserRole = async () => {
@@ -123,35 +116,33 @@ export default function ProceduresPage() {
     }
   }
 
-  const fetchProcedures = async (type: 'all' | 'featured' | 'recent' | 'favorites' = 'all') => {
+  const fetchProcedures = async (overrides: {
+    search?: string
+    category?: string
+    type?: string
+    role?: string
+    favorites?: boolean
+  } = {}) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
+      const searchValue = overrides.search ?? searchTerm
+      const categoryValue = overrides.category ?? selectedCategory
+      const typeValue = overrides.type ?? selectedType
+      const roleValue = overrides.role ?? selectedRole
+      const favoritesValue = overrides.favorites ?? favoritesOnly
 
-      if (type === 'featured') {
-        params.append('featured', 'true')
-      } else if (type === 'recent') {
-        params.append('recent', 'true')
-      } else if (type === 'favorites') {
-        params.append('favorites', 'true')
-      }
-
-      if (searchTerm) params.append('search', searchTerm)
-      if (selectedCategory) params.append('context_category', selectedCategory)
-      if (selectedType) params.append('procedure_type', selectedType)
-      if (selectedRole) params.append('target_role', selectedRole)
+      if (favoritesValue) params.append('favorites', 'true')
+      if (searchValue) params.append('search', searchValue)
+      if (categoryValue) params.append('context_category', categoryValue)
+      if (typeValue) params.append('procedure_type', typeValue)
+      if (roleValue) params.append('target_role', roleValue)
 
       const response = await fetch(`/api/procedures?${params.toString()}`)
       const result = await response.json()
 
       if (result.success) {
-        if (type === 'featured') {
-          setFeaturedProcedures(result.data)
-        } else if (type === 'recent') {
-          setRecentProcedures(result.data)
-        } else {
-          setProcedures(result.data)
-        }
+        setProcedures(result.data)
       }
     } catch (error) {
       console.error('Error fetching procedures:', error)
@@ -160,19 +151,8 @@ export default function ProceduresPage() {
     }
   }
 
-  const handleTabChange = (tab: 'all' | 'featured' | 'recent' | 'favorites') => {
-    setActiveTab(tab)
-    if (tab === 'recent' && recentProcedures.length === 0) {
-      fetchProcedures('recent')
-    } else if (tab !== 'featured' && tab !== 'recent') {
-      fetchProcedures(tab)
-    }
-  }
-
   const handleSearch = () => {
-    if (activeTab === 'all' || activeTab === 'favorites') {
-      fetchProcedures(activeTab)
-    }
+    fetchProcedures()
   }
 
   const clearFilters = () => {
@@ -180,8 +160,22 @@ export default function ProceduresPage() {
     setSelectedCategory('')
     setSelectedType('')
     setSelectedRole('')
-    setShowFavorites(false)
-    setActiveTab('featured')
+    setFavoritesOnly(false)
+    fetchProcedures({
+      search: '',
+      category: '',
+      type: '',
+      role: '',
+      favorites: false
+    })
+  }
+
+  const toggleFavoritesFilter = () => {
+    setFavoritesOnly((prev) => {
+      const nextValue = !prev
+      fetchProcedures({ favorites: nextValue })
+      return nextValue
+    })
   }
 
   const toggleFavorite = async (slug: string) => {
@@ -191,43 +185,18 @@ export default function ProceduresPage() {
       })
 
       if (response.ok) {
-        // Refresh current view
-        if (activeTab === 'favorites') {
-          fetchProcedures('favorites')
+        if (favoritesOnly) {
+          fetchProcedures({ favorites: true })
         } else {
-          // Update the is_favorited status in current list
-          const updateList = (list: Procedure[]) =>
-            list.map(proc =>
-              proc.slug === slug
-                ? { ...proc, is_favorited: !proc.is_favorited }
-                : proc
+          setProcedures((current) =>
+            current.map((proc) =>
+              proc.slug === slug ? { ...proc, is_favorited: !proc.is_favorited } : proc
             )
-
-          if (activeTab === 'featured') {
-            setFeaturedProcedures(updateList(featuredProcedures))
-          } else if (activeTab === 'all') {
-            setProcedures(updateList(procedures))
-          } else if (activeTab === 'recent') {
-            setRecentProcedures(updateList(recentProcedures))
-          }
+          )
         }
       }
     } catch (error) {
       console.error('Error toggling favorite:', error)
-    }
-  }
-
-  const getCurrentProcedures = () => {
-    switch (activeTab) {
-      case 'featured':
-        return featuredProcedures
-      case 'recent':
-        return recentProcedures
-      case 'all':
-      case 'favorites':
-        return procedures
-      default:
-        return []
     }
   }
 
@@ -257,9 +226,6 @@ export default function ProceduresPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {procedure.is_featured && (
-                <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-              )}
               <button
                 onClick={() => toggleFavorite(procedure.slug)}
                 className={`p-1 rounded hover:bg-gray-100 ${
@@ -365,132 +331,109 @@ export default function ProceduresPage() {
               )}
             </div>
           </div>
-        </div>
       </div>
+    </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Tabs */}
-        <div className="flex items-center gap-1 mb-6 bg-white rounded-lg p-1 shadow-sm w-fit">
-          {[
-            { key: 'featured', label: 'In Evidenza', icon: Star },
-            { key: 'all', label: 'Tutte', icon: FileText },
-            { key: 'recent', label: 'Recenti', icon: Clock },
-            { key: 'favorites', label: 'Preferite', icon: Heart }
-          ].map(({ key, label, icon: Icon }) => (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="lg:col-span-2">
+              <div className="relative">
+                <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Cerca procedure..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Tutte le categorie</option>
+              {Object.entries(categories).map(([key, { label }]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Tutti i tipi</option>
+              {Object.entries(procedureTypes).map(([key, { label }]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+
+            <select
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Tutti i ruoli</option>
+              {Object.entries(roles).map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-3 mt-4 flex-wrap">
             <button
-              key={key}
-              onClick={() => handleTabChange(key as any)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                activeTab === key
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
+              onClick={handleSearch}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Cerca
+            </button>
+            <button
+              onClick={clearFilters}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Pulisci filtri
+            </button>
+            <button
+              onClick={toggleFavoritesFilter}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                favoritesOnly
+                  ? 'border-red-200 bg-red-50 text-red-600'
+                  : 'border-gray-300 text-gray-600 hover:bg-gray-50'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              {label}
+              <Heart className={`w-4 h-4 ${favoritesOnly ? 'text-red-600' : 'text-gray-500'}`} />
+              {favoritesOnly ? 'Mostra tutte' : 'Solo preferite'}
             </button>
-          ))}
+          </div>
         </div>
 
-        {/* Search and Filters */}
-        {(activeTab === 'all' || activeTab === 'favorites') && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              {/* Search */}
-              <div className="lg:col-span-2">
-                <div className="relative">
-                  <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Cerca procedure..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
-              {/* Category Filter */}
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Tutte le categorie</option>
-                {Object.entries(categories).map(([key, { label }]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-
-              {/* Type Filter */}
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Tutti i tipi</option>
-                {Object.entries(procedureTypes).map(([key, { label }]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-
-              {/* Role Filter */}
-              <select
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Tutti i ruoli</option>
-                {Object.entries(roles).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-3 mt-4">
-              <button
-                onClick={handleSearch}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Cerca
-              </button>
-              <button
-                onClick={clearFilters}
-                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Pulisci filtri
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Content */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {getCurrentProcedures().map((procedure) => (
+            {procedures.map((procedure) => (
               <ProcedureCard key={procedure.id} procedure={procedure} />
             ))}
           </div>
         )}
 
-        {/* Empty State */}
-        {!loading && getCurrentProcedures().length === 0 && (
+        {!loading && procedures.length === 0 && (
           <div className="text-center py-12">
             <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {activeTab === 'favorites' ? 'Nessuna procedura preferita' :
-               activeTab === 'recent' ? 'Nessuna procedura visualizzata di recente' :
-               'Nessuna procedura trovata'}
+              {favoritesOnly ? 'Nessuna procedura preferita' : 'Nessuna procedura trovata'}
             </h3>
             <p className="text-gray-600">
-              {activeTab === 'favorites' ? 'Aggiungi procedure ai preferiti per trovarle qui rapidamente.' :
-               activeTab === 'recent' ? 'Le procedure che visualizzi appariranno qui.' :
-               'Prova a modificare i filtri di ricerca.'}
+              {favoritesOnly
+                ? 'Aggiungi procedure ai preferiti per trovarle qui rapidamente.'
+                : 'Prova a modificare i filtri di ricerca o ripristina tutti i criteri.'}
             </p>
           </div>
         )}

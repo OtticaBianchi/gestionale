@@ -32,7 +32,6 @@ export async function GET(request: NextRequest) {
     const context_category = searchParams.get('context_category')
     const procedure_type = searchParams.get('procedure_type')
     const target_role = searchParams.get('target_role')
-    const featured_only = searchParams.get('featured') === 'true'
     const user_favorites = searchParams.get('favorites') === 'true'
     const recent_only = searchParams.get('recent') === 'true'
 
@@ -82,8 +81,8 @@ export async function GET(request: NextRequest) {
         )` : ''}
       `)
       .eq('is_active', true)
-      .order('is_featured', { ascending: false })
-      .order('view_count', { ascending: false })
+      .order('last_reviewed_at', { ascending: false, nullsFirst: false })
+      .order('updated_at', { ascending: false })
 
     // Apply filters
     if (context_category) {
@@ -96,10 +95,6 @@ export async function GET(request: NextRequest) {
 
     if (target_role) {
       query = query.contains('target_roles', [target_role])
-    }
-
-    if (featured_only) {
-      query = query.eq('is_featured', true)
     }
 
     if (user_favorites) {
@@ -140,7 +135,6 @@ export async function GET(request: NextRequest) {
         context_category,
         procedure_type,
         target_role,
-        featured_only,
         user_favorites
       }
     })

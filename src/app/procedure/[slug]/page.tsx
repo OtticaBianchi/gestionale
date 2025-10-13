@@ -1,13 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
   ArrowLeft,
-  Star,
   Heart,
   Download,
   Edit,
@@ -42,7 +41,6 @@ type Procedure = {
   procedure_type: string
   target_roles: string[]
   search_tags: string[]
-  is_featured: boolean
   is_favorited: boolean
   view_count: number
   version: number
@@ -64,6 +62,17 @@ export default function ProcedurePage() {
   const [procedure, setProcedure] = useState<Procedure | null>(null)
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string>('')
+  const contentMetadata = useMemo(() => {
+    if (!procedure?.content) return { author: null, reviewer: null }
+
+    const authorMatch = procedure.content.match(/\*\*Autore:\*\*\s*([^\n]+)/i) || procedure.content.match(/Autore:\s*([^\n]+)/i)
+    const reviewerMatch = procedure.content.match(/Responsabile aggiornamento:\s*([^\n]+)/i)
+
+    return {
+      author: authorMatch ? authorMatch[1].replace(/\*\*/g, '').trim() : null,
+      reviewer: reviewerMatch ? reviewerMatch[1].replace(/\*\*/g, '').trim() : null
+    }
+  }, [procedure?.content])
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -208,6 +217,9 @@ export default function ProcedurePage() {
   const typeInfo = procedureTypes[procedure.procedure_type as keyof typeof procedureTypes]
   const CategoryIcon = categoryInfo?.icon || FileText
   const TypeIcon = typeInfo?.icon || FileText
+  const createdByDisplay = contentMetadata.author || procedure.created_by_profile?.full_name || 'Sistema'
+  const updatedByDisplay = contentMetadata.reviewer || procedure.updated_by_profile?.full_name || 'Sistema'
+  const reviewedByDisplay = contentMetadata.reviewer || procedure.last_reviewed_by_profile?.full_name || 'Sistema'
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -274,9 +286,6 @@ export default function ProcedurePage() {
                     <p className="text-lg text-gray-600 mb-4">{procedure.description}</p>
                   )}
                 </div>
-                {procedure.is_featured && (
-                  <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
-                )}
               </div>
 
               {/* Metadata */}
@@ -347,58 +356,91 @@ export default function ProcedurePage() {
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
-                // Custom styling for checkboxes and error items
-                p: ({ children }) => {
-                  const content = String(children)
+                p: ({ node, children }) => {
+                  const textContent = (() => {
+                    if (typeof children === 'string') return children
+                    if (Array.isArray(children) && children.length === 1 && typeof children[0] === 'string') {
+                      return children[0]
+                    }
+                    return null
+                  })()
 
-                  // Handle checklist items
-                  if (content.includes('☐') || content.includes('- [ ]')) {
-                    return (
-                      <div className="flex items-start gap-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg mb-2">
-                        <CheckSquare className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                        <span className="text-gray-800">{content.replace(/☐|✓|- \[ \]|- \[x\]/g, '').trim()}</span>
-                      </div>
-                    )
-                  }
+                  if (textContent) {
+                    const normalized = textContent.replace(/\s+/g, ' ').trim()
 
-                  // Handle completed checklist items
-                  if (content.includes('☑') || content.includes('✓') || content.includes('- [x]')) {
-                    return (
-                      <div className="flex items-start gap-3 p-3 bg-green-50 border-l-4 border-green-400 rounded-r-lg mb-2">
-                        <CheckSquare className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span className="text-gray-800 line-through">{content.replace(/☑|✓|- \[x\]/g, '').trim()}</span>
-                      </div>
-                    )
-                  }
+                    if (/\b(?:☐|- \[ \])/.test(normalized)) {
+                      return (
+                        <div className="flex items-start gap-3 p-3 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg mb-2">
+                          <CheckSquare className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          <span className="text-gray-800">
+                            {normalized.replace(/☐|- \[ \]/g, '').trim()}
+                          </span>
+                        </div>
+                      )
+                    }
 
-                  // Handle error items
-                  if (content.includes('❌')) {
-                    return (
-                      <div className="flex items-start gap-3 p-3 bg-red-50 border-l-4 border-red-400 rounded-r-lg mb-2">
-                        <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-                        <span className="text-red-800">{content.replace('❌', '').trim()}</span>
-                      </div>
-                    )
+                    if (/\b(?:☑|✓|- \[x\])/.test(normalized)) {
+                      return (
+                        <div className="flex items-start gap-3 p-3 bg-green-50 border-l-4 border-green-400 rounded-r-lg mb-2">
+                          <CheckSquare className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                          <span className="text-gray-800 line-through">
+                            {normalized.replace(/☑|✓|- \[x\]/g, '').trim()}
+                          </span>
+                        </div>
+                      )
+                    }
+
+                    if (normalized.includes('❌')) {
+                      return (
+                        <div className="flex items-start gap-3 p-3 bg-red-50 border-l-4 border-red-400 rounded-r-lg mb-2">
+                          <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                          <span className="text-red-800">
+                            {normalized.replace('❌', '').trim()}
+                          </span>
+                        </div>
+                      )
+                    }
                   }
 
                   return <p className="text-gray-700 mb-3">{children}</p>
                 },
-                // Style headings
                 h1: ({ children }) => <h1 className="text-3xl font-bold text-gray-900 mb-6 mt-8">{children}</h1>,
                 h2: ({ children }) => <h2 className="text-2xl font-semibold text-gray-800 mb-4 mt-6">{children}</h2>,
                 h3: ({ children }) => <h3 className="text-xl font-medium text-gray-800 mb-3 mt-4">{children}</h3>,
-                // Style lists
                 ul: ({ children }) => <ul className="list-none space-y-2 mb-4">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal list-inside space-y-2 mb-4 text-gray-700">{children}</ol>,
                 li: ({ children }) => (
                   <li className="flex items-start gap-3">
                     <span className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2.5 flex-shrink-0"></span>
                     <span className="text-gray-700">{children}</span>
                   </li>
                 ),
-                // Style strong/bold text
                 strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-                // Style emphasis/italic text
                 em: ({ children }) => <em className="italic text-gray-800">{children}</em>,
+                table: ({ children }) => (
+                  <div className="overflow-x-auto mb-6">
+                    <table className="w-full border border-gray-200 rounded-lg text-sm text-left">
+                      {children}
+                    </table>
+                  </div>
+                ),
+                thead: ({ children }) => (
+                  <thead className="bg-gray-100 text-gray-700 uppercase text-xs">
+                    {children}
+                  </thead>
+                ),
+                tbody: ({ children }) => <tbody className="divide-y divide-gray-200">{children}</tbody>,
+                tr: ({ children }) => <tr className="hover:bg-gray-50">{children}</tr>,
+                th: ({ children }) => (
+                  <th className="px-4 py-3 font-semibold border-b border-gray-200">
+                    {children}
+                  </th>
+                ),
+                td: ({ children }) => (
+                  <td className="px-4 py-3 align-top text-gray-700">
+                    {children}
+                  </td>
+                ),
               }}
             >
               {procedure.content}
@@ -482,7 +524,7 @@ export default function ProcedurePage() {
                 <span>Creato da</span>
               </div>
               <span className="font-medium text-gray-900">
-                {procedure.created_by_profile?.full_name || 'Sistema'}
+                {createdByDisplay}
               </span>
               <div className="text-xs text-gray-500 mt-1">
                 {new Date(procedure.created_at).toLocaleDateString('it-IT')}
@@ -495,7 +537,7 @@ export default function ProcedurePage() {
                 <span>Aggiornato da</span>
               </div>
               <span className="font-medium text-gray-900">
-                {procedure.updated_by_profile?.full_name || 'Sistema'}
+                {updatedByDisplay}
               </span>
               <div className="text-xs text-gray-500 mt-1">
                 {new Date(procedure.updated_at).toLocaleDateString('it-IT')}
@@ -508,7 +550,7 @@ export default function ProcedurePage() {
                 <span>Ultima revisione</span>
               </div>
               <span className="font-medium text-gray-900">
-                {procedure.last_reviewed_by_profile?.full_name || 'Sistema'}
+                {reviewedByDisplay}
               </span>
               <div className="text-xs text-gray-500 mt-1">
                 {new Date(procedure.last_reviewed_at).toLocaleDateString('it-IT')}
