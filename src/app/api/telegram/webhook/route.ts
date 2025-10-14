@@ -284,14 +284,20 @@ async function fetchVoicePayload(botToken: string, message: any) {
     duration,
     fileSize: fileSize || fileMeta.file_size || 0,
     telegramMessageId: String(message.message_id),
+    telegramUserId: String(message.from?.id || '')
   }
 }
 
-async function isDuplicateVoiceNote(supabase: SupabaseAdmin, telegramMessageId: string) {
+async function isDuplicateVoiceNote(
+  supabase: SupabaseAdmin,
+  telegramMessageId: string,
+  telegramUserId: string
+) {
   const { data, error } = await supabase
     .from('voice_notes')
     .select('id')
     .eq('telegram_message_id', telegramMessageId)
+    .eq('telegram_user_id', telegramUserId)
     .limit(1)
 
   if (error) {
@@ -420,7 +426,11 @@ export async function POST(request: NextRequest) {
 
     const payload = await fetchVoicePayload(botToken, message)
 
-    const isDuplicate = await isDuplicateVoiceNote(supabase, payload.telegramMessageId)
+    const isDuplicate = await isDuplicateVoiceNote(
+      supabase,
+      payload.telegramMessageId,
+      payload.telegramUserId
+    )
     if (isDuplicate) {
       console.log('↩️ Duplicate update: voice_note already saved')
       return NextResponse.json({ status: 'ok_duplicate' })
