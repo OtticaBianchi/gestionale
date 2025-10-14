@@ -45,8 +45,9 @@ export async function PATCH(
     return NextResponse.json({ error: 'JSON non valido' }, { status: 400 })
   }
 
-  const updates: any = {}
-  const metadataUpdates: any = {}
+  const updates: Record<string, any> = {}
+  const metadataUpdates: Record<string, any> = {}
+  let shouldToggleDisable = false
 
   if (typeof body.full_name === 'string') {
     updates.full_name = body.full_name.trim()
@@ -63,7 +64,13 @@ export async function PATCH(
     metadataUpdates.role = role
   }
 
-  if (!updates.full_name && !updates.role) {
+  if (typeof body.is_disabled === 'boolean') {
+    shouldToggleDisable = true
+    metadataUpdates.account_status = body.is_disabled ? 'disabled' : 'active'
+    metadataUpdates.disabled_at = body.is_disabled ? new Date().toISOString() : null
+  }
+
+  if (!updates.full_name && !updates.role && !shouldToggleDisable) {
     return NextResponse.json({ error: 'Nessun campo valido da aggiornare' }, { status: 400 })
   }
 
@@ -73,19 +80,57 @@ export async function PATCH(
   )
 
   try {
-    // Update profile table
-    const { data: profile, error: profileError } = await adminClient
-      .from('profiles')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select('*')
-      .single()
+    let profile = null
 
-    if (profileError) throw profileError
+    if (updates.full_name || updates.role) {
+      const { data: updatedProfile, error: profileError } = await adminClient
+        .from('profiles')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select('*')
+        .single()
 
-    // Keep auth metadata in sync (best effort)
-    if (Object.keys(metadataUpdates).length > 0) {
-      await adminClient.auth.admin.updateUserById(id, { user_metadata: metadataUpdates })
+      if (profileError) throw profileError
+      profile = updatedProfile
+    }
+
+    if (Object.keys(metadataUpdates).length > 0 || shouldToggleDisable) {
+      let mergedMetadata = undefined
+
+      if (Object.keys(metadataUpdates).length > 0) {
+        const { data: authUser, error: fetchError } = await adminClient.auth.admin.getUserById(id)
+        if (fetchError) throw fetchError
+
+        mergedMetadata = {
+          ...(authUser?.user?.user_metadata || {}),
+          ...metadataUpdates
+        }
+      }
+
+      const adminAttributes: {
+        user_metadata?: Record<string, unknown>
+        ban_duration?: string
+      } = {}
+      if (mergedMetadata) {
+        adminAttributes.user_metadata = mergedMetadata
+      }
+      if (shouldToggleDisable) {
+        adminAttributes.ban_duration = body.is_disabled ? '87600h' : 'none'
+      }
+
+      if (Object.keys(adminAttributes).length > 0) {
+        const { error: updateAuthError } = await adminClient.auth.admin.updateUserById(id, adminAttributes)
+        if (updateAuthError) throw updateAuthError
+      }
+    }
+
+    if (!profile) {
+      const { data: currentProfile } = await adminClient
+        .from('profiles')
+        .select('*')
+        .eq('id', id)
+        .single()
+      profile = currentProfile
     }
 
     return NextResponse.json({ success: true, profile })
@@ -132,28 +177,57 @@ export async function DELETE(
   )
 
   try {
-    // Null out foreign key references before removing the profile/auth user to avoid FK violations
-    const fkCleanupTargets: Array<{ table: string; column: string }> = [
-      { table: 'buste', column: 'creato_da' },
-      { table: 'note', column: 'utente_id' },
-      { table: 'status_history', column: 'operatore_id' },
-      { table: 'follow_up_chiamate', column: 'operatore_id' },
-      { table: 'statistiche_follow_up', column: 'operatore_id' },
+    const activityChecks: Array<{ table: string; columns: string[]; label: string }> = [
+      { table: 'buste', columns: ['creato_da'], label: 'buste create' },
+      { table: 'note', columns: ['utente_id'], label: 'note inserite' },
+      { table: 'status_history', columns: ['operatore_id'], label: 'storico lavorazioni' },
+      { table: 'kanban_update_logs', columns: ['user_id'], label: 'aggiornamenti kanban' },
+      { table: 'follow_up_chiamate', columns: ['operatore_id'], label: 'chiamate follow-up' },
+      { table: 'statistiche_follow_up', columns: ['operatore_id'], label: 'statistiche follow-up' },
+      { table: 'procedures', columns: ['created_by', 'updated_by', 'last_reviewed_by'], label: 'procedure gestite' },
+      { table: 'procedure_favorites', columns: ['user_id'], label: 'procedure preferite' },
+      { table: 'error_tracking', columns: ['employee_id', 'reported_by', 'resolved_by'], label: 'tracciamento errori' },
+      { table: 'voice_notes', columns: ['created_by', 'processed_by', 'assigned_to'], label: 'note vocali' },
     ]
 
-    for (const target of fkCleanupTargets) {
-      const { error: cleanupError } = await adminClient
-        .from(target.table)
-        .update({ [target.column]: null })
-        .eq(target.column, id)
+    const blockingActivity: Array<{ table: string; label: string; column: string; count: number }> = []
 
-      if (cleanupError && cleanupError.code !== '42P01') {
-        console.error('Admin delete user cleanup error:', target.table, cleanupError)
-        return NextResponse.json({
-          error: 'Impossibile eliminare l\'utente: pulizia riferimenti fallita',
-          details: cleanupError.message ?? cleanupError,
-        }, { status: 500 })
+    for (const target of activityChecks) {
+      for (const column of target.columns) {
+        const { error: countError, count } = await (adminClient as any)
+          .from(target.table)
+          .select('id', { head: true, count: 'exact' })
+          .eq(column as string, id)
+
+        if (countError) {
+          // Ignore missing tables in environments where they might not exist
+          if ((countError as any)?.code === '42P01') {
+            continue
+          }
+          console.error('Admin delete user activity check error:', target.table, column, countError)
+          return NextResponse.json({
+            error: 'Impossibile verificare le attività utente',
+            details: countError.message ?? countError,
+          }, { status: 500 })
+        }
+
+        if ((count ?? 0) > 0) {
+          blockingActivity.push({
+            table: target.table,
+            label: target.label,
+            column,
+            count: count ?? 0
+          })
+        }
       }
+    }
+
+    if (blockingActivity.length > 0) {
+      return NextResponse.json({
+        error: 'Impossibile eliminare l\'utente: esistono attività collegate',
+        code: 'USER_HAS_ACTIVITY',
+        activity: blockingActivity
+      }, { status: 409 })
     }
 
     // Delete profile row (fail loudly if we still have dangling references)

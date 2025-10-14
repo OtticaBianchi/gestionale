@@ -133,13 +133,29 @@ export default function QuickAddErrorForm({
   }, [formData.error_type, formData.error_category, formData.cost_type])
 
   const fetchEmployees = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .select('id, full_name, role')
-      .in('role', ['operatore', 'manager', 'admin'])
-      .order('full_name')
+      .order('full_name', { ascending: true })
 
-    if (data) setEmployees(data)
+    if (error) {
+      console.error('Error fetching employees:', error)
+      return
+    }
+
+    if (data) {
+      const normalized = data
+        .filter((employee): employee is Employee => Boolean(employee.full_name && employee.id))
+        .map((employee) => ({
+          ...employee,
+          full_name: employee.full_name?.trim() || employee.full_name,
+          role: employee.role || 'Non assegnato'
+        }))
+
+      const uniqueEmployees = Array.from(new Map(normalized.map(emp => [emp.id, emp])).values())
+
+      setEmployees(uniqueEmployees)
+    }
   }
 
   const searchClienti = async (query: string) => {

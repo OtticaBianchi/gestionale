@@ -139,13 +139,34 @@ export async function PUT(
         .trim()
     }
 
-    const updateData = {
-      ...body,
+    // Only include fields that should be updated (exclude read-only and relation fields)
+    const updateData: any = {
       slug: newSlug,
       updated_by: user.id,
       last_reviewed_at: new Date().toISOString().split('T')[0],
       last_reviewed_by: user.id
     }
+
+    // Add only the fields that are allowed to be updated
+    const allowedFields = [
+      'title',
+      'description',
+      'content',
+      'context_category',
+      'procedure_type',
+      'target_roles',
+      'search_tags',
+      'is_featured',
+      'mini_help_title',
+      'mini_help_summary',
+      'mini_help_action'
+    ]
+
+    allowedFields.forEach(field => {
+      if (field in body) {
+        updateData[field] = body[field]
+      }
+    })
 
     const { data: updatedProcedure, error: updateError } = await adminClient
       .from('procedures')
@@ -156,7 +177,10 @@ export async function PUT(
 
     if (updateError) {
       console.error('Error updating procedure:', updateError)
-      return NextResponse.json({ error: 'Errore aggiornamento procedura' }, { status: 500 })
+      return NextResponse.json({
+        error: 'Errore aggiornamento procedura',
+        details: updateError.message
+      }, { status: 500 })
     }
 
     return NextResponse.json({

@@ -150,20 +150,32 @@ export default function ProceduresAdminPage() {
   const downloadPDF = async (slug: string, title: string) => {
     try {
       const response = await fetch(`/api/procedures/${slug}/pdf`)
-      if (response.ok) {
-        const htmlContent = await response.text()
-        const blob = new Blob([htmlContent], { type: 'text/html' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `procedura-${slug}.html`
-        document.body.appendChild(a)
-        a.click()
-        URL.revokeObjectURL(url)
-        document.body.removeChild(a)
+      if (!response.ok) {
+        throw new Error(`Download failed with status ${response.status}`)
       }
+
+      const pdfBlob = await response.blob()
+      const url = URL.createObjectURL(pdfBlob)
+
+      const contentDisposition = response.headers.get('content-disposition')
+      const filenameFromHeader = contentDisposition?.split('filename=')[1]?.replace(/(^"|"$)/g, '')
+      const sanitizedTitle = title
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-_]/g, '')
+      const fallbackFilename = sanitizedTitle ? `procedura-${sanitizedTitle}.pdf` : `procedura-${slug}.pdf`
+      const filename = filenameFromHeader || fallbackFilename
+
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Error downloading PDF:', error)
+      alert('Errore durante il download del PDF')
     }
   }
 

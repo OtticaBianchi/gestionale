@@ -529,7 +529,7 @@ export default function VoiceNotesPage() {
       // Optionally close the search panel
       setSelectedNote(null);
       // Refresh to hydrate relations if needed
-      fetchVoiceNotes({ background: true });
+      fetchVoiceNotes({ background: true }).catch(() => {});
     } catch (e: any) {
       toast.error(e.message || 'Errore collegamento nota');
     }
@@ -642,7 +642,7 @@ export default function VoiceNotesPage() {
               <option value="completed">Completate</option>
             </select>
             <button
-              onClick={() => fetchVoiceNotes()}
+              onClick={() => fetchVoiceNotes().catch(() => {})}
               className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
             >
               Aggiorna
