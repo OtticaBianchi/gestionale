@@ -100,6 +100,7 @@ Ogni volta che un cliente:
 ## 6. Indicatori di qualità
 
 | Indicatore                   | Obiettivo | Metodo di verifica |
+|------------------------------|-----------|---------------------------|
 | Appuntamenti doppi           | 0         | Report settimanale |
 | No-show (assenze)            | < 10%     | Registro appuntamenti |
 | Promemoria inviato entro 24h | 100%      | Controllo automatizzato |

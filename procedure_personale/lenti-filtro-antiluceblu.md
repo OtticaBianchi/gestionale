@@ -30,9 +30,10 @@ Questa procedura si applica quando:
 ## 3. Chi è responsabile
 
 | Ruolo               | Responsabilità |
+|---------------------|----------------|
 | **Optometrista**    | Identifica il bisogno reale durante il controllo della vista e valuta se il trattamento BlueGuard è necessario. Può inoltre verificare la salute della superficie oculare e, in caso di secchezza o irritazione, consigliare il tipo di lacrima artificiale o collirio più idoneo. |
-| **Addetti vendita** | Se il cliente **non effettua il controllo della vista**, devono ascoltare con attenzione i sintomi, spiegare i benefici del filtro BlueGuard e **proporre un controllo optometrico** per verificare l’origine del disagio e valutare eventuali lacrime artificiali. |
-| **Manager**         | Supervisiona l’uniformità della consulenza e monitora il tasso di accettazione del filtro e dei controlli aggiuntivi. |
+| **Addetti vendita** | Se il cliente **non effettua il controllo della vista**, devono ascoltare con attenzione i sintomi, spiegare i benefici del filtro BlueGuard e **proporre un controllo optometrico** per verificare l'origine del disagio e valutare eventuali lacrime artificiali. |
+| **Manager**         | Supervisiona l'uniformità della consulenza e monitora il tasso di accettazione del filtro e dei controlli aggiuntivi. |
 
 ---
 
@@ -103,6 +104,7 @@ Questa procedura si applica quando:
 ## 6. Indicatori di qualità
 
 | Indicatore                                                                 | Obiettivo | Metodo di verifica |
+|----------------------------------------------------------------------------|-----------|----------------------------|
 | Clienti con uso digitale >4h/giorno ai quali è stato proposto il BlueGuard | 100%      | Report vendite / note CRM |
 | Clienti con sintomi oculari indirizzati al controllo optometrico           | ≥ 90%     | Registro appuntamenti |
 | Soddisfazione post-vendita comfort visivo                                  | ≥ 9/10    | Questionario clienti |

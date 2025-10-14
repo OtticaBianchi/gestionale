@@ -112,6 +112,7 @@ Questa procedura si applica ogni volta che:
 ## 6. Indicatori di qualità
 
 | Indicatore                            | Obiettivo  | Metodo di verifica |
+|---------------------------------------|------------|------------------------------------|
 | Risposta entro 3 squilli              | 100%       | Log telefonico o osservazione diretta |
 | Chiamate perse richiamate entro 5 min | 100%       | Registro chiamate |
 | Formula standard usata                | 100%       | Test interni o ascolti casuali |

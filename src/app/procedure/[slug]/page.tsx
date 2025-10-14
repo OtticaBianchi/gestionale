@@ -171,12 +171,11 @@ export default function ProcedurePage() {
     try {
       const response = await fetch(`/api/procedures/${slug}/pdf`)
       if (response.ok) {
-        const htmlContent = await response.text()
-        const blob = new Blob([htmlContent], { type: 'text/html' })
-        const url = URL.createObjectURL(blob)
+        const pdfBlob = await response.blob()
+        const url = URL.createObjectURL(pdfBlob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `procedura-${procedure.slug}.html`
+        a.download = `procedura-${procedure.slug}-${new Date().toISOString().split('T')[0]}.pdf`
         document.body.appendChild(a)
         a.click()
         URL.revokeObjectURL(url)
@@ -418,26 +417,30 @@ export default function ProcedurePage() {
                 strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
                 em: ({ children }) => <em className="italic text-gray-800">{children}</em>,
                 table: ({ children }) => (
-                  <div className="overflow-x-auto mb-6">
-                    <table className="w-full border border-gray-200 rounded-lg text-sm text-left">
+                  <div className="overflow-x-auto my-6 rounded-lg border border-gray-300 shadow-sm">
+                    <table className="min-w-full divide-y divide-gray-300 text-sm">
                       {children}
                     </table>
                   </div>
                 ),
                 thead: ({ children }) => (
-                  <thead className="bg-gray-100 text-gray-700 uppercase text-xs">
+                  <thead className="bg-gray-50">
                     {children}
                   </thead>
                 ),
-                tbody: ({ children }) => <tbody className="divide-y divide-gray-200">{children}</tbody>,
-                tr: ({ children }) => <tr className="hover:bg-gray-50">{children}</tr>,
+                tbody: ({ children }) => (
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {children}
+                  </tbody>
+                ),
+                tr: ({ children }) => <tr>{children}</tr>,
                 th: ({ children }) => (
-                  <th className="px-4 py-3 font-semibold border-b border-gray-200">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-900 uppercase tracking-wider border-r border-gray-200 last:border-r-0">
                     {children}
                   </th>
                 ),
                 td: ({ children }) => (
-                  <td className="px-4 py-3 align-top text-gray-700">
+                  <td className="px-4 py-3 text-gray-700 whitespace-normal border-r border-gray-200 last:border-r-0">
                     {children}
                   </td>
                 ),

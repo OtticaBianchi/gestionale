@@ -1,8 +1,17 @@
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import puppeteer from 'puppeteer'
+import { marked } from 'marked'
+
+// Configure marked for GFM (GitHub Flavored Markdown) with tables
+marked.setOptions({
+  gfm: true,
+  breaks: true,
+})
 
 // GET - Generate PDF for procedure (admin only)
 export async function GET(
@@ -58,17 +67,8 @@ export async function GET(
       return NextResponse.json({ error: 'Procedura non trovata' }, { status: 404 })
     }
 
-    // Convert markdown content to HTML for PDF
-    const contentHtml = procedure.content
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^\*\*(.+)\*\*$/gm, '<strong>$1</strong>')
-      .replace(/^- \[ \] (.+)$/gm, '<div class="checklist-item">☐ $1</div>')
-      .replace(/^- \[x\] (.+)$/gm, '<div class="checklist-item checked">☑ $1</div>')
-      .replace(/^- (.+)$/gm, '<li>$1</li>')
-      .replace(/❌ (.+)$/gm, '<div class="error-item">❌ $1</div>')
-      .replace(/\n/g, '<br>')
+    // Convert markdown content to HTML using marked
+    const contentHtml = await marked(procedure.content)
 
     const categories = {
       'accoglienza': 'Accoglienza',
@@ -117,31 +117,34 @@ export async function GET(
       color: #333;
       background: white;
       padding: 40px;
+      max-width: 210mm;
+      margin: 0 auto;
     }
     .header {
       text-align: center;
-      margin-bottom: 40px;
+      margin-bottom: 30px;
       border-bottom: 3px solid #2563eb;
       padding-bottom: 20px;
     }
     .header h1 {
       color: #1f2937;
       margin-bottom: 10px;
-      font-size: 2.2rem;
+      font-size: 1.8rem;
     }
     .header .company {
       color: #2563eb;
-      font-size: 1.1rem;
+      font-size: 1rem;
       font-weight: 600;
       margin-bottom: 10px;
     }
     .metadata {
-      display: flex;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
       background: #f8fafc;
-      padding: 20px;
+      padding: 15px;
       border-radius: 8px;
-      margin-bottom: 30px;
+      margin-bottom: 25px;
       border-left: 4px solid #2563eb;
     }
     .metadata div {
@@ -150,57 +153,103 @@ export async function GET(
     .metadata .label {
       font-weight: 600;
       color: #374151;
-      font-size: 0.9rem;
+      font-size: 0.8rem;
+      margin-bottom: 4px;
     }
     .metadata .value {
       color: #2563eb;
-      font-size: 0.95rem;
+      font-size: 0.85rem;
     }
     .content {
-      font-size: 1rem;
+      font-size: 0.95rem;
       line-height: 1.7;
     }
-    h1, h2, h3 {
+    .content h1, .content h2, .content h3 {
       color: #1f2937;
-      margin: 25px 0 15px 0;
+      margin: 20px 0 12px 0;
+      page-break-after: avoid;
     }
-    h1 { font-size: 1.8rem; }
-    h2 { font-size: 1.4rem; }
-    h3 { font-size: 1.2rem; }
-    .checklist-item {
+    .content h1 { font-size: 1.6rem; }
+    .content h2 { font-size: 1.3rem; }
+    .content h3 { font-size: 1.1rem; }
+    .content p {
       margin: 8px 0;
-      padding: 8px 12px;
-      background: #f0f9ff;
-      border-left: 3px solid #0ea5e9;
-      border-radius: 4px;
     }
-    .checklist-item.checked {
-      background: #f0fdf4;
-      border-left-color: #22c55e;
+    .content ul, .content ol {
+      margin: 10px 0;
+      padding-left: 25px;
     }
-    .error-item {
-      margin: 8px 0;
-      padding: 8px 12px;
-      background: #fef2f2;
-      border-left: 3px solid #ef4444;
-      border-radius: 4px;
-      color: #7f1d1d;
-    }
-    li {
+    .content li {
       margin: 5px 0;
-      margin-left: 20px;
+    }
+    .content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+      font-size: 0.9rem;
+      page-break-inside: avoid;
+    }
+    .content table th {
+      background: #f3f4f6;
+      padding: 10px;
+      text-align: left;
+      font-weight: 600;
+      border: 1px solid #d1d5db;
+    }
+    .content table td {
+      padding: 8px 10px;
+      border: 1px solid #d1d5db;
+    }
+    .content table tr:nth-child(even) {
+      background: #f9fafb;
+    }
+    .content blockquote {
+      border-left: 4px solid #2563eb;
+      padding-left: 15px;
+      margin: 15px 0;
+      color: #4b5563;
+      font-style: italic;
+    }
+    .content code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 0.9em;
+    }
+    .content pre {
+      background: #f3f4f6;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+    .content pre code {
+      background: none;
+      padding: 0;
+    }
+    .content strong {
+      font-weight: 600;
+      color: #1f2937;
+    }
+    .content hr {
+      border: none;
+      border-top: 2px solid #e5e7eb;
+      margin: 20px 0;
     }
     .footer {
-      margin-top: 50px;
+      margin-top: 40px;
       text-align: center;
       color: #6b7280;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       border-top: 1px solid #e5e7eb;
       padding-top: 20px;
+      page-break-inside: avoid;
     }
     @media print {
       body { padding: 20px; }
       .header { page-break-after: avoid; }
+      .metadata { page-break-after: avoid; }
     }
   </style>
 </head>
@@ -245,11 +294,33 @@ export async function GET(
 </html>
     `
 
-    return new NextResponse(htmlContent, {
+    // Launch puppeteer and generate PDF
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    })
+
+    const page = await browser.newPage()
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' })
+
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20mm',
+        right: '15mm',
+        bottom: '20mm',
+        left: '15mm'
+      }
+    })
+
+    await browser.close()
+
+    return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Content-Disposition': `attachment; filename="procedura-${slug}-${new Date().toISOString().split('T')[0]}.html"`
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="procedura-${slug}-${new Date().toISOString().split('T')[0]}.pdf"`
       }
     })
 

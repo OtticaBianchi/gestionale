@@ -87,6 +87,7 @@ Questa procedura si applica ogni volta che:
 ## 6. Indicatori di qualità
 
 | Indicatore                                     | Obiettivo  | Metodo di verifica |
+|------------------------------------------------|------------|------------------------------------|
 | Note vocali inviate sul canale ufficiale       | 100%       | Controllo Telegram settimanale |
 | Note >60 secondi                               | 0%         | Monitoraggio automatico BOT |
 | Note non identificabili (senza nome o oggetto) | < 2%       | Campionamento mensile |

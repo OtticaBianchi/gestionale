@@ -105,6 +105,7 @@ Questa procedura si applica ogni volta che:
 ## 6. Indicatori di qualità
 
 | Indicatore                                          | Obiettivo  | Metodo di verifica |
+|-----------------------------------------------------|------------|------------------------------------|
 | Appuntamenti modificati con conferma cliente        | 100%       | Registro digitale / audit mensile |
 | Modifiche non comunicate                            | 0          | Controllo calendario |
 | Cancellazioni senza riprogrammazione                | < 5%       | Analisi mensile |

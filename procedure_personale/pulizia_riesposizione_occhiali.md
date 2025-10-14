@@ -96,6 +96,7 @@ Questa procedura si applica:
 ## 6. Indicatori di qualità
 
 | Indicatore                                    | Obiettivo            | Metodo di verifica |
+|-----------------------------------------------|----------------------|----------------------------|
 | Occhiali puliti e igienizzati dopo ogni prova | 100%                 | Controllo giornaliero |
 | Occhiali esposti disallineati                 | 0                    | Ispezione visiva |
 | Occhiali graffiati in esposizione             | 0                    | Verifica settimanale |

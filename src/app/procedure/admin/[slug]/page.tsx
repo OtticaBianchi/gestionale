@@ -300,7 +300,7 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
               </label>
               <textarea
                 id="procedure-description"
-                value={procedure.description}
+                value={procedure.description || ''}
                 onChange={(e) => handleFieldChange('description', e.target.value)}
                 rows={2}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -397,7 +397,7 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
                 <input
                   id="mini-help-title"
                   type="text"
-                  value={procedure.mini_help_title}
+                  value={procedure.mini_help_title || ''}
                   onChange={(e) => handleFieldChange('mini_help_title', e.target.value)}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
@@ -409,7 +409,7 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
                 </label>
                 <textarea
                   id="mini-help-summary"
-                  value={procedure.mini_help_summary}
+                  value={procedure.mini_help_summary || ''}
                   onChange={(e) => handleFieldChange('mini_help_summary', e.target.value)}
                   rows={2}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -422,7 +422,7 @@ export default function EditProcedurePage({ params }: { params: Promise<{ slug: 
                 </label>
                 <textarea
                   id="mini-help-action"
-                  value={procedure.mini_help_action}
+                  value={procedure.mini_help_action || ''}
                   onChange={(e) => handleFieldChange('mini_help_action', e.target.value)}
                   rows={2}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"

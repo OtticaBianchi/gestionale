@@ -38,8 +38,9 @@ Addetti vendita. Coinvolgere l’optometrista se servono verifiche ottiche o ri-
 ### 4) Spiegazione essenziale (3 zone)
 
 | Zona                | Postura/Movimento                          | Attenzione                |
+|---------------------|--------------------------------------------|---------------------------|
 | **Lontano**         | Testa e occhi avanti, zona alta            | Non abbassare lo sguardo |
-| **Intermedio (PC)** | Leggero abbassamento, **muovere la testa** | Non cercare con la coda dell’occhio |
+| **Intermedio (PC)** | Leggero abbassamento, **muovere la testa** | Non cercare con la coda dell'occhio |
 | **Vicino (lettura)**| Più abbassamento, zona bassa               | Postura rilassata |
 
 **Regola d’oro:** **muovere la testa**, non solo gli occhi.
