@@ -283,29 +283,8 @@ async function fetchVoicePayload(botToken: string, message: any) {
     audioBase64,
     duration,
     fileSize: fileSize || fileMeta.file_size || 0,
-    telegramMessageId: String(message.message_id),
-    telegramUserId: String(message.from?.id || '')
+    telegramMessageId: String(message.message_id)
   }
-}
-
-async function isDuplicateVoiceNote(
-  supabase: SupabaseAdmin,
-  telegramMessageId: string,
-  telegramUserId: string
-) {
-  const { data, error } = await supabase
-    .from('voice_notes')
-    .select('id')
-    .eq('telegram_message_id', telegramMessageId)
-    .eq('telegram_user_id', telegramUserId)
-    .limit(1)
-
-  if (error) {
-    console.error('⚠️ Idempotency check failed:', error.message)
-    return false
-  }
-
-  return Boolean(data && data.length > 0)
 }
 
 function buildVoiceNotePayload(fromUser: any, audioBase64: string, duration: number, fileSize: number, messageId: string) {
@@ -425,16 +404,6 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = await fetchVoicePayload(botToken, message)
-
-    const isDuplicate = await isDuplicateVoiceNote(
-      supabase,
-      payload.telegramMessageId,
-      payload.telegramUserId
-    )
-    if (isDuplicate) {
-      console.log('↩️ Duplicate update: voice_note already saved')
-      return NextResponse.json({ status: 'ok_duplicate' })
-    }
 
     const voiceNotePayload = buildVoiceNotePayload(
       fromUser,
