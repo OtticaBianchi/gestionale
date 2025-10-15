@@ -105,6 +105,7 @@ async function handleUnauthorizedUser(
         last_name: fromUser?.last_name || null,
         last_seen_at: new Date().toISOString(),
         message_count: 1,
+        authorized: false,
       },
       {
         onConflict: 'telegram_user_id',
@@ -131,6 +132,7 @@ async function handleUnauthorizedUser(
       .update({
         last_seen_at: new Date().toISOString(),
         message_count: nextCount,
+        authorized: false,
       })
       .eq('telegram_user_id', telegramUserId)
 
