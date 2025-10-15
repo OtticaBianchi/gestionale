@@ -102,6 +102,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const [fornitoriLabEsterno, setFornitoriLabEsterno] = useState<Fornitore[]>([]);
   const [fornitoriSport, setFornitoriSport] = useState<Fornitore[]>([]);
   const [fornitoriAccessori, setFornitoriAccessori] = useState<Fornitore[]>([]); // ✅ NUOVO: Accessori
+  const [fornitoriAssistenza, setFornitoriAssistenza] = useState<Fornitore[]>([]); // ✅ NUOVO: Assistenza (combined list)
   
   const [showNuovoOrdineForm, setShowNuovoOrdineForm] = useState(false);
   const [isLoadingOrdini, setIsLoadingOrdini] = useState(false);
@@ -121,7 +122,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
   // Nuovo ordine form con categorie
   const [nuovoOrdineForm, setNuovoOrdineForm] = useState({
-    categoria_prodotto: '' as 'lenti' | 'lac' | 'montature' | 'lab.esterno' | 'sport' | 'accessori' | '', // ✅ AGGIUNTO: accessori
+    categoria_prodotto: '' as 'lenti' | 'lac' | 'montature' | 'lab.esterno' | 'sport' | 'accessori' | 'assistenza' | '', // ✅ AGGIUNTO: accessori, assistenza
+    tipo_prodotto_assistenza: '' as 'lenti' | 'lac' | 'montature' | 'sport' | 'accessori' | '', // ✅ NUOVO: Sottocategoria per Assistenza
     fornitore_id: '',
     tipo_lenti: '',
     tipo_ordine_id: '',
@@ -363,6 +365,16 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         if (fornitoriLabEsternoData.data) setFornitoriLabEsterno(fornitoriLabEsternoData.data);
         if (fornitoriSportData.data) setFornitoriSport(fornitoriSportData.data);
         if (fornitoriAccessoriData.data) setFornitoriAccessori(fornitoriAccessoriData.data); // ✅ NUOVO
+
+        // ✅ NUOVO: Assistenza = combined list of all suppliers (except Accessori)
+        const combinedAssistenza = [
+          ...(fornitoriLentiData.data || []),
+          ...(fornitoriLacData.data || []),
+          ...(fornitoriMontaturaData.data || []),
+          ...(fornitoriLabEsternoData.data || []),
+          ...(fornitoriSportData.data || [])
+        ];
+        setFornitoriAssistenza(combinedAssistenza);
       }
     } catch (error) {
       console.error('❌ Error loading materiali data:', error);
@@ -374,13 +386,26 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
   // ===== FORNITORI DISPONIBILI BASATI SU CATEGORIA =====
   const getFornitoriDisponibili = () => {
+    // ✅ NUOVO: Assistenza - filter by tipo_prodotto_assistenza
+    if (nuovoOrdineForm.categoria_prodotto === 'assistenza') {
+      switch (nuovoOrdineForm.tipo_prodotto_assistenza) {
+        case 'lenti': return fornitoriLenti;
+        case 'lac': return fornitoriLac;
+        case 'montature': return fornitoriMontature;
+        case 'sport': return fornitoriSport;
+        case 'accessori': return fornitoriAccessori;
+        default: return []; // No suppliers until tipo_prodotto_assistenza is selected
+      }
+    }
+
+    // Regular categories
     switch (nuovoOrdineForm.categoria_prodotto) {
       case 'lenti': return fornitoriLenti;
       case 'lac': return fornitoriLac;
       case 'montature': return fornitoriMontature;
       case 'lab.esterno': return fornitoriLabEsterno;
       case 'sport': return fornitoriSport;
-      case 'accessori': return fornitoriAccessori; // ✅ NUOVO
+      case 'accessori': return fornitoriAccessori;
       default: return [];
     }
   };
@@ -400,7 +425,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       'sport': 5,
       'lab.esterno': 5,
       'lenti': 5,
-      'accessori': 2 // ✅ NUOVO: Accessori solitamente disponibili velocemente
+      'accessori': 2, // ✅ NUOVO: Accessori solitamente disponibili velocemente
+      'assistenza': 3 // ✅ NUOVO: Assistenza tempo medio (varies by supplier)
     };
 
     return tempiDefault[categoria as keyof typeof tempiDefault] || 5;
@@ -778,6 +804,22 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const getSupplierField = () => {
     if (!nuovoOrdineForm.fornitore_id) return null;
 
+    // ✅ NUOVO: Assistenza - use tipo_prodotto_assistenza to determine supplier table
+    if (nuovoOrdineForm.categoria_prodotto === 'assistenza') {
+      const supplierId = nuovoOrdineForm.fornitore_id;
+      const tipoAssistenza = nuovoOrdineForm.tipo_prodotto_assistenza;
+
+      const assistenzaSupplierMap = {
+        'lenti': { fornitore_lenti_id: supplierId },
+        'lac': { fornitore_lac_id: supplierId },
+        'montature': { fornitore_montature_id: supplierId },
+        'sport': { fornitore_sport_id: supplierId },
+        'accessori': { fornitore_lac_id: supplierId } // Accessori uses LAC table
+      };
+
+      return assistenzaSupplierMap[tipoAssistenza as keyof typeof assistenzaSupplierMap] || null;
+    }
+
     const supplierMap = {
       'lenti': { fornitore_lenti_id: nuovoOrdineForm.fornitore_id },
       'lac': { fornitore_lac_id: nuovoOrdineForm.fornitore_id },
@@ -949,6 +991,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const resetOrderForm = () => {
     setNuovoOrdineForm({
       categoria_prodotto: '',
+      tipo_prodotto_assistenza: '', // ✅ NUOVO
       fornitore_id: '',
       tipo_lenti: '',
       tipo_ordine_id: '',
@@ -1279,20 +1322,22 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 <legend className="block text-sm font-medium text-gray-700 mb-2">
                   1. Categoria Prodotto *
                 </legend>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                 {[
                   { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti da vista/sole' },
                   { value: 'lac', label: '👁️ LAC', desc: 'Lenti a Contatto' },
                   { value: 'montature', label: '👓 Montature', desc: 'Occhiali/Sole' },
                   { value: 'lab.esterno', label: '🏭 Lab.Esterno', desc: 'Lavorazioni Esterne' },
                   { value: 'sport', label: '🏃 Sport', desc: 'Articoli Sportivi' },
-                  { value: 'accessori', label: '📎 Accessori', desc: 'Custodie, cordini, etc.' } // ✅ NUOVO
+                  { value: 'accessori', label: '📎 Accessori', desc: 'Custodie, cordini, etc.' }, // ✅ NUOVO
+                  { value: 'assistenza', label: '🔧 Assistenza', desc: 'Riparazioni e servizi' } // ✅ NUOVO
                 ].map(categoria => (
                   <button
                     key={categoria.value}
                     onClick={() => setNuovoOrdineForm(prev => ({
                       ...prev,
                       categoria_prodotto: categoria.value as any,
+                      tipo_prodotto_assistenza: '', // ✅ NUOVO: Reset when changing category
                       fornitore_id: '',
                       tipo_lenti: '',
                       primo_acquisto_lac: false // Reset when changing category
@@ -1310,7 +1355,44 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 </div>
               </fieldset>
             </div>
-      
+
+            {/* ✅ NUOVO: STEP 1.5: TIPO PRODOTTO ASSISTENZA (Solo per categoria 'assistenza') ===== */}
+            {nuovoOrdineForm.categoria_prodotto === 'assistenza' && (
+              <div className="lg:col-span-3">
+                <fieldset>
+                  <legend className="block text-sm font-medium text-gray-700 mb-2">
+                    2. Tipo Prodotto *
+                  </legend>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {[
+                      { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti oftalmiche' },
+                      { value: 'montature', label: '👓 Montature', desc: 'Occhiali' },
+                      { value: 'lac', label: '👁️ LAC', desc: 'Lenti a contatto' },
+                      { value: 'sport', label: '🏃 Sport', desc: 'Articoli sportivi' },
+                      { value: 'accessori', label: '📎 Accessori', desc: 'Accessori' }
+                    ].map(tipo => (
+                      <button
+                        key={tipo.value}
+                        onClick={() => setNuovoOrdineForm(prev => ({
+                          ...prev,
+                          tipo_prodotto_assistenza: tipo.value as any,
+                          fornitore_id: '' // Reset fornitore when changing tipo
+                        }))}
+                        className={`p-3 rounded-lg border text-center transition-colors ${
+                          nuovoOrdineForm.tipo_prodotto_assistenza === tipo.value
+                            ? 'border-green-500 bg-green-50 text-green-700'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="font-semibold text-sm">{tipo.label}</div>
+                        <div className="text-xs text-gray-500 mt-1">{tipo.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              </div>
+            )}
+
             {/* ===== STEP 2: TIPO LENTI (Solo per categoria 'lenti') ===== */}
             {nuovoOrdineForm.categoria_prodotto === 'lenti' && (
               <div>
@@ -1336,15 +1418,26 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
             {/* ===== STEP 3: FORNITORE SPECIFICO ===== */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                {nuovoOrdineForm.categoria_prodotto === 'lenti' ? '3. Fornitore' : '2. Fornitore'}
+                {nuovoOrdineForm.categoria_prodotto === 'lenti'
+                  ? '3. Fornitore'
+                  : nuovoOrdineForm.categoria_prodotto === 'assistenza'
+                  ? '3. Fornitore'
+                  : '2. Fornitore'}
               </label>
               <select
                 value={nuovoOrdineForm.fornitore_id}
                 onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, fornitore_id: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                disabled={!nuovoOrdineForm.categoria_prodotto}
+                disabled={
+                  !nuovoOrdineForm.categoria_prodotto ||
+                  (nuovoOrdineForm.categoria_prodotto === 'assistenza' && !nuovoOrdineForm.tipo_prodotto_assistenza)
+                }
               >
-                <option value="">-- Seleziona fornitore --</option>
+                <option value="">
+                  {nuovoOrdineForm.categoria_prodotto === 'assistenza' && !nuovoOrdineForm.tipo_prodotto_assistenza
+                    ? '-- Prima seleziona il tipo prodotto --'
+                    : '-- Seleziona fornitore --'}
+                </option>
                 {getFornitoriDisponibili().map(f => (
                   <option key={f.id} value={f.id}>
                     {f.nome}

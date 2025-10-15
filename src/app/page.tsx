@@ -68,6 +68,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '3.1.1', date: '15/10/2025', description: 'Nuova categoria Assistenza con workflow a due step: selezione tipo prodotto (Lenti/Montature/LAC/Sport/Accessori) e filtro intelligente fornitori. UX migliorata per riparazioni e servizi.' },
     { version: '3.1.0', date: '08/10/2025', description: 'Workflow automatizzato: avanzamento automatico buste (nuovo→materiali_ordinati→materiali_arrivati). Ordini "da negozio" per prodotti già in stock. Stato annullato per ordini cancellati. Workflow semplificato a 6 stati (rimosso materiali_parzialmente_arrivati).' },
     { version: '3.0.1', date: '04/10/2025', description: 'Nuova pagina Analytics con dashboard Business Intelligence, statistiche dettagliate su lavorazioni, fornitori, fatturato, grafici interattivi e trend mensili.' },
     { version: '2.91', date: '02/10/2025', description: 'Ricerca clienti per cognome/telefono, fix duplicati follow-up, workflow Kanban bidirezionale, correzione 8 vulnerabilità sicurezza database.' },
