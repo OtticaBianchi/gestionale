@@ -30,6 +30,7 @@ import {
   MessageCircle,
   CreditCard
 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 
 // Import dei componenti estratti
 import AnagraficaTab from './tabs/AnagraficaTab';
@@ -39,6 +40,8 @@ import NotificheTab from './tabs/NotificheTab';
 import PagamentoTab from './tabs/PagamentoTab';
 import BustaInfoSidebar from './shared/BustaInfoSidebar';
 import QuickAddErrorForm from '@/components/error-tracking/QuickAddErrorForm';
+
+type TabId = 'anagrafica' | 'materiali' | 'lavorazione' | 'notifiche' | 'pagamento';
 
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
   clienti: Database['public']['Tables']['clienti']['Row'] | null;
@@ -69,13 +72,28 @@ interface BustaDetailClientProps {
 export default function BustaDetailClient({ busta: initialBusta }: BustaDetailClientProps) {
   // ===== SWR INTEGRATION =====
   const { data: busteData } = useBuste();
+  const searchParams = useSearchParams();
   
   // ✅ Find current busta from SWR data and update only stato_attuale
   const swrBusta = busteData?.find(b => b.id === initialBusta.id);
   
   // ✅ Use SWR data only to sync stato_attuale, keep full detail structure
   const [busta, setBusta] = useState(initialBusta);
-  const [activeTab, setActiveTab] = useState('anagrafica');
+  const getInitialTab = (): TabId => {
+    if (typeof window !== 'undefined') {
+      const stored = window.sessionStorage.getItem(`busta:${initialBusta.id}:activeTab`);
+      if (stored === 'anagrafica' || stored === 'materiali' || stored === 'lavorazione' || stored === 'notifiche' || stored === 'pagamento') {
+        return stored;
+      }
+    }
+    const param = searchParams.get('tab');
+    if (param === 'anagrafica' || param === 'materiali' || param === 'lavorazione' || param === 'notifiche' || param === 'pagamento') {
+      return param;
+    }
+    return 'anagrafica';
+  };
+
+  const [activeTab, setActiveTab] = useState<TabId>(getInitialTab);
   
   // ✅ Update only stato_attuale when SWR data changes
   useEffect(() => {
@@ -88,7 +106,24 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
       }));
     }
   }, [swrBusta, busta.stato_attuale]);
-  
+
+  useEffect(() => {
+    setBusta(prev => {
+      if (
+        prev.id !== initialBusta.id ||
+        prev.updated_at !== initialBusta.updated_at ||
+        prev.stato_attuale !== initialBusta.stato_attuale ||
+        prev.metodo_consegna !== initialBusta.metodo_consegna ||
+        prev.stato_consegna !== initialBusta.stato_consegna ||
+        prev.data_selezione_consegna !== initialBusta.data_selezione_consegna ||
+        prev.data_completamento_consegna !== initialBusta.data_completamento_consegna
+      ) {
+        return initialBusta;
+      }
+      return prev;
+    });
+  }, [initialBusta]);
+
   // Delete modal states
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteStep, setDeleteStep] = useState(1);
@@ -99,6 +134,30 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
   const [showErrorForm, setShowErrorForm] = useState(false);
 
   const router = useRouter();
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem(`busta:${initialBusta.id}:activeTab`, activeTab);
+    }
+  }, [activeTab, initialBusta.id]);
+
+  useEffect(() => {
+    const param = searchParams.get('tab');
+    if (
+      param &&
+      (param === 'anagrafica' ||
+        param === 'materiali' ||
+        param === 'lavorazione' ||
+        param === 'notifiche' ||
+        param === 'pagamento') &&
+      param !== activeTab
+    ) {
+      setActiveTab(param);
+    }
+  }, [searchParams, activeTab]);
+
+  const handleTabChange = (tabId: TabId) => {
+    setActiveTab(tabId);
+  };
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -360,7 +419,7 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleTabChange(tab.id as TabId)}
                     className={`
                       whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2
                       ${activeTab === tab.id

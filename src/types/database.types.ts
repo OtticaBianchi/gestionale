@@ -20,13 +20,17 @@ export type Database = {
           creato_da: string | null
           data_apertura: string
           data_consegna_prevista: string | null
+          data_completamento_consegna: string | null
+          data_selezione_consegna: string | null
           id: string
           is_suspended: boolean
+          metodo_consegna: Database["public"]["Enums"]["metodo_consegna"] | null
           modo_avviso_id: number | null
           note_generali: string | null
           priorita: Database["public"]["Enums"]["job_priority"]
           readable_id: string | null
           stato_attuale: Database["public"]["Enums"]["job_status"]
+          stato_consegna: Database["public"]["Enums"]["stato_consegna"] | null
           tipo_lavorazione: Database["public"]["Enums"]["work_type"] | null
           tipo_lavorazione_codice: string | null
           tipo_montaggio_id: number | null
@@ -37,13 +41,17 @@ export type Database = {
           creato_da?: string | null
           data_apertura?: string
           data_consegna_prevista?: string | null
+          data_completamento_consegna?: string | null
+          data_selezione_consegna?: string | null
           id?: string
           is_suspended?: boolean
+          metodo_consegna?: Database["public"]["Enums"]["metodo_consegna"] | null
           modo_avviso_id?: number | null
           note_generali?: string | null
           priorita?: Database["public"]["Enums"]["job_priority"]
           readable_id?: string | null
           stato_attuale?: Database["public"]["Enums"]["job_status"]
+          stato_consegna?: Database["public"]["Enums"]["stato_consegna"] | null
           tipo_lavorazione?: Database["public"]["Enums"]["work_type"] | null
           tipo_lavorazione_codice?: string | null
           tipo_montaggio_id?: number | null
@@ -54,13 +62,17 @@ export type Database = {
           creato_da?: string | null
           data_apertura?: string
           data_consegna_prevista?: string | null
+          data_completamento_consegna?: string | null
+          data_selezione_consegna?: string | null
           id?: string
           is_suspended?: boolean
+          metodo_consegna?: Database["public"]["Enums"]["metodo_consegna"] | null
           modo_avviso_id?: number | null
           note_generali?: string | null
           priorita?: Database["public"]["Enums"]["job_priority"]
           readable_id?: string | null
           stato_attuale?: Database["public"]["Enums"]["job_status"]
+          stato_consegna?: Database["public"]["Enums"]["stato_consegna"] | null
           tipo_lavorazione?: Database["public"]["Enums"]["work_type"] | null
           tipo_lavorazione_codice?: string | null
           tipo_montaggio_id?: number | null
@@ -1548,6 +1560,10 @@ export type Database = {
         | "in_lavorazione"
         | "pronto_ritiro"
         | "consegnato_pagato"
+      metodo_consegna:
+        | "da_ritirare"
+        | "consegna_domicilio"
+        | "spedizione"
       ordine_status:
         | "ordinato"
         | "in_arrivo"
@@ -1557,6 +1573,12 @@ export type Database = {
         | "rifiutato"
         | "annullato"
         | "da_ordinare"
+      stato_consegna:
+        | "in_attesa"
+        | "ritirato"
+        | "consegnato"
+        | "spedito"
+        | "arrivato"
       work_type:
         | "OCV"
         | "OV"

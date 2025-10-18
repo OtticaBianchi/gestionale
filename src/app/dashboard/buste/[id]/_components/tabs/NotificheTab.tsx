@@ -16,8 +16,12 @@ import {
   Loader2,
   Phone,
   Eye,
+  Store,
+  Home,
+  Package,
 } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
+import { useRouter } from 'next/navigation';
 
 // ===== TYPES =====
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
@@ -49,6 +53,30 @@ interface NotificheTabProps {
   isReadOnly?: boolean;
 }
 
+type DeliveryMethod = Database['public']['Enums']['metodo_consegna'];
+type BustaUpdatePayload = Database['public']['Tables']['buste']['Update'];
+
+const formatDateToInputValue = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getTodayDateInput = () => {
+  return formatDateToInputValue(new Date());
+};
+
+const extractDateInputFromIso = (iso?: string | null) => {
+  if (!iso) return null;
+  return iso.split('T')[0] ?? null;
+};
+
+const isoFromDateInput = (value: string) => {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0)).toISOString();
+};
+
 export default function NotificheTab({ busta, isReadOnly = false }: NotificheTabProps) {
   const [comunicazioni, setComunicazioni] = useState<Comunicazione[]>([]);
   const [isLoadingComunicazioni, setIsLoadingComunicazioni] = useState(false);
@@ -65,7 +93,16 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
   const [editingMessageType, setEditingMessageType] = useState<'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente' | null>(null);
   const [customMessage, setCustomMessage] = useState('');
   const [freeNote, setFreeNote] = useState('');
+  const [selectedDeliveryMethod, setSelectedDeliveryMethod] = useState<DeliveryMethod | null>(busta.metodo_consegna);
+  const [deliveryDate, setDeliveryDate] = useState<string>(() => extractDateInputFromIso(busta.data_selezione_consegna) ?? getTodayDateInput());
+  const [isSavingDelivery, setIsSavingDelivery] = useState(false);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [completionDate, setCompletionDate] = useState<string>(() => {
+    const completion = extractDateInputFromIso(busta.data_completamento_consegna);
+    return completion ?? getTodayDateInput();
+  });
 
+  const router = useRouter();
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -76,6 +113,16 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
     loadComunicazioni();
     getCurrentUser();
   }, [busta.id]);
+
+  useEffect(() => {
+    setSelectedDeliveryMethod(busta.metodo_consegna);
+    setDeliveryDate(extractDateInputFromIso(busta.data_selezione_consegna) ?? getTodayDateInput());
+    setDeliveryError(null);
+    setCompletionDate(() => {
+      const completion = extractDateInputFromIso(busta.data_completamento_consegna);
+      return completion ?? getTodayDateInput();
+    });
+  }, [busta.metodo_consegna, busta.data_selezione_consegna, busta.id]);
 
   // Carica dati operatore corrente
   const getCurrentUser = async () => {
@@ -104,7 +151,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
         .from('comunicazioni')
         .select('*')
         .eq('busta_id', busta.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
       if (error) throw error;
       setComunicazioni(comunicazioniData || []);
     } catch (error) {
@@ -159,35 +206,140 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
     return testoFinale;
   };
 
+  const savedDeliveryDate = extractDateInputFromIso(busta.data_selezione_consegna);
+  const hasPendingDeliveryChanges =
+    !!selectedDeliveryMethod &&
+    (
+      selectedDeliveryMethod !== busta.metodo_consegna ||
+      (savedDeliveryDate ?? '') !== deliveryDate
+    );
+  const deliveryOptions: Array<{ value: DeliveryMethod; label: string; icon: typeof Store }> = [
+    { value: 'da_ritirare', label: 'Ritiro in Negozio', icon: Store },
+    { value: 'consegna_domicilio', label: 'Consegna a Domicilio', icon: Home },
+    { value: 'spedizione', label: 'Spedizione', icon: Package }
+  ];
+
+  const deliveryHelperMessage =
+    selectedDeliveryMethod === 'da_ritirare'
+      ? 'Data disponibile per il ritiro in negozio.'
+      : selectedDeliveryMethod === 'consegna_domicilio'
+        ? 'Programma la consegna presso il cliente.'
+        : selectedDeliveryMethod === 'spedizione'
+          ? 'Programma la data di spedizione.'
+          : '';
+
+  const handleSelectDeliveryMethod = (method: DeliveryMethod) => {
+    if (isSavingDelivery) return;
+    setSelectedDeliveryMethod(method);
+    setDeliveryError(null);
+  };
+
+  const handleResetDeliveryChanges = () => {
+    setSelectedDeliveryMethod(busta.metodo_consegna);
+    setDeliveryDate(savedDeliveryDate ?? getTodayDateInput());
+    setDeliveryError(null);
+  };
+
+  const ensureCompletionDate = () => {
+    if (!completionDate) {
+      setDeliveryError('Imposta una data valida per registrare lo stato di consegna.');
+      return null;
+    }
+    setDeliveryError(null);
+    return isoFromDateInput(completionDate);
+  };
+
+  const handleStatusUpdate = async (updates: Partial<BustaUpdatePayload>) => {
+    const completionIso = ensureCompletionDate();
+    if (!completionIso) return;
+    await updateDeliveryInfo({
+      ...updates,
+      data_completamento_consegna: completionIso
+    });
+  };
+
+  const updateDeliveryInfo = async (updates: Partial<BustaUpdatePayload>) => {
+    setIsSavingDelivery(true);
+    setDeliveryError(null);
+
+    try {
+      const { error } = await supabase
+        .from('buste')
+        .update(updates)
+        .eq('id', busta.id);
+
+      if (error) {
+        throw error;
+      }
+
+      router.refresh();
+      return true;
+    } catch (error: any) {
+      console.error('Errore aggiornamento consegna:', error);
+      setDeliveryError(error.message ?? 'Errore durante l\'aggiornamento della consegna.');
+      return false;
+    } finally {
+      setIsSavingDelivery(false);
+    }
+  };
+
+  const handleSaveDeliverySettings = async () => {
+    if (!selectedDeliveryMethod) {
+      setDeliveryError('Seleziona una modalità di consegna.');
+      return;
+    }
+
+    if (!deliveryDate) {
+      setDeliveryError('Imposta una data valida.');
+      return;
+    }
+
+    const updates: Partial<BustaUpdatePayload> = {
+      metodo_consegna: selectedDeliveryMethod,
+      data_selezione_consegna: isoFromDateInput(deliveryDate)
+    };
+
+    if (selectedDeliveryMethod !== busta.metodo_consegna) {
+      updates.stato_consegna = 'in_attesa';
+      updates.data_completamento_consegna = null;
+    }
+
+    await updateDeliveryInfo(updates);
+  };
+
   // ===== DATABASE OPERATIONS =====
   const createCommunicationRecord = async (
     tipo: 'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente',
     testoFinale: string
   ) => {
-    const { data: nuovaComunicazione, error } = await supabase
-      .from('comunicazioni')
-      .insert({
-        busta_id: busta.id,
-        tipo_messaggio: tipo,
-        testo_messaggio: testoFinale,
-        data_invio: new Date().toISOString(),
-        destinatario_tipo: "cliente",
-        destinatario_nome: busta.clienti ? `${busta.clienti.cognome} ${busta.clienti.nome}` : "",
-        destinatario_contatto: busta.clienti?.telefono ?? "",
-        canale_invio: 'whatsapp',
-        stato_invio: 'inviato',
-        inviato_da: currentUser!.id,
-        nome_operatore: currentUser!.full_name
+    const response = await fetch('/api/comunicazioni', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        bustaId: busta.id,
+        tipoMessaggio: tipo,
+        testoMessaggio: testoFinale,
+        destinatarioTipo: 'cliente',
+        destinatarioNome: busta.clienti ? `${busta.clienti.cognome} ${busta.clienti.nome}` : '',
+        destinatarioContatto: busta.clienti?.telefono ?? '',
+        canaleInvio: 'whatsapp',
+        statoInvio: 'inviato'
       })
-      .select()
-      .single();
+    });
 
-    if (error) throw error;
-    return nuovaComunicazione;
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Errore durante la registrazione della comunicazione.');
+    }
+
+    return payload?.comunicazione as Comunicazione;
   };
 
   const updateCommunicationsState = (nuovaComunicazione: any) => {
-    setComunicazioni(prev => [nuovaComunicazione, ...prev]);
+    setComunicazioni(prev => [...prev, nuovaComunicazione]);
     setEditingMessageType(null);
     setCustomMessage('');
     setFreeNote('');
@@ -431,6 +583,235 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ===== DELIVERY MODE MANAGEMENT ===== */}
+      {canEdit && isBustaReadyForNotification && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Metodo di Consegna
+          </h3>
+
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              {deliveryOptions.map((option) => {
+                const Icon = option.icon;
+                const isSelected = selectedDeliveryMethod === option.value;
+                const isSaved = busta.metodo_consegna === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleSelectDeliveryMethod(option.value)}
+                    disabled={isSavingDelivery}
+                    className={`p-4 rounded-lg border-2 transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50'
+                        : isSaved
+                          ? 'border-blue-200 bg-blue-50/70'
+                          : 'border-gray-200 hover:border-blue-300'
+                    }`}
+                  >
+                    <div className="flex flex-col items-center space-y-2 text-center">
+                      <Icon className="w-6 h-6" />
+                      <span className="text-sm font-medium">{option.label}</span>
+                      {isSelected && selectedDeliveryMethod !== busta.metodo_consegna && (
+                        <span className="text-xs font-semibold text-blue-600">Nuova selezione</span>
+                      )}
+                      {!isSelected && isSaved && (
+                        <span className="text-xs text-gray-500">Impostazione salvata</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {selectedDeliveryMethod ? (
+              <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-blue-900">
+                      Data impostazione
+                    </label>
+                    <input
+                      type="date"
+                      value={deliveryDate}
+                      onChange={(event) => {
+                        setDeliveryDate(event.target.value);
+                        setDeliveryError(null);
+                      }}
+                      className="mt-1 w-full rounded-md border border-blue-200 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    />
+                    {deliveryHelperMessage && (
+                      <p className="mt-2 text-xs text-blue-700">
+                        {deliveryHelperMessage}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 md:flex-none">
+                    <button
+                      type="button"
+                      onClick={handleResetDeliveryChanges}
+                      disabled={!hasPendingDeliveryChanges || isSavingDelivery}
+                      className="px-4 py-2 rounded-md border border-blue-200 bg-white text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Annulla
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveDeliverySettings}
+                      disabled={!hasPendingDeliveryChanges || isSavingDelivery}
+                      className="px-4 py-2 rounded-md bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {isSavingDelivery ? (
+                        <span className="flex items-center justify-center">
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Salvataggio...
+                        </span>
+                      ) : (
+                        'Salva impostazioni'
+                      )}
+                    </button>
+                  </div>
+                </div>
+                {deliveryError && (
+                  <p className="mt-3 text-sm text-red-600">{deliveryError}</p>
+                )}
+                {hasPendingDeliveryChanges && !deliveryError && (
+                  <p className="mt-3 text-xs text-blue-700">
+                    Salva per confermare la nuova modalità di consegna.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600">
+                Seleziona una modalità per iniziare a tracciare la consegna.
+              </p>
+            )}
+
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+              {busta.metodo_consegna && busta.data_selezione_consegna ? (
+                <>
+                  <p className="text-sm text-gray-700 mb-3">
+                    <strong>
+                      {busta.metodo_consegna === 'da_ritirare' && 'Da ritirare in negozio'}
+                      {busta.metodo_consegna === 'consegna_domicilio' && 'Da consegnare a domicilio'}
+                      {busta.metodo_consegna === 'spedizione' && 'Da spedire'}
+                    </strong>{' '}
+                    dal {new Date(busta.data_selezione_consegna).toLocaleDateString('it-IT')}
+                    {hasPendingDeliveryChanges && (
+                      <span className="ml-2 text-xs text-blue-700">(in attesa di salvataggio)</span>
+                    )}
+                  </p>
+
+                  {hasPendingDeliveryChanges ? (
+                    <p className="text-xs text-blue-700">
+                      Salva le modifiche per aggiornare le azioni disponibili.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                        <div className="flex-1 md:max-w-xs">
+                          <label className="block text-sm font-medium text-gray-700">
+                            Data da registrare
+                          </label>
+                          <input
+                            type="date"
+                            value={completionDate}
+                            onChange={(event) => {
+                              setCompletionDate(event.target.value);
+                              setDeliveryError(null);
+                            }}
+                            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            Verrà usata come data per l&apos;azione selezionata (spedito, consegnato, ecc.).
+                          </p>
+                        </div>
+                        {busta.data_completamento_consegna && (
+                          <div className="rounded-md bg-white px-3 py-2 text-xs text-gray-600 shadow-sm">
+                            Ultimo aggiornamento registrato:{' '}
+                            <strong>{new Date(busta.data_completamento_consegna).toLocaleDateString('it-IT')}</strong>
+                          </div>
+                        )}
+                      </div>
+
+                      {busta.stato_consegna === 'in_attesa' && (
+                        <div className="flex flex-wrap gap-2">
+                          {busta.metodo_consegna === 'da_ritirare' && (
+                            <button
+                              onClick={async () => {
+                                await handleStatusUpdate({
+                                  stato_consegna: 'ritirato',
+                                  stato_attuale: 'consegnato_pagato'
+                                });
+                              }}
+                              disabled={isSavingDelivery}
+                              className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              ✓ Ritirato
+                            </button>
+                          )}
+                          {busta.metodo_consegna === 'consegna_domicilio' && (
+                            <button
+                              onClick={async () => {
+                                await handleStatusUpdate({
+                                  stato_consegna: 'consegnato',
+                                  stato_attuale: 'consegnato_pagato'
+                                });
+                              }}
+                              disabled={isSavingDelivery}
+                              className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              ✓ Consegnato
+                            </button>
+                          )}
+                          {busta.metodo_consegna === 'spedizione' && (
+                            <>
+                              <button
+                                onClick={async () => {
+                                  await handleStatusUpdate({
+                                    stato_consegna: 'spedito'
+                                  });
+                                }}
+                                disabled={isSavingDelivery}
+                                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                              >
+                                📦 Spedito
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  await handleStatusUpdate({
+                                    stato_consegna: 'arrivato',
+                                    stato_attuale: 'consegnato_pagato'
+                                  });
+                                }}
+                                disabled={isSavingDelivery}
+                                className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                              >
+                                ✓ Arrivato
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {busta.stato_consegna !== 'in_attesa' && busta.data_completamento_consegna && (
+                        <div className="text-green-700 text-sm">
+                          ✓ Completato il {new Date(busta.data_completamento_consegna).toLocaleDateString('it-IT')}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-gray-600">
+                  Nessuna modalità di consegna salvata. Imposta e salva le preferenze per abilitare il monitoraggio.
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

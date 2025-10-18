@@ -308,6 +308,16 @@ export default function BustaCard({ busta }: BustaCardProps) {
   const ordiniOrdinati = sortOrdersByPriority(ordini);
   const delayLevel = getDelayLevel(ordini);
 
+  // Simple delivery warning check
+  const showDeliveryWarning = busta.metodo_consegna &&
+    busta.stato_consegna === 'in_attesa' &&
+    busta.metodo_consegna !== 'da_ritirare' &&
+    busta.data_selezione_consegna &&
+    (() => {
+      const days = Math.floor((Date.now() - new Date(busta.data_selezione_consegna).getTime()) / (1000 * 60 * 60 * 24));
+      return days >= 2;
+    })();
+
   const paymentData = processPaymentData(busta);
   const normalizedPlanType = determinePlanType(
     paymentData.paymentPlan,
@@ -360,6 +370,9 @@ export default function BustaCard({ busta }: BustaCardProps) {
               </span>
             )}
             {delayIndicator[delayLevel]}
+            {showDeliveryWarning && (
+              <AlertTriangle className="h-4 w-4 text-red-600 fill-red-100" />
+            )}
           </div>
           <div className="flex flex-col items-end gap-1">
             {paymentBadge && (
