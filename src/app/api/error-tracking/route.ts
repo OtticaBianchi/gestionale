@@ -27,6 +27,8 @@ type ErrorTrackingRow = {
   resolved_at: string | null
   created_at: string
   updated_at: string
+  is_draft: boolean
+  auto_created_from_order: string | null
 }
 
 // GET - Lista errori con filtri e statistiche
@@ -108,6 +110,8 @@ export async function GET(request: NextRequest) {
         resolved_at,
         created_at,
         updated_at,
+        is_draft,
+        auto_created_from_order,
         employee:profiles!error_tracking_employee_id_fkey(
           id,
           full_name,
@@ -211,7 +215,9 @@ export async function POST(request: NextRequest) {
       cost_detail,
       time_lost_minutes = 0,
       client_impacted = false,
-      requires_reorder = false
+      requires_reorder = false,
+      is_draft = false,
+      auto_created_from_order = null
     } = body
 
     // Validazione input obbligatori
@@ -274,7 +280,9 @@ export async function POST(request: NextRequest) {
         time_lost_minutes,
         client_impacted,
         requires_reorder,
-        reported_by: user.id
+        reported_by: user.id,
+        is_draft,
+        auto_created_from_order
       })
       .select(`
         id,
@@ -283,6 +291,8 @@ export async function POST(request: NextRequest) {
         cost_type,
         error_type,
         error_category,
+        is_draft,
+        auto_created_from_order,
         reported_at,
         employee:profiles!error_tracking_employee_id_fkey(full_name)
       `)

@@ -35,6 +35,24 @@ interface QuickAddErrorFormProps {
   prefilledBustaId?: string
   prefilledEmployeeId?: string
   prefilledClienteId?: string
+  draftId?: string | null
+  draftData?: {
+    id?: string
+    busta_id?: string | null
+    employee_id?: string
+    cliente_id?: string | null
+    error_type?: string
+    error_category?: 'critico' | 'medio' | 'basso' | ''
+    error_description?: string
+    cost_type?: 'real' | 'estimate'
+    cost_amount?: number | null
+    cost_detail?: string | null
+    time_lost_minutes?: number | null
+    client_impacted?: boolean
+    requires_reorder?: boolean
+    busta_label?: string | null
+    cliente_label?: string | null
+  } | null
 }
 
 export default function QuickAddErrorForm({
@@ -43,9 +61,11 @@ export default function QuickAddErrorForm({
   onSuccess,
   prefilledBustaId,
   prefilledEmployeeId,
-  prefilledClienteId
+  prefilledClienteId,
+  draftId = null,
+  draftData = null
 }: QuickAddErrorFormProps) {
-  const [formData, setFormData] = useState({
+  const defaultFormState = {
     busta_id: prefilledBustaId || '',
     employee_id: prefilledEmployeeId || '',
     cliente_id: prefilledClienteId || '',
@@ -58,7 +78,9 @@ export default function QuickAddErrorForm({
     time_lost_minutes: '',
     client_impacted: false,
     requires_reorder: false
-  })
+  }
+
+  const [formData, setFormData] = useState(defaultFormState)
 
   const [employees, setEmployees] = useState<Employee[]>([])
   const [clienti, setClienti] = useState<Cliente[]>([])
@@ -93,28 +115,50 @@ export default function QuickAddErrorForm({
     'basso': { label: 'Basso', description: '€5-50 - Correzioni minori', color: 'text-green-600' }
   }
 
+  const isDraftMode = Boolean(draftId)
+
   // Reset form when opening
   useEffect(() => {
     if (isOpen) {
+      const draftDefaults = draftData ?? null
+      const computedCostType = draftDefaults?.cost_type ?? 'estimate'
+      const realCostValue =
+        computedCostType === 'real' && typeof draftDefaults?.cost_amount === 'number'
+          ? draftDefaults.cost_amount.toFixed(2)
+          : ''
+
       setFormData({
-        busta_id: prefilledBustaId || '',
-        employee_id: prefilledEmployeeId || '',
-        cliente_id: prefilledClienteId || '',
-        error_type: '',
-        error_category: '',
-        error_description: '',
-        cost_type: 'estimate',
-        custom_cost: '',
-        cost_detail: '',
-        time_lost_minutes: '',
-        client_impacted: false,
-        requires_reorder: false
+        busta_id: draftDefaults?.busta_id ?? prefilledBustaId ?? '',
+        employee_id: draftDefaults?.employee_id ?? prefilledEmployeeId ?? '',
+        cliente_id: draftDefaults?.cliente_id ?? prefilledClienteId ?? '',
+        error_type: draftDefaults?.error_type ?? '',
+        error_category: draftDefaults?.error_category ?? '',
+        error_description: draftDefaults?.error_description ?? '',
+        cost_type: computedCostType,
+        custom_cost:
+          computedCostType === 'real'
+            ? realCostValue
+            : draftDefaults?.cost_amount
+            ? draftDefaults.cost_amount.toFixed(2)
+            : '',
+        cost_detail: draftDefaults?.cost_detail ?? '',
+        time_lost_minutes: draftDefaults?.time_lost_minutes
+          ? String(draftDefaults.time_lost_minutes)
+          : '',
+        client_impacted: draftDefaults?.client_impacted ?? false,
+        requires_reorder: draftDefaults?.requires_reorder ?? false
       })
-      setSearchCliente('')
-      setSearchBusta('')
+      setSearchCliente(draftDefaults?.cliente_label ?? '')
+      setSearchBusta(draftDefaults?.busta_label ?? '')
+      const estimate =
+        computedCostType === 'estimate' && draftDefaults?.cost_amount
+          ? draftDefaults.cost_amount
+          : null
+      setEstimatedCost(estimate)
+    } else {
       setEstimatedCost(null)
     }
-  }, [isOpen, prefilledBustaId, prefilledEmployeeId, prefilledClienteId])
+  }, [isOpen, prefilledBustaId, prefilledEmployeeId, prefilledClienteId, draftId, draftData])
 
   // Carica dipendenti al mount
   useEffect(() => {
@@ -229,19 +273,27 @@ export default function QuickAddErrorForm({
         ...formData,
         custom_cost: formData.custom_cost ? Number.parseFloat(formData.custom_cost) : undefined,
         time_lost_minutes: Number.parseInt(formData.time_lost_minutes) || 0,
-        cost_detail: formData.cost_type === 'real' ? formData.cost_detail : null
+        cost_detail: formData.cost_type === 'real' ? formData.cost_detail : formData.cost_detail || null
       }
 
-      const response = await fetch('/api/error-tracking', {
-        method: 'POST',
+      const endpoint = draftId ? '/api/error-tracking/drafts' : '/api/error-tracking'
+      const method = draftId ? 'PATCH' : 'POST'
+
+      const response = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(draftId ? { ...payload, id: draftId } : payload)
       })
 
       const result = await response.json()
 
       if (result.success) {
         onSuccess()
+        if (draftId) {
+          window.dispatchEvent(new CustomEvent('errorDrafts:update', { detail: { delta: -1 } }))
+        } else {
+          window.dispatchEvent(new CustomEvent('errorDrafts:update'))
+        }
       } else {
         alert('Errore durante il salvataggio: ' + result.error)
       }
@@ -261,7 +313,9 @@ export default function QuickAddErrorForm({
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-6 h-6 text-red-500" />
-            <h2 className="text-xl font-semibold text-gray-900">Registra Errore</h2>
+            <h2 className="text-xl font-semibold text-gray-900">
+              {isDraftMode ? 'Completa Bozza Errore' : 'Registra Errore'}
+            </h2>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <X className="w-6 h-6" />
@@ -624,10 +678,10 @@ export default function QuickAddErrorForm({
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              className={`px-6 py-2 text-white rounded-md transition-colors disabled:opacity-50 flex items-center gap-2 ${isDraftMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`}
             >
               {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-              {loading ? 'Salvataggio...' : 'Registra Errore'}
+              {loading ? 'Salvataggio...' : isDraftMode ? 'Completa Bozza' : 'Registra Errore'}
             </button>
           </div>
         </form>

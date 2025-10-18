@@ -38,9 +38,11 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [voiceNotesCount, setVoiceNotesCount] = useState(0);
   const [telegramRequestsCount, setTelegramRequestsCount] = useState(0);
+  const [errorDraftCount, setErrorDraftCount] = useState(0);
   const isMountedRef = useRef(true);
   const voiceNotesFetchLock = useRef(false);
   const telegramFetchLock = useRef(false);
+  const errorDraftFetchLock = useRef(false);
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -119,6 +121,31 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     }
   }, [userRole]);
 
+  const fetchErrorDraftCount = useCallback(async (background = false) => {
+    if (!userRole || userRole !== 'admin' || errorDraftFetchLock.current) return;
+    errorDraftFetchLock.current = true;
+
+    try {
+      const response = await fetch('/api/error-tracking/drafts?summary=count', { cache: 'no-store' });
+      if (!response.ok) {
+        if (!background) {
+          console.error('Error fetching error draft count:', response.statusText);
+        }
+        return;
+      }
+
+      const data = await response.json();
+      if (!isMountedRef.current) return;
+      setErrorDraftCount(data.count ?? 0);
+    } catch (error) {
+      if (!background) {
+        console.error('Error fetching error draft count:', error);
+      }
+    } finally {
+      errorDraftFetchLock.current = false;
+    }
+  }, [userRole]);
+
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
@@ -173,6 +200,51 @@ export default function Sidebar({ className = '' }: SidebarProps) {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [userRole, fetchTelegramRequestsCount]);
+
+  useEffect(() => {
+    const handleDraftUpdate = (event: Event) => {
+      const custom = event as CustomEvent<{ count?: number; delta?: number }>
+      if (typeof custom.detail?.count === 'number') {
+        setErrorDraftCount(custom.detail.count)
+      } else if (typeof custom.detail?.delta === 'number') {
+        setErrorDraftCount(prev => Math.max(0, prev + custom.detail!.delta!))
+      } else {
+        fetchErrorDraftCount(true)
+      }
+    }
+
+    window.addEventListener('errorDrafts:update', handleDraftUpdate)
+    return () => {
+      window.removeEventListener('errorDrafts:update', handleDraftUpdate)
+    }
+  }, [fetchErrorDraftCount])
+
+  useEffect(() => {
+    if (!userRole || userRole !== 'admin') {
+      setErrorDraftCount(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      fetchErrorDraftCount(true);
+    }, 60000);
+
+    fetchErrorDraftCount();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchErrorDraftCount(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [userRole, fetchErrorDraftCount]);
 
   return (
     <>
@@ -269,6 +341,8 @@ export default function Sidebar({ className = '' }: SidebarProps) {
               icon={AlertTriangle}
               label="Tracciamento Errori"
               isCollapsed={isCollapsed}
+              disabled={userRole !== 'admin'}
+              badge={userRole === 'admin' && errorDraftCount > 0 ? (errorDraftCount > 99 ? '99+' : errorDraftCount.toString()) : undefined}
             />
             <SidebarItem
               href="/modules/archive"

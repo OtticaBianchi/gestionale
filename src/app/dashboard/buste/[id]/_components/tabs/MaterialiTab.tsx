@@ -1113,9 +1113,60 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   };
 
   // ===== HANDLE AGGIORNA STATO ORDINE - VERSIONE ESISTENTE =====
+  const createAutoErrorDraft = async (ordine: OrdineMateriale) => {
+    try {
+      const response = await fetch('/api/error-tracking/drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ordineId: ordine.id })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        console.error('❌ Errore creazione bozza errore:', payload);
+        alert(payload?.error || `Impossibile creare automaticamente la bozza errore. Codice: ${response.status}`);
+        return;
+      }
+
+      if (payload?.alreadyExists) {
+        console.log('ℹ️ Bozza errore già presente per ordine', ordine.id);
+        return;
+      }
+
+      alert('Bozza errore generata automaticamente. Un admin completerà la registrazione.');
+      window.dispatchEvent(new CustomEvent('errorDrafts:update', { detail: { delta: 1 } }));
+    } catch (error) {
+      console.error('❌ Errore nella richiesta di bozza errore:', error);
+      alert('Errore imprevisto durante la creazione della bozza errore.');
+    }
+  };
+
   const handleAggiornaStatoOrdine = async (ordineId: string, nuovoStato: string) => {
     try {
       console.log('🔄 Aggiornamento stato ordine:', ordineId, nuovoStato);
+      const ordineCorrente = ordiniMateriali.find((ordine) => ordine.id === ordineId);
+
+      if (!ordineCorrente) {
+        alert('Ordine non trovato. Aggiornare la pagina e riprovare.');
+        return;
+      }
+
+      let shouldCreateDraft = false;
+
+      if (nuovoStato === 'sbagliato') {
+        const confermaErrore = window.confirm('Confermi che il prodotto consegnato non corrisponde a quanto richiesto?');
+        if (!confermaErrore) {
+          return;
+        }
+
+        const confermaResponsabilita = window.confirm('Confermi che si tratta di un errore di ordinazione interno (non del fornitore)?');
+        if (!confermaResponsabilita) {
+          return;
+        }
+
+        shouldCreateDraft = true;
+      }
       
       const updateData: any = {
         stato: nuovoStato,
@@ -1129,6 +1180,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         updateData.data_consegna_effettiva = null;
       } else if (nuovoStato === 'consegnato') {
         updateData.data_consegna_effettiva = new Date().toISOString().split('T')[0];
+      } else if (nuovoStato === 'sbagliato') {
+        updateData.data_consegna_effettiva = null;
       }
 
       const resp = await fetch(`/api/ordini/${ordineId}`, {
@@ -1152,6 +1205,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       // ✅ SWR: Invalidate cache after order status update
       await mutate('/api/buste');
       await syncBustaWorkflowWithOrdini(ordiniAggiornati, 'aggiornamento stato ordine');
+
+      if (shouldCreateDraft) {
+        await createAutoErrorDraft(ordineCorrente);
+      }
 
     } catch (error: any) {
       console.error('❌ Error updating ordine:', error);
@@ -1681,6 +1738,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               const statoOrdine = (ordine.stato || 'ordinato') as string;
               const isAnnullato = statoOrdine === 'annullato';
               const isArrivato = statoOrdine === 'consegnato';
+              const isSbagliato = statoOrdine === 'sbagliato';
               const dataConsegnaPrevista = ordine.data_consegna_prevista
                 ? new Date(ordine.data_consegna_prevista)
                 : null;
@@ -1702,11 +1760,26 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
               const cardBaseClasses = isAnnullato
                 ? 'bg-slate-100/70 border border-slate-200 cursor-not-allowed'
-                : 'hover:bg-gray-50';
-              const titoloOrdineClass = isAnnullato
+                : isSbagliato
+                  ? 'bg-gray-100 border border-gray-200'
+                  : 'hover:bg-gray-50';
+              const titoloOrdineClass = isAnnullato || isSbagliato
                 ? 'text-lg font-medium text-gray-500'
                 : 'text-lg font-medium text-gray-900';
-              const infoRowTextClass = isAnnullato ? 'text-gray-400' : 'text-gray-600';
+              const infoRowTextClass = isAnnullato || isSbagliato ? 'text-gray-500' : 'text-gray-600';
+
+              const statoBadgeLabelMap: Record<string, string> = {
+                da_ordinare: 'DA ORDINARE',
+                ordinato: 'ORDINATO',
+                in_arrivo: 'IN ARRIVO',
+                in_ritardo: 'IN RITARDO',
+                consegnato: 'ARRIVATO',
+                accettato_con_riserva: 'CON RISERVA',
+                rifiutato: 'RIFIUTATO',
+                annullato: 'ANNULLATO',
+                sbagliato: 'SBAGLIATO'
+              };
+              const statoBadgeLabel = statoBadgeLabelMap[statoOrdine] ?? statoOrdine.replace(/_/g, ' ').toUpperCase();
 
               return (
                 <div key={ordine.id} className={`p-6 transition-colors ${cardBaseClasses}`}>
@@ -1784,9 +1857,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             statoOrdine === 'da_ordinare' ? 'bg-purple-100 text-purple-800' :
                             statoOrdine === 'rifiutato' ? 'bg-gray-100 text-gray-800' :
                             statoOrdine === 'annullato' ? 'bg-slate-100 text-slate-600' :
+                            statoOrdine === 'sbagliato' ? 'bg-gray-200 text-gray-800 border border-gray-300' :
                             'bg-orange-100 text-orange-800'
                             }`}>
-                            {statoOrdine.replace(/_/g, ' ').toUpperCase()}
+                            {statoBadgeLabel}
                           </span>
                         </div>
                         </div>
@@ -1858,6 +1932,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                           </p>
                         </div>
                       )}
+
+                      {isSbagliato && (
+                        <div className="mt-3 p-3 rounded-md border border-amber-200 bg-amber-50">
+                          <p className="text-sm text-amber-800">
+                            ⚠️ La bozza dell&apos;errore è stata creata. Contatta un amministratore per completarla.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* ✅ MODIFICA: AZIONI - NASCOSTE PER OPERATORI */}
@@ -1879,9 +1961,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             </option>
                           )}
                           {/* Stati manuali selezionabili */}
-                          <option value="consegnato">✅ Consegnato</option>
+                          <option value="consegnato">✅ Arrivato</option>
                           <option value="accettato_con_riserva">🔄 Con Riserva</option>
                           <option value="rifiutato">❌ Rifiutato</option>
+                          <option value="sbagliato">⚠️ Sbagliato</option>
                           <option value="annullato">🚫 Annullato</option>
                         </select>
                   

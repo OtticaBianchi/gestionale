@@ -1347,6 +1347,78 @@ export type Database = {
           },
         ]
       }
+      warning_letters: {
+        Row: {
+          id: string
+          employee_id: string
+          employee_name: string
+          letter_type: "verbal" | "written" | "disciplinary"
+          pdf_data: string | null
+          notes: string | null
+          generated_by: string | null
+          generated_at: string | null
+          total_errors: number
+          critical_errors: number
+          total_cost: number
+          weekly_errors: number
+          monthly_errors: number
+          sent_via_email: boolean
+          sent_at: string | null
+          sent_to_email: string | null
+        }
+        Insert: {
+          id?: string
+          employee_id: string
+          employee_name: string
+          letter_type: "verbal" | "written" | "disciplinary"
+          pdf_data?: string | null
+          notes?: string | null
+          generated_by?: string | null
+          generated_at?: string | null
+          total_errors?: number
+          critical_errors?: number
+          total_cost?: number
+          weekly_errors?: number
+          monthly_errors?: number
+          sent_via_email?: boolean
+          sent_at?: string | null
+          sent_to_email?: string | null
+        }
+        Update: {
+          id?: string
+          employee_id?: string
+          employee_name?: string
+          letter_type?: "verbal" | "written" | "disciplinary"
+          pdf_data?: string | null
+          notes?: string | null
+          generated_by?: string | null
+          generated_at?: string | null
+          total_errors?: number
+          critical_errors?: number
+          total_cost?: number
+          weekly_errors?: number
+          monthly_errors?: number
+          sent_via_email?: boolean
+          sent_at?: string | null
+          sent_to_email?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "warning_letters_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "warning_letters_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       v_ordini_materiali_completi: {
@@ -1571,6 +1643,7 @@ export type Database = {
         | "consegnato"
         | "accettato_con_riserva"
         | "rifiutato"
+        | "sbagliato"
         | "annullato"
         | "da_ordinare"
       stato_consegna:
