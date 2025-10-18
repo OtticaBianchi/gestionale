@@ -3,10 +3,9 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { Database } from '@/types/database.types';
 import KanbanBoard from './_components/KanbanBoard';
-import StatsBar from './_components/StatsBar';
 import UserProfileHeader from './_components/UserProfileHeader';
 import { BustaWithCliente } from '@/types/shared.types';
-import DashboardActions from './_components/DashboardActions';
+import ButtonsBar from './_components/ButtonsBar';
 import ErrorActions from './_components/ErrorActions';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { shouldArchiveBusta } from '@/lib/buste/archiveRules';
@@ -161,28 +160,19 @@ function renderDashboard(busteWithCliente: BustaWithCliente[]) {
         {/* Header Profilo Utente */}
         <UserProfileHeader />
 
-        {/* Header con azioni */}
+        {/* Header con titolo */}
         <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Gestione buste e lavorazioni in corso - {busteWithCliente.length} buste totali
-              </p>
-              {/* ✅ Debug info in development */}
-              {process.env.NODE_ENV === 'development' && (
-                <p className="text-xs text-gray-400 mt-1">
-                  Ultimo aggiornamento: {new Date().toLocaleTimeString('it-IT')}
-                </p>
-              )}
-            </div>
-
-            <DashboardActions totalBuste={busteWithCliente.length} />
-          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          {/* ✅ Debug info in development */}
+          {process.env.NODE_ENV === 'development' && (
+            <p className="text-xs text-gray-400 mt-1">
+              Ultimo aggiornamento: {new Date().toLocaleTimeString('it-IT')}
+            </p>
+          )}
         </div>
 
-        {/* Barra delle statistiche */}
-        <StatsBar buste={busteWithCliente} />
+        {/* Barra dei pulsanti */}
+        <ButtonsBar />
 
         {/* Contenuto principale - Kanban Board */}
         <div className="flex-1 p-6 bg-gray-50 overflow-hidden">

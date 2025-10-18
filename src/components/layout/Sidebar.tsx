@@ -253,14 +253,14 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             <SidebarItem
               href="/modules/operations"
               icon={Filter}
-              label="Gestione Ordini"
+              label="Ordini"
               isCollapsed={isCollapsed}
               disabled={userRole === 'operatore'}
             />
             <SidebarItem
               href="/dashboard/ricerca-avanzata"
               icon={Search}
-              label="Ricerca Avanzata"
+              label="Ricerca"
               isCollapsed={isCollapsed}
               disabled={userRole === 'operatore'}
             />
@@ -287,7 +287,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             <SidebarItem
               href="/dashboard/voice-notes"
               icon={Mic}
-              label="Note Telegram"
+              label="Note Vocali"
               isCollapsed={isCollapsed}
               badge={voiceNotesCount > 0 ? (voiceNotesCount > 99 ? '99+' : voiceNotesCount.toString()) : undefined}
             />
