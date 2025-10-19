@@ -68,7 +68,9 @@ const slugOverrides = {
   'pulizia_riesposizione_occhiali.md': 'pulizia-riesposizione-occhiali',
   'registrazione-appuntamenti.md': 'registrazione-appuntamenti',
   'rispondere-al-telefono.md': 'risposta-al-telefono',
-  'consegna_lenti_progressive.md': 'consegna-occhiali-lenti-progressive'
+  'consegna_lenti_progressive.md': 'consegna-occhiali-lenti-progressive',
+  'assumersi-resposanbilita-posto-lavoro.md': 'assumersi-responsabilita-posto-lavoro',
+  'gestione-casi-non-previsti.md': 'gestione-casi-non-previsti'
 }
 
 const categoryOverrides = {
@@ -82,7 +84,9 @@ const categoryOverrides = {
   'utilizzo-note-vocali-telegram': 'it',
   'pulizia-riesposizione-occhiali': 'lavorazioni',
   'registrazione-appuntamenti': 'appuntamenti',
-  'risposta-al-telefono': 'accoglienza'
+  'risposta-al-telefono': 'accoglienza',
+  'assumersi-responsabilita-posto-lavoro': 'customer_care',
+  'gestione-casi-non-previsti': 'customer_care'
 }
 
 const typeOverrides = {
@@ -96,7 +100,9 @@ const typeOverrides = {
   'utilizzo-note-vocali-telegram': 'istruzioni',
   'pulizia-riesposizione-occhiali': 'checklist',
   'registrazione-appuntamenti': 'istruzioni',
-  'risposta-al-telefono': 'checklist'
+  'risposta-al-telefono': 'checklist',
+  'assumersi-responsabilita-posto-lavoro': 'istruzioni',
+  'gestione-casi-non-previsti': 'istruzioni'
 }
 
 const profileNameToId = new Map([

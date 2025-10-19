@@ -1419,6 +1419,160 @@ export type Database = {
           },
         ]
       }
+      unpredicted_cases: {
+        Row: {
+          id: string
+          description: string
+          context_category: string | null
+          severity: string
+          created_by: string
+          created_at: string
+          is_completed: boolean
+          completed_at: string | null
+          completed_by: string | null
+          related_procedure_id: string | null
+        }
+        Insert: {
+          id?: string
+          description: string
+          context_category?: string | null
+          severity: string
+          created_by: string
+          created_at?: string
+          is_completed?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          related_procedure_id?: string | null
+        }
+        Update: {
+          id?: string
+          description?: string
+          context_category?: string | null
+          severity?: string
+          created_by?: string
+          created_at?: string
+          is_completed?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          related_procedure_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unpredicted_cases_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "unpredicted_cases_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      procedure_suggestions: {
+        Row: {
+          id: string
+          procedure_id: string
+          title: string
+          description: string
+          suggested_by: string
+          created_at: string
+          status: string
+          admin_notes: string | null
+          handled_by: string | null
+          handled_at: string | null
+        }
+        Insert: {
+          id?: string
+          procedure_id: string
+          title: string
+          description: string
+          suggested_by: string
+          created_at?: string
+          status?: string
+          admin_notes?: string | null
+          handled_by?: string | null
+          handled_at?: string | null
+        }
+        Update: {
+          id?: string
+          procedure_id?: string
+          title?: string
+          description?: string
+          suggested_by?: string
+          created_at?: string
+          status?: string
+          admin_notes?: string | null
+          handled_by?: string | null
+          handled_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procedure_suggestions_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "procedures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedure_suggestions_suggested_by_fkey"
+            columns: ["suggested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedure_suggestions_handled_by_fkey"
+            columns: ["handled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      procedure_helpfulness_votes: {
+        Row: {
+          id: string
+          procedure_id: string
+          user_id: string
+          is_helpful: boolean
+          voted_at: string
+        }
+        Insert: {
+          id?: string
+          procedure_id: string
+          user_id: string
+          is_helpful: boolean
+          voted_at?: string
+        }
+        Update: {
+          id?: string
+          procedure_id?: string
+          user_id?: string
+          is_helpful?: boolean
+          voted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procedure_helpfulness_votes_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "procedures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedure_helpfulness_votes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       v_ordini_materiali_completi: {

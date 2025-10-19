@@ -320,6 +320,13 @@ export default function ProceduresPage() {
             </div>
             <div className="flex items-center gap-4">
               <h1 className="text-2xl font-bold text-gray-900">📚 Manuale Procedure</h1>
+              <button
+                onClick={() => router.push('/casi-non-previsti')}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span>Casi NON Previsti</span>
+              </button>
               {userRole === 'admin' && (
                 <button
                   onClick={() => router.push('/procedure/admin')}

@@ -27,9 +27,12 @@ import {
   Zap,
   Wrench,
   ExternalLink,
-  Phone
+  Phone,
+  Lightbulb
 } from 'lucide-react'
 import { Database } from '@/types/database.types'
+import PropostaModificheModal from './_components/PropostaModificheModal'
+import HelpfulnessVote from './_components/HelpfulnessVote'
 
 type Procedure = {
   id: string
@@ -62,6 +65,7 @@ export default function ProcedurePage() {
   const [procedure, setProcedure] = useState<Procedure | null>(null)
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string>('')
+  const [isPropostaModalOpen, setIsPropostaModalOpen] = useState(false)
   const contentMetadata = useMemo(() => {
     if (!procedure?.content) return { author: null, reviewer: null }
 
@@ -518,6 +522,33 @@ export default function ProcedurePage() {
           </div>
         )}
 
+        {/* Proposta Modifiche Button */}
+        <div className="bg-blue-50 rounded-lg border border-blue-200 p-6 mb-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Lightbulb className="h-6 w-6 text-blue-600" />
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Hai un'idea per migliorare questa procedura?</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Proponi una modifica o un'aggiunta che potrebbe renderla più chiara ed efficace.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsPropostaModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors whitespace-nowrap"
+            >
+              <Lightbulb className="w-4 h-4" />
+              <span>Proponi Modifica</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Helpfulness Vote */}
+        <div className="mb-8">
+          <HelpfulnessVote procedureId={procedure.id} />
+        </div>
+
         {/* Footer Metadata */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm text-gray-600">
@@ -561,6 +592,14 @@ export default function ProcedurePage() {
             </div>
           </div>
         </div>
+
+        {/* Proposta Modifiche Modal */}
+        <PropostaModificheModal
+          isOpen={isPropostaModalOpen}
+          onClose={() => setIsPropostaModalOpen(false)}
+          procedureId={procedure.id}
+          procedureTitle={procedure.title}
+        />
       </div>
     </div>
   )

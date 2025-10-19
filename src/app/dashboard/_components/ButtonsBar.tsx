@@ -1,16 +1,18 @@
 'use client';
 
-import { RefreshCw, Plus, Package, Search, Mic } from 'lucide-react';
+import { RefreshCw, Plus, Package, Search, Mic, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { useBuste } from '@/hooks/useBuste';
 import { toast } from 'sonner';
 import { useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
+import CasiNonPrevistiModal from './CasiNonPrevistiModal';
 
 export default function ButtonsBar() {
   const { mutate: revalidate, isLoading } = useBuste();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [isCasiModalOpen, setIsCasiModalOpen] = useState(false);
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -88,6 +90,16 @@ export default function ButtonsBar() {
           <span>Note Vocali</span>
         </Link>
 
+        {/* Casi NON Previsti button - RED */}
+        <button
+          onClick={() => setIsCasiModalOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors"
+          title="Segnala Caso NON Previsto"
+        >
+          <AlertTriangle className="h-3.5 w-3.5" />
+          <span>Caso NON Previsto</span>
+        </button>
+
         {/* Aggiorna button */}
         <button
           onClick={handleRefresh}
@@ -99,6 +111,12 @@ export default function ButtonsBar() {
           <span>Aggiorna</span>
         </button>
       </div>
+
+      {/* Casi NON Previsti Modal */}
+      <CasiNonPrevistiModal
+        isOpen={isCasiModalOpen}
+        onClose={() => setIsCasiModalOpen(false)}
+      />
     </div>
   );
 }
