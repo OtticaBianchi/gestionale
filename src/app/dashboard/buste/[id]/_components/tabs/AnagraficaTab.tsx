@@ -27,6 +27,7 @@ import { useUser } from '@/context/UserContext';
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
   clienti: Database['public']['Tables']['clienti']['Row'] | null;
   profiles: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
+  controllo_profile: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
   status_history: Array<
     Database['public']['Tables']['status_history']['Row'] & {
       profiles: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;

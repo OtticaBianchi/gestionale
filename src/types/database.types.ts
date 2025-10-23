@@ -35,6 +35,9 @@ export type Database = {
           tipo_lavorazione_codice: string | null
           tipo_montaggio_id: number | null
           updated_at: string | null
+          controllo_completato: boolean
+          controllo_completato_da: string | null
+          controllo_completato_at: string | null
         }
         Insert: {
           cliente_id?: string | null
@@ -56,6 +59,9 @@ export type Database = {
           tipo_lavorazione_codice?: string | null
           tipo_montaggio_id?: number | null
           updated_at?: string | null
+          controllo_completato?: boolean
+          controllo_completato_da?: string | null
+          controllo_completato_at?: string | null
         }
         Update: {
           cliente_id?: string | null
@@ -77,6 +83,9 @@ export type Database = {
           tipo_lavorazione_codice?: string | null
           tipo_montaggio_id?: number | null
           updated_at?: string | null
+          controllo_completato?: boolean
+          controllo_completato_da?: string | null
+          controllo_completato_at?: string | null
         }
         Relationships: [
           {

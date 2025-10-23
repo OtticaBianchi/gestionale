@@ -6,7 +6,8 @@
 import { useState, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
-import { 
+import { mutate } from 'swr';
+import {
   Factory,
   Plus,
   Clock,
@@ -25,6 +26,7 @@ import { useUser } from '@/context/UserContext';
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
   clienti: Database['public']['Tables']['clienti']['Row'] | null;
   profiles: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
+  controllo_profile: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
   status_history: Array<
     Database['public']['Tables']['status_history']['Row'] & {
       profiles: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
@@ -62,21 +64,49 @@ type TipoMontaggio = Database['public']['Tables']['tipi_montaggio']['Row'];
 interface LavorazioneTabProps {
   busta: BustaDettagliata;
   isReadOnly?: boolean;
+  onBustaUpdate?: (updatedBusta: BustaDettagliata) => void;
 }
 
-export default function LavorazioneTab({ busta, isReadOnly = false }: LavorazioneTabProps) {
+export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdate }: LavorazioneTabProps) {
   // ===== STATE =====
   const [lavorazioni, setLavorazioni] = useState<Lavorazione[]>([]);
   const [tipiMontaggio, setTipiMontaggio] = useState<TipoMontaggio[]>([]);
   const [showNuovaLavorazioneForm, setShowNuovaLavorazioneForm] = useState(false);
   const [isLoadingLavorazioni, setIsLoadingLavorazioni] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [controlloCompletato, setControlloCompletato] = useState(false);
+  const [isMovingToReady, setIsMovingToReady] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [showCheckboxSection, setShowCheckboxSection] = useState(false);
 
   // User context for role checking
   const { profile } = useUser();
 
   // ✅ AGGIORNATO: Helper per controlli - solo le azioni di modifica sono limitate
   const canEdit = !isReadOnly && profile?.role !== 'operatore';
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Initialize checkbox state from database
+  useEffect(() => {
+    if (busta.controllo_completato) {
+      setControlloCompletato(true);
+    }
+  }, [busta.controllo_completato]);
+
+  // Update showCheckboxSection based on busta status and lavorazioni
+  useEffect(() => {
+    // Show if: in lavorazione OR already moved to pronto_ritiro with completed check
+    const shouldShow = isMounted && lavorazioni.length > 0 && (
+      (canEdit && busta.stato_attuale === 'in_lavorazione') ||
+      (busta.stato_attuale === 'pronto_ritiro' && busta.controllo_completato)
+    );
+
+    setShowCheckboxSection(shouldShow);
+  }, [busta.stato_attuale, busta.controllo_completato, lavorazioni.length, isMounted, canEdit]);
 
   // Form per nuova lavorazione
   const [nuovaLavorazioneForm, setNuovaLavorazioneForm] = useState({
@@ -326,6 +356,96 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
     }
   };
 
+  // ===== HANDLE CONTROLLO COMPLETATO =====
+  const handleControlloCompletato = async (checked: boolean) => {
+    // Can't uncheck if already completed
+    if (!checked && busta.controllo_completato) {
+      return;
+    }
+
+    if (!checked) {
+      setControlloCompletato(false);
+      return;
+    }
+
+    // Double check con l'utente
+    if (!confirm('Hai controllato attentamente che tutto sia a posto? La busta verrà spostata in "Pronto Ritiro".')) {
+      setControlloCompletato(false);
+      return;
+    }
+
+    setControlloCompletato(true);
+    setIsMovingToReady(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Utente non autenticato");
+
+      const now = new Date().toISOString();
+
+      // First, update the quality control fields
+      const { error: controlloError } = await supabase
+        .from('buste')
+        .update({
+          controllo_completato: true,
+          controllo_completato_da: user.id,
+          controllo_completato_at: now
+        })
+        .eq('id', busta.id);
+
+      if (controlloError) throw controlloError;
+
+      // Then update busta status via API
+      const response = await fetch('/api/buste/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bustaId: busta.id,
+          oldStatus: busta.stato_attuale,
+          newStatus: 'pronto_ritiro',
+          tipoLavorazione: busta.tipo_lavorazione
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Errore durante l\'aggiornamento dello stato');
+      }
+
+      const data = await response.json();
+      console.log('✅ Busta moved to pronto_ritiro successfully');
+
+      // Update the busta state locally with ALL new fields
+      const updatedBusta = {
+        ...busta,
+        stato_attuale: 'pronto_ritiro' as const,
+        updated_at: data.busta.updated_at,
+        controllo_completato: true,
+        controllo_completato_da: user.id,
+        controllo_completato_at: now
+      };
+
+      // Call the parent callback to update the busta
+      if (onBustaUpdate) {
+        onBustaUpdate(updatedBusta);
+      }
+
+      // Invalidate SWR cache to refresh Kanban board
+      await mutate('/api/buste');
+
+      console.log('✅ Quality control completed and logged');
+
+    } catch (error: any) {
+      console.error('❌ Error completing quality control:', error);
+      alert(`Errore: ${error.message}`);
+      setControlloCompletato(false);
+    } finally {
+      setIsMovingToReady(false);
+    }
+  };
+
   // ===== RENDER =====
   return (
     <div className="space-y-6">
@@ -354,7 +474,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
               Lavorazione & Montaggio
             </h2>
             <p className="text-gray-600 text-sm mt-1">
-              {canEdit 
+              {isMounted && canEdit
                 ? 'Gestione lavorazioni di montaggio con tracking tentativi e stati'
                 : 'Visualizza storico lavorazioni di montaggio e relativi stati'
               }
@@ -362,7 +482,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
           </div>
           
           {/* ✅ MODIFICA: Pulsante solo per chi può editare */}
-          {canEdit && (
+          {isMounted && canEdit && (
             <button
               onClick={() => setShowNuovaLavorazioneForm(true)}
               className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
@@ -375,7 +495,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
       </div>
 
       {/* ✅ MODIFICA: Form solo per chi può editare */}
-      {canEdit && showNuovaLavorazioneForm && (
+      {isMounted && canEdit && showNuovaLavorazioneForm && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Nuova Lavorazione</h3>
@@ -486,13 +606,13 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
             <Factory className="w-12 h-12 mx-auto text-gray-300 mb-4" />
             <h4 className="text-lg font-medium text-gray-900 mb-2">Nessuna lavorazione ancora</h4>
             <p className="text-gray-500 mb-4">
-              {canEdit 
-                ? 'Inizia una nuova lavorazione di montaggio per questa busta' 
+              {isMounted && canEdit
+                ? 'Inizia una nuova lavorazione di montaggio per questa busta'
                 : 'Non sono ancora state avviate lavorazioni per questa busta'
               }
             </p>
-            
-            {canEdit && (
+
+            {isMounted && canEdit && (
               <button
                 onClick={() => setShowNuovaLavorazioneForm(true)}
                 className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
@@ -565,7 +685,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
                   </div>
 
                   {/* ✅ MODIFICA: Azioni solo per chi può editare */}
-                  {canEdit && (
+                  {isMounted && canEdit && (
                     <div className="flex flex-col space-y-2 ml-4">
                       {lavorazione.stato === 'in_corso' && (
                         <>
@@ -639,6 +759,64 @@ export default function LavorazioneTab({ busta, isReadOnly = false }: Lavorazion
                 {lavorazioni.filter(l => l.stato === 'fallito').length}
               </div>
               <div className="text-sm text-gray-500">Fallite</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ✅ CHECKBOX CONTROLLO COMPLETATO - Always visible when relevant */}
+      {showCheckboxSection && (
+        <div className={`rounded-lg shadow-sm border-2 p-6 ${
+          busta.controllo_completato
+            ? 'bg-gradient-to-r from-green-100 to-emerald-100 border-green-400'
+            : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-300'
+        }`}>
+          <div className="flex items-start space-x-4">
+            <input
+              type="checkbox"
+              id="controllo-completato"
+              checked={controlloCompletato}
+              onChange={(e) => handleControlloCompletato(e.target.checked)}
+              disabled={isMovingToReady || busta.controllo_completato}
+              className="mt-1 h-6 w-6 text-green-600 focus:ring-green-500 border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <div className="flex-1">
+              <label
+                htmlFor="controllo-completato"
+                className={`text-lg font-semibold text-gray-900 select-none ${
+                  busta.controllo_completato ? '' : 'cursor-pointer'
+                }`}
+              >
+                Controllo completo ultimato
+              </label>
+
+              {!busta.controllo_completato && (
+                <p className="text-xs text-gray-600 mt-1">
+                  Spunta SOLO dopo aver attentamente controllato che tutto sia a posto
+                </p>
+              )}
+
+              {busta.controllo_completato && busta.controllo_completato_at && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm text-green-800 font-medium">
+                    ✓ Controllo completato da{' '}
+                    <span className="font-semibold">{busta.controllo_profile?.full_name || 'Utente'}</span>
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {new Date(busta.controllo_completato_at).toLocaleString('it-IT', {
+                      dateStyle: 'full',
+                      timeStyle: 'short'
+                    })}
+                  </p>
+                </div>
+              )}
+
+              {isMovingToReady && (
+                <div className="mt-3 flex items-center space-x-2 text-sm text-green-700">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Spostamento in Pronto Ritiro...</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
