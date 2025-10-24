@@ -41,7 +41,9 @@ const getTipoLavorazioneSigla = (tipo: string | null) => {
     CT: '👁️ CT',
     ES: '🔬 ES',
     REL: '📋 REL',
-    FT: '🧾 FT'
+    FT: '🧾 FT',
+    SPRT: '🚴 SPRT',
+    VFT: '🔍 VFT'
   };
   return tipo ? tipiLavorazione[tipo] || tipo : '❓ ---';
 };

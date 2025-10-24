@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Filter, User, Package, Truck, ArrowLeft, Eye, ExternalLink, Archive, Clock } from 'lucide-react';
+import { Search, Filter, User, Package, Truck, ArrowLeft, Eye, ExternalLink, Archive, Clock, FileText } from 'lucide-react';
 import Link from 'next/link';
 
 interface SearchResult {
-  type: 'cliente' | 'prodotto' | 'fornitore' | 'categoria';
+  type: 'cliente' | 'prodotto' | 'fornitore' | 'categoria' | 'note';
   cliente?: {
     id: string;
     nome: string;
@@ -58,11 +58,16 @@ interface SearchResult {
     note?: string;
   };
   matchField: string;
+  // For notes search
+  note?: string;
+  source?: string;
+  sourceIcon?: string;
+  metadata?: string;
 }
 
 export default function RicercaAvanzataPage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchType, setSearchType] = useState<'all' | 'cliente' | 'prodotto' | 'fornitore'>('all');
+  const [searchType, setSearchType] = useState<'all' | 'cliente' | 'prodotto' | 'fornitore' | 'note'>('all');
   const [includeArchived, setIncludeArchived] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -82,7 +87,12 @@ export default function RicercaAvanzataPage() {
         includeArchived: includeArchived.toString()
       });
 
-      const response = await fetch(`/api/search/advanced?${params}`);
+      // Use notes endpoint if searching notes specifically
+      const endpoint = searchType === 'note'
+        ? `/api/search/notes?${params}`
+        : `/api/search/advanced?${params}`;
+
+      const response = await fetch(endpoint);
       if (response.ok) {
         const data = await response.json();
         setResults(data.results || []);
@@ -141,9 +151,10 @@ export default function RicercaAvanzataPage() {
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'cliente': return <User className="w-4 h-4" />;
-      case 'prodotto': 
+      case 'prodotto':
       case 'categoria': return <Package className="w-4 h-4" />;
       case 'fornitore': return <Truck className="w-4 h-4" />;
+      case 'note': return <FileText className="w-4 h-4" />;
       default: return <Search className="w-4 h-4" />;
     }
   };
@@ -151,9 +162,10 @@ export default function RicercaAvanzataPage() {
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'cliente': return 'bg-blue-50 border-blue-200';
-      case 'prodotto': 
+      case 'prodotto':
       case 'categoria': return 'bg-green-50 border-green-200';
       case 'fornitore': return 'bg-purple-50 border-purple-200';
+      case 'note': return 'bg-yellow-50 border-yellow-200';
       default: return 'bg-gray-50 border-gray-200';
     }
   };
@@ -185,7 +197,7 @@ export default function RicercaAvanzataPage() {
                 <span>Ricerca Avanzata</span>
               </h1>
               <p className="text-sm text-gray-500 mt-1">
-                Cerca clienti, categorie prodotti (lenti/LAC/montature/lab/sport) o fornitori
+                Cerca clienti, prodotti, fornitori o note in tutte le buste
               </p>
             </div>
           </div>
@@ -237,6 +249,7 @@ export default function RicercaAvanzataPage() {
                 <option value="cliente">Solo Clienti</option>
                 <option value="prodotto">Solo Prodotti</option>
                 <option value="fornitore">Solo Fornitori</option>
+                <option value="note">Solo Note</option>
               </select>
             </div>
 
@@ -482,6 +495,56 @@ export default function RicercaAvanzataPage() {
                           <span className={`text-xs px-2 py-1 rounded ${getBustaStatusColor(result.busta.stato_attuale, result.busta.isArchived)}`}>
                             {getBustaStatusText(result.busta.stato_attuale)}
                           </span>
+                        </div>
+                        <Link
+                          href={`/dashboard/buste/${result.busta.id}`}
+                          className="p-2 text-blue-600 hover:text-blue-800 transition-colors"
+                          title="Visualizza busta"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Note Result */}
+              {result.type === 'note' && result.note && (
+                <div>
+                  <div className="mb-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
+                        {result.source}
+                      </span>
+                      {result.metadata && (
+                        <span className="text-xs text-gray-500">• {result.metadata}</span>
+                      )}
+                    </div>
+                    <div className="bg-white rounded-lg border border-gray-300 p-3">
+                      <p className="text-sm text-gray-900 whitespace-pre-wrap">{result.note}</p>
+                    </div>
+                  </div>
+
+                  {result.busta && result.cliente && (
+                    <div className="mt-3 bg-gray-50 rounded p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">
+                            Busta {result.busta.readable_id}
+                            {result.busta.isArchived && <Archive className="w-3 h-3 text-gray-500 inline ml-1" />}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Cliente: {result.cliente.nome} {result.cliente.cognome}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-xs px-2 py-1 rounded ${getBustaStatusColor(result.busta.stato_attuale, result.busta.isArchived)}`}>
+                              {getBustaStatusText(result.busta.stato_attuale)}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {formatDate(result.busta.data_apertura)}
+                            </span>
+                          </div>
                         </div>
                         <Link
                           href={`/dashboard/buste/${result.busta.id}`}

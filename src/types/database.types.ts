@@ -27,6 +27,8 @@ export type Database = {
           metodo_consegna: Database["public"]["Enums"]["metodo_consegna"] | null
           modo_avviso_id: number | null
           note_generali: string | null
+          numero_tracking: string | null
+          note_spedizione: string | null
           priorita: Database["public"]["Enums"]["job_priority"]
           readable_id: string | null
           stato_attuale: Database["public"]["Enums"]["job_status"]
@@ -51,6 +53,8 @@ export type Database = {
           metodo_consegna?: Database["public"]["Enums"]["metodo_consegna"] | null
           modo_avviso_id?: number | null
           note_generali?: string | null
+          numero_tracking?: string | null
+          note_spedizione?: string | null
           priorita?: Database["public"]["Enums"]["job_priority"]
           readable_id?: string | null
           stato_attuale?: Database["public"]["Enums"]["job_status"]
@@ -75,6 +79,8 @@ export type Database = {
           metodo_consegna?: Database["public"]["Enums"]["metodo_consegna"] | null
           modo_avviso_id?: number | null
           note_generali?: string | null
+          numero_tracking?: string | null
+          note_spedizione?: string | null
           priorita?: Database["public"]["Enums"]["job_priority"]
           readable_id?: string | null
           stato_attuale?: Database["public"]["Enums"]["job_status"]
@@ -1832,6 +1838,7 @@ export type Database = {
         | "REL"
         | "FT"
         | "SPRT"
+        | "VFT"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1995,6 +2002,7 @@ export const Constants = {
         "REL",
         "FT",
         "SPRT",
+        "VFT",
       ],
     },
   },

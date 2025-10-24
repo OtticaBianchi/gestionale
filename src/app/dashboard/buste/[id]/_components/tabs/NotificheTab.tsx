@@ -101,6 +101,8 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
     const completion = extractDateInputFromIso(busta.data_completamento_consegna);
     return completion ?? getTodayDateInput();
   });
+  const [numeroTracking, setNumeroTracking] = useState<string>(busta.numero_tracking || '');
+  const [noteSpedizione, setNoteSpedizione] = useState<string>(busta.note_spedizione || '');
 
   const router = useRouter();
   const supabase = createBrowserClient<Database>(
@@ -122,7 +124,9 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
       const completion = extractDateInputFromIso(busta.data_completamento_consegna);
       return completion ?? getTodayDateInput();
     });
-  }, [busta.metodo_consegna, busta.data_selezione_consegna, busta.id]);
+    setNumeroTracking(busta.numero_tracking || '');
+    setNoteSpedizione(busta.note_spedizione || '');
+  }, [busta.metodo_consegna, busta.data_selezione_consegna, busta.numero_tracking, busta.note_spedizione, busta.id]);
 
   // Carica dati operatore corrente
   const getCurrentUser = async () => {
@@ -225,7 +229,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
       : selectedDeliveryMethod === 'consegna_domicilio'
         ? 'Programma la consegna presso il cliente.'
         : selectedDeliveryMethod === 'spedizione'
-          ? 'Programma la data di spedizione.'
+          ? 'Data in cui avvisiamo il corriere.'
           : '';
 
   const handleSelectDeliveryMethod = (method: DeliveryMethod) => {
@@ -305,6 +309,33 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
     }
 
     await updateDeliveryInfo(updates);
+  };
+
+  const handleSaveShippingInfo = async () => {
+    setIsSavingDelivery(true);
+    setDeliveryError(null);
+
+    try {
+      const updates: Partial<BustaUpdatePayload> = {
+        numero_tracking: numeroTracking.trim() || null,
+        note_spedizione: noteSpedizione.trim() || null
+      };
+
+      const { error } = await supabase
+        .from('buste')
+        .update(updates)
+        .eq('id', busta.id);
+
+      if (error) throw error;
+
+      router.refresh();
+      alert('Informazioni spedizione salvate con successo');
+    } catch (error: any) {
+      console.error('Errore salvataggio spedizione:', error);
+      setDeliveryError(error.message ?? 'Errore durante il salvataggio.');
+    } finally {
+      setIsSavingDelivery(false);
+    }
   };
 
   // ===== DATABASE OPERATIONS =====
@@ -633,7 +664,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                 <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                   <div className="flex-1">
                     <label className="block text-sm font-medium text-blue-900">
-                      Data impostazione
+                      {selectedDeliveryMethod === 'spedizione' ? 'Data Avviso Corriere' : 'Data impostazione'}
                     </label>
                     <input
                       type="date"
@@ -715,7 +746,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                       <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                         <div className="flex-1 md:max-w-xs">
                           <label className="block text-sm font-medium text-gray-700">
-                            Data da registrare
+                            {busta.metodo_consegna === 'spedizione' ? 'Data Consegna Corriere' : 'Data da registrare'}
                           </label>
                           <input
                             type="date"
@@ -811,6 +842,90 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                 </p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== SHIPPING INFO (TRACKING & NOTES) - Only for Spedizione ===== */}
+      {canEdit && isBustaReadyForNotification && busta.metodo_consegna === 'spedizione' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Package className="w-5 h-5 mr-2 text-blue-600" />
+            Informazioni Spedizione
+          </h3>
+
+          <div className="space-y-4">
+            {/* Tracking Number */}
+            <div>
+              <label htmlFor="numero-tracking" className="block text-sm font-medium text-gray-700 mb-1">
+                Numero Tracking
+              </label>
+              <input
+                id="numero-tracking"
+                type="text"
+                value={numeroTracking}
+                onChange={(e) => setNumeroTracking(e.target.value)}
+                placeholder="Es: 1234567890ABC"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Codice di tracciamento fornito dal corriere
+              </p>
+            </div>
+
+            {/* Shipping Notes */}
+            <div>
+              <label htmlFor="note-spedizione" className="block text-sm font-medium text-gray-700 mb-1">
+                Note sulla Spedizione
+              </label>
+              <textarea
+                id="note-spedizione"
+                value={noteSpedizione}
+                onChange={(e) => setNoteSpedizione(e.target.value)}
+                rows={3}
+                placeholder="Es: Pacco fragile, consegna solo a mano del destinatario..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 resize-none"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Annotazioni utili per la gestione della spedizione
+              </p>
+            </div>
+
+            {/* Save Button */}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleSaveShippingInfo}
+                disabled={isSavingDelivery || (numeroTracking === (busta.numero_tracking || '') && noteSpedizione === (busta.note_spedizione || ''))}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isSavingDelivery ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin inline" />
+                    Salvataggio...
+                  </>
+                ) : (
+                  'Salva Informazioni Spedizione'
+                )}
+              </button>
+            </div>
+
+            {/* Display saved info if exists */}
+            {(busta.numero_tracking || busta.note_spedizione) && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h4 className="text-sm font-medium text-gray-900 mb-2">Informazioni Salvate:</h4>
+                {busta.numero_tracking && (
+                  <p className="text-sm text-gray-700">
+                    <strong>Tracking:</strong> {busta.numero_tracking}
+                  </p>
+                )}
+                {busta.note_spedizione && (
+                  <p className="text-sm text-gray-700 mt-1">
+                    <strong>Note:</strong> {busta.note_spedizione}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

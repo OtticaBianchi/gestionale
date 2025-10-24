@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import PrintBustaButton from 'src/app/dashboard/_components/PrintBustaButton'; // ✅ IMPORT AGGIUNTO
 import { useUser } from '@/context/UserContext';
+import UnifiedNotesDisplay from '../UnifiedNotesDisplay';
 
 // ===== TYPES LOCALI =====
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
@@ -100,7 +101,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
   const validateWorkType = (): Database['public']['Enums']['work_type'] | null => {
     const validWorkTypes = [
       'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'ACC', 'RIC', 'RIP',
-      'SA', 'SG', 'CT', 'ES', 'REL', 'FT', 'SPRT'
+      'SA', 'SG', 'CT', 'ES', 'REL', 'FT', 'SPRT', 'VFT'
     ] as const;
 
     if (!editForm.tipo_lavorazione || editForm.tipo_lavorazione.trim() === '') {
@@ -520,6 +521,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                 <option value="REL">📋 REL - Relazione</option>
                 <option value="FT">🧾 FT - Fattura</option>
                 <option value="SPRT">🚴 SPRT - Sport</option>
+                <option value="VFT">🔍 VFT - Verifica Fattibilità Tecnica</option>
                 </select>
             ) : (
               <p className="text-gray-900">{busta.tipo_lavorazione || 'Da specificare'}</p>
@@ -586,6 +588,9 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
           </div>
         </div>
       </div>
+
+      {/* ===== UNIFIED NOTES DISPLAY ===== */}
+      <UnifiedNotesDisplay bustaId={busta.id} />
     </div>
   );
 }

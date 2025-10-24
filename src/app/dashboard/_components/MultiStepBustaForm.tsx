@@ -260,8 +260,8 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
 
       // ✅ Gestione tipo_lavorazione
       const validWorkTypes = [
-        'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'ACC', 'RIC', 'RIP', 
-        'SA', 'SG', 'CT', 'ES', 'REL', 'FT', 'SPRT'
+        'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'ACC', 'RIC', 'RIP',
+        'SA', 'SG', 'CT', 'ES', 'REL', 'FT', 'SPRT', 'VFT'
       ] as const;
       
       let tipoLavorazioneValue: Database['public']['Enums']['work_type'] | null = null;
@@ -705,6 +705,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   <option value="REL">📋 REL - Relazione</option>
                   <option value="FT">🧾 FT - Fattura</option>
                   <option value="SPRT">🚴 SPRT - Sport</option>
+                  <option value="VFT">🔍 VFT - Verifica Fattibilità Tecnica</option>
                 </select>
               </div>
 

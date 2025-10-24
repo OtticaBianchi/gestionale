@@ -160,17 +160,6 @@ function renderDashboard(busteWithCliente: BustaWithCliente[]) {
         {/* Header Profilo Utente */}
         <UserProfileHeader />
 
-        {/* Header con titolo */}
-        <div className="bg-white border-b border-gray-200 px-6 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          {/* ✅ Debug info in development */}
-          {process.env.NODE_ENV === 'development' && (
-            <p className="text-xs text-gray-400 mt-1">
-              Ultimo aggiornamento: {new Date().toLocaleTimeString('it-IT')}
-            </p>
-          )}
-        </div>
-
         {/* Barra dei pulsanti */}
         <ButtonsBar />
 

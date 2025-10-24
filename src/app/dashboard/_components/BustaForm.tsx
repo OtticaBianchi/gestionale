@@ -71,7 +71,9 @@ const tipoLavorazioneOptions = [
   { value: 'CT', label: 'CT - Controllo vista', icon: '👁️‍🗨️' },
   { value: 'ES', label: 'ES - Esame specialistico', icon: '🏥' },
   { value: 'REL', label: 'REL - Relazione', icon: '📋' },
-  { value: 'FT', label: 'FT - Fattura', icon: '🧾' }
+  { value: 'FT', label: 'FT - Fattura', icon: '🧾' },
+  { value: 'SPRT', label: 'SPRT - Sport', icon: '🚴' },
+  { value: 'VFT', label: 'VFT - Verifica Fattibilità Tecnica', icon: '🔍' }
 ];
 
 type ClienteSuggestion = {

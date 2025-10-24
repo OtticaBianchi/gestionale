@@ -18,7 +18,8 @@ import {
   Loader2,
   Settings,
   Eye,
-  Trash2
+  Trash2,
+  Package
 } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 
@@ -218,8 +219,109 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Utente non autenticato");
 
-      const tentativiEsistenti = lavorazioni.filter(l => 
-        l.tipo_montaggio_id.toString() === nuovaLavorazioneForm.tipo_montaggio_id
+      // ✅ NUOVO: Handle "Nessuna Lavorazione" specially
+      if (nuovaLavorazioneForm.tipo_montaggio_id === 'nessuna_lavorazione') {
+        // Find or create a special "Nessuna Lavorazione" tipo_montaggio
+        let nessunaLavorazioneTipoId = tipiMontaggio.find(t => t.nome === 'Nessuna Lavorazione')?.id;
+
+        if (!nessunaLavorazioneTipoId) {
+          try {
+            const response = await fetch('/api/tipi-montaggio/ensure-nessuna-lavorazione', {
+              method: 'POST',
+            });
+
+            const payload = await response.json();
+
+            if (!response.ok || !payload?.tipo?.id) {
+              throw new Error(payload?.error || 'Errore creazione tipo montaggio');
+            }
+
+            const tipoCreato = payload.tipo as TipoMontaggio;
+
+            nessunaLavorazioneTipoId = tipoCreato.id;
+
+            setTipiMontaggio((prev) => {
+              const alreadyPresent = prev.some((tipo) => tipo.id === tipoCreato.id || tipo.nome === 'Nessuna Lavorazione');
+              if (alreadyPresent) return prev;
+              return [...prev, tipoCreato];
+            });
+          } catch (error) {
+            console.error('Error ensuring Nessuna Lavorazione tipo:', error);
+            alert(
+              'Non è stato possibile creare il tipo "Nessuna Lavorazione". Controlla le migrazioni o contatta un amministratore.'
+            );
+            setIsSaving(false);
+            return;
+          }
+        }
+
+        // Create a special entry automatically completed
+        const { data: lavorazioneCreata, error } = await supabase
+          .from('lavorazioni')
+          .insert({
+            busta_id: busta.id,
+            tipo_montaggio_id: nessunaLavorazioneTipoId,
+            stato: 'completato',
+            data_inizio: new Date().toISOString().split('T')[0],
+            data_completamento: new Date().toISOString().split('T')[0],
+            responsabile_id: user.id,
+            tentativo: 1,
+            note: '❌ Nessuna Lavorazione richiesta'
+          })
+          .select(`
+            id,
+            busta_id,
+            tipo_montaggio_id,
+            stato,
+            data_inizio,
+            data_completamento,
+            data_fallimento,
+            responsabile_id,
+            tentativo,
+            note,
+            created_at,
+            updated_at
+          `)
+          .single();
+
+        if (error) throw error;
+
+        let responsabileNome = 'Tu';
+        try {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .single();
+
+          if (profileData?.full_name) {
+            responsabileNome = profileData.full_name;
+          }
+        } catch (error) {
+          console.warn('Profilo non trovato per utente corrente');
+        }
+
+        const lavorazioneArricchita: Lavorazione = {
+          ...lavorazioneCreata,
+          tipi_montaggio: { nome: 'Nessuna Lavorazione' },
+          profiles: { full_name: responsabileNome }
+        };
+
+        setLavorazioni(prev => [lavorazioneArricchita, ...prev]);
+
+        setNuovaLavorazioneForm({
+          tipo_montaggio_id: '',
+          note: '',
+          data_inizio: new Date().toISOString().split('T')[0]
+        });
+
+        setShowNuovaLavorazioneForm(false);
+        alert('✅ "Nessuna Lavorazione" registrata. Ora completa il controllo per procedere.');
+        return;
+      }
+
+      const tentativiEsistenti = lavorazioni.filter(l =>
+        l.tipo_montaggio_id?.toString() === nuovaLavorazioneForm.tipo_montaggio_id
       ).length;
 
       const { data: lavorazioneCreata, error } = await supabase
@@ -525,6 +627,9 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
                     {tipo.nome}
                   </option>
                 ))}
+                <option value="nessuna_lavorazione" className="font-semibold text-gray-600">
+                  ❌ Nessuna Lavorazione
+                </option>
               </select>
             </div>
 
@@ -624,13 +729,26 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
           </div>
         ) : (
           <div className="divide-y divide-gray-200">
-            {lavorazioni.map((lavorazione) => (
-              <div key={lavorazione.id} className="p-6 hover:bg-gray-50 transition-colors">
+            {lavorazioni.map((lavorazione) => {
+              // ✅ NUOVO: Check if this is "Nessuna Lavorazione"
+              const isNessunaLavorazione = lavorazione.tipi_montaggio?.nome === 'Nessuna Lavorazione';
+
+              return (
+              <div key={lavorazione.id} className={`p-6 transition-colors ${
+                isNessunaLavorazione
+                  ? 'bg-gray-100 opacity-70'
+                  : 'hover:bg-gray-50'
+              }`}>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-2">
-                      <h4 className="text-lg font-medium text-gray-900">
-                        {lavorazione.tipi_montaggio?.nome || 'Tipo sconosciuto'}
+                      <h4 className={`text-lg font-medium ${
+                        isNessunaLavorazione ? 'text-gray-500 line-through' : 'text-gray-900'
+                      }`}>
+                        {isNessunaLavorazione
+                          ? '❌ Nessuna Lavorazione'
+                          : lavorazione.tipi_montaggio?.nome || 'Tipo sconosciuto'
+                        }
                       </h4>
                       
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -726,7 +844,8 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -819,6 +938,36 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ===== SHIPPING NOTES (View Only) - Only for Spedizione ===== */}
+      {busta.metodo_consegna === 'spedizione' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Package className="w-5 h-5 mr-2 text-blue-600" />
+            Note Spedizione
+          </h3>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            {busta.note_spedizione ? (
+              <div>
+                <p className="text-sm text-gray-900 whitespace-pre-wrap">{busta.note_spedizione}</p>
+                {busta.numero_tracking && (
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <p className="text-xs font-medium text-blue-900">Numero Tracking:</p>
+                    <p className="text-sm text-blue-800 font-mono">{busta.numero_tracking}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 italic">Nessuna nota sulla spedizione</p>
+            )}
+          </div>
+
+          <p className="text-xs text-gray-500 mt-2">
+            💡 Le note sulla spedizione possono essere modificate dalla tab <strong>Notifiche & Ritiro</strong>
+          </p>
         </div>
       )}
     </div>
