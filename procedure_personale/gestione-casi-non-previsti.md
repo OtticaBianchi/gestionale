@@ -134,7 +134,8 @@ Se un caso si ripete spesso → si crea una **nuova procedura dedicata**.
 
 ## 9. Revisione
 
-- Ultima revisione: 19/10/2025  
+- Ultima revisione: 19/10/2025
+- Autore: Marco C.  
 - Responsabile aggiornamento: Manager / Titolare  
 
 ---

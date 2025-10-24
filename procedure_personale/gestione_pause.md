@@ -43,7 +43,8 @@ Per tutti i turni di lavoro superiori a 6 ore consecutive.
 
 ## 8. Revisione
 
-- Ultima revisione: 26/09/2025  
+- Ultima revisione: 26/09/2025
+- Autore: Marco C.  
 - Responsabile aggiornamento: Manager responsabile  
 
 ---

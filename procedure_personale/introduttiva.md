@@ -47,7 +47,8 @@ Chi se ne discosta deve essere aiutato dai colleghi o dalla direzione a rialline
 
 ## 8. Revisione
 
-- Ultima revisione: 24/09/2025  
+- Ultima revisione: 24/09/2025
+- Autore: Marco C.  
 - Responsabile aggiornamento: tutti i dipendenti
 
 ---

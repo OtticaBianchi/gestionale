@@ -119,7 +119,8 @@ Questa procedura si applica:
 
 ## 8. Revisione
 
-- Ultima revisione: 11/10/2025  
+- Ultima revisione: 11/10/2025
+- Autore: Marco C.  
 - Responsabile aggiornamento: Addetti vendita / Manager  
 
 ---

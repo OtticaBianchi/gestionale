@@ -47,7 +47,8 @@ Addetti vendita.
 
 ## 8. Revisione
 
-- Ultima revisione: 26/09/2025  
+- Ultima revisione: 26/09/2025
+- Autore: Marco C.  
 - Responsabile aggiornamento: Addetti vendita  
 
 ---

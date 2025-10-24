@@ -123,7 +123,8 @@ Questa procedura si applica quando:
 
 ## 8. Revisione
 
-- Ultima revisione: 08/10/2025  
+- Ultima revisione: 08/10/2025
+- Autore: Marco C.  
 - Responsabile aggiornamento: Optometrista / Addetti vendita  
 
 ---

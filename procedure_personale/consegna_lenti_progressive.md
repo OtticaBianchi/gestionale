@@ -90,7 +90,8 @@ Addetti vendita. Coinvolgere l’optometrista se servono verifiche ottiche o ri-
 
 ## 8. Revisione
 
-- Ultima revisione: 07/10/2025  
+- Ultima revisione: 07/10/2025
+- Autore: Marco C.  
 - Responsabile aggiornamento: Manager responsabile reparto vista
 
 ---
