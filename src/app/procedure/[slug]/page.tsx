@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
 import ReactMarkdown from 'react-markdown'
@@ -28,11 +28,13 @@ import {
   Wrench,
   ExternalLink,
   Phone,
-  Lightbulb
+  Lightbulb,
+  CheckCircle
 } from 'lucide-react'
 import { Database } from '@/types/database.types'
 import PropostaModificheModal from './_components/PropostaModificheModal'
 import HelpfulnessVote from './_components/HelpfulnessVote'
+import { toast } from 'sonner'
 
 type Procedure = {
   id: string
@@ -50,6 +52,12 @@ type Procedure = {
   last_reviewed_at: string
   created_at: string
   updated_at: string
+  user_acknowledged_at?: string | null
+  user_acknowledged_updated_at?: string | null
+  user_acknowledged_version?: number | null
+  is_unread?: boolean
+  is_new?: boolean
+  is_updated?: boolean
   created_by_profile: { full_name: string }
   updated_by_profile: { full_name: string }
   last_reviewed_by_profile: { full_name: string }
@@ -66,6 +74,11 @@ export default function ProcedurePage() {
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string>('')
   const [isPropostaModalOpen, setIsPropostaModalOpen] = useState(false)
+  const [ackCountdown, setAckCountdown] = useState(30)
+  const [canAcknowledge, setCanAcknowledge] = useState(false)
+  const [isAcknowledging, setIsAcknowledging] = useState(false)
+  const [isUnread, setIsUnread] = useState(false)
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const contentMetadata = useMemo(() => {
     if (!procedure?.content) return { author: null, reviewer: null }
 
@@ -190,6 +203,110 @@ export default function ProcedurePage() {
     }
   }
 
+  useEffect(() => {
+    if (!procedure) {
+      setIsUnread(false)
+      setCanAcknowledge(false)
+      setAckCountdown(30)
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current)
+        countdownRef.current = null
+      }
+      return
+    }
+
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current)
+      countdownRef.current = null
+    }
+
+    const needsAck = procedure.is_unread === true
+    setIsUnread(needsAck)
+
+    if (needsAck) {
+      setAckCountdown(30)
+      setCanAcknowledge(false)
+
+      countdownRef.current = setInterval(() => {
+        setAckCountdown(prev => {
+          if (prev <= 1) {
+            if (countdownRef.current) {
+              clearInterval(countdownRef.current)
+              countdownRef.current = null
+            }
+            setCanAcknowledge(true)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    } else {
+      setAckCountdown(0)
+      setCanAcknowledge(true)
+    }
+
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current)
+        countdownRef.current = null
+      }
+    }
+  }, [procedure?.id, procedure?.updated_at, procedure?.user_acknowledged_updated_at, procedure?.is_unread])
+
+  const handleMarkAsRead = async () => {
+    if (!procedure || !canAcknowledge || isAcknowledging) {
+      return
+    }
+
+    setIsAcknowledging(true)
+
+    try {
+      const response = await fetch(`/api/procedures/${slug}/read`, {
+        method: 'POST'
+      })
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Errore durante la conferma')
+      }
+
+      const receipt = result.receipt
+
+      setProcedure(prev =>
+        prev
+          ? {
+              ...prev,
+              user_acknowledged_at: receipt.acknowledged_at,
+              user_acknowledged_updated_at: receipt.acknowledged_updated_at,
+              user_acknowledged_version: receipt.acknowledged_version,
+              is_unread: false,
+              is_new: false,
+              is_updated: false
+            }
+          : prev
+      )
+
+      setIsUnread(false)
+      setCanAcknowledge(true)
+      setAckCountdown(0)
+
+      toast.success('Procedura segnata come letta')
+
+      if (typeof result.unread_count === 'number') {
+        window.dispatchEvent(
+          new CustomEvent('procedures:unread:update', {
+            detail: { count: result.unread_count }
+          })
+        )
+      }
+    } catch (error: any) {
+      console.error('Error acknowledging procedure:', error)
+      toast.error(error?.message || 'Errore nel salvataggio')
+    } finally {
+      setIsAcknowledging(false)
+    }
+  }
+
 
   if (loading) {
     return (
@@ -223,6 +340,12 @@ export default function ProcedurePage() {
   const createdByDisplay = contentMetadata.author || procedure.created_by_profile?.full_name || 'Sistema'
   const updatedByDisplay = contentMetadata.reviewer || procedure.updated_by_profile?.full_name || 'Sistema'
   const reviewedByDisplay = contentMetadata.reviewer || procedure.last_reviewed_by_profile?.full_name || 'Sistema'
+  const acknowledgedAtDisplay = procedure.user_acknowledged_at
+    ? new Date(procedure.user_acknowledged_at).toLocaleString('it-IT')
+    : null
+  const updatedAtDisplay = procedure.updated_at
+    ? new Date(procedure.updated_at).toLocaleString('it-IT')
+    : null
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -547,6 +670,59 @@ export default function ProcedurePage() {
         {/* Helpfulness Vote */}
         <div className="mb-8">
           <HelpfulnessVote procedureId={procedure.id} />
+        </div>
+
+        {/* Read acknowledgement */}
+        <div className="mb-8">
+          {isUnread ? (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Clock className="h-6 w-6 text-emerald-600 flex-shrink-0" />
+                <div>
+                  <h3 className="text-lg font-semibold text-emerald-900">Conferma lettura</h3>
+                  <p className="text-sm text-emerald-700">
+                    Leggi la procedura con attenzione e attendi {ackCountdown}s prima di flaggare la lettura.
+                    {updatedAtDisplay ? ` Ultimo aggiornamento: ${updatedAtDisplay}.` : ''}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleMarkAsRead}
+                disabled={!canAcknowledge || isAcknowledging}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
+                  canAcknowledge
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-blue-100 text-blue-500'
+                }`}
+              >
+                {canAcknowledge
+                  ? isAcknowledging ? 'Salvataggio...' : 'Segna come letta'
+                  : `Disponibile tra ${ackCountdown}s`}
+              </button>
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Procedura letta</h3>
+                  <p className="text-sm text-gray-600">
+                    Confermata {acknowledgedAtDisplay ? `il ${acknowledgedAtDisplay}` : 'di recente'}.
+                  </p>
+                  {updatedAtDisplay && (
+                    <p className="text-xs text-gray-500 mt-1">Ultimo aggiornamento: {updatedAtDisplay}</p>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={handleMarkAsRead}
+                disabled={isAcknowledging}
+                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isAcknowledging ? 'Aggiornamento...' : 'Aggiorna conferma'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Footer Metadata */}

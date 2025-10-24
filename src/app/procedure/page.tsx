@@ -46,6 +46,13 @@ type Procedure = {
   last_reviewed_at: string
   created_at: string
   updated_at: string
+  version: number
+  is_unread?: boolean
+  is_new?: boolean
+  is_updated?: boolean
+  user_acknowledged_at?: string | null
+  user_acknowledged_updated_at?: string | null
+  user_acknowledged_version?: number | null
 }
 
 export default function ProceduresPage() {
@@ -53,6 +60,7 @@ export default function ProceduresPage() {
   const [procedures, setProcedures] = useState<Procedure[]>([])
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string>('')
+  const [unreadCount, setUnreadCount] = useState(0)
 
   // Filters and search
   const [searchTerm, setSearchTerm] = useState('')
@@ -60,6 +68,7 @@ export default function ProceduresPage() {
   const [selectedType, setSelectedType] = useState('')
   const [selectedRole, setSelectedRole] = useState('')
   const [favoritesOnly, setFavoritesOnly] = useState(false)
+  const [showRead, setShowRead] = useState(false)
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -122,6 +131,7 @@ export default function ProceduresPage() {
     type?: string
     role?: string
     favorites?: boolean
+    includeRead?: boolean
   } = {}) => {
     setLoading(true)
     try {
@@ -131,18 +141,26 @@ export default function ProceduresPage() {
       const typeValue = overrides.type ?? selectedType
       const roleValue = overrides.role ?? selectedRole
       const favoritesValue = overrides.favorites ?? favoritesOnly
+      const includeReadValue = overrides.includeRead ?? showRead
 
       if (favoritesValue) params.append('favorites', 'true')
       if (searchValue) params.append('search', searchValue)
       if (categoryValue) params.append('context_category', categoryValue)
       if (typeValue) params.append('procedure_type', typeValue)
       if (roleValue) params.append('target_role', roleValue)
+      if (includeReadValue) params.append('include_read', 'true')
 
       const response = await fetch(`/api/procedures?${params.toString()}`)
       const result = await response.json()
 
       if (result.success) {
         setProcedures(result.data)
+        if (typeof result.meta?.unread_count === 'number') {
+          setUnreadCount(result.meta.unread_count)
+          window.dispatchEvent(new CustomEvent('procedures:unread:update', {
+            detail: { count: result.meta.unread_count }
+          }))
+        }
       }
     } catch (error) {
       console.error('Error fetching procedures:', error)
@@ -161,12 +179,14 @@ export default function ProceduresPage() {
     setSelectedType('')
     setSelectedRole('')
     setFavoritesOnly(false)
+    setShowRead(false)
     fetchProcedures({
       search: '',
       category: '',
       type: '',
       role: '',
-      favorites: false
+      favorites: false,
+      includeRead: false
     })
   }
 
@@ -174,6 +194,14 @@ export default function ProceduresPage() {
     setFavoritesOnly((prev) => {
       const nextValue = !prev
       fetchProcedures({ favorites: nextValue })
+      return nextValue
+    })
+  }
+
+  const toggleShowRead = () => {
+    setShowRead((prev) => {
+      const nextValue = !prev
+      fetchProcedures({ includeRead: nextValue })
       return nextValue
     })
   }
@@ -206,8 +234,19 @@ export default function ProceduresPage() {
     const CategoryIcon = categoryInfo?.icon || FileText
     const TypeIcon = typeInfo?.icon || FileText
 
+    const isUnread = procedure.is_unread !== false
+    const isNew = procedure.is_new === true
+    const isUpdated = !isNew && procedure.is_updated === true
+    const acknowledgedAt = procedure.user_acknowledged_at
+      ? new Date(procedure.user_acknowledged_at).toLocaleDateString('it-IT')
+      : null
+
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+      <div
+        className={`bg-white rounded-lg shadow-sm border transition-shadow ${
+          isUnread ? 'border-blue-200 bg-blue-50/40 hover:shadow-lg' : 'border-gray-200 hover:shadow-md'
+        }`}
+      >
         <div className="p-6">
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
@@ -217,6 +256,23 @@ export default function ProceduresPage() {
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 text-lg mb-1">{procedure.title}</h3>
+                <div className="flex items-center flex-wrap gap-2 mb-1">
+                  {isNew && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium">
+                      Nuova
+                    </span>
+                  )}
+                  {isUpdated && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+                      Aggiornata
+                    </span>
+                  )}
+                  {!isUnread && acknowledgedAt && showRead && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs">
+                      Letta il {acknowledgedAt}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 text-sm text-gray-500">
                   <span className="capitalize">{categoryInfo?.label || procedure.context_category}</span>
                   <span>•</span>
@@ -288,7 +344,9 @@ export default function ProceduresPage() {
               </div>
               <div className="flex items-center gap-1">
                 <Clock className="w-3 h-3" />
-                <span>Agg. {new Date(procedure.last_reviewed_at || procedure.updated_at).toLocaleDateString('it-IT')}</span>
+                <span>
+                  Agg. {new Date(procedure.last_reviewed_at || procedure.updated_at).toLocaleDateString('it-IT')}
+                </span>
               </div>
             </div>
             <button
@@ -320,6 +378,15 @@ export default function ProceduresPage() {
             </div>
             <div className="flex items-center gap-4">
               <h1 className="text-2xl font-bold text-gray-900">📚 Manuale Procedure</h1>
+              {unreadCount > 0 ? (
+                <span className="inline-flex items-center px-3 py-1 text-sm font-semibold rounded-full bg-red-500 text-white">
+                  {unreadCount} da leggere
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-3 py-1 text-sm font-medium rounded-full bg-green-100 text-green-700">
+                  Tutte aggiornate
+                </span>
+              )}
               <button
                 onClick={() => router.push('/casi-non-previsti')}
                 className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
@@ -416,6 +483,17 @@ export default function ProceduresPage() {
               <Heart className={`w-4 h-4 ${favoritesOnly ? 'text-red-600' : 'text-gray-500'}`} />
               {favoritesOnly ? 'Mostra tutte' : 'Solo preferite'}
             </button>
+            <button
+              onClick={toggleShowRead}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
+                showRead
+                  ? 'border-blue-200 bg-blue-50 text-blue-700'
+                  : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <CheckSquare className={`w-4 h-4 ${showRead ? 'text-blue-600' : 'text-gray-500'}`} />
+              {showRead ? 'Nascondi lette' : 'Mostra anche lette'}
+            </button>
           </div>
         </div>
 
@@ -435,12 +513,18 @@ export default function ProceduresPage() {
           <div className="text-center py-12">
             <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              {favoritesOnly ? 'Nessuna procedura preferita' : 'Nessuna procedura trovata'}
+              {favoritesOnly
+                ? 'Nessuna procedura preferita'
+                : showRead
+                ? 'Nessuna procedura disponibile'
+                : 'Hai già letto tutto'}
             </h3>
             <p className="text-gray-600">
               {favoritesOnly
                 ? 'Aggiungi procedure ai preferiti per trovarle qui rapidamente.'
-                : 'Prova a modificare i filtri di ricerca o ripristina tutti i criteri.'}
+                : showRead
+                ? 'Prova a modificare i filtri di ricerca o ripristina tutti i criteri.'
+                : 'Clicca su "Mostra anche lette" per rivedere le procedure già lette.'}
             </p>
           </div>
         )}

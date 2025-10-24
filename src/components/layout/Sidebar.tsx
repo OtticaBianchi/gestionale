@@ -39,10 +39,12 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   const [voiceNotesCount, setVoiceNotesCount] = useState(0);
   const [telegramRequestsCount, setTelegramRequestsCount] = useState(0);
   const [errorDraftCount, setErrorDraftCount] = useState(0);
+  const [procedureUnreadCount, setProcedureUnreadCount] = useState(0);
   const isMountedRef = useRef(true);
   const voiceNotesFetchLock = useRef(false);
   const telegramFetchLock = useRef(false);
   const errorDraftFetchLock = useRef(false);
+  const procedureUnreadFetchLock = useRef(false);
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -146,6 +148,32 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     }
   }, [userRole]);
 
+  const fetchProcedureUnreadCount = useCallback(async (background = false) => {
+    if (procedureUnreadFetchLock.current) return;
+    procedureUnreadFetchLock.current = true;
+
+    try {
+      const response = await fetch('/api/procedures?summary=unread_count', { cache: 'no-store' });
+      if (!response.ok) {
+        if (!background) {
+          console.error('Error fetching procedure unread count:', response.statusText);
+        }
+        return;
+      }
+
+      const data = await response.json();
+      if (!isMountedRef.current) return;
+      const metaCount = typeof data?.meta?.unread_count === 'number' ? data.meta.unread_count : 0;
+      setProcedureUnreadCount(metaCount);
+    } catch (error) {
+      if (!background) {
+        console.error('Error fetching procedure unread count:', error);
+      }
+    } finally {
+      procedureUnreadFetchLock.current = false;
+    }
+  }, []);
+
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
@@ -173,6 +201,28 @@ export default function Sidebar({ className = '' }: SidebarProps) {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [fetchVoiceNotesCount]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      fetchProcedureUnreadCount(true);
+    }, 120000);
+
+    fetchProcedureUnreadCount();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchProcedureUnreadCount(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [fetchProcedureUnreadCount]);
 
   useEffect(() => {
     if (!userRole || !['admin', 'manager'].includes(userRole)) {
@@ -218,6 +268,24 @@ export default function Sidebar({ className = '' }: SidebarProps) {
       window.removeEventListener('errorDrafts:update', handleDraftUpdate)
     }
   }, [fetchErrorDraftCount])
+
+  useEffect(() => {
+    const handleProceduresUpdate = (event: Event) => {
+      const custom = event as CustomEvent<{ count?: number; delta?: number }>
+      if (typeof custom.detail?.count === 'number') {
+        setProcedureUnreadCount(custom.detail.count)
+      } else if (typeof custom.detail?.delta === 'number') {
+        setProcedureUnreadCount(prev => Math.max(0, prev + custom.detail!.delta!))
+      } else {
+        fetchProcedureUnreadCount(true)
+      }
+    }
+
+    window.addEventListener('procedures:unread:update', handleProceduresUpdate)
+    return () => {
+      window.removeEventListener('procedures:unread:update', handleProceduresUpdate)
+    }
+  }, [fetchProcedureUnreadCount])
 
   useEffect(() => {
     if (!userRole || userRole !== 'admin') {
@@ -398,6 +466,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
               icon={BookOpen}
               label="Procedure"
               isCollapsed={isCollapsed}
+              badge={procedureUnreadCount > 0 ? (procedureUnreadCount > 99 ? '99+' : procedureUnreadCount.toString()) : undefined}
             />
             {userRole !== 'operatore' && (
               <SidebarItem

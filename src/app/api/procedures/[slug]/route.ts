@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { computeReadStatus } from '@/lib/procedures/unread'
 
 // GET - Get single procedure by slug
 export async function GET(
@@ -66,6 +67,37 @@ export async function GET(
       .single()
 
     procedure.is_favorited = !!favorite
+
+    const { data: receipt } = await adminClient
+      .from('procedure_read_receipts')
+      .select('acknowledged_at, acknowledged_updated_at, acknowledged_version')
+      .eq('user_id', user.id)
+      .eq('procedure_id', procedure.id)
+      .maybeSingle()
+
+    const status = computeReadStatus(
+      {
+        id: procedure.id,
+        updated_at: procedure.updated_at,
+        created_at: procedure.created_at,
+        version: procedure.version
+      },
+      receipt
+        ? {
+            procedure_id: procedure.id,
+            acknowledged_at: receipt.acknowledged_at,
+            acknowledged_updated_at: receipt.acknowledged_updated_at,
+            acknowledged_version: receipt.acknowledged_version ?? null
+          }
+        : undefined
+    )
+
+    procedure.user_acknowledged_at = status.acknowledgedAt
+    procedure.user_acknowledged_updated_at = status.acknowledgedUpdatedAt
+    procedure.user_acknowledged_version = status.acknowledgedVersion
+    procedure.is_unread = status.isUnread
+    procedure.is_new = status.isNew
+    procedure.is_updated = status.isUpdated
 
     // Increment view count and log access
     await adminClient.rpc('increment_procedure_view_count', {

@@ -1549,6 +1549,54 @@ export type Database = {
           },
         ]
       }
+      procedure_read_receipts: {
+        Row: {
+          acknowledged_at: string
+          acknowledged_updated_at: string
+          acknowledged_version: number | null
+          created_at: string
+          id: string
+          procedure_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          acknowledged_at?: string
+          acknowledged_updated_at?: string
+          acknowledged_version?: number | null
+          created_at?: string
+          id?: string
+          procedure_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          acknowledged_at?: string
+          acknowledged_updated_at?: string
+          acknowledged_version?: number | null
+          created_at?: string
+          id?: string
+          procedure_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procedure_read_receipts_procedure_id_fkey"
+            columns: ["procedure_id"]
+            isOneToOne: false
+            referencedRelation: "procedures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedure_read_receipts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       procedure_helpfulness_votes: {
         Row: {
           id: string

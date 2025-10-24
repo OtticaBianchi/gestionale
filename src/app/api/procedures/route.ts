@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { computeReadStatus, fetchReceiptsMap } from '@/lib/procedures/unread'
 
 // GET - List procedures with filters and search
 export async function GET(request: NextRequest) {
@@ -33,7 +34,10 @@ export async function GET(request: NextRequest) {
     const procedure_type = searchParams.get('procedure_type')
     const target_role = searchParams.get('target_role')
     const user_favorites = searchParams.get('favorites') === 'true'
+    const include_read = searchParams.get('include_read') === 'true'
     const recent_only = searchParams.get('recent') === 'true'
+    const summary = searchParams.get('summary')
+    const summaryOnly = summary === 'unread_count'
 
     // Use service role for queries after auth check
     const adminClient = (await import('@supabase/supabase-js')).createClient(
@@ -75,7 +79,8 @@ export async function GET(request: NextRequest) {
         mini_help_action,
         last_reviewed_at,
         created_at,
-        updated_at${user_favorites ? `,
+        updated_at,
+        version${user_favorites ? `,
         favorites:procedure_favorites!inner(
           user_id
         )` : ''}
@@ -127,15 +132,65 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    const proceduresList = (procedures ?? []) as any[]
+
+    const procedureIds = proceduresList.map(proc => proc.id)
+    let receiptsMap = new Map<string, any>()
+
+    if (procedureIds.length) {
+      try {
+        receiptsMap = await fetchReceiptsMap(adminClient, user.id, procedureIds)
+      } catch (receiptError) {
+        console.error('Error fetching procedure read receipts:', receiptError)
+      }
+    }
+
+    let unreadCount = 0
+
+    const enrichedProcedures = proceduresList.map(proc => {
+      const status = computeReadStatus(
+        {
+          id: proc.id,
+          updated_at: proc.updated_at,
+          created_at: proc.created_at,
+          version: (proc as any).version ?? null
+        },
+        receiptsMap.get(proc.id)
+      )
+
+      if (status.isUnread) {
+        unreadCount += 1
+      }
+
+      return {
+        ...proc,
+        user_acknowledged_at: status.acknowledgedAt,
+        user_acknowledged_updated_at: status.acknowledgedUpdatedAt,
+        user_acknowledged_version: status.acknowledgedVersion,
+        is_unread: status.isUnread,
+        is_new: status.isNew,
+        is_updated: status.isUpdated
+      }
+    })
+
+    const visibleProcedures = include_read
+      ? enrichedProcedures
+      : enrichedProcedures.filter(proc => proc.is_unread)
+
     return NextResponse.json({
       success: true,
-      data: procedures || [],
+      data: summaryOnly ? [] : visibleProcedures,
       filters: {
         search,
         context_category,
         procedure_type,
         target_role,
-        user_favorites
+        user_favorites,
+        include_read,
+        summary
+      },
+      meta: {
+        unread_count: unreadCount
       }
     })
 
