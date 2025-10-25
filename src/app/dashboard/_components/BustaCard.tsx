@@ -1,7 +1,7 @@
 // app/dashboard/_components/BustaCard.tsx
 
 import type { ReactNode } from 'react';
-import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins } from 'lucide-react';
+import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins, Receipt } from 'lucide-react';
 import Link from 'next/link';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
 
@@ -58,7 +58,9 @@ const getStatoOrdineEmoji = (stato: string | null) => {
     consegnato: '✅',
     annullato: '🚫'
   };
-  return stati[(stato || 'ordinato')] || '📦';
+  const lower = (stato || 'ordinato').toLowerCase();
+  if (lower === 'sbagliato') return '⚠️';
+  return stati[lower] || '📦';
 };
 
 const getDelayLevel = (ordini: OrdineMaterialeEssenziale[]) => {
@@ -70,18 +72,53 @@ const getDelayLevel = (ordini: OrdineMaterialeEssenziale[]) => {
   return 'none';
 };
 
-const normalizePlanType = (type: string | null | undefined): 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'none' => {
+type AvailabilityStatus = 'disponibile' | 'riassortimento' | 'esaurito';
+
+const AVAILABILITY_PRIORITY: Record<AvailabilityStatus, number> = {
+  disponibile: 0,
+  riassortimento: 1,
+  esaurito: 2
+};
+
+const AVAILABILITY_BADGE: Record<AvailabilityStatus, { label: string; className: string }> = {
+  disponibile: {
+    label: 'Disponibile',
+    className: 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+  },
+  riassortimento: {
+    label: 'Riassortimento',
+    className: 'bg-amber-100 text-amber-700 border border-amber-200'
+  },
+  esaurito: {
+    label: 'Esaurito',
+    className: 'bg-red-100 text-red-700 border border-red-200'
+  }
+};
+
+const parseDateSafe = (value: string | null | undefined): Date | null => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const normalizePlanType = (
+  type: string | null | undefined
+): 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'no_payment' | 'none' => {
   if (type === 'installments') return 'installments';
   if (type === 'saldo_unico') return 'saldo_unico';
   if (type === 'finanziamento_bancario') return 'finanziamento_bancario';
+  if (type === 'nessun_pagamento' || type === 'no_payment') return 'no_payment';
   return 'none';
 };
 
-const mapLegacyPaymentType = (modalita: string | null | undefined): 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'none' => {
+const mapLegacyPaymentType = (
+  modalita: string | null | undefined
+): 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'no_payment' | 'none' => {
   if (!modalita) return 'none';
   if (modalita === 'saldo_unico') return 'saldo_unico';
   if (modalita === 'finanziamento') return 'finanziamento_bancario';
   if (modalita === 'due_rate' || modalita === 'tre_rate') return 'installments';
+  if (modalita === 'nessun_pagamento') return 'no_payment';
   return 'none';
 };
 
@@ -100,7 +137,7 @@ type InstallmentOverview = {
 };
 
 const buildPaymentBadge = (
-  planType: 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'none',
+  planType: 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'no_payment' | 'none',
   outstanding: number,
   paidCount: number,
   totalInstallments: number,
@@ -126,6 +163,15 @@ const buildPaymentBadge = (
       className: 'bg-orange-50 text-orange-700 border border-orange-200',
       icon: <ListOrdered className="w-3 h-3 mr-1" />, 
       sublabel: outstanding > 0.5 ? `Residuo ${formatCurrency(outstanding)}` : undefined
+    };
+  }
+
+  if (planType === 'no_payment') {
+    return {
+      label: 'NESSUN INCASSO',
+      className: 'bg-slate-100 text-slate-700 border border-slate-200',
+      icon: <Receipt className="w-3 h-3 mr-1" />,
+      sublabel: 'Lavorazione gratuita'
     };
   }
 
@@ -165,7 +211,7 @@ const buildPaymentBadge = (
 };
 
 const getInstallmentAlert = (
-  planType: 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'none',
+  planType: 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'no_payment' | 'none',
   installments: InstallmentOverview[],
   planCompleted: boolean
 ) => {
@@ -259,16 +305,24 @@ const determinePlanType = (
   legacyInfo: any,
   totalAmount: number,
   totalInstallments: number
-) => {
+): 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'no_payment' | 'none' => {
   let normalizedPlanType = paymentPlan
     ? normalizePlanType(paymentPlan.payment_type)
     : mapLegacyPaymentType(legacyInfo?.modalita_saldo);
 
+  const noteMarksNoPayment = legacyInfo?.note_pagamento === 'NESSUN_INCASSO';
+  const zeroBalanceClosed = !paymentPlan && (legacyInfo?.is_saldato ?? false) && (totalAmount ?? 0) <= 0.5;
+
+  if (!paymentPlan && (noteMarksNoPayment || zeroBalanceClosed)) {
+    normalizedPlanType = 'no_payment';
+  }
+
   const hasInstallmentsPlan = normalizedPlanType === 'installments' && totalInstallments > 0 && totalAmount > 0;
   const hasSaldoPlan = normalizedPlanType === 'saldo_unico' && totalAmount > 0;
   const hasFinancingPlan = normalizedPlanType === 'finanziamento_bancario' && totalAmount > 0;
+  const hasNoPaymentPlan = normalizedPlanType === 'no_payment';
 
-  if (!(hasInstallmentsPlan || hasSaldoPlan || hasFinancingPlan)) {
+  if (!(hasInstallmentsPlan || hasSaldoPlan || hasFinancingPlan || hasNoPaymentPlan)) {
     normalizedPlanType = 'none';
   }
 
@@ -277,7 +331,7 @@ const determinePlanType = (
 
 const generateBadgesAndAlerts = (
   busta: BustaWithCliente,
-  normalizedPlanType: 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'none',
+  normalizedPlanType: 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'no_payment' | 'none',
   paymentData: ReturnType<typeof processPaymentData>
 ) => {
   const shouldShowSetupWarning = normalizedPlanType === 'none' &&
@@ -306,9 +360,47 @@ const generateBadgesAndAlerts = (
 export default function BustaCard({ busta }: BustaCardProps) {
   const daysOpen = calculateDaysOpen(busta.data_apertura);
   const cliente = busta.clienti;
-  const ordini = busta.ordini_materiali || [];
-  const ordiniOrdinati = sortOrdersByPriority(ordini);
-  const delayLevel = getDelayLevel(ordini);
+  const rawOrders = busta.ordini_materiali || [];
+  const activeOrders = rawOrders.filter((ordine) => (ordine.stato || '').toLowerCase() !== 'annullato');
+  const displayOrders = activeOrders.length > 0 ? activeOrders : rawOrders;
+  const ordiniOrdinati = sortOrdersByPriority(displayOrders);
+  const delayLevel = getDelayLevel(displayOrders);
+
+  const availabilityOrders = activeOrders;
+  let worstAvailability: AvailabilityStatus | null = null;
+  const availabilityReminders: Date[] = [];
+
+  if (availabilityOrders.length > 0) {
+    worstAvailability = 'disponibile';
+    availabilityOrders.forEach((ordine) => {
+      const stato = (ordine.stato_disponibilita || 'disponibile') as AvailabilityStatus;
+      if (AVAILABILITY_PRIORITY[stato] > AVAILABILITY_PRIORITY[worstAvailability!]) {
+        worstAvailability = stato;
+      }
+      const promemoria = parseDateSafe(ordine.promemoria_disponibilita);
+      if (promemoria) {
+        availabilityReminders.push(promemoria);
+      }
+    });
+  }
+
+  const nextAvailabilityReminder = availabilityReminders.length > 0
+    ? availabilityReminders.reduce((min, date) => (date < min ? date : min))
+    : null;
+
+  const availabilityBadge = worstAvailability ? AVAILABILITY_BADGE[worstAvailability] : null;
+  const showAvailabilityBadge =
+    busta.stato_attuale === 'materiali_ordinati' &&
+    availabilityBadge !== null &&
+    worstAvailability !== null &&
+    worstAvailability !== 'disponibile';
+
+  let availabilityReminderDue = false;
+  let nextAvailabilityReminderLabel: string | null = null;
+  if (showAvailabilityBadge && nextAvailabilityReminder) {
+    availabilityReminderDue = nextAvailabilityReminder.getTime() <= Date.now();
+    nextAvailabilityReminderLabel = nextAvailabilityReminder.toLocaleDateString('it-IT');
+  }
 
   // Simple delivery warning check
   const showDeliveryWarning = busta.metodo_consegna &&
@@ -377,6 +469,11 @@ export default function BustaCard({ busta }: BustaCardProps) {
             )}
           </div>
           <div className="flex flex-col items-end gap-1">
+            {showAvailabilityBadge && availabilityBadge && (
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${availabilityBadge.className}`}>
+                {availabilityBadge.label}
+              </span>
+            )}
             {paymentBadge && (
               <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${paymentBadge.className} flex items-center`}>
                 {paymentBadge.icon}
@@ -414,7 +511,7 @@ export default function BustaCard({ busta }: BustaCardProps) {
         </div>
 
         <div className="mb-3 flex-1">
-          {ordini.length === 0 ? (
+          {displayOrders.length === 0 ? (
             <p className="text-xs text-gray-400 italic">Nessun prodotto ordinato</p>
           ) : (
             <div className="space-y-2">
@@ -423,6 +520,13 @@ export default function BustaCard({ busta }: BustaCardProps) {
                 const descrizioneBreve = ordine.descrizione_prodotto.length > 50
                   ? `${ordine.descrizione_prodotto.substring(0, 50)}...`
                   : ordine.descrizione_prodotto;
+                const availabilityStatus = (ordine.stato_disponibilita || 'disponibile') as AvailabilityStatus;
+                const orderAvailability = AVAILABILITY_BADGE[availabilityStatus];
+                const orderReminder = parseDateSafe(ordine.promemoria_disponibilita);
+                const orderReminderLabel = orderReminder
+                  ? orderReminder.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })
+                  : null;
+                const orderReminderDue = orderReminder ? orderReminder.getTime() <= Date.now() : false;
 
                 return (
                   <div key={ordine.id} className="flex items-start gap-2">
@@ -436,6 +540,20 @@ export default function BustaCard({ busta }: BustaCardProps) {
                       >
                         {descrizioneBreve}
                       </p>
+                      {showAvailabilityBadge && (
+                        <div className="mt-1 flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] ${orderAvailability.className}`}
+                          >
+                            {orderAvailability.label}
+                          </span>
+                          {orderReminderLabel && (
+                            <span className={`text-[10px] ${orderReminderDue ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
+                              {orderReminderDue ? 'Scad.' : 'Check'} {orderReminderLabel}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {ordine.note && (
                         <p
                           className={`text-xs italic mt-1 ${isCancelled ? 'text-gray-300' : 'text-gray-500'}`}
@@ -450,9 +568,9 @@ export default function BustaCard({ busta }: BustaCardProps) {
                   </div>
                 );
               })}
-              {ordini.length > 3 && (
+              {displayOrders.length > 3 && (
                 <p className="text-xs text-gray-500 italic pl-6">
-                  +{ordini.length - 3} altri prodotti...
+                  +{displayOrders.length - 3} altri prodotti...
                 </p>
               )}
             </div>
@@ -465,7 +583,7 @@ export default function BustaCard({ busta }: BustaCardProps) {
             <span>{daysOpen} giorni</span>
           </div>
           <div className="flex items-center gap-3 text-xs text-gray-500">
-            {ordini.length > 0 && <span>{ordini.length} prodott{ordini.length === 1 ? 'o' : 'i'}</span>}
+            {displayOrders.length > 0 && <span>{displayOrders.length} prodott{displayOrders.length === 1 ? 'o' : 'i'}</span>}
             {normalizedPlanType !== 'none' && (
               <span className="flex items-center gap-1">
                 <Euro className="h-3 w-3" />

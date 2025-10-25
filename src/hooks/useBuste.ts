@@ -67,6 +67,8 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
         id,
         descrizione_prodotto,
         stato,
+        stato_disponibilita,
+        promemoria_disponibilita,
         da_ordinare,
         note
       ),

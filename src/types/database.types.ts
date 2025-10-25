@@ -796,7 +796,9 @@ export type Database = {
           giorni_ritardo: number | null
           id: string
           note: string | null
+          promemoria_disponibilita: string | null
           stato: Database["public"]["Enums"]["ordine_status"] | null
+          stato_disponibilita: "disponibile" | "riassortimento" | "esaurito"
           tipo_lenti_id: string | null
           tipo_ordine_id: number | null
           updated_at: string | null
@@ -823,7 +825,9 @@ export type Database = {
           giorni_ritardo?: number | null
           id?: string
           note?: string | null
+          promemoria_disponibilita?: string | null
           stato?: Database["public"]["Enums"]["ordine_status"] | null
+          stato_disponibilita?: "disponibile" | "riassortimento" | "esaurito"
           tipo_lenti_id?: string | null
           tipo_ordine_id?: number | null
           updated_at?: string | null
@@ -850,7 +854,9 @@ export type Database = {
           giorni_ritardo?: number | null
           id?: string
           note?: string | null
+          promemoria_disponibilita?: string | null
           stato?: Database["public"]["Enums"]["ordine_status"] | null
+          stato_disponibilita?: "disponibile" | "riassortimento" | "esaurito"
           tipo_lenti_id?: string | null
           tipo_ordine_id?: number | null
           updated_at?: string | null

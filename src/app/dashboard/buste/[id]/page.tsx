@@ -93,6 +93,14 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
         prezzo_finale,
         data_saldo,
         updated_at
+      ),
+      ordini_materiali (
+        id,
+        descrizione_prodotto,
+        stato,
+        stato_disponibilita,
+        promemoria_disponibilita,
+        note
       )
     `)
     .eq('id', (await params).id)

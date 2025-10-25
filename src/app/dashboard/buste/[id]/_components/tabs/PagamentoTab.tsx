@@ -17,7 +17,8 @@ import {
   Trash2,
   User as UserIcon,
   Sparkles,
-  Clock
+  Clock,
+  CheckCircle
 } from 'lucide-react';
 
 const currencyFormatter = new Intl.NumberFormat('it-IT', {
@@ -68,7 +69,9 @@ type PaymentInstallmentRecord = Database['public']['Tables']['payment_installmen
 type InfoPagamentoRecord = Pick<
   Database['public']['Tables']['info_pagamenti']['Row'],
   'is_saldato' | 'modalita_saldo' | 'importo_acconto' | 'ha_acconto' | 'prezzo_finale' | 'updated_at' | 'data_saldo'
->;
+> & {
+  note_pagamento?: string | null;
+};
 
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
   clienti: Database['public']['Tables']['clienti']['Row'] | null;
@@ -190,6 +193,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   const reminderPreferenceLabel = paymentPlan
     ? reminderPreferenceLabels[paymentPlan.reminder_preference || 'disabled']
     : null;
+  const noPaymentRequired = useMemo(() => infoPagamento?.note_pagamento === 'NESSUN_INCASSO', [infoPagamento?.note_pagamento]);
 
   useEffect(() => {
     loadPaymentContext();
@@ -213,7 +217,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   const fetchPaymentInfo = async () => {
     const { data: infoData, error: infoError } = await supabase
       .from('info_pagamenti')
-      .select('is_saldato, modalita_saldo, importo_acconto, ha_acconto, prezzo_finale, data_saldo, updated_at')
+      .select('is_saldato, modalita_saldo, note_pagamento, importo_acconto, ha_acconto, prezzo_finale, data_saldo, updated_at')
       .eq('busta_id', busta.id)
       .maybeSingle();
 
@@ -299,7 +303,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     if (!canEdit || draft === '') return null;
 
     const parsed = Number.parseFloat(draft);
-    if (!Number.isFinite(parsed) || parsed <= 0) {
+    if (!Number.isFinite(parsed) || parsed < 0) {
       alert('Inserisci un totale valido prima di salvare.');
       return null;
     }
@@ -311,6 +315,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     const upsertPayload = {
       busta_id: busta.id,
       prezzo_finale: totalAmount,
+      note_pagamento: null,
       updated_at: new Date().toISOString()
     } satisfies Partial<InfoPagamentoRecord> & { busta_id: string };
 
@@ -347,6 +352,81 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
       alert(`Errore salvataggio totale: ${error.message}`);
     } finally {
       setIsSavingTotal(false);
+    }
+  };
+
+  const handleMarkNoPayment = async () => {
+    if (!canEdit) return;
+    if (!confirm('Segnare questa busta come senza incasso? Verrà registrata come lavorazione gratuita.')) {
+      return;
+    }
+
+    setOngoingAction('mark-no-payment');
+    try {
+      if (paymentPlan) {
+        const { error: deleteInstallmentsError } = await supabase
+          .from('payment_installments')
+          .delete()
+          .eq('payment_plan_id', paymentPlan.id);
+        if (deleteInstallmentsError) throw deleteInstallmentsError;
+
+        const { error: deletePlanError } = await supabase
+          .from('payment_plans')
+          .delete()
+          .eq('id', paymentPlan.id);
+
+        if (deletePlanError) throw deletePlanError;
+      }
+
+      const response = await fetch('/api/buste/no-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ bustaId: busta.id }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Impossibile segnare la busta come gratuita');
+      }
+
+      setTotalDraft('0');
+      await loadPaymentContext();
+      await mutate('/api/buste');
+    } catch (error: any) {
+      console.error('❌ Error marking no payment:', error);
+      alert(`Errore configurazione senza incasso: ${error.message}`);
+    } finally {
+      setOngoingAction(null);
+    }
+  };
+
+  const handleClearNoPayment = async () => {
+    if (!canEdit || !noPaymentRequired) return;
+    if (!confirm('Ripristinare la gestione pagamenti standard per questa busta?')) {
+      return;
+    }
+
+    setOngoingAction('clear-no-payment');
+    try {
+      const response = await fetch(`/api/buste/no-payment?bustaId=${busta.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Impossibile ripristinare la gestione pagamenti');
+      }
+
+      setTotalDraft('');
+      await loadPaymentContext();
+      await mutate('/api/buste');
+    } catch (error: any) {
+      console.error('❌ Error clearing no payment flag:', error);
+      alert(`Errore ripristino pagamenti: ${error.message}`);
+    } finally {
+      setOngoingAction(null);
     }
   };
 
@@ -540,7 +620,9 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
               ) : (
                 <button
                   onClick={() => setIsSetupOpen(true)}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+                  disabled={noPaymentRequired}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  title={noPaymentRequired ? 'Ripristina la gestione pagamenti per creare un piano' : undefined}
                 >
                   Configura piano
                 </button>
@@ -574,16 +656,22 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                     min="0"
                     value={totalDraft}
                     onChange={(event) => setTotalDraft(event.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:ring-blue-500 focus:border-blue-500"
+                    disabled={noPaymentRequired}
+                    className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 disabled:bg-gray-100"
                     placeholder="Es. 550"
                   />
                   <button
                     onClick={saveTotalAmount}
-                    disabled={isSavingTotal || totalDraft === ''}
+                    disabled={isSavingTotal || totalDraft === '' || noPaymentRequired}
                     className="w-full text-sm bg-blue-600 text-white rounded-md py-1.5 hover:bg-blue-700 transition-colors disabled:opacity-50"
                   >
                     {isSavingTotal ? 'Salvataggio...' : 'Salva totale'}
                   </button>
+                  {noPaymentRequired && (
+                    <p className="text-xs text-gray-500">
+                      Nessun incasso previsto: ripristina la gestione pagamenti per modificare il totale.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -780,19 +868,51 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
           )}
         </div>
       ) : (
-        <div className="bg-white border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500">
-          <AlertTriangle className="w-6 h-6 mx-auto text-orange-500 mb-3" />
-          <p className="text-sm">
-            Nessun piano pagamenti configurato. Imposta il totale del lavoro e scegli la modalità di incasso per attivare promemoria e stato in kanban.
-          </p>
-          {canEdit && (
-            <button
-              onClick={() => setIsSetupOpen(true)}
-              className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors"
-            >
-              <Sparkles className="w-4 h-4 mr-2" />
-              Crea nuovo piano
-            </button>
+        <div className="bg-white border border-dashed border-gray-300 rounded-lg p-6 text-center text-gray-500 space-y-4">
+          {noPaymentRequired ? (
+            <>
+              <CheckCircle className="w-6 h-6 mx-auto text-green-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Nessun incasso previsto per questa busta.</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  È stata registrata come lavorazione gratuita. Puoi chiudere la pratica senza inserire pagamenti.
+                </p>
+              </div>
+              {canEdit && (
+                <button
+                  onClick={handleClearNoPayment}
+                  disabled={ongoingAction === 'clear-no-payment'}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm rounded-md hover:bg-gray-100 transition-colors disabled:opacity-50"
+                >
+                  Ripristina gestione pagamenti
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <AlertTriangle className="w-6 h-6 mx-auto text-orange-500" />
+              <p className="text-sm">
+                Nessun piano pagamenti configurato. Imposta il totale del lavoro e scegli la modalità di incasso per attivare promemoria e stato in kanban.
+              </p>
+              {canEdit && (
+                <div className="flex flex-col sm:flex-row gap-2 mt-2 justify-center">
+                  <button
+                    onClick={() => setIsSetupOpen(true)}
+                    className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Crea nuovo piano
+                  </button>
+                  <button
+                    onClick={handleMarkNoPayment}
+                    disabled={ongoingAction === 'mark-no-payment'}
+                    className="inline-flex items-center justify-center px-4 py-2 border border-blue-200 text-blue-700 rounded-md text-sm hover:bg-blue-50 transition-colors disabled:opacity-50"
+                  >
+                    Segna come senza incasso
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -812,10 +932,12 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
         </div>
       )}
 
-      {canEdit && outstandingZero && paymentPlan?.is_completed && busta.stato_attuale !== 'consegnato_pagato' && (
+      {canEdit && outstandingZero && (paymentPlan?.is_completed || noPaymentRequired) && busta.stato_attuale !== 'consegnato_pagato' && (
         <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg px-5 py-4 flex items-center justify-between">
           <div className="text-sm font-medium">
-            Pagamenti in regola. La busta può essere spostata su "Consegnato & Pagato".
+            {noPaymentRequired
+              ? 'Nessun incasso previsto: la busta può essere spostata su "Consegnato & Pagato".'
+              : 'Pagamenti in regola. La busta può essere spostata su "Consegnato & Pagato".'}
           </div>
           <button
             onClick={handleCloseBusta}

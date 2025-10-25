@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DndContext,
   DragEndEvent,
@@ -24,6 +25,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import Link from 'next/link';
 import { Database } from '@/types/database.types';
 import BustaCard from './BustaCard';
 import { 
@@ -32,7 +34,7 @@ import {
   WorkflowState,
   hasSpecialWorkflow 
 } from './WorkflowLogic';
-import { CheckCircle, XCircle, Info, Loader2, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { CheckCircle, XCircle, Info, Loader2, RefreshCw, Wifi, WifiOff, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { BustaWithCliente } from '@/types/shared.types';
 import { useBuste } from '@/hooks/useBuste';
@@ -126,13 +128,17 @@ function DroppableColumn({
   buste, 
   isOver,
   isDragEnabled,
-  isLoading
+  isLoading,
+  onHeaderClick,
+  isHeaderActive
 }: { 
   status: WorkflowState; 
   buste: BustaWithCliente[]; 
   isOver: boolean;
   isDragEnabled: boolean;
   isLoading: boolean;
+  onHeaderClick?: () => void;
+  isHeaderActive?: boolean;
 }) {
   const { setNodeRef } = useDroppable({
     id: `column-${status}`, // ✅ FIX CRITICO: Prefisso per evitare conflitti con UUID buste
@@ -143,16 +149,37 @@ function DroppableColumn({
     ? 'bg-emerald-50 border border-emerald-100'
     : 'bg-gray-100';
   const titleColor = isFinalColumn ? 'text-emerald-700' : 'text-gray-700';
+  const isInteractive = Boolean(onHeaderClick);
+  const countBadgeClasses = isHeaderActive
+    ? 'bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full'
+    : 'bg-gray-300 text-gray-700 text-xs font-bold px-2 py-1 rounded-full';
 
   return (
     <div className="flex-shrink-0 w-64">
       <div className={`${columnShellClasses} rounded-lg p-3 h-full flex flex-col transition-colors duration-200`}>
-        <div className="flex justify-between items-center mb-4 px-2">
-          <h2 className={`font-semibold text-xs ${titleColor}`}>{getColumnName(status)}</h2>
-          <span className="bg-gray-300 text-gray-700 text-xs font-bold px-2 py-1 rounded-full">
-            {buste.length}
-          </span>
-        </div>
+        {isInteractive ? (
+          <button
+            type="button"
+            onClick={onHeaderClick}
+            className={`w-full flex justify-between items-center mb-4 px-2 py-1 rounded-md text-left transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-0 ${
+              isHeaderActive ? 'bg-white shadow-sm hover:bg-white' : 'hover:bg-white/70'
+            }`}
+            aria-expanded={!!isHeaderActive}
+            aria-pressed={!!isHeaderActive}
+          >
+            <h2 className={`font-semibold text-xs ${titleColor}`}>{getColumnName(status)}</h2>
+            <span className={countBadgeClasses}>
+              {buste.length}
+            </span>
+          </button>
+        ) : (
+          <div className="flex justify-between items-center mb-4 px-2">
+            <h2 className={`font-semibold text-xs ${titleColor}`}>{getColumnName(status)}</h2>
+            <span className={countBadgeClasses}>
+              {buste.length}
+            </span>
+          </div>
+        )}
         {isFinalColumn && (
           <p className="text-[10px] text-emerald-700 bg-emerald-100 rounded px-2 py-1 mx-2 mb-2 font-medium">
             Si archivia automaticamente dopo 7 giorni
@@ -225,6 +252,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
   // User context for role checking
   const { profile } = useUser();
   
+  const [openStatusList, setOpenStatusList] = useState<WorkflowState | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -341,6 +369,43 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     
     return groups;
   }, [currentBuste, lastSync]);
+
+  const orderedNuoveBuste = useMemo(() => {
+    const list = groupedBuste['nuove'] ? [...groupedBuste['nuove']] : [];
+    return list.sort((a, b) => {
+      const lastA = (a.clienti?.cognome || '').trim();
+      const lastB = (b.clienti?.cognome || '').trim();
+
+      if (lastA && !lastB) return -1;
+      if (!lastA && lastB) return 1;
+      if (lastA || lastB) {
+        const compareLast = lastA.localeCompare(lastB, 'it', { sensitivity: 'base' });
+        if (compareLast !== 0) return compareLast;
+      }
+
+      const firstA = (a.clienti?.nome || '').trim();
+      const firstB = (b.clienti?.nome || '').trim();
+
+      if (firstA && !firstB) return -1;
+      if (!firstA && firstB) return 1;
+      if (firstA || firstB) {
+        const compareFirst = firstA.localeCompare(firstB, 'it', { sensitivity: 'base' });
+        if (compareFirst !== 0) return compareFirst;
+      }
+
+      const readableA = (a.readable_id || a.id || '').toString();
+      const readableB = (b.readable_id || b.id || '').toString();
+      return readableA.localeCompare(readableB, 'it', { sensitivity: 'base', numeric: true });
+    });
+  }, [groupedBuste]);
+
+  const handleStatusHeaderClick = useCallback((status: WorkflowState) => {
+    setOpenStatusList(prev => (prev === status ? null : status));
+  }, []);
+
+  const handleCloseStatusList = useCallback(() => {
+    setOpenStatusList(null);
+  }, []);
 
   // ✅ DATABASE UPDATE
   const updateBustaStatus = useCallback(async (
@@ -640,6 +705,8 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
               isOver={overId === `column-${status}`}
               isDragEnabled={!isLoading && isOnline && profile?.role !== 'operatore'}
               isLoading={isLoading}
+              onHeaderClick={status === 'nuove' ? () => handleStatusHeaderClick(status) : undefined}
+              isHeaderActive={openStatusList === status}
             />
           ))}
         </div>
@@ -652,6 +719,113 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
           ) : null}
         </DragOverlay>
       </DndContext>
+      {openStatusList === 'nuove' && (
+        <StatusDrawer
+          status="nuove"
+          buste={orderedNuoveBuste}
+          onClose={handleCloseStatusList}
+        />
+      )}
     </div>
+  );
+}
+
+function StatusDrawer({
+  status,
+  buste,
+  onClose,
+}: {
+  status: WorkflowState;
+  buste: BustaWithCliente[];
+  onClose: () => void;
+}) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    const previousOverflow = document.body.style.overflow;
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mounted, onClose]);
+
+  if (!mounted) {
+    return null;
+  }
+
+  const listTitle = getColumnName(status);
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" onClick={onClose} />
+      <div className="fixed top-0 right-0 z-50 h-full w-full max-w-md bg-white shadow-2xl flex flex-col">
+        <div className="flex items-start justify-between px-5 py-4 border-b border-gray-200">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">{listTitle}</h2>
+            <p className="text-xs text-gray-500 mt-1">Elenco buste ordinate per cognome</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            aria-label="Chiudi elenco buste nuove"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {buste.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center px-6 text-center text-sm text-gray-500">
+              <Info className="mb-2 h-5 w-5 text-gray-400" />
+              Nessuna busta in questo stato
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {buste.map((busta) => {
+                const readableId = busta.readable_id || busta.id;
+                const cognome = (busta.clienti?.cognome || '').trim();
+                const nome = (busta.clienti?.nome || '').trim();
+                const displayName = [cognome, nome].filter(Boolean).join(' ') || 'Cliente non specificato';
+
+                return (
+                  <li key={busta.id}>
+                    <Link
+                      href={`/dashboard/buste/${busta.id}`}
+                      className="group flex items-center justify-between px-5 py-3 transition-colors hover:bg-blue-50"
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-gray-500">{readableId}</span>
+                        <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">
+                          {displayName}
+                        </span>
+                      </div>
+                      <span className="text-xs font-medium text-blue-600 group-hover:text-blue-700">
+                        Apri
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
+    </>,
+    document.body
   );
 }

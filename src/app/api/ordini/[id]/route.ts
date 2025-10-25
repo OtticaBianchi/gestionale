@@ -28,6 +28,8 @@ const FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
   data_consegna_effettiva: (value) => value,
   data_ordine: (value) => value,
   note: (value) => value,
+  stato_disponibilita: (value) => value,
+  promemoria_disponibilita: (value) => value,
 }
 
 type AllowedPayload = Record<string, unknown>

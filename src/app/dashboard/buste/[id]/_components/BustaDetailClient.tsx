@@ -56,6 +56,9 @@ type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
     id: string;
     descrizione_prodotto: string;
     stato: string;
+    stato_disponibilita: string | null;
+    promemoria_disponibilita: string | null;
+    note: string | null;
   }>;
   payment_plan?: (Database['public']['Tables']['payment_plans']['Row'] & {
     payment_installments: Database['public']['Tables']['payment_installments']['Row'][] | null;

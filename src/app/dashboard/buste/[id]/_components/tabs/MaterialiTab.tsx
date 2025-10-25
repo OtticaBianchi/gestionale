@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
 import { mutate } from 'swr';
@@ -49,7 +49,9 @@ type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
 
 // ✅ TIPO AGGIORNATO: Aggiunto da_ordinare
 type OrdineMateriale = Database['public']['Tables']['ordini_materiali']['Row'] & {
-  da_ordinare?: boolean | null; // ✅ NUOVO CAMPO
+  da_ordinare?: boolean | null;
+  stato_disponibilita?: 'disponibile' | 'riassortimento' | 'esaurito';
+  promemoria_disponibilita?: string | null;
   fornitori_lenti?: { nome: string } | null;
   fornitori_lac?: { nome: string } | null;
   fornitori_montature?: { nome: string } | null;
@@ -78,6 +80,52 @@ const WORKFLOW_STATES: readonly WorkflowState[] = [
   'pronto_ritiro',
   'consegnato_pagato'
 ] as const;
+
+const DISPONIBILITA_STATES = ['disponibile', 'riassortimento', 'esaurito'] as const;
+const DISPONIBILITA_PRIORITY: Record<typeof DISPONIBILITA_STATES[number], number> = {
+  disponibile: 0,
+  riassortimento: 1,
+  esaurito: 2
+};
+
+const DISPONIBILITA_BADGE: Record<typeof DISPONIBILITA_STATES[number], { label: string; className: string }> = {
+  disponibile: {
+    label: 'Disponibile',
+    className: 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+  },
+  riassortimento: {
+    label: 'In riassortimento',
+    className: 'bg-amber-100 text-amber-700 border border-amber-200'
+  },
+  esaurito: {
+    label: 'Esaurito',
+    className: 'bg-red-100 text-red-700 border border-red-200'
+  }
+};
+
+const formatDateForInput = (value: string | null | undefined) => {
+  if (!value) return '';
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().slice(0, 10);
+  } catch {
+    return '';
+  }
+};
+
+const toIsoDate = (value: string | null | undefined) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+};
+
+const parseDateSafe = (value: string | null | undefined): Date | null => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 
 const resolveWorkflowState = (state: string): WorkflowState =>
   (WORKFLOW_STATES.includes(state as WorkflowState) ? (state as WorkflowState) : 'nuove');
@@ -116,6 +164,60 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     ha_acconto: false,
     currentAcconto: null as number | null
   });
+
+  const disponibilitaStats = useMemo<{
+    counts: Record<typeof DISPONIBILITA_STATES[number], number>;
+    worstStatus: typeof DISPONIBILITA_STATES[number];
+    nextReminder: Date | null;
+  }>(() => {
+    const counts: Record<typeof DISPONIBILITA_STATES[number], number> = {
+      disponibile: 0,
+      riassortimento: 0,
+      esaurito: 0
+    };
+    let worstStatus: typeof DISPONIBILITA_STATES[number] = 'disponibile';
+    let nextReminder: Date | null = null;
+
+    let hasAvailabilityData = false;
+
+    ordiniMateriali.forEach((ordine) => {
+      const statoOrdine = (ordine.stato || '').toLowerCase();
+      if (statoOrdine === 'annullato') {
+        return;
+      }
+
+      const stato = (ordine.stato_disponibilita || 'disponibile') as typeof DISPONIBILITA_STATES[number];
+      counts[stato] = (counts[stato] ?? 0) + 1;
+      hasAvailabilityData = true;
+
+      if (DISPONIBILITA_PRIORITY[stato] > DISPONIBILITA_PRIORITY[worstStatus]) {
+        worstStatus = stato;
+      }
+
+      const promemoria = parseDateSafe(ordine.promemoria_disponibilita);
+      if (promemoria && (!nextReminder || promemoria < nextReminder)) {
+        nextReminder = promemoria;
+      }
+    });
+
+    if (!hasAvailabilityData) {
+      return { counts, worstStatus: 'disponibile', nextReminder: null };
+    }
+
+    return { counts, worstStatus, nextReminder };
+  }, [ordiniMateriali]);
+
+  const promemoriaDisponibilitaScaduto = disponibilitaStats.nextReminder
+    ? disponibilitaStats.nextReminder.getTime() <= Date.now()
+    : false;
+  const disponibilitaReminderLabel = disponibilitaStats.nextReminder
+    ? disponibilitaStats.nextReminder.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : null;
+  const disponibilitaTotali =
+    disponibilitaStats.counts.disponibile +
+    disponibilitaStats.counts.riassortimento +
+    disponibilitaStats.counts.esaurito;
+  const showDisponibilitaBadge = disponibilitaTotali > 0 && disponibilitaStats.worstStatus !== 'disponibile';
 
 
   // ✅ AGGIUNTO: Helper per controlli
@@ -313,6 +415,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         ...ordine,
         stato: ordine.stato || 'da_ordinare',
         da_ordinare: ordine.da_ordinare ?? true,
+        stato_disponibilita: ordine.stato_disponibilita || 'disponibile',
+        promemoria_disponibilita: ordine.promemoria_disponibilita || null,
         tipi_lenti: ordine.tipi_lenti && typeof ordine.tipi_lenti === 'object' && 'nome' in ordine.tipi_lenti
           ? {
               ...ordine.tipi_lenti,
@@ -1252,6 +1356,92 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     }
   };
 
+  const handleAggiornaDisponibilita = async (
+    ordineId: string,
+    nuovoStato: 'disponibile' | 'riassortimento' | 'esaurito'
+  ) => {
+    try {
+      const corrente = ordiniMateriali.find(o => o.id === ordineId);
+      if (!corrente) {
+        alert('Ordine non trovato. Aggiornare la pagina e riprovare.');
+        return;
+      }
+
+      let promemoria: string | null = corrente.promemoria_disponibilita || null;
+      if (nuovoStato === 'disponibile') {
+        promemoria = null;
+      } else {
+        const reminder = new Date();
+        reminder.setHours(9, 0, 0, 0);
+        reminder.setDate(reminder.getDate() + (nuovoStato === 'riassortimento' ? 3 : 1));
+        promemoria = reminder.toISOString();
+      }
+
+      const response = await fetch(`/api/ordini/${ordineId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stato_disponibilita: nuovoStato,
+          promemoria_disponibilita: promemoria
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Impossibile aggiornare la disponibilità');
+      }
+
+      setOrdiniMateriali(prev =>
+        prev.map(ordine =>
+          ordine.id === ordineId
+            ? {
+                ...ordine,
+                stato_disponibilita: nuovoStato,
+                promemoria_disponibilita: promemoria
+              }
+            : ordine
+        )
+      );
+
+      await mutate('/api/buste');
+    } catch (error: any) {
+      console.error('❌ Errore aggiornamento disponibilità:', error);
+      alert(`Errore aggiornamento disponibilità: ${error.message}`);
+    }
+  };
+
+  const handleAggiornaPromemoriaDisponibilita = async (ordineId: string, value: string) => {
+    try {
+      const isoValue = toIsoDate(value);
+
+      const response = await fetch(`/api/ordini/${ordineId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          promemoria_disponibilita: isoValue
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Impossibile aggiornare il promemoria');
+      }
+
+      setOrdiniMateriali(prev =>
+        prev.map(ordine =>
+          ordine.id === ordineId
+            ? { ...ordine, promemoria_disponibilita: isoValue }
+            : ordine
+        )
+      );
+
+      await mutate('/api/buste');
+    } catch (error: any) {
+      console.error('❌ Errore aggiornamento promemoria:', error);
+      alert(`Errore aggiornamento promemoria: ${error.message}`);
+    }
+  };
+
   // ===== HANDLE DELETE ORDINE - VERSIONE ESISTENTE =====
   const handleDeleteOrdine = async (ordineId: string) => {
     if (!confirm('Sei sicuro di voler eliminare questo ordine?')) {
@@ -1780,7 +1970,22 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 {ordiniMateriali.length}
               </span>
             )}
+            {showDisponibilitaBadge && (
+              <span
+                className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full border ${DISPONIBILITA_BADGE[disponibilitaStats.worstStatus].className}`}
+              >
+                {DISPONIBILITA_BADGE[disponibilitaStats.worstStatus].label}
+              </span>
+            )}
           </h3>
+          {showDisponibilitaBadge && disponibilitaReminderLabel && (
+            <div className="mt-2 flex items-center text-xs">
+              <Clock className={`w-3 h-3 mr-1 ${promemoriaDisponibilitaScaduto ? 'text-red-500' : 'text-gray-400'}`} />
+              <span className={promemoriaDisponibilitaScaduto ? 'text-red-600 font-semibold' : 'text-gray-500'}>
+                Prossimo controllo disponibilità: {disponibilitaReminderLabel}
+              </span>
+            </div>
+          )}
         </div>
 
         {isLoadingOrdini ? (
@@ -1825,6 +2030,19 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                   : 0;
 
               const daOrdinare = ordine.da_ordinare ?? true;
+              const statoDisponibilita = (ordine.stato_disponibilita || 'disponibile') as typeof DISPONIBILITA_STATES[number];
+              const disponibilitaBadge = DISPONIBILITA_BADGE[statoDisponibilita];
+              const promemoriaDisponibilitaDate = parseDateSafe(ordine.promemoria_disponibilita);
+              let promemoriaFormattato: string | null = null;
+              let promemoriaScaduto = false;
+              if (promemoriaDisponibilitaDate) {
+                promemoriaFormattato = promemoriaDisponibilitaDate.toLocaleDateString('it-IT', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric'
+                });
+                promemoriaScaduto = promemoriaDisponibilitaDate.getTime() <= Date.now();
+              }
 
               let nomeFornitore = 'Non specificato';
               if (ordine.fornitori_lenti?.nome) nomeFornitore = ordine.fornitori_lenti.nome;
@@ -1864,6 +2082,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                         <h4 className={titoloOrdineClass}>
                           {ordine.descrizione_prodotto}
                         </h4>
+                        <span
+                          className={`px-2 py-1 text-xs font-semibold rounded-full border ${disponibilitaBadge.className}`}
+                          title="Stato disponibilità presso il fornitore"
+                        >
+                          {disponibilitaBadge.label}
+                        </span>
                         
                         {/* ✅ MODIFICA: Toggle da_ordinare - NASCOSTO PER OPERATORI */}
                         {canEdit && !isAnnullato && (
@@ -1998,6 +2222,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             </span>
                           </div>
                         )}
+                        {promemoriaFormattato && (
+                          <div className="flex items-center space-x-2">
+                            <Clock className={`w-4 h-4 ${promemoriaScaduto ? 'text-red-500' : 'text-gray-400'}`} />
+                            <span className={`text-xs ${promemoriaScaduto ? 'text-red-600 font-semibold' : 'text-gray-600'}`}>
+                              Promemoria disponibilità: {promemoriaFormattato}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {ordine.note && (
@@ -2020,6 +2252,41 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                     {/* ✅ MODIFICA: AZIONI - NASCOSTE PER OPERATORI */}
                     {canEdit && (
                       <div className="flex flex-col items-end space-y-2 ml-4">
+                        <select
+                          value={statoDisponibilita}
+                          onChange={(e) => handleAggiornaDisponibilita(ordine.id, e.target.value as typeof DISPONIBILITA_STATES[number])}
+                          className="px-2 py-1 text-xs rounded border border-gray-300 focus:border-blue-500"
+                          disabled={isAnnullato}
+                          title="Disponibilità presso il fornitore"
+                        >
+                          {DISPONIBILITA_STATES.map(opzione => (
+                            <option key={opzione} value={opzione}>
+                              {DISPONIBILITA_BADGE[opzione].label}
+                            </option>
+                          ))}
+                        </select>
+
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="date"
+                            className="px-2 py-1 text-xs rounded border border-gray-300 focus:border-blue-500"
+                            value={formatDateForInput(ordine.promemoria_disponibilita)}
+                            onChange={(e) => handleAggiornaPromemoriaDisponibilita(ordine.id, e.target.value)}
+                            disabled={isAnnullato || statoDisponibilita === 'disponibile'}
+                            title="Promemoria per ricontrollare la disponibilità"
+                          />
+                          {ordine.promemoria_disponibilita && (
+                            <button
+                              type="button"
+                              onClick={() => handleAggiornaPromemoriaDisponibilita(ordine.id, '')}
+                              className="text-xs text-gray-400 hover:text-gray-600"
+                              title="Rimuovi promemoria"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+
                         <select
                           value={statoOrdine}
                           onChange={(e) => handleAggiornaStatoOrdine(ordine.id, e.target.value)}
@@ -2067,7 +2334,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       {ordiniMateriali.length > 0 && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Riepilogo</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600">
                 {ordiniMateriali.length}
@@ -2092,6 +2359,32 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               </div>
               <div className="text-sm text-gray-500">In Ritardo</div>
             </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-emerald-600">
+                {disponibilitaStats.counts.disponibile}
+              </div>
+              <div className="text-sm text-gray-500">Disponibili</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-amber-600">
+                {disponibilitaStats.counts.riassortimento}
+              </div>
+              <div className="text-sm text-gray-500">In Riassortimento</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-rose-600">
+                {disponibilitaStats.counts.esaurito}
+              </div>
+              <div className="text-sm text-gray-500">Esauriti</div>
+            </div>
+            {disponibilitaReminderLabel && (
+              <div className="text-center">
+                <div className={`text-base font-semibold ${promemoriaDisponibilitaScaduto ? 'text-red-600' : 'text-gray-700'}`}>
+                  {disponibilitaReminderLabel}
+                </div>
+                <div className="text-sm text-gray-500">Prossimo controllo</div>
+              </div>
+            )}
           </div>
         </div>
       )}
