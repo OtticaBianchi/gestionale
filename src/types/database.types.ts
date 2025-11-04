@@ -131,6 +131,59 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          id: string
+          table_name: string
+          record_id: string
+          action: string
+          user_id: string | null
+          user_role: string | null
+          changed_fields: Json | null
+          reason: string | null
+          metadata: Json | null
+          created_at: string
+          ip_address: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          id?: string
+          table_name: string
+          record_id: string
+          action: string
+          user_id?: string | null
+          user_role?: string | null
+          changed_fields?: Json | null
+          reason?: string | null
+          metadata?: Json | null
+          created_at?: string
+          ip_address?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          id?: string
+          table_name?: string
+          record_id?: string
+          action?: string
+          user_id?: string | null
+          user_role?: string | null
+          changed_fields?: Json | null
+          reason?: string | null
+          metadata?: Json | null
+          created_at?: string
+          ip_address?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clienti: {
         Row: {
           cognome: string

@@ -73,7 +73,6 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
     // ✅ Dati cliente - INCLUSO NUOVO CAMPO GENERE
     cliente_nome: busta.clienti?.nome || '',
     cliente_cognome: busta.clienti?.cognome || '',
-    cliente_data_nascita: busta.clienti?.data_nascita || '',
     cliente_genere: busta.clienti?.genere || null as GenereCliente,  // ✅ NUOVO CAMPO
     cliente_telefono: busta.clienti?.telefono || '',
     cliente_email: busta.clienti?.email || '',
@@ -124,7 +123,6 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
       .update({
         nome: editForm.cliente_nome.trim(),
         cognome: editForm.cliente_cognome.trim(),
-        data_nascita: editForm.cliente_data_nascita || null,
         genere: editForm.cliente_genere,
         telefono: editForm.cliente_telefono.trim() || null,
         email: editForm.cliente_email.trim() || null,
@@ -169,7 +167,6 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
         ...busta.clienti,
         nome: editForm.cliente_nome.trim(),
         cognome: editForm.cliente_cognome.trim(),
-        data_nascita: editForm.cliente_data_nascita || null,
         genere: editForm.cliente_genere,
         telefono: editForm.cliente_telefono.trim() || null,
         email: editForm.cliente_email.trim() || null,
@@ -228,7 +225,6 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
       is_suspended: busta.is_suspended,
       cliente_nome: busta.clienti?.nome || '',
       cliente_cognome: busta.clienti?.cognome || '',
-      cliente_data_nascita: busta.clienti?.data_nascita || '',
       cliente_genere: busta.clienti?.genere || null,  // ✅ NUOVO CAMPO
       cliente_telefono: busta.clienti?.telefono || '',
       cliente_email: busta.clienti?.email || '',
@@ -329,26 +325,6 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
               )}
             </div>
             
-            <div>
-              <label htmlFor="edit-cliente-data-nascita" className="block text-sm font-medium text-gray-500">Data di Nascita</label>
-              {canEdit && isEditing ? (
-                <input
-                  id="edit-cliente-data-nascita"
-                  type="date"
-                  value={editForm.cliente_data_nascita}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, cliente_data_nascita: e.target.value }))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                />
-              ) : (
-                <p className="text-gray-900">
-                  {busta.clienti.data_nascita ? 
-                    new Date(busta.clienti.data_nascita).toLocaleDateString('it-IT') : 
-                    'Non specificata'
-                  }
-                </p>
-              )}
-            </div>
-
             {/* ✅ NUOVO CAMPO GENERE */}
             <div>
               <label htmlFor="edit-cliente-genere" className="block text-sm font-medium text-gray-500">Genere</label>

@@ -370,9 +370,9 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     return groups;
   }, [currentBuste, lastSync]);
 
-  const orderedNuoveBuste = useMemo(() => {
-    const list = groupedBuste['nuove'] ? [...groupedBuste['nuove']] : [];
-    return list.sort((a, b) => {
+  // Helper function to sort buste by cognome
+  const sortBusteByCognome = useCallback((busteList: BustaWithCliente[]) => {
+    return [...busteList].sort((a, b) => {
       const lastA = (a.clienti?.cognome || '').trim();
       const lastB = (b.clienti?.cognome || '').trim();
 
@@ -397,7 +397,32 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
       const readableB = (b.readable_id || b.id || '').toString();
       return readableA.localeCompare(readableB, 'it', { sensitivity: 'base', numeric: true });
     });
-  }, [groupedBuste]);
+  }, []);
+
+  const orderedNuoveBuste = useMemo(() => {
+    const list = groupedBuste['nuove'] ? [...groupedBuste['nuove']] : [];
+    return sortBusteByCognome(list);
+  }, [groupedBuste, sortBusteByCognome]);
+
+  const orderedMatOrdinatiBuste = useMemo(() => {
+    const list = groupedBuste['materiali_ordinati'] ? [...groupedBuste['materiali_ordinati']] : [];
+    return sortBusteByCognome(list);
+  }, [groupedBuste, sortBusteByCognome]);
+
+  const orderedMatArrivatiBuste = useMemo(() => {
+    const list = groupedBuste['materiali_arrivati'] ? [...groupedBuste['materiali_arrivati']] : [];
+    return sortBusteByCognome(list);
+  }, [groupedBuste, sortBusteByCognome]);
+
+  const orderedLavorazioneBuste = useMemo(() => {
+    const list = groupedBuste['in_lavorazione'] ? [...groupedBuste['in_lavorazione']] : [];
+    return sortBusteByCognome(list);
+  }, [groupedBuste, sortBusteByCognome]);
+
+  const orderedProntoRitiroBuste = useMemo(() => {
+    const list = groupedBuste['pronto_ritiro'] ? [...groupedBuste['pronto_ritiro']] : [];
+    return sortBusteByCognome(list);
+  }, [groupedBuste, sortBusteByCognome]);
 
   const handleStatusHeaderClick = useCallback((status: WorkflowState) => {
     setOpenStatusList(prev => (prev === status ? null : status));
@@ -697,18 +722,22 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
         onDragEnd={handleDragEnd}
       >
         <div className="flex gap-4 min-w-max h-full pb-6">
-          {columns.map(status => (
-            <DroppableColumn
-              key={status}
-              status={status}
-              buste={groupedBuste[status] || []}
-              isOver={overId === `column-${status}`}
-              isDragEnabled={!isLoading && isOnline && profile?.role !== 'operatore'}
-              isLoading={isLoading}
-              onHeaderClick={status === 'nuove' ? () => handleStatusHeaderClick(status) : undefined}
-              isHeaderActive={openStatusList === status}
-            />
-          ))}
+          {columns.map(status => {
+            // Only enable drawer for states except consegnato_pagato
+            const enableDrawer = status !== 'consegnato_pagato';
+            return (
+              <DroppableColumn
+                key={status}
+                status={status}
+                buste={groupedBuste[status] || []}
+                isOver={overId === `column-${status}`}
+                isDragEnabled={!isLoading && isOnline && profile?.role !== 'operatore'}
+                isLoading={isLoading}
+                onHeaderClick={enableDrawer ? () => handleStatusHeaderClick(status) : undefined}
+                isHeaderActive={openStatusList === status}
+              />
+            );
+          })}
         </div>
 
         <DragOverlay>
@@ -719,10 +748,17 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
           ) : null}
         </DragOverlay>
       </DndContext>
-      {openStatusList === 'nuove' && (
+      {openStatusList && (
         <StatusDrawer
-          status="nuove"
-          buste={orderedNuoveBuste}
+          status={openStatusList}
+          buste={
+            openStatusList === 'nuove' ? orderedNuoveBuste :
+            openStatusList === 'materiali_ordinati' ? orderedMatOrdinatiBuste :
+            openStatusList === 'materiali_arrivati' ? orderedMatArrivatiBuste :
+            openStatusList === 'in_lavorazione' ? orderedLavorazioneBuste :
+            openStatusList === 'pronto_ritiro' ? orderedProntoRitiroBuste :
+            []
+          }
           onClose={handleCloseStatusList}
         />
       )}

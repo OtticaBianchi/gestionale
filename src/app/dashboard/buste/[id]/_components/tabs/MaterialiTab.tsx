@@ -24,7 +24,8 @@ import {
   Loader2,
   Check,
   Euro,
-  Save
+  Save,
+  Edit3
 } from 'lucide-react';
 import type { WorkflowState } from '@/app/dashboard/_components/WorkflowLogic';
 import { areAllOrdersCancelled } from '@/lib/buste/archiveRules';
@@ -164,6 +165,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     ha_acconto: false,
     currentAcconto: null as number | null
   });
+
+  // ✅ NUOVO: State per editing descrizione prodotto
+  const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
+  const [editingDescriptionValue, setEditingDescriptionValue] = useState('');
 
   const disponibilitaStats = useMemo<{
     counts: Record<typeof DISPONIBILITA_STATES[number], number>;
@@ -1450,7 +1455,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
     try {
       console.log('🗑️ Eliminazione ordine:', ordineId);
-      
+
       const { error } = await supabase
         .from('ordini_materiali')
         .delete()
@@ -1476,6 +1481,86 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     } catch (error: any) {
       console.error('❌ Error deleting ordine:', error);
       alert(`Errore eliminazione: ${error.message}`);
+    }
+  };
+
+  // ===== HANDLE EDIT DESCRIZIONE PRODOTTO =====
+  const handleStartEditingDescription = (ordineId: string, currentDescription: string) => {
+    setEditingDescriptionId(ordineId);
+    setEditingDescriptionValue(currentDescription);
+  };
+
+  const handleCancelEditingDescription = () => {
+    setEditingDescriptionId(null);
+    setEditingDescriptionValue('');
+  };
+
+  const handleSaveDescription = async (ordineId: string) => {
+    const trimmedValue = editingDescriptionValue.trim();
+
+    if (!trimmedValue) {
+      alert('La descrizione del prodotto non può essere vuota');
+      return;
+    }
+
+    try {
+      // Find the order to get old value
+      const ordine = ordiniMateriali.find(o => o.id === ordineId);
+      if (!ordine) {
+        throw new Error('Ordine non trovato');
+      }
+
+      const oldValue = ordine.descrizione_prodotto;
+
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('Utente non autenticato');
+      }
+
+      const { error } = await supabase
+        .from('ordini_materiali')
+        .update({
+          descrizione_prodotto: trimmedValue,
+          updated_by: user.id, // ✅ Track WHO updated
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', ordineId);
+
+      if (error) {
+        console.error('❌ Errore aggiornamento descrizione:', error);
+        throw error;
+      }
+
+      // ✅ AUDIT LOG: Log the change
+      console.info('ORDER_DESCRIPTION_UPDATE', {
+        orderId: ordineId,
+        bustaId: busta.id,
+        userId: user.id,
+        oldValue,
+        newValue: trimmedValue,
+        changedFields: ['descrizione_prodotto'],
+        timestamp: new Date().toISOString()
+      });
+
+      // Aggiorna la lista locale
+      const ordiniAggiornati = ordiniMateriali.map(o =>
+        o.id === ordineId
+          ? { ...o, descrizione_prodotto: trimmedValue, updated_by: user.id }
+          : o
+      );
+      setOrdiniMateriali(ordiniAggiornati);
+
+      // Reset edit state
+      setEditingDescriptionId(null);
+      setEditingDescriptionValue('');
+
+      // ✅ SWR: Invalidate cache
+      await mutate('/api/buste');
+
+    } catch (error: any) {
+      console.error('❌ Error updating description:', error);
+      alert(`Errore aggiornamento: ${error.message}`);
     }
   };
 
@@ -2079,9 +2164,54 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-2">
-                        <h4 className={titoloOrdineClass}>
-                          {ordine.descrizione_prodotto}
-                        </h4>
+                        {/* ✅ EDITABLE DESCRIPTION */}
+                        {editingDescriptionId === ordine.id ? (
+                          <div className="flex items-center space-x-2 flex-1">
+                            <input
+                              type="text"
+                              value={editingDescriptionValue}
+                              onChange={(e) => setEditingDescriptionValue(e.target.value)}
+                              className="flex-1 px-3 py-1 text-sm font-semibold border border-blue-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSaveDescription(ordine.id);
+                                } else if (e.key === 'Escape') {
+                                  handleCancelEditingDescription();
+                                }
+                              }}
+                            />
+                            <button
+                              onClick={() => handleSaveDescription(ordine.id)}
+                              className="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded"
+                              title="Salva"
+                            >
+                              <Save className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={handleCancelEditingDescription}
+                              className="p-1 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded"
+                              title="Annulla"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            <h4 className={titoloOrdineClass}>
+                              {ordine.descrizione_prodotto}
+                            </h4>
+                            {canEdit && !isAnnullato && (
+                              <button
+                                onClick={() => handleStartEditingDescription(ordine.id, ordine.descrizione_prodotto)}
+                                className="p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded border border-blue-300 hover:border-blue-400"
+                                title="Modifica descrizione"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        )}
                         <span
                           className={`px-2 py-1 text-xs font-semibold rounded-full border ${disponibilitaBadge.className}`}
                           title="Stato disponibilità presso il fornitore"
