@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, Filter, User, Package, Truck, ArrowLeft, Eye, ExternalLink, Archive, Clock, FileText } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Filter, User, Package, Truck, ArrowLeft, Eye, ExternalLink, Archive, Clock, FileText, ChevronDown, ChevronUp, Calendar, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
 interface SearchResult {
@@ -65,6 +65,13 @@ interface SearchResult {
   metadata?: string;
 }
 
+interface Supplier {
+  id: string;
+  nome: string;
+  category: string;
+  categoryLabel: string;
+}
+
 export default function RicercaAvanzataPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<'all' | 'cliente' | 'prodotto' | 'fornitore' | 'note'>('all');
@@ -73,19 +80,83 @@ export default function RicercaAvanzataPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [totalResults, setTotalResults] = useState(0);
 
+  // ===== NEW FILTERS =====
+  const [showFilters, setShowFilters] = useState(false);
+  const [bustaId, setBustaId] = useState('');
+  const [priorita, setPriorita] = useState<'all' | 'normale' | 'urgente' | 'critica'>('all');
+  const [tipoLavorazione, setTipoLavorazione] = useState<string>('all');
+  const [fornitore, setFornitore] = useState<string>('all');
+  const [categoria, setCategoria] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<'all' | '7' | '30' | '90' | '180' | '365' | 'custom'>('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+
+  // ===== SUPPLIER DROPDOWN DATA =====
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+
+  // Load suppliers on mount
+  useEffect(() => {
+    const loadSuppliers = async () => {
+      setLoadingSuppliers(true);
+      try {
+        const response = await fetch('/api/search/suppliers');
+        if (response.ok) {
+          const data = await response.json();
+          setSuppliers(data.suppliers || []);
+        }
+      } catch (error) {
+        console.error('Error loading suppliers:', error);
+      } finally {
+        setLoadingSuppliers(false);
+      }
+    };
+    loadSuppliers();
+  }, []);
+
   const searchAdvanced = async () => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+    // Allow search with just filters (no text required)
+    const hasFilters = bustaId || priorita !== 'all' || tipoLavorazione !== 'all' || fornitore !== 'all' || categoria !== 'all' || dateRange !== 'all';
+
+    if (!searchQuery.trim() && !hasFilters) {
+      setResults([]);
+      return;
+    }
+
+    if (searchQuery.trim() && searchQuery.trim().length < 2) {
       setResults([]);
       return;
     }
 
     try {
       setIsLoading(true);
-      const params = new URLSearchParams({
-        q: searchQuery.trim(),
-        type: searchType,
-        includeArchived: includeArchived.toString()
-      });
+      const params = new URLSearchParams();
+
+      if (searchQuery.trim()) {
+        params.append('q', searchQuery.trim());
+      }
+      params.append('type', searchType);
+      params.append('includeArchived', includeArchived.toString());
+
+      // Add new filters
+      if (bustaId) params.append('bustaId', bustaId);
+      if (priorita !== 'all') params.append('priorita', priorita);
+      if (tipoLavorazione !== 'all') params.append('tipoLavorazione', tipoLavorazione);
+      if (fornitore !== 'all') params.append('fornitore', fornitore);
+      if (categoria !== 'all') params.append('categoria', categoria);
+
+      // Calculate date range
+      if (dateRange !== 'all' && dateRange !== 'custom') {
+        const days = parseInt(dateRange);
+        const to = new Date();
+        const from = new Date();
+        from.setDate(from.getDate() - days);
+        params.append('dateFrom', from.toISOString().split('T')[0]);
+        params.append('dateTo', to.toISOString().split('T')[0]);
+      } else if (dateRange === 'custom' && dateFrom && dateTo) {
+        params.append('dateFrom', dateFrom);
+        params.append('dateTo', dateTo);
+      }
 
       // Use notes endpoint if searching notes specifically
       const endpoint = searchType === 'note'
@@ -223,7 +294,7 @@ export default function RicercaAvanzataPage() {
             </div>
             <button
               onClick={searchAdvanced}
-              disabled={isLoading || searchQuery.trim().length < 2}
+              disabled={isLoading}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isLoading ? (
@@ -235,24 +306,8 @@ export default function RicercaAvanzataPage() {
             </button>
           </div>
 
-          {/* Search Filters */}
-          <div className="flex flex-wrap gap-4">
-            <div className="flex items-center space-x-2">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Tipo:</span>
-              <select
-                value={searchType}
-                onChange={(e) => setSearchType(e.target.value as any)}
-                className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">Tutto</option>
-                <option value="cliente">Solo Clienti</option>
-                <option value="prodotto">Solo Prodotti</option>
-                <option value="fornitore">Solo Fornitori</option>
-                <option value="note">Solo Note</option>
-              </select>
-            </div>
-
+          {/* Quick Filters */}
+          <div className="flex flex-wrap gap-4 items-center">
             <div className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -266,6 +321,228 @@ export default function RicercaAvanzataPage() {
                 Includi archiviate
               </label>
             </div>
+          </div>
+
+          {/* ===== EXPANDABLE ADVANCED FILTERS ===== */}
+          <div className="mt-4 border-t border-gray-200 pt-4">
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              {showFilters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {showFilters ? 'Nascondi Filtri Avanzati' : 'Mostra Filtri Avanzati'}
+            </button>
+
+            {showFilters && (
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Search Type Filter (moved from top) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Filter className="w-4 h-4 inline mr-1" />
+                    Tipo di Ricerca
+                  </label>
+                  <select
+                    value={searchType}
+                    onChange={(e) => setSearchType(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Tutto</option>
+                    <option value="cliente">Solo Clienti</option>
+                    <option value="prodotto">Solo Prodotti</option>
+                    <option value="fornitore">Solo Fornitori</option>
+                    <option value="note">Solo Note</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Controlla il TIPO di risultati mostrati (clienti, prodotti, fornitori o note)
+                  </p>
+                </div>
+
+                {/* Busta ID Filter - FIXED FORMAT */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ID Busta
+                  </label>
+                  <input
+                    type="text"
+                    value={bustaId}
+                    onChange={(e) => setBustaId(e.target.value)}
+                    placeholder="es. 2025-0001"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Formato: YYYY-NNNN (es. 2025-0123)</p>
+                </div>
+
+                {/* Priority Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <AlertCircle className="w-4 h-4 inline mr-1" />
+                    Priorità
+                  </label>
+                  <select
+                    value={priorita}
+                    onChange={(e) => setPriorita(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Tutte</option>
+                    <option value="normale">Normale</option>
+                    <option value="urgente">Urgente</option>
+                    <option value="critica">Critica</option>
+                  </select>
+                </div>
+
+                {/* Tipo Lavorazione Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Tipo Lavorazione
+                  </label>
+                  <select
+                    value={tipoLavorazione}
+                    onChange={(e) => setTipoLavorazione(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Tutti</option>
+                    <option value="OCV">OCV - Occhiale da Vista Completo</option>
+                    <option value="OV">OV - Solo Montatura Vista</option>
+                    <option value="OS">OS - Occhiale da Sole</option>
+                    <option value="LV">LV - Solo Lenti Vista</option>
+                    <option value="LS">LS - Solo Lenti Sole</option>
+                    <option value="LAC">LAC - Lenti a Contatto</option>
+                    <option value="ACC">ACC - Accessori</option>
+                    <option value="RIC">RIC - Ricambi</option>
+                    <option value="RIP">RIP - Riparazione</option>
+                    <option value="SA">SA - Sostituzione con Assicurazione</option>
+                    <option value="SG">SG - Sostituzione in Garanzia</option>
+                    <option value="CT">CT - Controllo Vista</option>
+                    <option value="ES">ES - Esame della Vista</option>
+                    <option value="REL">REL - Regolazione/Equilibratura Lenti</option>
+                    <option value="FT">FT - Foratura Lenti</option>
+                    <option value="SPRT">SPRT - Sport</option>
+                    <option value="VFT">VFT - Visita Fitting LAC</option>
+                  </select>
+                </div>
+
+                {/* Product Category Filter - ALL categories */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Package className="w-4 h-4 inline mr-1" />
+                    Categoria Materiale
+                  </label>
+                  <select
+                    value={categoria}
+                    onChange={(e) => setCategoria(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Tutte</option>
+                    <option value="LENTI">Lenti</option>
+                    <option value="LAC">Lenti a Contatto (LAC)</option>
+                    <option value="MONTATURE">Montature</option>
+                    <option value="LABORATORIO">Laboratorio Esterno</option>
+                    <option value="SPORT">Sport</option>
+                    <option value="ACCESSORI">Accessori</option>
+                    <option value="RICAMBI">Ricambi</option>
+                    <option value="ASSISTENZA">Assistenza/Riparazioni</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Filtra buste con ordini di questa categoria</p>
+                </div>
+
+                {/* Supplier Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Truck className="w-4 h-4 inline mr-1" />
+                    Fornitore
+                  </label>
+                  <select
+                    value={fornitore}
+                    onChange={(e) => setFornitore(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={loadingSuppliers}
+                  >
+                    <option value="all">Tutti i fornitori</option>
+                    {suppliers.length > 0 && (
+                      <>
+                        <optgroup label="Lenti">
+                          {suppliers.filter(s => s.category === 'lenti').map(s => (
+                            <option key={s.id} value={s.id}>{s.nome}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="LAC">
+                          {suppliers.filter(s => s.category === 'lac').map(s => (
+                            <option key={s.id} value={s.id}>{s.nome}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Montature">
+                          {suppliers.filter(s => s.category === 'montature').map(s => (
+                            <option key={s.id} value={s.id}>{s.nome}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Laboratorio">
+                          {suppliers.filter(s => s.category === 'lab_esterno').map(s => (
+                            <option key={s.id} value={s.id}>{s.nome}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Sport">
+                          {suppliers.filter(s => s.category === 'sport').map(s => (
+                            <option key={s.id} value={s.id}>{s.nome}</option>
+                          ))}
+                        </optgroup>
+                      </>
+                    )}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {loadingSuppliers ? 'Caricamento fornitori...' : 'Filtra buste con ordini da questo fornitore'}
+                  </p>
+                </div>
+
+                {/* Date Range Filter */}
+                <div className="md:col-span-2 lg:col-span-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Calendar className="w-4 h-4 inline mr-1" />
+                    Periodo
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      value={dateRange}
+                      onChange={(e) => {
+                        setDateRange(e.target.value as any);
+                        if (e.target.value !== 'custom') {
+                          setDateFrom('');
+                          setDateTo('');
+                        }
+                      }}
+                      className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="all">Tutto il periodo</option>
+                      <option value="7">Ultimi 7 giorni</option>
+                      <option value="30">Ultimi 30 giorni (1 mese)</option>
+                      <option value="90">Ultimi 90 giorni (3 mesi)</option>
+                      <option value="180">Ultimi 180 giorni (6 mesi)</option>
+                      <option value="365">Ultimi 365 giorni (1 anno)</option>
+                      <option value="custom">Personalizzato</option>
+                    </select>
+
+                    {dateRange === 'custom' && (
+                      <>
+                        <input
+                          type="date"
+                          value={dateFrom}
+                          onChange={(e) => setDateFrom(e.target.value)}
+                          className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Da"
+                        />
+                        <span className="flex items-center text-gray-500">→</span>
+                        <input
+                          type="date"
+                          value={dateTo}
+                          onChange={(e) => setDateTo(e.target.value)}
+                          className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="A"
+                        />
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

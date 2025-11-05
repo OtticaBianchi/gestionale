@@ -260,15 +260,170 @@ export async function GET(request: NextRequest) {
     const type = (searchParams.get('type') || 'all') as SearchType
     const includeArchived = searchParams.get('includeArchived') === 'true'
 
-    if (!query || query.trim().length < 2) {
+    // ===== NEW FILTERS =====
+    const bustaId = searchParams.get('bustaId')
+    const priorita = searchParams.get('priorita')
+    const tipoLavorazione = searchParams.get('tipoLavorazione')
+    const fornitore = searchParams.get('fornitore')
+    const categoria = searchParams.get('categoria')
+    const dateFrom = searchParams.get('dateFrom')
+    const dateTo = searchParams.get('dateTo')
+
+    // Check if we have filters (allow search with just filters, no text query)
+    const hasFilters = bustaId || priorita || tipoLavorazione || fornitore || categoria || dateFrom || dateTo
+    const hasTextQuery = query && query.trim().length >= 2
+
+    if (!hasTextQuery && !hasFilters) {
       return NextResponse.json({ results: [] })
     }
 
-    const searchTerm = query.trim()
-    console.log('🔍 Advanced search:', { searchTerm, type, includeArchived })
+    const searchTerm = query?.trim() || ''
+    console.log('🔍 Advanced search:', { searchTerm, type, includeArchived, bustaId, priorita, tipoLavorazione, fornitore, categoria, dateFrom, dateTo })
 
     const now = new Date()
 
+    // ===== BUSTA ID SEARCH (Direct lookup) =====
+    if (bustaId) {
+      const { data: buste } = await supabase
+        .from('buste')
+        .select(`
+          id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at,
+          clienti (id, nome, cognome, telefono)
+        `)
+        .ilike('readable_id', `%${bustaId}%`)
+        .limit(20)
+
+      const bustaResults = (buste || []).map((busta: any) => ({
+        type: 'cliente' as const,
+        cliente: busta.clienti,
+        buste: [{
+          id: busta.id,
+          readable_id: busta.readable_id,
+          stato_attuale: busta.stato_attuale,
+          data_apertura: busta.data_apertura,
+          isArchived: shouldArchiveBusta(busta, { now })
+        }],
+        matchField: 'busta ID'
+      }))
+
+      return NextResponse.json({ results: bustaResults, total: bustaResults.length })
+    }
+
+    // ===== FILTER-BASED SEARCH (for categoria/fornitore, we need to query ordini_materiali) =====
+    if (priorita || tipoLavorazione || categoria || fornitore || (dateFrom && dateTo)) {
+      // If searching by categoria or fornitore, query ordini_materiali first
+      if (categoria || fornitore) {
+        const categoriaFieldMap: Record<string, string> = {
+          'LENTI': 'fornitore_lenti_id',
+          'LAC': 'fornitore_lac_id',
+          'MONTATURE': 'fornitore_montature_id',
+          'LABORATORIO': 'fornitore_lab_esterno_id',
+          'SPORT': 'fornitore_sport_id',
+          'ACCESSORI': 'fornitore_lac_id', // Accessori uses LAC supplier table
+          // ASSISTENZA and RICAMBI are filtered via categoria_fornitore field
+        }
+
+        let ordiniQuery = supabase
+          .from('ordini_materiali')
+          .select(`
+            busta_id,
+            categoria_fornitore,
+            buste!inner (
+              id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at,
+              clienti (id, nome, cognome, telefono)
+            )
+          `)
+
+        // Apply categoria filter
+        if (categoria) {
+          if (categoria === 'ASSISTENZA' || categoria === 'RICAMBI') {
+            // For ASSISTENZA and RICAMBI, use categoria_fornitore field
+            ordiniQuery = ordiniQuery.ilike('categoria_fornitore', `%${categoria.toLowerCase()}%`)
+          } else if (categoriaFieldMap[categoria]) {
+            // For standard categories, use fornitore foreign key
+            ordiniQuery = ordiniQuery.not(categoriaFieldMap[categoria], 'is', null)
+          }
+        }
+
+        // Apply fornitore filter (search across all fornitore fields)
+        if (fornitore && fornitore !== 'all') {
+          ordiniQuery = ordiniQuery.or(
+            `fornitore_lenti_id.eq.${fornitore},fornitore_lac_id.eq.${fornitore},fornitore_montature_id.eq.${fornitore},fornitore_lab_esterno_id.eq.${fornitore},fornitore_sport_id.eq.${fornitore}`
+          )
+        }
+
+        // Apply other busta-level filters through the join
+        if (priorita) ordiniQuery = ordiniQuery.eq('buste.priorita', priorita as any)
+        if (tipoLavorazione) ordiniQuery = ordiniQuery.eq('buste.tipo_lavorazione', tipoLavorazione as any)
+        if (dateFrom && dateTo) {
+          ordiniQuery = ordiniQuery.gte('buste.data_apertura', dateFrom).lte('buste.data_apertura', dateTo)
+        }
+        if (!includeArchived) {
+          ordiniQuery = ordiniQuery.neq('buste.stato_attuale', 'consegnato_pagato')
+        }
+
+        const { data: ordini } = await ordiniQuery.limit(50)
+
+        const busteMap = new Map()
+        ordini?.forEach((ordine: any) => {
+          if (ordine.buste && !busteMap.has(ordine.buste.id)) {
+            busteMap.set(ordine.buste.id, ordine.buste)
+          }
+        })
+
+        const filteredResults = Array.from(busteMap.values()).map((busta: any) => ({
+          type: 'cliente' as const,
+          cliente: busta.clienti,
+          buste: [{
+            id: busta.id,
+            readable_id: busta.readable_id,
+            stato_attuale: busta.stato_attuale,
+            data_apertura: busta.data_apertura,
+            isArchived: shouldArchiveBusta(busta, { now })
+          }],
+          matchField: [priorita && 'priorità', tipoLavorazione && 'tipo lavorazione', categoria && 'categoria', fornitore && 'fornitore', (dateFrom && dateTo) && 'periodo'].filter(Boolean).join(', ')
+        }))
+
+        return NextResponse.json({ results: filteredResults, total: filteredResults.length })
+      }
+
+      // Otherwise, query buste directly
+      let query = supabase
+        .from('buste')
+        .select(`
+          id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at, note_generali,
+          clienti (id, nome, cognome, telefono)
+        `)
+
+      if (priorita) query = query.eq('priorita', priorita as any)
+      if (tipoLavorazione) query = query.eq('tipo_lavorazione', tipoLavorazione as any)
+      if (dateFrom && dateTo) {
+        query = query.gte('data_apertura', dateFrom).lte('data_apertura', dateTo)
+      }
+
+      if (!includeArchived) {
+        query = query.neq('stato_attuale', 'consegnato_pagato')
+      }
+
+      const { data: buste } = await query.order('data_apertura', { ascending: false}).limit(50)
+
+      const filteredResults = (buste || []).map((busta: any) => ({
+        type: 'cliente' as const,
+        cliente: busta.clienti,
+        buste: [{
+          id: busta.id,
+          readable_id: busta.readable_id,
+          stato_attuale: busta.stato_attuale,
+          data_apertura: busta.data_apertura,
+          isArchived: shouldArchiveBusta(busta, { now })
+        }],
+        matchField: [priorita && 'priorità', tipoLavorazione && 'tipo lavorazione', (dateFrom && dateTo) && 'periodo'].filter(Boolean).join(', ')
+      }))
+
+      return NextResponse.json({ results: filteredResults, total: filteredResults.length })
+    }
+
+    // ===== ORIGINAL TEXT-BASED SEARCH =====
     const ctx: SearchContext = {
       supabase,
       searchTerm,
@@ -288,7 +443,7 @@ export async function GET(request: NextRequest) {
     }
 
     const results = (await Promise.all(tasks)).flat()
-    return NextResponse.json({ results })
+    return NextResponse.json({ results, total: results.length })
   } catch (error: any) {
     console.error('❌ Advanced search error:', error)
     return NextResponse.json({ error: 'Errore nella ricerca avanzata' }, { status: 500 })
