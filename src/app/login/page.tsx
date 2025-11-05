@@ -177,14 +177,21 @@ function LoginForm() {
 
         <div className="mt-6 pt-6 border-t border-gray-200">
           <div className="text-xs text-center text-gray-400 mb-2">
-            Versione 3.3.0
+            Versione 3.4.0
           </div>
           <details className="text-xs text-gray-500">
             <summary className="cursor-pointer text-center hover:text-gray-700 font-medium">
               Novità e aggiornamenti
             </summary>
             <div className="mt-3 space-y-2 text-left bg-gray-50 p-3 rounded">
-              <div className="font-semibold text-gray-700">v3.3.0 - Ottobre 2025</div>
+              <div className="font-semibold text-gray-700">v3.4.0 - Ottobre 2025</div>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>Import clienti da CSV con validazioni e report finale</li>
+                <li>Ricerca avanzata fase 1 con filtri combinati e ID busta</li>
+                <li>Modifica rapida della descrizione in MaterialiTab</li>
+                <li>Riepiloghi stati workflow e anagrafica senza data nascita</li>
+              </ul>
+              <div className="font-semibold text-gray-700 mt-3">v3.3.0 - Ottobre 2025</div>
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li>Tipo lavorazione VFT e migrazione dedicata</li>
                 <li>Spedizioni: tracking, note e date aggiornate</li>

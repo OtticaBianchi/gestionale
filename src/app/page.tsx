@@ -68,6 +68,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '3.4.0', date: '27/10/2025', description: 'Import clienti da CSV con validazioni, ricerca avanzata fase 1, riepiloghi workflow e modifica descrizione materiali.' },
     { version: '3.3.0', date: '25/10/2025', description: 'Availability badges, no-payment fix.' },
     { version: '3.2.1', date: '24/10/2025', description: 'VFT tra i tipi lavorazione, spedizioni con tracking e note, ricerca globale delle note, nuova categoria Ricambi e voce "Nessuna lavorazione".' },
     { version: '3.1.1', date: '15/10/2025', description: 'Nuova categoria Assistenza con workflow a due step: selezione tipo prodotto (Lenti/Montature/LAC/Sport/Accessori) e filtro intelligente fornitori. UX migliorata per riparazioni e servizi.' },

@@ -10,8 +10,10 @@ interface SearchResult {
     id: string;
     nome: string;
     cognome: string;
-    telefono?: string;
-    email?: string;
+    telefono?: string | null;
+    email?: string | null;
+    genere?: string | null;
+    note_cliente?: string | null;
   };
   buste?: Array<{
     id: string;
@@ -576,11 +578,32 @@ export default function RicercaAvanzataPage() {
                   <h3 className="font-medium text-gray-900 mb-1">
                     {result.cliente.nome} {result.cliente.cognome}
                   </h3>
-                  {result.cliente.telefono && (
-                    <p className="text-sm text-gray-600">📞 {result.cliente.telefono}</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                    {result.cliente.telefono && (
+                      <span className="flex items-center gap-1">
+                        <span role="img" aria-label="Telefono">📞</span>
+                        <span>{result.cliente.telefono}</span>
+                      </span>
+                    )}
+                    {result.cliente.email && (
+                      <span className="flex items-center gap-1">
+                        <span role="img" aria-label="Email">✉️</span>
+                        <span>{result.cliente.email}</span>
+                      </span>
+                    )}
+                    {result.cliente.genere && (
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 uppercase tracking-wide">
+                        {result.cliente.genere}
+                      </span>
+                    )}
+                  </div>
+                  {result.cliente.note_cliente && (
+                    <p className="mt-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-md p-2">
+                      {result.cliente.note_cliente}
+                    </p>
                   )}
                   
-                  {result.buste && result.buste.length > 0 && (
+                  {result.buste && result.buste.length > 0 ? (
                     <div className="mt-3">
                       <p className="text-sm font-medium text-gray-700 mb-2">Buste ({result.buste.length}):</p>
                       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
@@ -613,6 +636,11 @@ export default function RicercaAvanzataPage() {
                         </p>
                       )}
                     </div>
+                  ) : (
+                    <p className="mt-3 text-xs text-gray-500 flex items-center gap-2">
+                      <AlertCircle className="w-3 h-3 text-gray-400" />
+                      Nessuna busta associata a questo cliente al momento.
+                    </p>
                   )}
                 </div>
               )}

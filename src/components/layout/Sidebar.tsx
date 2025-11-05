@@ -22,7 +22,8 @@ import {
   Mail,
   RotateCcw,
   AlertTriangle,
-  BookOpen
+  BookOpen,
+  FileSpreadsheet
 } from 'lucide-react';
 import SidebarSection from './SidebarSection';
 import SidebarItem from './SidebarItem';
@@ -477,13 +478,21 @@ export default function Sidebar({ className = '' }: SidebarProps) {
               />
             )}
             {userRole === 'admin' && (
-              <SidebarItem
-                href="/admin/users"
-                icon={Users}
-                label="Utenti"
-                isCollapsed={isCollapsed}
-                badge={telegramRequestsCount > 0 ? telegramRequestsCount.toString() : undefined}
-              />
+              <>
+                <SidebarItem
+                  href="/admin/users"
+                  icon={Users}
+                  label="Utenti"
+                  isCollapsed={isCollapsed}
+                  badge={telegramRequestsCount > 0 ? telegramRequestsCount.toString() : undefined}
+                />
+                <SidebarItem
+                  href="/dashboard/admin/import-clienti"
+                  icon={FileSpreadsheet}
+                  label="Import Clienti"
+                  isCollapsed={isCollapsed}
+                />
+              </>
             )}
           </SidebarSection>
         </div>

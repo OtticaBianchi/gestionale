@@ -32,7 +32,7 @@ async function searchClients(ctx: SearchContext, forceIncludeEmpty = false): Pro
   const { data: clienti, error } = await supabase
     .from('clienti')
     .select(`
-      id, nome, cognome, telefono, email,
+      id, nome, cognome, telefono, email, genere, note_cliente,
       buste (
         id, readable_id, stato_attuale, data_apertura, updated_at,
         tipo_lavorazione, priorita, note_generali
