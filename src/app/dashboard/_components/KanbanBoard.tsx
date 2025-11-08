@@ -28,13 +28,14 @@ import { CSS } from '@dnd-kit/utilities';
 import Link from 'next/link';
 import { Database } from '@/types/database.types';
 import BustaCard from './BustaCard';
+import CompactBustaCard from './CompactBustaCard';
 import { 
   isTransitionAllowed, 
   getTransitionReason, 
   WorkflowState,
   hasSpecialWorkflow 
 } from './WorkflowLogic';
-import { CheckCircle, XCircle, Info, Loader2, RefreshCw, Wifi, WifiOff, X } from 'lucide-react';
+import { CheckCircle, XCircle, Info, Loader2, RefreshCw, Wifi, WifiOff, X, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { BustaWithCliente } from '@/types/shared.types';
 import { useBuste } from '@/hooks/useBuste';
@@ -86,7 +87,17 @@ function BustaCardSkeleton() {
 }
 
 // Componente per le card draggabili
-function DraggableBustaCard({ busta, isDragEnabled }: { busta: BustaWithCliente; isDragEnabled: boolean }) {
+function DraggableBustaCard({
+  busta,
+  isDragEnabled,
+  isExpanded,
+  onToggleExpand
+}: {
+  busta: BustaWithCliente;
+  isDragEnabled: boolean;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+}) {
   const {
     attributes,
     listeners,
@@ -94,7 +105,7 @@ function DraggableBustaCard({ busta, isDragEnabled }: { busta: BustaWithCliente;
     transform,
     transition,
     isDragging,
-  } = useSortable({ 
+  } = useSortable({
     id: `busta-${busta.id}`,
     disabled: !isDragEnabled
   });
@@ -117,28 +128,36 @@ function DraggableBustaCard({ busta, isDragEnabled }: { busta: BustaWithCliente;
       // ✅ FIX: Prevent this card from being a drop target for other cards
       data-no-drop="true"
     >
-      <BustaCard busta={busta} />
+      {isExpanded ? (
+        <BustaCard busta={busta} />
+      ) : (
+        <CompactBustaCard busta={busta} onClick={onToggleExpand} />
+      )}
     </div>
   );
 }
 
 // 🔧 FIX: Componente per le colonne droppabili - CORRETTO per evitare conflitti UUID
-function DroppableColumn({ 
-  status, 
-  buste, 
+function DroppableColumn({
+  status,
+  buste,
   isOver,
   isDragEnabled,
   isLoading,
   onHeaderClick,
-  isHeaderActive
-}: { 
-  status: WorkflowState; 
-  buste: BustaWithCliente[]; 
+  isHeaderActive,
+  expandedCardId,
+  onToggleExpand
+}: {
+  status: WorkflowState;
+  buste: BustaWithCliente[];
   isOver: boolean;
   isDragEnabled: boolean;
   isLoading: boolean;
   onHeaderClick?: () => void;
   isHeaderActive?: boolean;
+  expandedCardId: string | null;
+  onToggleExpand: (id: string) => void;
 }) {
   const { setNodeRef } = useDroppable({
     id: `column-${status}`, // ✅ FIX CRITICO: Prefisso per evitare conflitti con UUID buste
@@ -217,16 +236,26 @@ function DroppableColumn({
                 {isDragEnabled ? (
                   <SortableContext items={buste.map(b => `busta-${b.id}`)} strategy={verticalListSortingStrategy}>
                     {buste.map((busta) => (
-                      <DraggableBustaCard key={busta.id} busta={busta} isDragEnabled={isDragEnabled} />
+                      <DraggableBustaCard
+                        key={busta.id}
+                        busta={busta}
+                        isDragEnabled={isDragEnabled}
+                        isExpanded={expandedCardId === busta.id}
+                        onToggleExpand={() => onToggleExpand(busta.id)}
+                      />
                     ))}
                   </SortableContext>
                 ) : (
                   buste.map((busta) => (
-                    <BustaCard key={busta.id} busta={busta} />
+                    expandedCardId === busta.id ? (
+                      <BustaCard key={busta.id} busta={busta} />
+                    ) : (
+                      <CompactBustaCard key={busta.id} busta={busta} onClick={() => onToggleExpand(busta.id)} />
+                    )
                   ))
                 )}
               </div>
-              
+
               {buste.length === 0 && !isLoading && (
                 <div className="text-center text-gray-400 text-xs py-8">
                   <Info className="h-8 w-8 mx-auto mb-2 opacity-50" />
@@ -258,12 +287,18 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [lastSync, setLastSync] = useState<Date>(new Date());
+  const [expandedCardId, setExpandedCardId] = useState<string | null>(null);
   const [dragFeedback, setDragFeedback] = useState<{
     show: boolean;
     allowed: boolean;
     message: string;
     businessRule?: string;
   }>({ show: false, allowed: false, message: '' });
+
+  // Toggle expand/collapse card
+  const handleToggleExpand = useCallback((bustaId: string) => {
+    setExpandedCardId(prev => prev === bustaId ? null : bustaId);
+  }, []);
 
   // ✅ Derived loading state
   const isLoading = swrLoading || isUpdating;
@@ -347,30 +382,74 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     })
   );
 
-  // Raggruppa le buste per stato
+  // Helper function to determine priority category
+  const getPriorityCategory = useCallback((busta: BustaWithCliente): number => {
+    // 1 = CRITICA (highest priority)
+    // 2 = URGENTE
+    // 3 = IN RITARDO (has delayed orders - only for materiali_ordinati state)
+    // 4 = NORMALE (lowest priority)
+
+    if (busta.priorita === 'critica') return 1;
+    if (busta.priorita === 'urgente') return 2;
+
+    // Check for delayed orders (only relevant in materiali_ordinati state)
+    if (busta.stato_attuale === 'materiali_ordinati') {
+      const hasDelays = (busta.ordini_materiali || []).some(
+        (ordine) => ordine.stato === 'in_ritardo'
+      );
+      if (hasDelays) return 3;
+    }
+
+    return 4; // normale
+  }, []);
+
+  // Helper function to sort buste by priority, then by date (newest first)
+  const sortBusteByPriorityAndDate = useCallback((busteList: BustaWithCliente[]) => {
+    return [...busteList].sort((a, b) => {
+      // First sort by priority category
+      const priorityA = getPriorityCategory(a);
+      const priorityB = getPriorityCategory(b);
+
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB; // Lower number = higher priority
+      }
+
+      // Within same priority, sort by date (newest first)
+      const dateA = new Date(a.data_apertura).getTime();
+      const dateB = new Date(b.data_apertura).getTime();
+      return dateB - dateA; // Descending (newest first)
+    });
+  }, [getPriorityCategory]);
+
+  // Raggruppa le buste per stato with priority sorting applied
   const groupedBuste = useMemo(() => {
     console.log('🔍 GROUPING BUSTE:', currentBuste.map(b => ({ id: b.readable_id || b.id, stato: b.stato_attuale })));
-    
+
     const groups: { [key: string]: BustaWithCliente[] } = {};
     columns.forEach(col => groups[col] = []);
-    
+
     currentBuste.forEach(busta => {
       if (groups[busta.stato_attuale]) {
         groups[busta.stato_attuale].push(busta);
       }
     });
-    
+
+    // Apply priority sorting to each group for Kanban display
+    Object.keys(groups).forEach(status => {
+      groups[status] = sortBusteByPriorityAndDate(groups[status]);
+    });
+
     // Debug: mostra conteggi per colonna
     Object.entries(groups).forEach(([status, buste]) => {
       if (buste.length > 0) {
         console.log(`📊 Colonna ${status}: ${buste.length} buste`, buste.map(b => b.readable_id || b.id));
       }
     });
-    
-    return groups;
-  }, [currentBuste, lastSync]);
 
-  // Helper function to sort buste by cognome
+    return groups;
+  }, [currentBuste, lastSync, sortBusteByPriorityAndDate]);
+
+  // Helper function to sort buste by cognome (for drawer)
   const sortBusteByCognome = useCallback((busteList: BustaWithCliente[]) => {
     return [...busteList].sort((a, b) => {
       const lastA = (a.clienti?.cognome || '').trim();
@@ -399,6 +478,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     });
   }, []);
 
+  // For drawer: sorted alphabetically by cognome
   const orderedNuoveBuste = useMemo(() => {
     const list = groupedBuste['nuove'] ? [...groupedBuste['nuove']] : [];
     return sortBusteByCognome(list);
@@ -735,6 +815,8 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
                 isLoading={isLoading}
                 onHeaderClick={enableDrawer ? () => handleStatusHeaderClick(status) : undefined}
                 isHeaderActive={openStatusList === status}
+                expandedCardId={expandedCardId}
+                onToggleExpand={handleToggleExpand}
               />
             );
           })}
@@ -776,6 +858,7 @@ function StatusDrawer({
   onClose: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setMounted(true);
@@ -800,11 +883,67 @@ function StatusDrawer({
     };
   }, [mounted, onClose]);
 
+  // Group buste by priority
+  const groupedByPriority = useMemo(() => {
+    const groups = {
+      critica: [] as BustaWithCliente[],
+      urgente: [] as BustaWithCliente[],
+      in_ritardo: [] as BustaWithCliente[],
+      normale: [] as BustaWithCliente[]
+    };
+
+    buste.forEach(busta => {
+      if (busta.priorita === 'critica') {
+        groups.critica.push(busta);
+      } else if (busta.priorita === 'urgente') {
+        groups.urgente.push(busta);
+      } else {
+        // Check for delayed orders (only for materiali_ordinati state)
+        const hasDelays = status === 'materiali_ordinati' &&
+          (busta.ordini_materiali || []).some(ordine => ordine.stato === 'in_ritardo');
+
+        if (hasDelays) {
+          groups.in_ritardo.push(busta);
+        } else {
+          groups.normale.push(busta);
+        }
+      }
+    });
+
+    return groups;
+  }, [buste, status]);
+
+  // Auto-collapse NORMALI if more than 20
+  useEffect(() => {
+    if (groupedByPriority.normale.length > 20) {
+      setCollapsedGroups(prev => new Set(prev).add('normale'));
+    }
+  }, [groupedByPriority.normale.length]);
+
+  const toggleGroup = (group: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(group)) {
+        next.delete(group);
+      } else {
+        next.add(group);
+      }
+      return next;
+    });
+  };
+
   if (!mounted) {
     return null;
   }
 
   const listTitle = getColumnName(status);
+
+  const priorityLabels = {
+    critica: { label: '🔴 CRITICA', className: 'text-red-700 bg-red-50 border-red-200' },
+    urgente: { label: '🟠 URGENTE', className: 'text-orange-600 bg-orange-50 border-orange-200' },
+    in_ritardo: { label: '⚠️ IN RITARDO', className: 'text-amber-600 bg-amber-50 border-amber-200' },
+    normale: { label: '⚪ NORMALE', className: 'text-gray-600 bg-gray-50 border-gray-200' }
+  };
 
   return createPortal(
     <>
@@ -831,33 +970,63 @@ function StatusDrawer({
               Nessuna busta in questo stato
             </div>
           ) : (
-            <ul className="divide-y divide-gray-100">
-              {buste.map((busta) => {
-                const readableId = busta.readable_id || busta.id;
-                const cognome = (busta.clienti?.cognome || '').trim();
-                const nome = (busta.clienti?.nome || '').trim();
-                const displayName = [cognome, nome].filter(Boolean).join(' ') || 'Cliente non specificato';
+            <div className="divide-y divide-gray-200">
+              {(['critica', 'urgente', 'in_ritardo', 'normale'] as const).map(priorityKey => {
+                const groupBuste = groupedByPriority[priorityKey];
+                if (groupBuste.length === 0) return null;
+
+                const isCollapsed = collapsedGroups.has(priorityKey);
+                const { label, className } = priorityLabels[priorityKey];
 
                 return (
-                  <li key={busta.id}>
-                    <Link
-                      href={`/dashboard/buste/${busta.id}`}
-                      className="group flex items-center justify-between px-5 py-3 transition-colors hover:bg-blue-50"
+                  <div key={priorityKey}>
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(priorityKey)}
+                      className={`w-full flex items-center justify-between px-5 py-3 border-b transition-colors hover:brightness-95 ${className}`}
                     >
-                      <div className="flex flex-col">
-                        <span className="text-xs font-medium text-gray-500">{readableId}</span>
-                        <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">
-                          {displayName}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold">{label}</span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/60">
+                          {groupBuste.length}
                         </span>
                       </div>
-                      <span className="text-xs font-medium text-blue-600 group-hover:text-blue-700">
-                        Apri
-                      </span>
-                    </Link>
-                  </li>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                    </button>
+
+                    {!isCollapsed && (
+                      <ul className="divide-y divide-gray-100">
+                        {groupBuste.map((busta) => {
+                          const readableId = busta.readable_id || busta.id;
+                          const cognome = (busta.clienti?.cognome || '').trim();
+                          const nome = (busta.clienti?.nome || '').trim();
+                          const displayName = [cognome, nome].filter(Boolean).join(' ') || 'Cliente non specificato';
+
+                          return (
+                            <li key={busta.id}>
+                              <Link
+                                href={`/dashboard/buste/${busta.id}`}
+                                className="group flex items-center justify-between px-5 py-3 transition-colors hover:bg-blue-50"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-medium text-gray-500">{readableId}</span>
+                                  <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">
+                                    {displayName}
+                                  </span>
+                                </div>
+                                <span className="text-xs font-medium text-blue-600 group-hover:text-blue-700">
+                                  Apri
+                                </span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
                 );
               })}
-            </ul>
+            </div>
           )}
         </div>
       </div>

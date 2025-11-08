@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, Filter, User, Package, Truck, ArrowLeft, Eye, ExternalLink, Archive, Clock, FileText, ChevronDown, ChevronUp, Calendar, AlertCircle } from 'lucide-react';
+import { Search, Filter, User, Package, Truck, ArrowLeft, Eye, ExternalLink, Archive, Clock, FileText, ChevronDown, ChevronUp, Calendar, AlertCircle, Phone, DollarSign, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 
 interface SearchResult {
@@ -92,6 +92,9 @@ export default function RicercaAvanzataPage() {
   const [dateRange, setDateRange] = useState<'all' | '7' | '30' | '90' | '180' | '365' | 'custom'>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [statoPagamento, setStatoPagamento] = useState<'all' | 'pagato' | 'non_pagato' | 'parziale' | 'saldo'>('all');
+  const [statoOrdine, setStatoOrdine] = useState<'all' | 'da_ordinare' | 'ordinato' | 'in_arrivo' | 'in_ritardo' | 'arrivato' | 'accettato_con_riserva' | 'rifiutato' | 'sbagliato' | 'annullato'>('all');
 
   // ===== SUPPLIER DROPDOWN DATA =====
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -118,7 +121,7 @@ export default function RicercaAvanzataPage() {
 
   const searchAdvanced = async () => {
     // Allow search with just filters (no text required)
-    const hasFilters = bustaId || priorita !== 'all' || tipoLavorazione !== 'all' || fornitore !== 'all' || categoria !== 'all' || dateRange !== 'all';
+    const hasFilters = bustaId || priorita !== 'all' || tipoLavorazione !== 'all' || fornitore !== 'all' || categoria !== 'all' || dateRange !== 'all' || telefono || statoPagamento !== 'all' || statoOrdine !== 'all';
 
     if (!searchQuery.trim() && !hasFilters) {
       setResults([]);
@@ -146,6 +149,9 @@ export default function RicercaAvanzataPage() {
       if (tipoLavorazione !== 'all') params.append('tipoLavorazione', tipoLavorazione);
       if (fornitore !== 'all') params.append('fornitore', fornitore);
       if (categoria !== 'all') params.append('categoria', categoria);
+      if (telefono) params.append('telefono', telefono);
+      if (statoPagamento !== 'all') params.append('statoPagamento', statoPagamento);
+      if (statoOrdine !== 'all') params.append('statoOrdine', statoOrdine);
 
       // Calculate date range
       if (dateRange !== 'all' && dateRange !== 'custom') {
@@ -336,54 +342,48 @@ export default function RicercaAvanzataPage() {
             </button>
 
             {showFilters && (
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Search Type Filter (moved from top) */}
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {/* Search Type Filter */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <Filter className="w-4 h-4 inline mr-1" />
-                    Tipo di Ricerca
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Tipo Ricerca
                   </label>
                   <select
                     value={searchType}
                     onChange={(e) => setSearchType(e.target.value as any)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="all">Tutto</option>
-                    <option value="cliente">Solo Clienti</option>
-                    <option value="prodotto">Solo Prodotti</option>
-                    <option value="fornitore">Solo Fornitori</option>
-                    <option value="note">Solo Note</option>
+                    <option value="cliente">Clienti</option>
+                    <option value="prodotto">Prodotti</option>
+                    <option value="fornitore">Fornitori</option>
+                    <option value="note">Note</option>
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Controlla il TIPO di risultati mostrati (clienti, prodotti, fornitori o note)
-                  </p>
                 </div>
 
-                {/* Busta ID Filter - FIXED FORMAT */}
+                {/* Busta ID Filter */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     ID Busta
                   </label>
                   <input
                     type="text"
                     value={bustaId}
                     onChange={(e) => setBustaId(e.target.value)}
-                    placeholder="es. 2025-0001"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="25-0001"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Formato: YYYY-NNNN (es. 2025-0123)</p>
                 </div>
 
                 {/* Priority Filter */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <AlertCircle className="w-4 h-4 inline mr-1" />
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     Priorità
                   </label>
                   <select
                     value={priorita}
                     onChange={(e) => setPriorita(e.target.value as any)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="all">Tutte</option>
                     <option value="normale">Normale</option>
@@ -394,72 +394,69 @@ export default function RicercaAvanzataPage() {
 
                 {/* Tipo Lavorazione Filter */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     Tipo Lavorazione
                   </label>
                   <select
                     value={tipoLavorazione}
                     onChange={(e) => setTipoLavorazione(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="all">Tutti</option>
-                    <option value="OCV">OCV - Occhiale da Vista Completo</option>
-                    <option value="OV">OV - Solo Montatura Vista</option>
-                    <option value="OS">OS - Occhiale da Sole</option>
-                    <option value="LV">LV - Solo Lenti Vista</option>
-                    <option value="LS">LS - Solo Lenti Sole</option>
-                    <option value="LAC">LAC - Lenti a Contatto</option>
-                    <option value="ACC">ACC - Accessori</option>
-                    <option value="RIC">RIC - Ricambi</option>
-                    <option value="RIP">RIP - Riparazione</option>
-                    <option value="SA">SA - Sostituzione con Assicurazione</option>
-                    <option value="SG">SG - Sostituzione in Garanzia</option>
-                    <option value="CT">CT - Controllo Vista</option>
-                    <option value="ES">ES - Esame della Vista</option>
-                    <option value="REL">REL - Regolazione/Equilibratura Lenti</option>
-                    <option value="FT">FT - Foratura Lenti</option>
-                    <option value="SPRT">SPRT - Sport</option>
-                    <option value="VFT">VFT - Visita Fitting LAC</option>
+                    <option value="OCV">OCV</option>
+                    <option value="OV">OV</option>
+                    <option value="OS">OS</option>
+                    <option value="LV">LV</option>
+                    <option value="LS">LS</option>
+                    <option value="LAC">LAC</option>
+                    <option value="ACC">ACC</option>
+                    <option value="RIC">RIC</option>
+                    <option value="RIP">RIP</option>
+                    <option value="SA">SA</option>
+                    <option value="SG">SG</option>
+                    <option value="CT">CT</option>
+                    <option value="ES">ES</option>
+                    <option value="REL">REL</option>
+                    <option value="FT">FT</option>
+                    <option value="SPRT">SPRT</option>
+                    <option value="VFT">VFT</option>
                   </select>
                 </div>
 
-                {/* Product Category Filter - ALL categories */}
+                {/* Product Category Filter */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <Package className="w-4 h-4 inline mr-1" />
-                    Categoria Materiale
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Categoria
                   </label>
                   <select
                     value={categoria}
                     onChange={(e) => setCategoria(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="all">Tutte</option>
                     <option value="LENTI">Lenti</option>
-                    <option value="LAC">Lenti a Contatto (LAC)</option>
+                    <option value="LAC">LAC</option>
                     <option value="MONTATURE">Montature</option>
-                    <option value="LABORATORIO">Laboratorio Esterno</option>
+                    <option value="LABORATORIO">Laboratorio</option>
                     <option value="SPORT">Sport</option>
                     <option value="ACCESSORI">Accessori</option>
                     <option value="RICAMBI">Ricambi</option>
-                    <option value="ASSISTENZA">Assistenza/Riparazioni</option>
+                    <option value="ASSISTENZA">Assistenza</option>
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">Filtra buste con ordini di questa categoria</p>
                 </div>
 
                 {/* Supplier Filter */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <Truck className="w-4 h-4 inline mr-1" />
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     Fornitore
                   </label>
                   <select
                     value={fornitore}
                     onChange={(e) => setFornitore(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     disabled={loadingSuppliers}
                   >
-                    <option value="all">Tutti i fornitori</option>
+                    <option value="all">Tutti</option>
                     {suppliers.length > 0 && (
                       <>
                         <optgroup label="Lenti">
@@ -490,18 +487,69 @@ export default function RicercaAvanzataPage() {
                       </>
                     )}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {loadingSuppliers ? 'Caricamento fornitori...' : 'Filtra buste con ordini da questo fornitore'}
-                  </p>
                 </div>
 
-                {/* Date Range Filter */}
-                <div className="md:col-span-2 lg:col-span-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    <Calendar className="w-4 h-4 inline mr-1" />
+                {/* Telefono */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Telefono
+                  </label>
+                  <input
+                    type="text"
+                    value={telefono}
+                    onChange={(e) => setTelefono(e.target.value)}
+                    placeholder="335..."
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Stato Pagamento */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Pagamento
+                  </label>
+                  <select
+                    value={statoPagamento}
+                    onChange={(e) => setStatoPagamento(e.target.value as any)}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Tutti</option>
+                    <option value="pagato">Pagato</option>
+                    <option value="non_pagato">Non Pagato</option>
+                    <option value="parziale">Parziale</option>
+                    <option value="saldo">Saldo da Versare</option>
+                  </select>
+                </div>
+
+                {/* Stato Ordine */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Stato Ordine
+                  </label>
+                  <select
+                    value={statoOrdine}
+                    onChange={(e) => setStatoOrdine(e.target.value as any)}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Tutti</option>
+                    <option value="da_ordinare">Da Ordinare</option>
+                    <option value="ordinato">Ordinato</option>
+                    <option value="in_arrivo">In Arrivo</option>
+                    <option value="in_ritardo">In Ritardo</option>
+                    <option value="arrivato">Arrivato</option>
+                    <option value="accettato_con_riserva">Con Riserva</option>
+                    <option value="rifiutato">Rifiutato</option>
+                    <option value="sbagliato">Sbagliato</option>
+                    <option value="annullato">Annullato</option>
+                  </select>
+                </div>
+
+                {/* Date Range Filter - spanning 2 columns */}
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     Periodo
                   </label>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex gap-2">
                     <select
                       value={dateRange}
                       onChange={(e) => {
@@ -511,15 +559,15 @@ export default function RicercaAvanzataPage() {
                           setDateTo('');
                         }
                       }}
-                      className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="all">Tutto il periodo</option>
-                      <option value="7">Ultimi 7 giorni</option>
-                      <option value="30">Ultimi 30 giorni (1 mese)</option>
-                      <option value="90">Ultimi 90 giorni (3 mesi)</option>
-                      <option value="180">Ultimi 180 giorni (6 mesi)</option>
-                      <option value="365">Ultimi 365 giorni (1 anno)</option>
-                      <option value="custom">Personalizzato</option>
+                      <option value="all">Tutto</option>
+                      <option value="7">7gg</option>
+                      <option value="30">30gg</option>
+                      <option value="90">90gg</option>
+                      <option value="180">180gg</option>
+                      <option value="365">1anno</option>
+                      <option value="custom">Custom</option>
                     </select>
 
                     {dateRange === 'custom' && (
@@ -528,16 +576,13 @@ export default function RicercaAvanzataPage() {
                           type="date"
                           value={dateFrom}
                           onChange={(e) => setDateFrom(e.target.value)}
-                          className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Da"
+                          className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
-                        <span className="flex items-center text-gray-500">→</span>
                         <input
                           type="date"
                           value={dateTo}
                           onChange={(e) => setDateTo(e.target.value)}
-                          className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="A"
+                          className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </>
                     )}

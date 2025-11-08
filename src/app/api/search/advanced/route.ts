@@ -268,9 +268,12 @@ export async function GET(request: NextRequest) {
     const categoria = searchParams.get('categoria')
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
+    const telefono = searchParams.get('telefono')
+    const statoPagamento = searchParams.get('statoPagamento')
+    const statoOrdine = searchParams.get('statoOrdine')
 
     // Check if we have filters (allow search with just filters, no text query)
-    const hasFilters = bustaId || priorita || tipoLavorazione || fornitore || categoria || dateFrom || dateTo
+    const hasFilters = bustaId || priorita || tipoLavorazione || fornitore || categoria || dateFrom || dateTo || telefono || statoPagamento || statoOrdine
     const hasTextQuery = query && query.trim().length >= 2
 
     if (!hasTextQuery && !hasFilters) {
@@ -278,9 +281,43 @@ export async function GET(request: NextRequest) {
     }
 
     const searchTerm = query?.trim() || ''
-    console.log('🔍 Advanced search:', { searchTerm, type, includeArchived, bustaId, priorita, tipoLavorazione, fornitore, categoria, dateFrom, dateTo })
+    console.log('🔍 Advanced search:', { searchTerm, type, includeArchived, bustaId, priorita, tipoLavorazione, fornitore, categoria, dateFrom, dateTo, telefono, statoPagamento, statoOrdine })
 
     const now = new Date()
+
+    // ===== PHONE NUMBER SEARCH (Direct lookup) =====
+    if (telefono) {
+      const { data: clienti } = await supabase
+        .from('clienti')
+        .select(`
+          id, nome, cognome, telefono, email, genere,
+          buste (
+            id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at
+          )
+        `)
+        .ilike('telefono', `%${telefono}%`)
+        .limit(20)
+
+      const phoneResults = (clienti || []).flatMap((cliente: any) => {
+        const buste = (cliente.buste || [])
+          .filter((busta: any) => includeArchived || !shouldArchiveBusta(busta, { now }))
+          .map((busta: any) => ({
+            ...busta,
+            isArchived: shouldArchiveBusta(busta, { now })
+          }))
+
+        if (buste.length === 0) return []
+
+        return [{
+          type: 'cliente' as const,
+          cliente,
+          buste,
+          matchField: 'telefono'
+        }]
+      })
+
+      return NextResponse.json({ results: phoneResults, total: phoneResults.length })
+    }
 
     // ===== BUSTA ID SEARCH (Direct lookup) =====
     if (bustaId) {
@@ -309,10 +346,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ results: bustaResults, total: bustaResults.length })
     }
 
-    // ===== FILTER-BASED SEARCH (for categoria/fornitore, we need to query ordini_materiali) =====
-    if (priorita || tipoLavorazione || categoria || fornitore || (dateFrom && dateTo)) {
-      // If searching by categoria or fornitore, query ordini_materiali first
-      if (categoria || fornitore) {
+    // ===== FILTER-BASED SEARCH (for categoria/fornitore/statoOrdine, we need to query ordini_materiali) =====
+    if (priorita || tipoLavorazione || categoria || fornitore || (dateFrom && dateTo) || statoPagamento || statoOrdine) {
+      // If searching by categoria, fornitore, or statoOrdine, query ordini_materiali first
+      if (categoria || fornitore || statoOrdine) {
         const categoriaFieldMap: Record<string, string> = {
           'LENTI': 'fornitore_lenti_id',
           'LAC': 'fornitore_lac_id',
@@ -352,6 +389,11 @@ export async function GET(request: NextRequest) {
           )
         }
 
+        // Apply order status filter
+        if (statoOrdine && statoOrdine !== 'all') {
+          ordiniQuery = ordiniQuery.eq('stato', statoOrdine as any)
+        }
+
         // Apply other busta-level filters through the join
         if (priorita) ordiniQuery = ordiniQuery.eq('buste.priorita', priorita as any)
         if (tipoLavorazione) ordiniQuery = ordiniQuery.eq('buste.tipo_lavorazione', tipoLavorazione as any)
@@ -381,10 +423,70 @@ export async function GET(request: NextRequest) {
             data_apertura: busta.data_apertura,
             isArchived: shouldArchiveBusta(busta, { now })
           }],
-          matchField: [priorita && 'priorità', tipoLavorazione && 'tipo lavorazione', categoria && 'categoria', fornitore && 'fornitore', (dateFrom && dateTo) && 'periodo'].filter(Boolean).join(', ')
+          matchField: [priorita && 'priorità', tipoLavorazione && 'tipo lavorazione', categoria && 'categoria', fornitore && 'fornitore', statoOrdine && 'stato ordine', (dateFrom && dateTo) && 'periodo'].filter(Boolean).join(', ')
         }))
 
         return NextResponse.json({ results: filteredResults, total: filteredResults.length })
+      }
+
+      // If searching by payment status, query info_pagamenti
+      if (statoPagamento && statoPagamento !== 'all') {
+        let pagamentiQuery = supabase
+          .from('info_pagamenti')
+          .select(`
+            id, importo_totale, totale_pagato, importo_acconto,
+            buste!inner (
+              id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at,
+              clienti (id, nome, cognome, telefono)
+            )
+          `)
+
+        // Apply other busta-level filters
+        if (priorita) pagamentiQuery = pagamentiQuery.eq('buste.priorita', priorita as any)
+        if (tipoLavorazione) pagamentiQuery = pagamentiQuery.eq('buste.tipo_lavorazione', tipoLavorazione as any)
+        if (dateFrom && dateTo) {
+          pagamentiQuery = pagamentiQuery.gte('buste.data_apertura', dateFrom).lte('buste.data_apertura', dateTo)
+        }
+        if (!includeArchived) {
+          pagamentiQuery = pagamentiQuery.neq('buste.stato_attuale', 'consegnato_pagato')
+        }
+
+        const { data: pagamenti } = await pagamentiQuery.limit(200)
+
+        // Filter by payment status in JavaScript (since Supabase can't compare columns)
+        const filteredPagamenti = (pagamenti || []).filter((pagamento: any) => {
+          const { importo_totale, totale_pagato, importo_acconto } = pagamento
+
+          if (statoPagamento === 'pagato') {
+            // Pagato: totale_pagato >= importo_totale
+            return totale_pagato >= importo_totale
+          } else if (statoPagamento === 'non_pagato') {
+            // Non pagato: totale_pagato = 0
+            return totale_pagato === 0
+          } else if (statoPagamento === 'parziale') {
+            // Parzialmente pagato: 0 < totale_pagato < importo_totale
+            return totale_pagato > 0 && totale_pagato < importo_totale
+          } else if (statoPagamento === 'saldo') {
+            // Saldo da versare: has importo_acconto and not fully paid
+            return importo_acconto > 0 && totale_pagato < importo_totale
+          }
+          return true
+        })
+
+        const paymentResults = filteredPagamenti.slice(0, 50).map((pagamento: any) => ({
+          type: 'cliente' as const,
+          cliente: pagamento.buste.clienti,
+          buste: [{
+            id: pagamento.buste.id,
+            readable_id: pagamento.buste.readable_id,
+            stato_attuale: pagamento.buste.stato_attuale,
+            data_apertura: pagamento.buste.data_apertura,
+            isArchived: shouldArchiveBusta(pagamento.buste, { now })
+          }],
+          matchField: [statoPagamento && 'stato pagamento', priorita && 'priorità', tipoLavorazione && 'tipo lavorazione', (dateFrom && dateTo) && 'periodo'].filter(Boolean).join(', ')
+        }))
+
+        return NextResponse.json({ results: paymentResults, total: paymentResults.length })
       }
 
       // Otherwise, query buste directly

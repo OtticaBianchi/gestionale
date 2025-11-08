@@ -54,7 +54,6 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
   const [formData, setFormData] = useState({
     cliente_cognome: '',
     cliente_nome: '',
-    cliente_data_nascita: '',
     cliente_genere: '' as '' | 'M' | 'F',
     cliente_telefono: '',
     cliente_email: '',
@@ -84,15 +83,15 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
   // Validation function
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
-    
+
     if (!formData.cliente_cognome.trim() || formData.cliente_cognome.length < 2) {
       newErrors.cliente_cognome = 'Cognome obbligatorio (min 2 caratteri)';
     }
     if (!formData.cliente_nome.trim() || formData.cliente_nome.length < 2) {
       newErrors.cliente_nome = 'Nome obbligatorio (min 2 caratteri)';
     }
-    if (!formData.cliente_data_nascita || Number.isNaN(Date.parse(formData.cliente_data_nascita))) {
-      newErrors.cliente_data_nascita = 'Data nascita obbligatoria';
+    if (!formData.cliente_genere) {
+      newErrors.cliente_genere = 'Genere obbligatorio';
     }
     if (!formData.cliente_telefono || formData.cliente_telefono.replace(/\D/g, '').length < 9) {
       newErrors.cliente_telefono = 'Telefono obbligatorio (min 9 cifre)';
@@ -100,7 +99,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     if (formData.cliente_email && !isValidEmail(formData.cliente_email)) {
       newErrors.cliente_email = 'Email non valida';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -160,7 +159,6 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
       ...formData,
       cliente_cognome: client.cognome || '',
       cliente_nome: client.nome || '',
-      cliente_data_nascita: client.data_nascita || '',
       cliente_genere: client.genere || '',
       cliente_telefono: client.telefono || '',
       cliente_email: client.email || '',
@@ -189,7 +187,6 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     setFormData({
       cliente_cognome: '',
       cliente_nome: '',
-      cliente_data_nascita: '',
       cliente_genere: '',
       cliente_telefono: '',
       cliente_email: '',
@@ -220,13 +217,13 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
 
       console.log('🔍 Creating busta with data:', formData);
 
-      // ✅ Controlla se il cliente esiste già
+      // ✅ Controlla se il cliente esiste già (basandosi su cognome, nome e telefono)
       let { data: existingClient, error: clientError } = await supabase
         .from('clienti')
         .select('id')
         .eq('cognome', formData.cliente_cognome)
         .eq('nome', formData.cliente_nome)
-        .eq('data_nascita', formData.cliente_data_nascita)
+        .eq('telefono', formData.cliente_telefono)
         .maybeSingle();
 
       if (clientError) throw clientError;
@@ -237,14 +234,13 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
         clienteId = existingClient.id;
         console.log('✅ Cliente esistente trovato:', clienteId);
       } else {
-        // ✅ AGGIUNTO CAMPO GENERE E NOTE CLIENTE NELLA CREAZIONE CLIENTE
+        // ✅ Creazione nuovo cliente
         const { data: newClient, error: newClientError } = await supabase
           .from('clienti')
           .insert({
             cognome: formData.cliente_cognome,
             nome: formData.cliente_nome,
-            data_nascita: formData.cliente_data_nascita,
-            genere: formData.cliente_genere || null,
+            genere: formData.cliente_genere,
             telefono: formData.cliente_telefono,
             email: formData.cliente_email || null,
             note_cliente: formData.cliente_note || null,
@@ -331,7 +327,6 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     setFormData({
       cliente_cognome: '',
       cliente_nome: '',
-      cliente_data_nascita: '',
       cliente_genere: '',
       cliente_telefono: '',
       cliente_email: '',
@@ -517,8 +512,8 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                               {client.cognome} {client.nome}
                             </p>
                             <p className="text-sm text-gray-600">
-                              📅 {client.data_nascita ? new Date(client.data_nascita).toLocaleDateString('it-IT') : 'N/A'}
-                              {client.telefono && ` • 📞 ${client.telefono}`}
+                              {client.genere === 'M' ? '👨' : client.genere === 'F' ? '👩' : ''}
+                              {client.telefono && ` 📞 ${client.telefono}`}
                             </p>
                           </div>
                           <span className="text-blue-600">→</span>
@@ -589,35 +584,24 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                 )}
               </div>
 
-              <div>
-                <label htmlFor="cliente-data-nascita" className="block text-sm font-medium text-gray-700 mb-1">Data Nascita *</label>
-                <input
-                  id="cliente-data-nascita"
-                  type="date"
-                  value={formData.cliente_data_nascita}
-                  onChange={(e) => handleInputChange('cliente_data_nascita', e.target.value)}
-                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                    errors.cliente_data_nascita ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                  }`}
-                />
-                {errors.cliente_data_nascita && (
-                  <p className="text-red-600 text-xs mt-1">{errors.cliente_data_nascita}</p>
-                )}
-              </div>
-
               {/* ✅ CAMPO GENERE */}
               <div>
-                <label htmlFor="cliente-genere" className="block text-sm font-medium text-gray-700 mb-1">Genere</label>
+                <label htmlFor="cliente-genere" className="block text-sm font-medium text-gray-700 mb-1">Genere *</label>
                 <select
                   id="cliente-genere"
                   value={formData.cliente_genere}
                   onChange={(e) => handleInputChange('cliente_genere', e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    errors.cliente_genere ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
                 >
-                  <option value="">Non specificato</option>
+                  <option value="">-- Seleziona --</option>
                   <option value="M">👨 Maschio</option>
                   <option value="F">👩 Femmina</option>
                 </select>
+                {errors.cliente_genere && (
+                  <p className="text-red-600 text-xs mt-1">{errors.cliente_genere}</p>
+                )}
               </div>
 
               <div>
@@ -638,7 +622,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
               </div>
 
               <div>
-                <label htmlFor="cliente-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label htmlFor="cliente-email" className="block text-sm font-medium text-gray-700 mb-1">Email (opzionale)</label>
                 <input
                   id="cliente-email"
                   type="email"

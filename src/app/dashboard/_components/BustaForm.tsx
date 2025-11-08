@@ -27,11 +27,16 @@ type WorkType = Database['public']['Enums']['work_type'];
 const formSchema = z.object({
   cliente_cognome: z.string().min(2, "Il cognome è obbligatorio"),
   cliente_nome: z.string().min(2, "Il nome è obbligatorio"),
-  cliente_data_nascita: z.string().refine(val => val && !Number.isNaN(Date.parse(val)), { message: "Data non valida" }),
+  cliente_genere: z.enum(['M', 'F'], {
+    errorMap: () => ({ message: "Seleziona il genere" })
+  }),
   cliente_telefono: z.string().min(9, "Numero di cellulare non valido"),
   cliente_email: z.string()
-    .min(1, "L'email è obbligatoria")
+    .optional()
     .refine(val => {
+      // If empty, it's valid (optional field)
+      if (!val || val.trim() === '') return true;
+
       // Check basic format: something@something.ext
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(val)) return false;
@@ -46,9 +51,6 @@ const formSchema = z.object({
     }, {
       message: "Email non valida. Verifica che non ci siano errori di battitura (es. 'gnail' invece di 'gmail', '.con' invece di '.com')"
     }),
-  cliente_genere: z.enum(['M', 'F'], {
-    errorMap: () => ({ message: "Seleziona il genere" })
-  }),
   tipo_lavorazione: z.string().optional(),
   priorita: z.enum(['normale', 'urgente', 'critica']),
   note_generali: z.string().optional(),
@@ -80,7 +82,6 @@ type ClienteSuggestion = {
   id: string;
   cognome: string;
   nome: string;
-  data_nascita: string | null;
   telefono: string | null;
   email: string | null;
   genere: string | null;
@@ -138,7 +139,7 @@ export default function BustaForm() {
       try {
         const { data, error } = await supabase
           .from('clienti')
-          .select('id, cognome, nome, data_nascita, telefono, email, genere')
+          .select('id, cognome, nome, telefono, email, genere')
           .ilike('cognome', `${watchedCognome}%`)
           .order('cognome', { ascending: true })
           .limit(10);
@@ -176,7 +177,7 @@ export default function BustaForm() {
 
         const { data, error } = await supabase
           .from('clienti')
-          .select('id, cognome, nome, data_nascita, telefono, email, genere')
+          .select('id, cognome, nome, telefono, email, genere')
           .ilike('telefono', `%${cleanPhone}%`)
           .limit(10);
 
@@ -198,7 +199,6 @@ export default function BustaForm() {
   const handleSelectClient = (client: ClienteSuggestion) => {
     setValue('cliente_cognome', client.cognome);
     setValue('cliente_nome', client.nome);
-    setValue('cliente_data_nascita', client.data_nascita || '');
     setValue('cliente_telefono', client.telefono || '');
     setValue('cliente_email', client.email || '');
     setValue('cliente_genere', (client.genere as 'M' | 'F') || 'M');
@@ -231,7 +231,7 @@ export default function BustaForm() {
             .select('id')
             .eq('cognome', data.cliente_cognome)
             .eq('nome', data.cliente_nome)
-            .eq('data_nascita', data.cliente_data_nascita)
+            .eq('telefono', data.cliente_telefono)
             .maybeSingle();
 
         if (clientError) throw clientError;
@@ -246,9 +246,8 @@ export default function BustaForm() {
                 .insert({
                     cognome: data.cliente_cognome,
                     nome: data.cliente_nome,
-                    data_nascita: data.cliente_data_nascita,
                     telefono: data.cliente_telefono,
-                    email: data.cliente_email,
+                    email: data.cliente_email || null,
                     genere: data.cliente_genere,
                 })
                 .select('id')
@@ -365,9 +364,8 @@ export default function BustaForm() {
                           {client.cognome} {client.nome}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {client.data_nascita && new Date(client.data_nascita).toLocaleDateString('it-IT')}
-                          {client.data_nascita && client.telefono && ' • '}
-                          {client.telefono}
+                          {client.genere === 'M' ? '👨' : client.genere === 'F' ? '👩' : ''}
+                          {client.telefono && ` 📞 ${client.telefono}`}
                           {client.email && ` • ${client.email}`}
                         </div>
                       </button>
@@ -396,24 +394,6 @@ export default function BustaForm() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-gray-400" />
-                  Data di Nascita *
-                </label>
-                <input 
-                  type="date" 
-                  {...register('cliente_data_nascita')} 
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                />
-                {errors.cliente_data_nascita && (
-                  <p className="text-red-600 text-sm flex items-center gap-1">
-                    <AlertTriangle className="w-4 h-4" />
-                    {errors.cliente_data_nascita.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2 relative autocomplete-container">
                 <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                   <Phone className="w-4 h-4 text-gray-400" />
                   Telefono *
@@ -452,9 +432,8 @@ export default function BustaForm() {
                           {client.cognome} {client.nome}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {client.data_nascita && new Date(client.data_nascita).toLocaleDateString('it-IT')}
-                          {client.data_nascita && client.telefono && ' • '}
-                          {client.telefono}
+                          {client.genere === 'M' ? '👨' : client.genere === 'F' ? '👩' : ''}
+                          {client.telefono && ` 📞 ${client.telefono}`}
                           {client.email && ` • ${client.email}`}
                         </div>
                       </button>
@@ -487,7 +466,7 @@ export default function BustaForm() {
               <div className="md:col-span-2 space-y-2">
                 <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                   <Mail className="w-4 h-4 text-gray-400" />
-                  Email *
+                  Email (opzionale)
                 </label>
                 <input
                   type="email"
