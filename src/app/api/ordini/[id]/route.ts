@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
+import { logDelete, logUpdate } from '@/lib/audit/auditLog'
 
 const FORBIDDEN_FIELDS = [
   'busta_id',
@@ -34,14 +35,16 @@ const FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
 
 type AllowedPayload = Record<string, unknown>
 
-async function ensureManagerOrAdmin(): Promise<NextResponse | null> {
+type AuthCheckResult = { response: NextResponse } | { userId: string; role: string }
+
+async function ensureManagerOrAdmin(): Promise<AuthCheckResult> {
   const server = await createServerSupabaseClient()
   const {
     data: { user },
   } = await server.auth.getUser()
 
   if (!user) {
-    return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+    return { response: NextResponse.json({ error: 'Non autorizzato' }, { status: 401 }) }
   }
 
   const { data: profile } = await server
@@ -52,10 +55,10 @@ async function ensureManagerOrAdmin(): Promise<NextResponse | null> {
 
   const role = profile?.role
   if (role !== 'admin' && role !== 'manager') {
-    return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 })
+    return { response: NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 }) }
   }
 
-  return null
+  return { userId: user.id, role }
 }
 
 function parseJsonBody(request: NextRequest) {
@@ -90,10 +93,11 @@ export async function PATCH(
     const { id } = await params
     if (!id) return NextResponse.json({ error: 'ID mancante' }, { status: 400 })
 
-    const authorizationResponse = await ensureManagerOrAdmin()
-    if (authorizationResponse) {
-      return authorizationResponse
+    const authResult = await ensureManagerOrAdmin()
+    if ('response' in authResult) {
+      return authResult.response
     }
+    const { userId, role } = authResult
 
     const payload = await parseJsonBody(request)
     if ('parseError' in payload) {
@@ -111,17 +115,31 @@ export async function PATCH(
       return NextResponse.json({ error: 'Nessun campo aggiornabile fornito' }, { status: 400 })
     }
 
-    console.log('🔄 API Update ordine:', id, 'Campi consentiti:', allowed)
-
     // Write with service role after server-side check
     const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    const selectColumns = ['id', ...Object.keys(allowed)].join(', ')
+    const { data: existing, error: fetchError } = await admin
+      .from('ordini_materiali')
+      .select(selectColumns)
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !existing) {
+      console.error('Ordine fetch error prima di update:', fetchError)
+      return NextResponse.json({ error: 'Ordine non trovato' }, { status: 404 })
+    }
+
     const { data, error } = await admin
       .from('ordini_materiali')
-      .update({ ...allowed, updated_at: new Date().toISOString() })
+      .update({
+        ...allowed,
+        updated_at: new Date().toISOString(),
+        updated_by: userId
+      })
       .eq('id', id)
       .select()
       .single()
@@ -131,10 +149,92 @@ export async function PATCH(
       return NextResponse.json({ error: 'Errore aggiornamento ordine' }, { status: 500 })
     }
 
+    const oldValues: Record<string, any> = {}
+    Object.keys(allowed).forEach((field) => {
+      oldValues[field] = (existing as Record<string, any>)[field]
+    })
+
+    const audit = await logUpdate(
+      'ordini_materiali',
+      id,
+      userId,
+      oldValues,
+      allowed,
+      'Aggiornamento campi consentiti ordine',
+      { source: 'api/ordini/[id] PATCH', fields: Object.keys(allowed) },
+      role
+    )
+
+    if (!audit.success) {
+      console.error('AUDIT_UPDATE_ORDINE_FAILED', audit.error)
+    }
+
     return NextResponse.json({ success: true, ordine: data })
 
   } catch (e) {
     console.error('Ordine PATCH error:', e)
+    return NextResponse.json({ error: 'Errore interno server' }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    if (!id) return NextResponse.json({ error: 'ID mancante' }, { status: 400 })
+
+    const authResult = await ensureManagerOrAdmin()
+    if ('response' in authResult) {
+      return authResult.response
+    }
+    const { userId, role } = authResult
+
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const { data: existing, error: fetchError } = await admin
+      .from('ordini_materiali')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !existing) {
+      console.error('Ordine fetch error prima di delete:', fetchError)
+      return NextResponse.json({ error: 'Ordine non trovato' }, { status: 404 })
+    }
+
+    const { error: deleteError } = await admin
+      .from('ordini_materiali')
+      .delete()
+      .eq('id', id)
+
+    if (deleteError) {
+      console.error('Ordine delete error:', deleteError)
+      return NextResponse.json({ error: 'Errore eliminazione ordine' }, { status: 500 })
+    }
+
+    const audit = await logDelete(
+      'ordini_materiali',
+      id,
+      userId,
+      existing,
+      'Eliminazione ordine',
+      { bustaId: existing.busta_id },
+      role
+    )
+
+    if (!audit.success) {
+      console.error('AUDIT_DELETE_ORDINE_FAILED', audit.error)
+    }
+
+    return NextResponse.json({ success: true })
+
+  } catch (e) {
+    console.error('Ordine DELETE error:', e)
     return NextResponse.json({ error: 'Errore interno server' }, { status: 500 })
   }
 }

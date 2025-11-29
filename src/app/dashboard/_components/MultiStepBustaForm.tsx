@@ -199,6 +199,13 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     setFormError(null);
   };
 
+  type CreateBustaResponse = {
+    success?: boolean;
+    busta?: any;
+    cliente?: any;
+    error?: string;
+  };
+
   const handleSubmit = async () => {
     if (isSubmittingRef.current) return;
     
@@ -212,97 +219,33 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
       setIsSubmitting(true);
       setFormError(null);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Utente non autenticato");
-
-      console.log('🔍 Creating busta with data:', formData);
-
-      // ✅ Controlla se il cliente esiste già (basandosi su cognome, nome e telefono)
-      let { data: existingClient, error: clientError } = await supabase
-        .from('clienti')
-        .select('id')
-        .eq('cognome', formData.cliente_cognome)
-        .eq('nome', formData.cliente_nome)
-        .eq('telefono', formData.cliente_telefono)
-        .maybeSingle();
-
-      if (clientError) throw clientError;
-
-      let clienteId: string;
-
-      if (existingClient) {
-        clienteId = existingClient.id;
-        console.log('✅ Cliente esistente trovato:', clienteId);
-      } else {
-        // ✅ Creazione nuovo cliente
-        const { data: newClient, error: newClientError } = await supabase
-          .from('clienti')
-          .insert({
-            cognome: formData.cliente_cognome,
-            nome: formData.cliente_nome,
-            genere: formData.cliente_genere,
-            telefono: formData.cliente_telefono,
-            email: formData.cliente_email || null,
-            note_cliente: formData.cliente_note || null,
-          })
-          .select('id')
-          .single();
-
-        if (newClientError) throw newClientError;
-        if (!newClient) throw new Error("Creazione del cliente fallita.");
-        clienteId = newClient.id;
-        console.log('✅ Nuovo cliente creato:', clienteId);
-      }
-
-      // ✅ Gestione tipo_lavorazione
-      const validWorkTypes = [
-        'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'ACC', 'RIC', 'RIP',
-        'SA', 'SG', 'CT', 'ES', 'REL', 'FT', 'SPRT', 'VFT'
-      ] as const;
-      
-      let tipoLavorazioneValue: Database['public']['Enums']['work_type'] | null = null;
-      
-      if (formData.tipo_lavorazione && formData.tipo_lavorazione.trim() !== '') {
-        if (validWorkTypes.includes(formData.tipo_lavorazione as any)) {
-          tipoLavorazioneValue = formData.tipo_lavorazione as Database['public']['Enums']['work_type'];
-        } else {
-          console.warn('❌ Tipo lavorazione non valido:', formData.tipo_lavorazione);
-        }
-      }
-
-      // ✅ Inserisci la busta
-      const { data: newBusta, error: bustaError } = await supabase
-        .from('buste')
-        .insert({
-          cliente_id: clienteId,
-          tipo_lavorazione: tipoLavorazioneValue,
-          priorita: formData.priorita,
-          note_generali: formData.note_generali || null,
-          creato_da: user.id,
-          stato_attuale: 'nuove'
+      const response = await fetch('/api/buste', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente: {
+            cognome: formData.cliente_cognome.trim(),
+            nome: formData.cliente_nome.trim(),
+            genere: formData.cliente_genere || null,
+            telefono: formData.cliente_telefono.trim(),
+            email: formData.cliente_email?.trim() || null,
+            note_cliente: formData.cliente_note?.trim() || null
+          },
+          busta: {
+            tipo_lavorazione: formData.tipo_lavorazione || null,
+            priorita: formData.priorita,
+            note_generali: formData.note_generali?.trim() || null,
+            stato_attuale: 'nuove'
+          }
         })
-        .select('id, readable_id')
-        .single();
+      });
 
-      if (bustaError) throw bustaError;
-      if (!newBusta) throw new Error("Creazione della busta fallita.");
+      const result: CreateBustaResponse = await response
+        .json()
+        .catch(() => ({} as CreateBustaResponse));
 
-      console.log('✅ Busta creata con successo:', newBusta);
-
-      // ✅ Inserisci entry iniziale nello storico
-      const { error: historyError } = await supabase
-        .from('status_history')
-        .insert({
-          busta_id: newBusta.id,
-          stato: 'nuove',
-          data_ingresso: new Date().toISOString(),
-          operatore_id: user.id,
-          note_stato: 'Busta creata'
-        });
-
-      if (historyError) {
-        console.warn('❌ Errore inserimento storico:', historyError);
-        // Non blocchiamo per questo errore
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Errore creazione busta');
       }
 
       // ✅ Success - show success screen

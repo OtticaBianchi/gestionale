@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
+import { logUpdate } from '@/lib/audit/auditLog'
 
 type VoiceNote = {
   id: string
@@ -12,9 +13,17 @@ type VoiceNote = {
   transcription?: string | null
   note_aggiuntive?: string | null
   busta_id?: string | null
+  cliente_id?: string | null
+  stato?: string | null
+  dismissed_at?: string | null
+  processed_by?: string | null
+  processed_at?: string | null
 }
 
 type SupabaseServiceClient = ReturnType<typeof createClient>
+type AdminCheckResult =
+  | { response: NextResponse }
+  | { serviceClient: SupabaseServiceClient; userId: string; role: string }
 
 const ALLOWED_FIELDS = [
   'transcription',
@@ -27,7 +36,7 @@ const ALLOWED_FIELDS = [
 
 type PatchPayload = Partial<Record<(typeof ALLOWED_FIELDS)[number], unknown>>
 
-async function ensureAdminOrManager() {
+async function ensureAdminOrManager(): Promise<AdminCheckResult> {
   const serverClient = await createServerSupabaseClient()
   const {
     data: { user },
@@ -51,12 +60,24 @@ async function ensureAdminOrManager() {
   }
 
   return {
+    userId: user.id,
+    role: me.role,
     serviceClient: createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     ) as SupabaseServiceClient,
   }
 }
+
+const pickVoiceNoteAuditFields = (note: Partial<VoiceNote> | null | undefined) => ({
+  stato: note?.stato ?? null,
+  transcription: note?.transcription ?? null,
+  cliente_id: note?.cliente_id ?? null,
+  busta_id: note?.busta_id ?? null,
+  dismissed_at: note?.dismissed_at ?? null,
+  processed_by: note?.processed_by ?? null,
+  processed_at: note?.processed_at ?? null
+})
 
 async function parsePatchBody(request: NextRequest) {
   try {
@@ -197,7 +218,7 @@ export async function PATCH(
 ) {
   try {
     const authResult = await ensureAdminOrManager()
-    if (authResult.response) {
+    if ('response' in authResult) {
       return authResult.response
     }
 
@@ -207,6 +228,18 @@ export async function PATCH(
     }
 
     const { id } = await params
+
+    const { data: existingNote, error: fetchError } = await authResult.serviceClient
+      .from('voice_notes')
+      .select('id, stato, transcription, cliente_id, busta_id, dismissed_at, processed_by, processed_at')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !existingNote) {
+      console.error('Voice note not found for audit:', fetchError)
+      return NextResponse.json({ error: 'Nota vocale non trovata' }, { status: 404 })
+    }
+
     const updateData = buildUpdateData(payload || {})
 
     const { data, error } = await authResult.serviceClient
@@ -241,6 +274,24 @@ export async function PATCH(
       if (note) {
         await updateBustaNotes(authResult.serviceClient, targetBustaId, id, text, redoTranscription)
       }
+    }
+
+    const auditUpdate = await logUpdate(
+      'voice_notes',
+      id,
+      authResult.userId,
+      pickVoiceNoteAuditFields(existingNote as VoiceNote),
+      pickVoiceNoteAuditFields(data as VoiceNote),
+      'Aggiornamento nota vocale',
+      {
+        source: 'api/voice-notes/[id]',
+        fields: Object.keys(updateData)
+      },
+      authResult.role
+    )
+
+    if (!auditUpdate.success) {
+      console.error('AUDIT_UPDATE_VOICE_NOTE_FAILED', auditUpdate.error)
     }
 
     return NextResponse.json({
@@ -284,14 +335,27 @@ export async function DELETE(
     );
     const { id } = await params;
 
+    const { data: existingNote, error: fetchExistingError } = await supabase
+      .from('voice_notes')
+      .select('id, stato, transcription, cliente_id, busta_id, dismissed_at, processed_by, processed_at')
+      .eq('id', id)
+      .single();
+
+    if (fetchExistingError || !existingNote) {
+      console.error('Voice note not found for dismiss:', fetchExistingError);
+      return NextResponse.json({ error: 'Nota vocale non trovata' }, { status: 404 });
+    }
+
     // Unified deletion: dismiss from UI + clear audio but preserve metadata
+    const dismissedAt = new Date().toISOString();
+
     const { error } = await supabase
       .from('voice_notes')
       .update({
-        dismissed_at: new Date().toISOString(), // Hide from dashboard
+        dismissed_at: dismissedAt, // Hide from dashboard
         audio_blob: '', // Clear audio to save space
         file_size: 0, // Reset file size
-        updated_at: new Date().toISOString()
+        updated_at: dismissedAt
         // Keep transcription, metadata, and all other fields for history
       })
       .eq('id', id);
@@ -299,6 +363,29 @@ export async function DELETE(
     if (error) {
       console.error('Database error:', error);
       return NextResponse.json({ error: 'Errore dismissing nota vocale' }, { status: 500 });
+    }
+
+    const dismissedSnapshot: VoiceNote = {
+      ...(existingNote as VoiceNote),
+      dismissed_at: dismissedAt
+    }
+
+    const auditDismiss = await logUpdate(
+      'voice_notes',
+      id,
+      user.id,
+      pickVoiceNoteAuditFields(existingNote as VoiceNote),
+      pickVoiceNoteAuditFields(dismissedSnapshot),
+      'Dismiss nota vocale',
+      {
+        source: 'api/voice-notes/[id]',
+        action: 'dismiss'
+      },
+      profile.role
+    )
+
+    if (!auditDismiss.success) {
+      console.error('AUDIT_DISMISS_VOICE_NOTE_FAILED', auditDismiss.error)
     }
 
     return NextResponse.json({ 

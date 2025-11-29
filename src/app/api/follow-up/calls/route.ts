@@ -56,7 +56,7 @@ export async function GET(request: Request) {
             descrizione_prodotto
           )
         ),
-        profiles (
+        profiles:profiles!follow_up_chiamate_operatore_id_fkey (
           full_name
         )
       `)

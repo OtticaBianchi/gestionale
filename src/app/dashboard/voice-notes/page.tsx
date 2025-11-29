@@ -72,6 +72,18 @@ export default function VoiceNotesPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fetchAbortRef = useRef<AbortController | null>(null);
 
+  const abortOngoingFetch = useCallback(() => {
+    if (!fetchAbortRef.current) return;
+    // AbortController.abort() can throw in some environments, so we safely call it
+    const controller = fetchAbortRef.current;
+    fetchAbortRef.current = null;
+    try {
+      controller.abort();
+    } catch {
+      // Silently ignore any abort errors - they're harmless cleanup artifacts
+    }
+  }, []);
+
   // UI permissions (RLS handles database security)
   const canDeleteNotes = isAdmin;
   const canCreateNotes = canManageNotes;
@@ -80,7 +92,7 @@ export default function VoiceNotesPage() {
   const fetchVoiceNotes = useCallback(async ({ background = false }: { background?: boolean } = {}) => {
     if (!canManageNotes) return;
 
-    fetchAbortRef.current?.abort();
+    abortOngoingFetch();
     const controller = new AbortController();
     fetchAbortRef.current = controller;
 
@@ -101,7 +113,8 @@ export default function VoiceNotesPage() {
         setVoiceNotes(data.notes || []);
       }
     } catch (error: any) {
-      if (error?.name === 'AbortError') {
+      // Ignore abort errors - they're expected during cleanup/navigation
+      if (error?.name === 'AbortError' || error?.code === 20) {
         return;
       }
       console.error('Error fetching voice notes:', error);
@@ -113,7 +126,7 @@ export default function VoiceNotesPage() {
         setLoading(false);
       }
     }
-  }, [filter, canManageNotes]);
+  }, [filter, canManageNotes, abortOngoingFetch]);
 
   useEffect(() => {
     if (profile && !canManageNotes) {
@@ -123,7 +136,7 @@ export default function VoiceNotesPage() {
 
   useEffect(() => {
     if (!canManageNotes) {
-      fetchAbortRef.current?.abort();
+      abortOngoingFetch();
       setVoiceNotes([]);
       setLoading(false);
       return;
@@ -155,9 +168,59 @@ export default function VoiceNotesPage() {
     return () => {
       if (intervalId) clearInterval(intervalId);
       document.removeEventListener('visibilitychange', handleVisibility);
-      fetchAbortRef.current?.abort();
+      abortOngoingFetch();
     };
-  }, [canManageNotes, fetchVoiceNotes]);
+  }, [canManageNotes, fetchVoiceNotes, abortOngoingFetch]);
+
+  const decodeAudioBytes = (audioData: string) => {
+    const trimmed = audioData.trim();
+    const base64Payload = trimmed.startsWith('data:')
+      ? trimmed.substring(trimmed.indexOf(',') + 1)
+      : trimmed;
+    const binaryString = atob(base64Payload);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  };
+
+  const playWithMime = async (bytes: Uint8Array, mimeType: string) => {
+    const element = audioRef.current;
+    if (!element) {
+      throw new Error('Audio element non disponibile');
+    }
+
+    const audioUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+
+    return new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        element.onended = null;
+        element.onerror = null;
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      element.onended = () => {
+        cleanup();
+        setPlayingId(null);
+      };
+
+      element.onerror = () => {
+        const playbackError = element.error || new DOMException('Playback error');
+        cleanup();
+        reject(playbackError);
+      };
+
+      element.src = audioUrl;
+      element
+        .play()
+        .then(() => resolve())
+        .catch((error) => {
+          cleanup();
+          reject(error);
+        });
+    });
+  };
 
   const playAudio = async (note: VoiceNote) => {
     try {
@@ -171,26 +234,41 @@ export default function VoiceNotesPage() {
         return;
       }
 
-      // Create audio blob from base64
-      const audioBlob = new Blob([
-        Uint8Array.from(atob(note.audio_blob), c => c.charCodeAt(0))
-      ], { type: 'audio/webm' });
-      
-      const audioUrl = URL.createObjectURL(audioBlob);
-      
-      if (audioRef.current) {
-        audioRef.current.src = audioUrl;
-        audioRef.current.onended = () => {
-          setPlayingId(null);
-          URL.revokeObjectURL(audioUrl);
-        };
-        audioRef.current.onerror = () => {
-          setPlayingId(null);
-          URL.revokeObjectURL(audioUrl);
-        };
-        
-        await audioRef.current.play();
+      if (!note.audio_blob) {
+        console.error('Nota vocale priva di audio_blob');
+        return;
+      }
+
+      let audioBytes: Uint8Array;
+      try {
+        audioBytes = decodeAudioBytes(note.audio_blob);
+      } catch (decodeError) {
+        console.error('Impossibile decodificare il blob audio', decodeError);
+        return;
+      }
+
+      const mimeCandidates = ['audio/ogg; codecs=opus', 'audio/ogg', 'audio/webm'];
+      let playbackStarted = false;
+      let lastError: unknown = null;
+
+      for (const mime of mimeCandidates) {
+        try {
+          await playWithMime(audioBytes, mime);
+          playbackStarted = true;
+          break;
+        } catch (error: any) {
+          lastError = error;
+          if (error?.name !== 'NotSupportedError') {
+            break;
+          }
+        }
+      }
+
+      if (playbackStarted) {
         setPlayingId(note.id);
+      } else if (lastError) {
+        console.error('Errore riproduzione nota vocale:', lastError);
+        setPlayingId(null);
       }
     } catch (error) {
       console.error('Error playing audio:', error);

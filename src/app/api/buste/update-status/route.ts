@@ -3,6 +3,8 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+import { logInsert, logUpdate } from '@/lib/audit/auditLog'
 import {
   WorkflowState,
   isTransitionAllowed,
@@ -15,6 +17,26 @@ interface UpdateStatusPayload {
   newStatus?: WorkflowState
   tipoLavorazione?: string | null
 }
+
+const pickBustaAuditFields = (row: { stato_attuale?: WorkflowState | null; updated_at?: string | null; updated_by?: string | null } | null) => ({
+  stato_attuale: row?.stato_attuale ?? null,
+  updated_at: row?.updated_at ?? null,
+  updated_by: row?.updated_by ?? null
+})
+
+const pickHistoryAuditFields = (row: {
+  busta_id?: string | null
+  stato?: WorkflowState | null
+  data_ingresso?: string | null
+  operatore_id?: string | null
+  note_stato?: string | null
+} | null) => ({
+  busta_id: row?.busta_id ?? null,
+  stato: row?.stato ?? null,
+  data_ingresso: row?.data_ingresso ?? null,
+  operatore_id: row?.operatore_id ?? null,
+  note_stato: row?.note_stato ?? null
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,6 +51,19 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const userRole = profile?.role ?? null
+
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
 
     const body: UpdateStatusPayload = await request.json()
     const { bustaId, oldStatus, newStatus, tipoLavorazione = null } = body
@@ -65,15 +100,30 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString()
 
-    const { data: updatedBuste, error: updateError } = await supabase
+    const { data: existingBusta, error: fetchError } = await admin
+      .from('buste')
+      .select('id, readable_id, stato_attuale, updated_at, updated_by')
+      .eq('id', bustaId)
+      .single()
+
+    if (fetchError || !existingBusta) {
+      console.error('KANBAN_UPDATE_FETCH_ERROR', {
+        bustaId,
+        error: fetchError?.message
+      })
+      return NextResponse.json({ error: 'Busta non trovata' }, { status: 404 })
+    }
+
+    const { data: updatedBuste, error: updateError } = await admin
       .from('buste')
       .update({
         stato_attuale: newStatus,
+        updated_by: user.id,
         updated_at: now,
       })
       .eq('id', bustaId)
       .eq('stato_attuale', oldStatus) // optimistic concurrency control
-      .select('id, readable_id, stato_attuale, updated_at')
+      .select('id, readable_id, stato_attuale, updated_at, updated_by')
 
     if (updateError) {
       console.error('KANBAN_UPDATE_DB_ERROR', {
@@ -102,7 +152,26 @@ export async function POST(request: NextRequest) {
 
     const updatedBusta = updatedBuste[0]
 
-    const { error: historyError } = await supabase
+    const auditBusta = await logUpdate(
+      'buste',
+      bustaId,
+      user.id,
+      pickBustaAuditFields(existingBusta),
+      pickBustaAuditFields(updatedBusta),
+      'Aggiornamento stato Kanban',
+      {
+        source: 'api/buste/update-status',
+        from: oldStatus,
+        to: newStatus
+      },
+      userRole
+    )
+
+    if (!auditBusta.success) {
+      console.error('AUDIT_UPDATE_KANBAN_FAILED', auditBusta.error)
+    }
+
+    const { data: historyRow, error: historyError } = await admin
       .from('status_history')
       .insert({
         busta_id: bustaId,
@@ -111,6 +180,8 @@ export async function POST(request: NextRequest) {
         operatore_id: user.id,
         note_stato: getTransitionReason(oldStatus, newStatus, tipoLavorazione),
       })
+      .select('id, busta_id, stato, data_ingresso, operatore_id, note_stato')
+      .single()
 
     if (historyError) {
       console.error('KANBAN_HISTORY_ERROR', {
@@ -118,9 +189,28 @@ export async function POST(request: NextRequest) {
         bustaId,
         error: historyError.message,
       })
+    } else if (historyRow) {
+      const auditHistory = await logInsert(
+        'status_history',
+        historyRow.id,
+        user.id,
+        pickHistoryAuditFields(historyRow),
+        'Nuovo stato Kanban',
+        {
+          source: 'api/buste/update-status',
+          bustaReadableId: updatedBusta.readable_id,
+          from: oldStatus,
+          to: newStatus
+        },
+        userRole
+      )
+
+      if (!auditHistory.success) {
+        console.error('AUDIT_INSERT_STATUS_HISTORY_FAILED', auditHistory.error)
+      }
     }
 
-    const logInsert = await supabase
+    const kanbanLogInsert = await admin
       .from('kanban_update_logs')
       .insert({
         busta_id: bustaId,
@@ -134,11 +224,11 @@ export async function POST(request: NextRequest) {
         },
       })
 
-    if (logInsert.error) {
+    if (kanbanLogInsert.error) {
       console.error('KANBAN_LOG_ERROR', {
         userId: user.id,
         bustaId,
-        error: logInsert.error.message,
+        error: kanbanLogInsert.error.message,
       })
     }
 

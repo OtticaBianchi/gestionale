@@ -112,9 +112,9 @@ export default async function DashboardPage() {
   }
 
   const normalizedBuste = (buste || []).map(normalizePaymentPlanRelation) as BustaWithCliente[];
-  const activeBuste = normalizedBuste.filter(busta => !shouldArchiveBusta(busta));
+  const activeBuste = normalizedBuste.filter(busta => !shouldArchiveBusta(busta) && !busta.is_suspended);
 
-  console.log('🔍 Dashboard - Buste fetch result:', `Success: ${normalizedBuste.length} totali, ${activeBuste.length} attive`);
+  console.log('🔍 Dashboard - Buste fetch result:', `Success: ${normalizedBuste.length} totali, ${activeBuste.length} attive (${normalizedBuste.filter(b => b.is_suspended).length} sospese)`);
   console.log('🔍 Dashboard - Stati delle buste attive:', activeBuste.map(b => ({ id: b.readable_id, stato: b.stato_attuale })));
 
   return renderDashboard(activeBuste);

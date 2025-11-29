@@ -1,18 +1,12 @@
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-import { createServerClient } from '@supabase/ssr'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (name) => cookieStore.get(name)?.value } }
-  )
+  const supabase = await createServerSupabaseClient()
 
   const { data: { user }, error: userError } = await supabase.auth.getUser()
 

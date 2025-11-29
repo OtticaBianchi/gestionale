@@ -26,7 +26,8 @@ export interface AuditLogEntry {
   tableName: string;
   recordId: string;
   action: AuditAction;
-  userId: string;
+  userId: string | null;
+  userRole?: string | null;
   changedFields?: ChangedFields | null;
   reason?: string | null;
   metadata?: Record<string, any> | null;
@@ -89,12 +90,16 @@ export async function logAuditChange(
       }
     );
 
-    // Get user role for snapshot
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', entry.userId)
-      .single();
+    // Only query profiles if caller did not supply the user role to minimize DB load
+    let userRole = entry.userRole;
+    if (userRole === undefined && entry.userId) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', entry.userId)
+        .single();
+      userRole = profile?.role ?? null;
+    }
 
     // Insert audit log
     const { data, error } = await supabase
@@ -104,7 +109,7 @@ export async function logAuditChange(
         record_id: entry.recordId,
         action: entry.action,
         user_id: entry.userId,
-        user_role: profile?.role || null,
+        user_role: userRole ?? null,
         changed_fields: (entry.changedFields || null) as any,
         reason: entry.reason || null,
         metadata: (entry.metadata || null) as any,
@@ -130,8 +135,8 @@ export async function logAuditChange(
       console[logLevel](`${consolePrefix}_${entry.action}`, {
         table: entry.tableName,
         id: entry.recordId,
-        user: entry.userId,
-        role: profile?.role,
+        user: entry.userId ?? 'system',
+        role: userRole ?? null,
         fields: entry.changedFields ? Object.keys(entry.changedFields) : [],
         reason: entry.reason,
         auditId: data?.id,
@@ -165,7 +170,8 @@ export async function logUpdate(
   oldValues: Record<string, any>,
   newValues: Record<string, any>,
   reason?: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, any>,
+  userRole?: string | null
 ): Promise<{ success: boolean; auditId?: string; error?: string }> {
   // Build changed_fields object by comparing old and new
   const changedFields: ChangedFields = {};
@@ -194,6 +200,7 @@ export async function logUpdate(
     recordId,
     action: 'UPDATE',
     userId,
+    userRole,
     changedFields,
     reason,
     metadata
@@ -209,13 +216,15 @@ export async function logInsert(
   userId: string,
   newValues: Record<string, any>,
   reason?: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, any>,
+  userRole?: string | null
 ): Promise<{ success: boolean; auditId?: string; error?: string }> {
   return logAuditChange({
     tableName,
     recordId,
     action: 'INSERT',
     userId,
+    userRole,
     changedFields: {
       _created: {
         old: null,
@@ -236,13 +245,15 @@ export async function logDelete(
   userId: string,
   deletedValues: Record<string, any>,
   reason?: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, any>,
+  userRole?: string | null
 ): Promise<{ success: boolean; auditId?: string; error?: string }> {
   return logAuditChange({
     tableName,
     recordId,
     action: 'DELETE',
     userId,
+    userRole,
     changedFields: {
       _deleted: {
         old: deletedValues,

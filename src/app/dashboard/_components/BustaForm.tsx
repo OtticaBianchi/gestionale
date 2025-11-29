@@ -93,6 +93,12 @@ export default function BustaForm() {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+  type CreateBustaResponse = {
+    success?: boolean;
+    busta?: any;
+    cliente?: any;
+    error?: string;
+  };
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [tipiLavorazione, setTipiLavorazione] = useState<{codice: string, descrizione: string}[]>([]);
@@ -223,52 +229,33 @@ export default function BustaForm() {
     setFormError(null);
 
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Utente non autenticato");
-
-        let { data: existingClient, error: clientError } = await supabase
-            .from('clienti')
-            .select('id')
-            .eq('cognome', data.cliente_cognome)
-            .eq('nome', data.cliente_nome)
-            .eq('telefono', data.cliente_telefono)
-            .maybeSingle();
-
-        if (clientError) throw clientError;
-
-        let clienteId: string;
-
-        if (existingClient) {
-            clienteId = existingClient.id;
-        } else {
-            const { data: newClient, error: newClientError } = await supabase
-                .from('clienti')
-                .insert({
-                    cognome: data.cliente_cognome,
-                    nome: data.cliente_nome,
-                    telefono: data.cliente_telefono,
-                    email: data.cliente_email || null,
-                    genere: data.cliente_genere,
-                })
-                .select('id')
-                .single();
-
-            if (newClientError) throw newClientError;
-            if (!newClient) throw new Error("Creazione del cliente fallita.");
-            clienteId = newClient.id;
-        }
-
-        const { error: bustaError } = await supabase.from('buste').insert({
-            cliente_id: clienteId,
-            tipo_lavorazione: data.tipo_lavorazione && data.tipo_lavorazione !== '' 
-                ? data.tipo_lavorazione as WorkType 
-                : null,
-            priorita: data.priorita,
-            note_generali: data.note_generali || null,
-            creato_da: user.id,
+        const response = await fetch('/api/buste', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cliente: {
+              nome: data.cliente_nome.trim(),
+              cognome: data.cliente_cognome.trim(),
+              telefono: data.cliente_telefono.trim(),
+              email: data.cliente_email?.trim() || null,
+              genere: data.cliente_genere || null
+            },
+            busta: {
+              tipo_lavorazione: data.tipo_lavorazione || null,
+              priorita: data.priorita,
+              note_generali: data.note_generali?.trim() || null,
+              stato_attuale: 'nuove'
+            }
+          })
         });
 
-        if (bustaError) throw bustaError;
+        const result: CreateBustaResponse = await response
+          .json()
+          .catch(() => ({} as CreateBustaResponse));
+
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.error || 'Errore creazione busta');
+        }
 
         router.push('/dashboard');
         router.refresh();

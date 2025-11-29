@@ -3,7 +3,6 @@
 'use client';
 
 import { useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
 import { mutate } from 'swr';
 import { 
@@ -79,11 +78,6 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
     cliente_note: busta.clienti?.note_cliente || '',
   });
 
-  const supabase = createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   // ===== UTILITY FUNCTIONS =====
   const shouldShowTipoLenti = () => {
     const tipoLav = editForm.tipo_lavorazione || busta.tipo_lavorazione;
@@ -114,64 +108,36 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
     }
   };
 
-  // ===== DATABASE UPDATE FUNCTIONS =====
-  const updateClientData = async () => {
-    if (!busta.clienti || !busta.cliente_id) return;
-
-    const { error: clientError } = await supabase
-      .from('clienti')
-      .update({
-        nome: editForm.cliente_nome.trim(),
-        cognome: editForm.cliente_cognome.trim(),
-        genere: editForm.cliente_genere,
-        telefono: editForm.cliente_telefono.trim() || null,
-        email: editForm.cliente_email.trim() || null,
-        note_cliente: editForm.cliente_note.trim() || null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', busta.cliente_id);
-
-    if (clientError) {
-      console.error('❌ Client update error:', clientError);
-      throw new Error(`Errore aggiornamento cliente: ${clientError.message}`);
-    }
+  type AnagraficaResponse = {
+    success?: boolean;
+    busta?: Partial<BustaDettagliata>;
+    cliente?: Partial<BustaDettagliata['clienti']> | null;
+    error?: string;
   };
 
-  const updateBustaData = async (tipoLavorazioneValue: Database['public']['Enums']['work_type'] | null) => {
-    const { error: bustaError } = await supabase
-      .from('buste')
-      .update({
-        tipo_lavorazione: tipoLavorazioneValue,
-        priorita: editForm.priorita,
-        note_generali: editForm.note_generali.trim() || null,
-        is_suspended: editForm.is_suspended,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', busta.id);
-
-    if (bustaError) {
-      console.error('❌ Busta update error:', bustaError);
-      throw new Error(`Errore aggiornamento busta: ${bustaError.message}`);
-    }
-  };
-
-  const updateLocalState = (tipoLavorazioneValue: Database['public']['Enums']['work_type'] | null) => {
+  const updateLocalState = (
+    tipoLavorazioneValue: Database['public']['Enums']['work_type'] | null,
+    serverData?: AnagraficaResponse
+  ) => {
     const updatedBusta = {
       ...busta,
-      tipo_lavorazione: tipoLavorazioneValue,
-      priorita: editForm.priorita,
-      note_generali: editForm.note_generali.trim() || null,
-      is_suspended: editForm.is_suspended,
-      updated_at: new Date().toISOString(),
-      clienti: busta.clienti ? {
-        ...busta.clienti,
-        nome: editForm.cliente_nome.trim(),
-        cognome: editForm.cliente_cognome.trim(),
-        genere: editForm.cliente_genere,
-        telefono: editForm.cliente_telefono.trim() || null,
-        email: editForm.cliente_email.trim() || null,
-        note_cliente: editForm.cliente_note.trim() || null,
-      } : null
+      tipo_lavorazione: serverData?.busta?.tipo_lavorazione ?? tipoLavorazioneValue,
+      priorita: serverData?.busta?.priorita ?? editForm.priorita,
+      note_generali: serverData?.busta?.note_generali ?? (editForm.note_generali.trim() || null),
+      is_suspended: serverData?.busta?.is_suspended ?? editForm.is_suspended,
+      updated_at: serverData?.busta?.updated_at ?? new Date().toISOString(),
+      clienti: busta.clienti
+        ? {
+            ...busta.clienti,
+            ...serverData?.cliente,
+            nome: serverData?.cliente?.nome ?? editForm.cliente_nome.trim(),
+            cognome: serverData?.cliente?.cognome ?? editForm.cliente_cognome.trim(),
+            genere: serverData?.cliente?.genere ?? editForm.cliente_genere,
+            telefono: serverData?.cliente?.telefono ?? (editForm.cliente_telefono.trim() || null),
+            email: serverData?.cliente?.email ?? (editForm.cliente_email.trim() || null),
+            note_cliente: serverData?.cliente?.note_cliente ?? (editForm.cliente_note.trim() || null),
+          }
+        : (serverData?.cliente as BustaDettagliata['clienti'] | null) ?? null
     };
 
     onBustaUpdate(updatedBusta);
@@ -193,20 +159,39 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
     setSaveSuccess(false);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Utente non autenticato");
-
       validateFormData();
       const tipoLavorazioneValue = validateWorkType();
 
-      console.log('🔍 Saving busta and client data...');
+      const payload = {
+        tipo_lavorazione: tipoLavorazioneValue,
+        priorita: editForm.priorita,
+        note_generali: editForm.note_generali.trim() || null,
+        is_suspended: editForm.is_suspended,
+        cliente: {
+          nome: editForm.cliente_nome.trim(),
+          cognome: editForm.cliente_cognome.trim(),
+          genere: editForm.cliente_genere,
+          telefono: editForm.cliente_telefono.trim() || null,
+          email: editForm.cliente_email.trim() || null,
+          note_cliente: editForm.cliente_note.trim() || null,
+        }
+      };
 
-      await updateClientData();
-      await updateBustaData(tipoLavorazioneValue);
+      const response = await fetch(`/api/buste/${busta.id}/anagrafica`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-      console.log('✅ Busta and client updated successfully');
+      const result: AnagraficaResponse = await response
+        .json()
+        .catch(() => ({} as AnagraficaResponse));
 
-      updateLocalState(tipoLavorazioneValue);
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Errore aggiornamento anagrafica');
+      }
+
+      updateLocalState(tipoLavorazioneValue, result);
       await handleSaveSuccess();
 
     } catch (error: any) {

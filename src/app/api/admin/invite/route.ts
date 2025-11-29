@@ -2,8 +2,7 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { strictRateLimit } from '@/lib/rate-limit'
 
@@ -12,12 +11,7 @@ export async function POST(request: NextRequest) {
   const rl = await strictRateLimit(request)
   if (rl) return rl
 
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (name) => cookieStore.get(name)?.value } }
-  )
+  const supabase = await createServerSupabaseClient()
 
   // Ensure caller is admin
   const { data: { user } } = await supabase.auth.getUser()

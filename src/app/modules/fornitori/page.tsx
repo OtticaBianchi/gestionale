@@ -16,7 +16,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-type Categoria = "lenti" | "montature" | "lac" | "sport" | "lab_esterno";
+type Categoria = "lenti" | "montature" | "lac" | "sport" | "lab_esterno" | "accessori";
 
 type Supplier = {
   id?: string;
@@ -33,6 +33,7 @@ const CATEGORIE: { key: Categoria; label: string }[] = [
   { key: "lenti", label: "Lenti" },
   { key: "montature", label: "Montature" },
   { key: "lac", label: "Lenti a Contatto" },
+  { key: "accessori", label: "Accessori e Liquidi" },
   { key: "sport", label: "Sport" },
   { key: "lab_esterno", label: "Laboratorio Esterno" },
 ];

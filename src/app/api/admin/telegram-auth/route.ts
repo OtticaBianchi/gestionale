@@ -2,18 +2,12 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 
 // GET: List unauthorized users and authorised entries
 export async function GET(request: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (name) => cookieStore.get(name)?.value } }
-  );
+  const supabase = await createServerSupabaseClient();
 
   const summary = request.nextUrl.searchParams.get('summary');
 
@@ -154,12 +148,7 @@ export async function GET(request: NextRequest) {
 
 // POST: Authorize a user
 export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (name) => cookieStore.get(name)?.value } }
-  );
+  const supabase = await createServerSupabaseClient();
 
   // Ensure admin
   const { data: { user } } = await supabase.auth.getUser();
@@ -267,12 +256,7 @@ export async function POST(request: NextRequest) {
 
 // PATCH: Revoke access
 export async function PATCH(request: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (name) => cookieStore.get(name)?.value } }
-  );
+  const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
@@ -350,12 +334,7 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE: Remove an unauthorized request
 export async function DELETE(request: NextRequest) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { get: (name) => cookieStore.get(name)?.value } }
-  );
+  const supabase = await createServerSupabaseClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });

@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { logInsert } from '@/lib/audit/auditLog'
 import { computeReadStatus, fetchReceiptsMap } from '@/lib/procedures/unread'
 
 // GET - List procedures with filters and search
@@ -286,6 +287,25 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Una procedura con questo titolo esiste già' }, { status: 400 })
       }
       return NextResponse.json({ error: 'Errore creazione procedura' }, { status: 500 })
+    }
+
+    const audit = await logInsert(
+      'procedures',
+      newProcedure.id,
+      user.id,
+      {
+        title: newProcedure.title,
+        slug: newProcedure.slug,
+        context_category: newProcedure.context_category,
+        procedure_type: newProcedure.procedure_type
+      },
+      'Creazione procedura',
+      { source: 'api/procedures POST' },
+      profile.role
+    )
+
+    if (!audit.success) {
+      console.error('AUDIT_CREATE_PROCEDURE_FAILED', audit.error)
     }
 
     return NextResponse.json({

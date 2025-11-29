@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { logInsert } from '@/lib/audit/auditLog'
 
 type RequestPayload = {
   bustaId?: string
@@ -88,6 +89,31 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Comunicazioni insert error:', error)
       return NextResponse.json({ error: 'Errore durante il salvataggio della comunicazione' }, { status: 500 })
+    }
+
+    const audit = await logInsert(
+      'comunicazioni',
+      data.id,
+      user.id,
+      {
+        busta_id: data.busta_id,
+        tipo_messaggio: data.tipo_messaggio,
+        stato_invio: data.stato_invio,
+        destinatario_nome: data.destinatario_nome,
+        destinatario_tipo: data.destinatario_tipo,
+        canale_invio: data.canale_invio
+      },
+      'Creazione comunicazione cliente',
+      {
+        source: 'api/comunicazioni',
+        bustaId: body.bustaId,
+        canale: data.canale_invio
+      },
+      profile.role
+    )
+
+    if (!audit.success) {
+      console.error('AUDIT_INSERT_COMUNICAZIONI_FAILED', audit.error)
     }
 
     return NextResponse.json({ comunicazione: data })

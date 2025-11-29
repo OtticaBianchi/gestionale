@@ -190,12 +190,18 @@ export default function ImportClientiPage() {
         email: row.email || null,
       };
 
-      const { error } = await supabase.from('clienti').insert(payload);
+      const response = await fetch('/api/admin/import-clienti', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-      if (error) {
+      const result = await response.json().catch(() => ({} as { success?: boolean; error?: string }));
+
+      if (!response.ok || !result?.success) {
         failures.push({
           rowNumber: row.rowNumber,
-          message: error.message ?? 'Errore sconosciuto durante l\'inserimento',
+          message: result?.error ?? 'Errore sconosciuto durante l\'inserimento',
           record: {
             cognome: row.cognome,
             nome: row.nome,
@@ -207,7 +213,7 @@ export default function ImportClientiPage() {
         setRows((prev) =>
           prev.map((item) =>
             item.rowNumber === row.rowNumber
-              ? { ...item, status: 'error', errorMessage: error.message ?? 'Errore durante l\'import' }
+              ? { ...item, status: 'error', errorMessage: result?.error ?? 'Errore durante l\'import' }
               : item
           )
         );

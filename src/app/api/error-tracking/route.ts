@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { logInsert, logUpdate } from '@/lib/audit/auditLog'
 import { Database } from '@/types/database.types'
 
 type ErrorTrackingRow = {
@@ -30,6 +31,24 @@ type ErrorTrackingRow = {
   is_draft: boolean
   auto_created_from_order: string | null
 }
+
+const pickAuditSnapshot = (row: Partial<ErrorTrackingRow>) => ({
+  busta_id: row.busta_id ?? null,
+  employee_id: row.employee_id ?? null,
+  cliente_id: row.cliente_id ?? null,
+  error_type: row.error_type ?? null,
+  error_category: row.error_category ?? null,
+  cost_type: row.cost_type ?? null,
+  cost_amount: row.cost_amount ?? null,
+  resolution_status: row.resolution_status ?? null,
+  resolution_notes: row.resolution_notes ?? null,
+  resolved_by: row.resolved_by ?? null,
+  resolved_at: row.resolved_at ?? null,
+  is_draft: row.is_draft ?? null,
+  client_impacted: row.client_impacted ?? null,
+  requires_reorder: row.requires_reorder ?? null,
+  auto_created_from_order: row.auto_created_from_order ?? null
+})
 
 // GET - Lista errori con filtri e statistiche
 export async function GET(request: NextRequest) {
@@ -287,10 +306,14 @@ export async function POST(request: NextRequest) {
       .select(`
         id,
         busta_id,
+        employee_id,
+        cliente_id,
         cost_amount,
         cost_type,
         error_type,
         error_category,
+        client_impacted,
+        requires_reorder,
         is_draft,
         auto_created_from_order,
         reported_at,
@@ -301,6 +324,24 @@ export async function POST(request: NextRequest) {
     if (insertError) {
       console.error('Error inserting error record:', insertError)
       return NextResponse.json({ error: 'Errore inserimento errore' }, { status: 500 })
+    }
+
+    const auditInsert = await logInsert(
+      'error_tracking',
+      newError.id,
+      user.id,
+      pickAuditSnapshot(newError as Partial<ErrorTrackingRow>),
+      `Registrazione errore (${error_type})`,
+      {
+        source: 'api/error-tracking',
+        isDraft: is_draft,
+        autoCreated: Boolean(auto_created_from_order)
+      },
+      profile.role
+    )
+
+    if (!auditInsert.success) {
+      console.error('AUDIT_INSERT_ERROR_TRACKING_FAILED', auditInsert.error)
     }
 
     // Log per errori critici (come nel pattern esistente)
@@ -355,6 +396,17 @@ export async function PATCH(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    const { data: existing, error: existingError } = await adminClient
+      .from('error_tracking')
+      .select('id, resolution_status, resolution_notes, resolved_by, resolved_at')
+      .eq('id', id)
+      .single()
+
+    if (existingError || !existing) {
+      console.error('Error fetching existing error record:', existingError)
+      return NextResponse.json({ error: 'Errore non trovato' }, { status: 404 })
+    }
+
     const updateData: any = {}
     if (resolution_status) {
       updateData.resolution_status = resolution_status
@@ -375,6 +427,24 @@ export async function PATCH(request: NextRequest) {
     if (error) {
       console.error('Error updating error record:', error)
       return NextResponse.json({ error: 'Errore aggiornamento errore' }, { status: 500 })
+    }
+
+    const auditUpdate = await logUpdate(
+      'error_tracking',
+      id,
+      user.id,
+      pickAuditSnapshot(existing as Partial<ErrorTrackingRow>),
+      pickAuditSnapshot(data as Partial<ErrorTrackingRow>),
+      'Aggiornamento risoluzione errore',
+      {
+        source: 'api/error-tracking',
+        newStatus: resolution_status ?? null
+      },
+      profile.role
+    )
+
+    if (!auditUpdate.success) {
+      console.error('AUDIT_UPDATE_ERROR_TRACKING_FAILED', auditUpdate.error)
     }
 
     return NextResponse.json({

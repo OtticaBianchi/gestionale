@@ -1,5 +1,17 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { logUpdate } from '@/lib/audit/auditLog'
+
+const pickFollowUpAuditFields = (row: any) => ({
+  stato_chiamata: row?.stato_chiamata ?? null,
+  livello_soddisfazione: row?.livello_soddisfazione ?? null,
+  note_chiamata: row?.note_chiamata ?? null,
+  data_chiamata: row?.data_chiamata ?? null,
+  data_completamento: row?.data_completamento ?? null,
+  archiviato: row?.archiviato ?? null,
+  orario_richiamata_da: row?.orario_richiamata_da ?? null,
+  orario_richiamata_a: row?.orario_richiamata_a ?? null
+})
 
 // PATCH - Aggiorna stato chiamata
 export async function PATCH(
@@ -15,6 +27,23 @@ export async function PATCH(
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const { data: existingCall, error: fetchError } = await supabase
+      .from('follow_up_chiamate')
+      .select('id, stato_chiamata, livello_soddisfazione, note_chiamata, data_chiamata, data_completamento, archiviato, orario_richiamata_da, orario_richiamata_a')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !existingCall) {
+      console.error('Follow-up call not found for audit:', fetchError)
+      return NextResponse.json({ error: 'Chiamata non trovata' }, { status: 404 })
     }
 
     // Prepara i dati per l'aggiornamento
@@ -74,7 +103,7 @@ export async function PATCH(
         priorita,
         created_at,
         updated_at,
-        profiles (
+        profiles:profiles!follow_up_chiamate_operatore_id_fkey (
           full_name
         )
       `)
@@ -83,6 +112,24 @@ export async function PATCH(
     if (error) {
       console.error('Errore aggiornamento chiamata:', error)
       return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    const audit = await logUpdate(
+      'follow_up_chiamate',
+      id,
+      user.id,
+      pickFollowUpAuditFields(existingCall),
+      pickFollowUpAuditFields(data),
+      'Aggiornamento chiamata follow-up',
+      {
+        source: 'api/follow-up/calls/[id]',
+        stato_chiamata: data.stato_chiamata
+      },
+      profile?.role ?? null
+    )
+
+    if (!audit.success) {
+      console.error('AUDIT_UPDATE_FOLLOWUP_FAILED', audit.error)
     }
 
     return NextResponse.json({
@@ -114,6 +161,23 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const { data: existingCall, error: fetchError } = await supabase
+      .from('follow_up_chiamate')
+      .select('id, stato_chiamata, livello_soddisfazione, note_chiamata, data_chiamata, data_completamento, archiviato')
+      .eq('id', id)
+      .single()
+
+    if (fetchError || !existingCall) {
+      console.error('Follow-up call not found for archive:', fetchError)
+      return NextResponse.json({ error: 'Chiamata non trovata' }, { status: 404 })
+    }
+
     // Archivia invece di cancellare
     const { error } = await supabase
       .from('follow_up_chiamate')
@@ -126,6 +190,29 @@ export async function DELETE(
     if (error) {
       console.error('Errore archiviazione chiamata:', error)
       return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+
+    const updatedSnapshot = {
+      ...existingCall,
+      archiviato: true
+    }
+
+    const auditArchive = await logUpdate(
+      'follow_up_chiamate',
+      id,
+      user.id,
+      pickFollowUpAuditFields(existingCall),
+      pickFollowUpAuditFields(updatedSnapshot),
+      'Archiviazione chiamata follow-up',
+      {
+        source: 'api/follow-up/calls/[id]',
+        action: 'archive'
+      },
+      profile?.role ?? null
+    )
+
+    if (!auditArchive.success) {
+      console.error('AUDIT_ARCHIVE_FOLLOWUP_FAILED', auditArchive.error)
     }
 
     return NextResponse.json({

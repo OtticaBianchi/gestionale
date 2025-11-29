@@ -232,10 +232,10 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     if (planData && infoData && typeof infoData.importo_acconto === 'number') {
       const delta = Math.abs((planData.acconto || 0) - infoData.importo_acconto);
       if (delta > 0.49) {
-        await supabase
-          .from('payment_plans')
-          .update({ acconto: infoData.importo_acconto })
-          .eq('id', planData.id);
+        await callPaymentsAction('sync_plan_acconto', {
+          paymentPlanId: planData.id,
+          acconto: infoData.importo_acconto
+        });
         planData.acconto = infoData.importo_acconto;
       }
     }
@@ -267,6 +267,30 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     }
   };
 
+  type PaymentsActionResponse = {
+    success?: boolean;
+    error?: string;
+    [key: string]: any;
+  };
+
+  const callPaymentsAction = async (action: string, payload: Record<string, any>) => {
+    const response = await fetch('/api/payments/actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, payload })
+    });
+
+    const result: PaymentsActionResponse = await response
+      .json()
+      .catch(() => ({} as PaymentsActionResponse));
+
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'Operazione pagamento non riuscita');
+    }
+
+    return result;
+  };
+
   const handlePlanCreated = async () => {
     setIsSetupOpen(false);
     await loadPaymentContext();
@@ -281,12 +305,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
 
     setOngoingAction('reset-plan');
     try {
-      const { error } = await supabase
-        .from('payment_plans')
-        .delete()
-        .eq('id', paymentPlan.id);
-
-      if (error) throw error;
+      await callPaymentsAction('delete_plan', { paymentPlanId: paymentPlan.id });
 
       setPaymentPlan(null);
       setInstallments([]);
@@ -311,40 +330,17 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     return parsed;
   };
 
-  const updateInfoPagamenti = async (totalAmount: number) => {
-    const upsertPayload = {
-      busta_id: busta.id,
-      prezzo_finale: totalAmount,
-      note_pagamento: null,
-      updated_at: new Date().toISOString()
-    } satisfies Partial<InfoPagamentoRecord> & { busta_id: string };
-
-    const { error } = await supabase
-      .from('info_pagamenti')
-      .upsert(upsertPayload, { onConflict: 'busta_id' });
-
-    if (error) throw error;
-  };
-
-  const updatePaymentPlanTotal = async (totalAmount: number) => {
-    if (paymentPlan) {
-      const { error } = await supabase
-        .from('payment_plans')
-        .update({ total_amount: totalAmount })
-        .eq('id', paymentPlan.id);
-
-      if (error) throw error;
-    }
-  };
-
   const saveTotalAmount = async () => {
     const validAmount = validateTotalAmount(totalDraft);
     if (!validAmount) return;
 
     setIsSavingTotal(true);
     try {
-      await updateInfoPagamenti(validAmount);
-      await updatePaymentPlanTotal(validAmount);
+      await callPaymentsAction('update_total', {
+        bustaId: busta.id,
+        paymentPlanId: paymentPlan?.id,
+        totalAmount: validAmount
+      });
       await loadPaymentContext();
       await mutate('/api/buste');
     } catch (error: any) {
@@ -364,18 +360,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     setOngoingAction('mark-no-payment');
     try {
       if (paymentPlan) {
-        const { error: deleteInstallmentsError } = await supabase
-          .from('payment_installments')
-          .delete()
-          .eq('payment_plan_id', paymentPlan.id);
-        if (deleteInstallmentsError) throw deleteInstallmentsError;
-
-        const { error: deletePlanError } = await supabase
-          .from('payment_plans')
-          .delete()
-          .eq('id', paymentPlan.id);
-
-        if (deletePlanError) throw deletePlanError;
+        await callPaymentsAction('delete_plan', { paymentPlanId: paymentPlan.id });
       }
 
       const response = await fetch('/api/buste/no-payment', {
@@ -445,16 +430,11 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const updateInstallmentPayment = async (installmentId: string, amount: number, isCompleted: boolean) => {
-    const { error } = await supabase
-      .from('payment_installments')
-      .update({
-        paid_amount: amount,
-        is_completed: isCompleted,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', installmentId);
-
-    if (error) throw error;
+    await callPaymentsAction('update_installment', {
+      installmentId,
+      amount,
+      isCompleted
+    });
   };
 
   const handleRegisterInstallmentPayment = async (installment: PaymentInstallmentRecord) => {
@@ -498,16 +478,10 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
 
     setOngoingAction('toggle-reminders');
     try {
-      const { error } = await supabase
-        .from('payment_plans')
-        .update({
-          reminder_preference: preference,
-          auto_reminders_enabled: mapReminderPreferenceToBoolean(preference),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', paymentPlan.id);
-
-      if (error) throw error;
+      await callPaymentsAction('toggle_reminder', {
+        paymentPlanId: paymentPlan.id,
+        preference
+      });
 
       await loadPaymentContext();
     } catch (error: any) {
@@ -523,23 +497,10 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
 
     setOngoingAction('complete-plan');
     try {
-      const { error } = await supabase
-        .from('payment_plans')
-        .update({
-          is_completed: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', paymentPlan.id);
-
-      if (error) throw error;
-
-      await supabase
-        .from('info_pagamenti')
-        .upsert({
-          busta_id: busta.id,
-          is_saldato: true,
-          data_saldo: new Date().toISOString()
-        }, { onConflict: 'busta_id' });
+      await callPaymentsAction('complete_plan', {
+        paymentPlanId: paymentPlan.id,
+        bustaId: busta.id
+      });
 
       await loadPaymentContext();
       await mutate('/api/buste');
@@ -557,15 +518,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
 
     setOngoingAction('close-busta');
     try {
-      const { error } = await supabase
-        .from('buste')
-        .update({
-          stato_attuale: 'consegnato_pagato',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', busta.id);
-
-      if (error) throw error;
+      await callPaymentsAction('close_busta', { bustaId: busta.id });
 
       await mutate('/api/buste');
       await loadPaymentContext();

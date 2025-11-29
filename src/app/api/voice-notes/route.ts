@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import { apiRateLimit } from '@/lib/rate-limit';
+import { logAuditChange } from '@/lib/audit/auditLog';
 
 export async function POST(request: NextRequest) {
   // Apply rate limiting
@@ -69,6 +70,38 @@ export async function POST(request: NextRequest) {
       }
       
       // Note: Transcription now handled by webhook route, not here
+
+      const audit = await logAuditChange(
+        {
+          tableName: 'voice_notes',
+          recordId: data.id,
+          action: 'INSERT',
+          userId: null,
+          changedFields: {
+            _created: {
+              old: null,
+              new: {
+                stato: data.stato,
+                addetto_nome: data.addetto_nome,
+                cliente_id: data.cliente_id,
+                busta_id: data.busta_id,
+                source: 'telegram_bot'
+              }
+            }
+          },
+          reason: 'Nota vocale creata via Telegram',
+          metadata: {
+            source: 'telegram_bot',
+            telegram_message_id: jsonData.telegram_message_id ?? null,
+            telegram_user_id: jsonData.telegram_user_id ?? null
+          }
+        },
+        { logToConsole: false }
+      );
+
+      if (!audit.success) {
+        console.error('AUDIT_INSERT_VOICE_NOTE_FAILED', audit.error);
+      }
 
       return NextResponse.json({ 
         success: true, 

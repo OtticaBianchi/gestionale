@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
-import { Database } from '@/types/database.types';
 import {
   Euro,
   Calendar,
@@ -50,11 +48,6 @@ export default function PaymentPlanSetup({
   const [isCreating, setIsCreating] = useState(false);
 
   const remainingAmount = totalAmount - acconto;
-  const supabase = createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   const addInstallment = () => {
     const newId = (installments.length + 1).toString();
     setInstallments([...installments, { id: newId, amount: '', dueDate: '' }]);
@@ -98,25 +91,6 @@ export default function PaymentPlanSetup({
 
     setIsCreating(true);
     try {
-      // Create payment plan
-      const planData = {
-        busta_id: busta.id,
-        total_amount: totalAmount,
-        acconto: acconto,
-        payment_type: paymentType,
-        auto_reminders_enabled: paymentType === 'installments' && reminderPreference === 'automatic',
-        reminder_preference: paymentType === 'installments' ? reminderPreference : 'disabled',
-        is_completed: paymentType === 'finanziamento_bancario'
-      };
-
-      const { data: plan, error: planError } = await supabase
-        .from('payment_plans')
-        .insert(planData)
-        .select()
-        .single();
-
-      if (planError) throw planError;
-
       const modalitaSaldo = paymentType === 'saldo_unico'
         ? 'saldo_unico'
         : paymentType === 'finanziamento_bancario'
@@ -125,46 +99,29 @@ export default function PaymentPlanSetup({
             ? 'due_rate'
             : 'tre_rate';
 
-      // Create installments if needed
-      if (paymentType === 'installments') {
-        const installmentData = installments.map((inst, index) => ({
-          payment_plan_id: plan.id,
-          installment_number: index + 1,
-          due_date: inst.dueDate,
-          expected_amount: Number.parseFloat(inst.amount),
-          paid_amount: 0,
-          is_completed: false,
-          reminder_3_days_sent: false,
-          reminder_10_days_sent: false
-        }));
+      const response = await fetch('/api/payments/actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create_plan',
+          payload: {
+            bustaId: busta.id,
+            totalAmount,
+            acconto,
+            paymentType,
+            reminderPreference,
+            installments,
+            modalitaSaldo
+          }
+        })
+      });
 
-        const { error: instError } = await supabase
-          .from('payment_installments')
-          .insert(installmentData);
-
-        if (instError) throw instError;
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Errore creazione piano pagamenti');
       }
 
-      // Sync legacy info_pagamenti for backwards compatibility
-      const { error: infoError } = await supabase
-        .from('info_pagamenti')
-        .upsert({
-          busta_id: busta.id,
-          prezzo_finale: totalAmount,
-          importo_acconto: acconto,
-          ha_acconto: acconto > 0,
-          modalita_saldo: modalitaSaldo,
-          is_saldato: paymentType === 'finanziamento_bancario',
-          data_saldo: paymentType === 'finanziamento_bancario' ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'busta_id' });
-
-      if (infoError) {
-        console.warn('⚠️ Non è stato possibile sincronizzare info_pagamenti:', infoError.message);
-      }
-
-      console.log('✅ Payment plan created successfully');
-      onComplete(plan);
+      onComplete(result.plan);
 
     } catch (error: any) {
       console.error('❌ Error creating payment plan:', error);

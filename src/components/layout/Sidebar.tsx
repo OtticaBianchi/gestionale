@@ -376,6 +376,14 @@ export default function Sidebar({ className = '' }: SidebarProps) {
               label="Analytics"
               isCollapsed={isCollapsed}
             />
+            {userRole === 'admin' && (
+              <SidebarItem
+                href="/dashboard/audit"
+                icon={FileSpreadsheet}
+                label="Audit"
+                isCollapsed={isCollapsed}
+              />
+            )}
           </SidebarSection>
 
           {/* OPERAZIONI Section */}

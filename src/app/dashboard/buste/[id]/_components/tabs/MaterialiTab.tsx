@@ -53,6 +53,8 @@ type OrdineMateriale = Database['public']['Tables']['ordini_materiali']['Row'] &
   da_ordinare?: boolean | null;
   stato_disponibilita?: 'disponibile' | 'riassortimento' | 'esaurito';
   promemoria_disponibilita?: string | null;
+  updated_by?: string | null;
+  updated_at?: string | null;
   fornitori_lenti?: { nome: string } | null;
   fornitori_lac?: { nome: string } | null;
   fornitori_montature?: { nome: string } | null;
@@ -150,7 +152,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const [fornitoriMontature, setFornitoriMontature] = useState<Fornitore[]>([]);
   const [fornitoriLabEsterno, setFornitoriLabEsterno] = useState<Fornitore[]>([]);
   const [fornitoriSport, setFornitoriSport] = useState<Fornitore[]>([]);
-  const [fornitoriAccessori, setFornitoriAccessori] = useState<Fornitore[]>([]); // ✅ NUOVO: Accessori
+  const [fornitoriAccessori, setFornitoriAccessori] = useState<Fornitore[]>([]); // ✅ Accessori e Liquidi
   const [fornitoriAssistenza, setFornitoriAssistenza] = useState<Fornitore[]>([]); // ✅ NUOVO: Assistenza (combined list)
   const [fornitoriRicambi, setFornitoriRicambi] = useState<Fornitore[]>([]); // ✅ NUOVO: Ricambi (filtered list)
   
@@ -247,6 +249,29 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  type UpdateOrdineDescriptionResponse = {
+    success?: boolean;
+    ordine?: {
+      id: string;
+      descrizione_prodotto: string;
+      updated_by?: string | null;
+      updated_at?: string | null;
+    };
+    message?: string;
+    error?: string;
+  };
+
+  type DeleteOrdineResponse = {
+    success?: boolean;
+    error?: string;
+  };
+
+  type CreateOrdineResponse = {
+    success?: boolean;
+    ordine?: any;
+    error?: string;
+  };
 
   useEffect(() => {
     setWorkflowStatus(resolveWorkflowState(busta.stato_attuale));
@@ -467,7 +492,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           supabase.from('fornitori_montature').select('*'),
           supabase.from('fornitori_lab_esterno').select('*'),
           supabase.from('fornitori_sport').select('*'),
-          supabase.from('fornitori_lac').select('*') // ✅ NUOVO: Accessori usa fornitori LAC per ora
+          supabase.from('fornitori_accessori').select('*') // ✅ Dedicated accessori suppliers table
         ]);
 
         if (fornitoriLentiData.data) setFornitoriLenti(fornitoriLentiData.data);
@@ -475,9 +500,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         if (fornitoriMontaturaData.data) setFornitoriMontature(fornitoriMontaturaData.data);
         if (fornitoriLabEsternoData.data) setFornitoriLabEsterno(fornitoriLabEsternoData.data);
         if (fornitoriSportData.data) setFornitoriSport(fornitoriSportData.data);
-        if (fornitoriAccessoriData.data) setFornitoriAccessori(fornitoriAccessoriData.data); // ✅ NUOVO
+        if (fornitoriAccessoriData.data) setFornitoriAccessori(fornitoriAccessoriData.data); // ✅ Accessori e Liquidi
 
-        // ✅ NUOVO: Assistenza = combined list of all suppliers (except Accessori)
+        // ✅ Assistenza = combined list of all suppliers
         const combinedAssistenza = [
           ...(fornitoriLentiData.data || []),
           ...(fornitoriLacData.data || []),
@@ -487,7 +512,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         ];
         setFornitoriAssistenza(combinedAssistenza);
 
-        // ✅ NUOVO: Ricambi = only Montature, Sport, Accessori suppliers
+        // ✅ Ricambi = only Montature, Sport, Accessori suppliers
         const combinedRicambi = [
           ...(fornitoriMontaturaData.data || []),
           ...(fornitoriSportData.data || []),
@@ -839,25 +864,30 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   };
 
   // ===== LOAD ACCONTO INFO =====
+  type AccontoResponse = {
+    success?: boolean;
+    acconto?: { importo_acconto: number | null; ha_acconto: boolean | null } | null;
+    error?: string;
+  };
+
   const loadAccontoInfo = async () => {
     try {
-      const { data: infoPagamento, error } = await supabase
-        .from('info_pagamenti')
-        .select('importo_acconto, ha_acconto')
-        .eq('busta_id', busta.id)
-        .single();
+      const response = await fetch(`/api/buste/${busta.id}/acconto`);
+      const result: AccontoResponse = await response
+        .json()
+        .catch(() => ({} as AccontoResponse));
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
-        console.error('❌ Errore caricamento acconto:', error);
+      if (!response.ok) {
+        console.error('❌ Errore caricamento acconto:', result?.error);
         return;
       }
 
-      if (infoPagamento) {
+      if (result.acconto) {
         setAccontoInfo(prev => ({
           ...prev,
-          currentAcconto: infoPagamento.importo_acconto,
-          ha_acconto: infoPagamento.ha_acconto || false,
-          importo_acconto: infoPagamento.importo_acconto?.toString() || ''
+          currentAcconto: result.acconto?.importo_acconto ?? null,
+          ha_acconto: result.acconto?.ha_acconto ?? false,
+          importo_acconto: result.acconto?.importo_acconto?.toString() || ''
         }));
       }
     } catch (error) {
@@ -877,18 +907,18 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     try {
       console.log(`💰 Salvando acconto: €${importo} per busta ${busta.id}`);
 
-      const { error } = await supabase
-        .from('info_pagamenti')
-        .upsert({
-          busta_id: busta.id,
-          importo_acconto: importo,
-          ha_acconto: importo > 0
-        }, {
-          onConflict: 'busta_id'
-        });
+      const response = await fetch(`/api/buste/${busta.id}/acconto`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ importo_acconto: importo })
+      });
 
-      if (error) {
-        console.error('❌ Errore salvataggio acconto:', error);
+      const result: AccontoResponse = await response
+        .json()
+        .catch(() => ({} as AccontoResponse));
+
+      if (!response.ok || !result?.success) {
+        console.error('❌ Errore salvataggio acconto:', result?.error);
         return;
       }
 
@@ -944,7 +974,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         'lac': { fornitore_lac_id: supplierId },
         'montature': { fornitore_montature_id: supplierId },
         'sport': { fornitore_sport_id: supplierId },
-        'accessori': { fornitore_lac_id: supplierId } // Accessori uses LAC table
+        'accessori': { fornitore_accessori_id: supplierId } // Accessori uses dedicated table
       };
 
       return assistenzaSupplierMap[tipoAssistenza as keyof typeof assistenzaSupplierMap] || null;
@@ -958,7 +988,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       const ricambiSupplierMap = {
         'montature': { fornitore_montature_id: supplierId },
         'sport': { fornitore_sport_id: supplierId },
-        'accessori': { fornitore_lac_id: supplierId } // Accessori uses LAC table
+        'accessori': { fornitore_accessori_id: supplierId } // Accessori uses dedicated table
       };
 
       return ricambiSupplierMap[tipoRicambi as keyof typeof ricambiSupplierMap] || null;
@@ -970,7 +1000,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       'montature': { fornitore_montature_id: nuovoOrdineForm.fornitore_id },
       'lab.esterno': { fornitore_lab_esterno_id: nuovoOrdineForm.fornitore_id },
       'sport': { fornitore_sport_id: nuovoOrdineForm.fornitore_id },
-      'accessori': { fornitore_lac_id: nuovoOrdineForm.fornitore_id } // ✅ NUOVO: Accessori usa LAC per ora
+      'accessori': { fornitore_accessori_id: nuovoOrdineForm.fornitore_id } // ✅ Accessori e Liquidi dedicated table
     };
 
     return supplierMap[nuovoOrdineForm.categoria_prodotto as keyof typeof supplierMap] || null;
@@ -1020,27 +1050,22 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   };
 
   const insertOrderToDatabase = async (orderData: any) => {
-    const { data: ordineCreato, error } = await supabase
-      .from('ordini_materiali')
-      .insert(orderData)
-      .select(`
-        *,
-        fornitori_lenti:fornitori_lenti(nome),
-        fornitori_lac:fornitori_lac(nome),
-        fornitori_montature:fornitori_montature(nome),
-        fornitori_lab_esterno:fornitori_lab_esterno(nome),
-        fornitori_sport:fornitori_sport(nome),
-        tipi_lenti:tipi_lenti(nome, giorni_consegna_stimati),
-        tipi_ordine:tipi_ordine(nome)
-      `)
-      .single();
+    const response = await fetch('/api/ordini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData)
+    });
 
-    if (error) {
-      console.error('❌ Errore creazione ordine:', error);
-      throw error;
+    const result: CreateOrdineResponse = await response
+      .json()
+      .catch(() => ({} as CreateOrdineResponse));
+
+    if (!response.ok || !result?.success || !result.ordine) {
+      const message = result?.error || 'Errore creazione ordine';
+      throw new Error(message);
     }
 
-    return ordineCreato;
+    return result.ordine;
   };
 
   // ===== DATA TRANSFORMATION =====
@@ -1084,50 +1109,21 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
     const materialeEntry = {
       busta_id: busta.id,
-      tipo: 'LAC',
       primo_acquisto_lac: nuovoOrdineForm.primo_acquisto_lac,
       note: `Collegato all'ordine: ${nuovoOrdineForm.descrizione_prodotto}`,
       stato: 'attivo'
     };
 
-    const { data: existingEntry, error: fetchError } = await supabase
-      .from('materiali')
-      .select('id')
-      .eq('busta_id', busta.id)
-      .eq('tipo', 'LAC')
-      .maybeSingle();
+    const response = await fetch('/api/materiali/lac', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(materialeEntry)
+    });
 
-    if (fetchError) {
-      console.error('⚠️ Errore verifica entry materiali LAC:', fetchError?.message ?? fetchError);
-      return;
-    }
+    const result = await response.json().catch(() => ({} as { success?: boolean; error?: string }));
 
-    if (existingEntry?.id) {
-      const { error: updateError } = await supabase
-        .from('materiali')
-        .update({
-          primo_acquisto_lac: materialeEntry.primo_acquisto_lac,
-          note: materialeEntry.note,
-          stato: materialeEntry.stato,
-        })
-        .eq('id', existingEntry.id);
-
-      if (updateError) {
-        console.error('⚠️ Errore aggiornamento entry materiali LAC:', updateError?.message ?? updateError);
-      } else {
-        console.log('ℹ️ Entry materiali LAC già presente, aggiornata con le nuove informazioni');
-      }
-      return;
-    }
-
-    const { error: insertError } = await supabase
-      .from('materiali')
-      .insert(materialeEntry);
-
-    if (insertError) {
-      console.error('⚠️ Errore creazione entry materiali:', insertError?.message ?? insertError);
-    } else {
-      console.log('✅ Entry materiali LAC creata per follow-up system');
+    if (!response.ok || !result?.success) {
+      console.error('⚠️ Errore gestione entry materiali LAC:', result?.error);
     }
   };
 
@@ -1456,14 +1452,17 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     try {
       console.log('🗑️ Eliminazione ordine:', ordineId);
 
-      const { error } = await supabase
-        .from('ordini_materiali')
-        .delete()
-        .eq('id', ordineId);
+      const response = await fetch(`/api/ordini/${ordineId}`, {
+        method: 'DELETE'
+      });
 
-      if (error) {
-        console.error('❌ Errore eliminazione ordine:', error);
-        throw error;
+      const payload: DeleteOrdineResponse = await response
+        .json()
+        .catch(() => ({} as DeleteOrdineResponse));
+
+      if (!response.ok || !payload?.success) {
+        const message = payload?.error || 'Errore eliminazione ordine';
+        throw new Error(message);
       }
 
       console.log('✅ Ordine eliminato dal database');
@@ -1512,33 +1511,28 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
       const oldValue = ordine.descrizione_prodotto;
 
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('Utente non autenticato');
+      const response = await fetch(`/api/ordini/${ordineId}/description`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ descrizione_prodotto: trimmedValue })
+      });
+
+      const result: UpdateOrdineDescriptionResponse = await response
+        .json()
+        .catch(() => ({} as UpdateOrdineDescriptionResponse));
+
+      if (!response.ok || !result?.success) {
+        const message = result?.error || 'Errore aggiornamento descrizione';
+        throw new Error(message);
       }
 
-      const { error } = await supabase
-        .from('ordini_materiali')
-        .update({
-          descrizione_prodotto: trimmedValue,
-          updated_by: user.id, // ✅ Track WHO updated
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', ordineId);
+      const updatedOrdine = result.ordine;
 
-      if (error) {
-        console.error('❌ Errore aggiornamento descrizione:', error);
-        throw error;
-      }
-
-      // ✅ AUDIT LOG: Log the change
       console.info('ORDER_DESCRIPTION_UPDATE', {
         orderId: ordineId,
         bustaId: busta.id,
-        userId: user.id,
         oldValue,
-        newValue: trimmedValue,
+        newValue: updatedOrdine?.descrizione_prodotto ?? trimmedValue,
         changedFields: ['descrizione_prodotto'],
         timestamp: new Date().toISOString()
       });
@@ -1546,7 +1540,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       // Aggiorna la lista locale
       const ordiniAggiornati = ordiniMateriali.map(o =>
         o.id === ordineId
-          ? { ...o, descrizione_prodotto: trimmedValue, updated_by: user.id }
+          ? {
+              ...o,
+              descrizione_prodotto: updatedOrdine?.descrizione_prodotto ?? trimmedValue,
+              updated_by: updatedOrdine?.updated_by ?? o.updated_by,
+              updated_at: updatedOrdine?.updated_at ?? o.updated_at
+            }
           : o
       );
       setOrdiniMateriali(ordiniAggiornati);
@@ -1697,7 +1696,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                   { value: 'montature', label: '👓 Montature', desc: 'Occhiali/Sole' },
                   { value: 'lab.esterno', label: '🏭 Lab.Esterno', desc: 'Lavorazioni Esterne' },
                   { value: 'sport', label: '🏃 Sport', desc: 'Articoli Sportivi' },
-                  { value: 'accessori', label: '📎 Accessori', desc: 'Custodie, cordini, etc.' }, // ✅ NUOVO
+                  { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Custodie, cordini, liquidi, panni, etc.' },
                   { value: 'assistenza', label: '🔧 Assistenza', desc: 'Riparazioni e servizi' }, // ✅ NUOVO
                   { value: 'ricambi', label: '🔩 Ricambi', desc: 'Pezzi di ricambio' } // ✅ NUOVO
                 ].map(categoria => (
@@ -1739,7 +1738,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                       { value: 'montature', label: '👓 Montature', desc: 'Occhiali' },
                       { value: 'lac', label: '👁️ LAC', desc: 'Lenti a contatto' },
                       { value: 'sport', label: '🏃 Sport', desc: 'Articoli sportivi' },
-                      { value: 'accessori', label: '📎 Accessori', desc: 'Accessori' }
+                      { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Accessori e liquidi' }
                     ].map(tipo => (
                       <button
                         key={tipo.value}
@@ -1774,7 +1773,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                     {[
                       { value: 'montature', label: '👓 Montature', desc: 'Ricambi per occhiali' },
                       { value: 'sport', label: '🏃 Sport', desc: 'Ricambi articoli sportivi' },
-                      { value: 'accessori', label: '📎 Accessori', desc: 'Ricambi accessori' }
+                      { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Ricambi accessori e liquidi' }
                     ].map(tipo => (
                       <button
                         key={tipo.value}

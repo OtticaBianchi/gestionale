@@ -1,6 +1,6 @@
 'use client';
 
-import { RefreshCw, Plus, Package, Search, Mic, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Plus, Package, Search, Mic, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import Link from 'next/link';
 import { useBuste } from '@/hooks/useBuste';
 import { toast } from 'sonner';
@@ -89,6 +89,16 @@ export default function ButtonsBar() {
           <Mic className="h-3.5 w-3.5" />
           <span>Note Vocali</span>
         </Link>
+
+        {userRole === 'admin' && (
+          <Link
+            href="/dashboard/audit"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-md hover:bg-gray-200 transition-colors"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            <span>Audit</span>
+          </Link>
+        )}
 
         {/* Casi NON Previsti button - RED */}
         <button

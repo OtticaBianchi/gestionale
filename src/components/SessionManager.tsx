@@ -12,9 +12,16 @@ export default function SessionManager() {
   const [showWarning, setShowWarning] = useState(false);
   const [showLogoutReminder, setShowLogoutReminder] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
-  
+  const [lastActivity, setLastActivity] = useState<number>(Date.now());
+  const [reminderShownAt, setReminderShownAt] = useState<number | null>(null);
+
   const router = useRouter();
   const supabase = createClient();
+
+  // Idle timeout: 10 minutes of inactivity
+  const IDLE_TIMEOUT = 10 * 60 * 1000; // 10 minutes in milliseconds
+  // Auto-logout: 1 minute after popup appears
+  const AUTO_LOGOUT_TIMEOUT = 1 * 60 * 1000; // 1 minute in milliseconds
 
   useEffect(() => {
     // ✅ Check session expiry
@@ -83,14 +90,61 @@ export default function SessionManager() {
     return () => clearInterval(interval);
   }, [sessionExpiry, showWarning]);
 
-  // ✅ Show logout reminder periodically
+  // ✅ Track user activity (mouse, keyboard, clicks, scrolls)
   useEffect(() => {
-    const reminderInterval = setInterval(() => {
-      setShowLogoutReminder(true);
-    }, 10 * 60 * 1000); // Show every 10 minutes
+    const resetIdleTimer = () => {
+      // Only reset timer if popup is NOT showing
+      // Once popup shows, user must explicitly click "Più tardi" to continue
+      if (!showLogoutReminder) {
+        setLastActivity(Date.now());
+      }
+    };
 
-    return () => clearInterval(reminderInterval);
-  }, []);
+    // Listen to all user activity events
+    window.addEventListener('mousemove', resetIdleTimer);
+    window.addEventListener('mousedown', resetIdleTimer);
+    window.addEventListener('keypress', resetIdleTimer);
+    window.addEventListener('keydown', resetIdleTimer);
+    window.addEventListener('scroll', resetIdleTimer);
+    window.addEventListener('touchstart', resetIdleTimer);
+    window.addEventListener('click', resetIdleTimer);
+
+    return () => {
+      window.removeEventListener('mousemove', resetIdleTimer);
+      window.removeEventListener('mousedown', resetIdleTimer);
+      window.removeEventListener('keypress', resetIdleTimer);
+      window.removeEventListener('keydown', resetIdleTimer);
+      window.removeEventListener('scroll', resetIdleTimer);
+      window.removeEventListener('touchstart', resetIdleTimer);
+      window.removeEventListener('click', resetIdleTimer);
+    };
+  }, [showLogoutReminder]);
+
+  // ✅ Check for idle timeout and auto-logout
+  useEffect(() => {
+    const idleCheckInterval = setInterval(() => {
+      const now = Date.now();
+      const timeSinceLastActivity = now - lastActivity;
+
+      // If user has been idle for IDLE_TIMEOUT, show reminder
+      if (timeSinceLastActivity >= IDLE_TIMEOUT && !showLogoutReminder) {
+        console.log('🔒 User idle for 10 minutes - showing logout reminder');
+        setShowLogoutReminder(true);
+        setReminderShownAt(now);
+      }
+
+      // If reminder is showing and 1 minute has passed, auto-logout
+      if (showLogoutReminder && reminderShownAt) {
+        const timeSinceReminder = now - reminderShownAt;
+        if (timeSinceReminder >= AUTO_LOGOUT_TIMEOUT) {
+          console.log('⏰ 1 minute passed since reminder - auto-logging out');
+          handleAutoLogout();
+        }
+      }
+    }, 10000); // Check every 10 seconds for more responsive auto-logout
+
+    return () => clearInterval(idleCheckInterval);
+  }, [lastActivity, showLogoutReminder, reminderShownAt, IDLE_TIMEOUT, AUTO_LOGOUT_TIMEOUT]);
 
   const handleExtendSession = async () => {
     try {
@@ -152,6 +206,8 @@ export default function SessionManager() {
 
   const dismissReminder = () => {
     setShowLogoutReminder(false);
+    // Reset idle timer when user dismisses (they're clearly active)
+    setLastActivity(Date.now());
   };
 
   return (

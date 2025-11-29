@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { computeReadStatus } from '@/lib/procedures/unread'
+import { logUpdate, logDelete } from '@/lib/audit/auditLog'
 
 // GET - Get single procedure by slug
 export async function GET(
@@ -153,7 +154,24 @@ export async function PUT(
     // Check if procedure exists
     const { data: existing } = await adminClient
       .from('procedures')
-      .select('id, title')
+      .select(`
+        id,
+        title,
+        slug,
+        description,
+        content,
+        context_category,
+        procedure_type,
+        target_roles,
+        search_tags,
+        is_featured,
+        mini_help_title,
+        mini_help_summary,
+        mini_help_action,
+        last_reviewed_at,
+        last_reviewed_by,
+        is_active
+      `)
       .eq('slug', slug)
       .single()
 
@@ -215,6 +233,48 @@ export async function PUT(
       }, { status: 500 })
     }
 
+    const trackedFields = [
+      'title',
+      'slug',
+      'description',
+      'content',
+      'context_category',
+      'procedure_type',
+      'target_roles',
+      'search_tags',
+      'is_featured',
+      'mini_help_title',
+      'mini_help_summary',
+      'mini_help_action',
+      'last_reviewed_at',
+      'last_reviewed_by',
+      'is_active'
+    ] as const
+
+    const pickValues = (record: Record<string, any>) => {
+      return trackedFields.reduce<Record<string, any>>((acc, field) => {
+        if (record && Object.prototype.hasOwnProperty.call(record, field)) {
+          acc[field] = record[field]
+        }
+        return acc
+      }, {})
+    }
+
+    const audit = await logUpdate(
+      'procedures',
+      existing.id,
+      user.id,
+      pickValues(existing),
+      pickValues(updatedProcedure),
+      'Aggiornamento procedura',
+      { source: 'api/procedures/[slug] PUT' },
+      profile.role
+    )
+
+    if (!audit.success) {
+      console.error('AUDIT_UPDATE_PROCEDURE_FAILED', audit.error)
+    }
+
     return NextResponse.json({
       success: true,
       data: updatedProcedure,
@@ -260,6 +320,16 @@ export async function DELETE(
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    const { data: existing } = await adminClient
+      .from('procedures')
+      .select('id, title, slug, context_category, procedure_type, is_active')
+      .eq('slug', slug)
+      .single()
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Procedura non trovata' }, { status: 404 })
+    }
+
     // Soft delete by setting is_active to false
     const { error: deleteError } = await adminClient
       .from('procedures')
@@ -267,11 +337,31 @@ export async function DELETE(
         is_active: false,
         updated_by: user.id
       })
-      .eq('slug', slug)
+      .eq('id', existing.id)
 
     if (deleteError) {
       console.error('Error deleting procedure:', deleteError)
       return NextResponse.json({ error: 'Errore eliminazione procedura' }, { status: 500 })
+    }
+
+    const audit = await logDelete(
+      'procedures',
+      existing.id,
+      user.id,
+      {
+        title: existing.title,
+        slug: existing.slug,
+        context_category: existing.context_category,
+        procedure_type: existing.procedure_type,
+        is_active: existing.is_active
+      },
+      'Soft delete procedura',
+      { source: 'api/procedures/[slug] DELETE' },
+      profile.role
+    )
+
+    if (!audit.success) {
+      console.error('AUDIT_DELETE_PROCEDURE_FAILED', audit.error)
     }
 
     return NextResponse.json({
