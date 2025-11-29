@@ -318,6 +318,45 @@ export type Database = {
         }
         Relationships: []
       }
+      fornitori_accessori: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          nome: string
+          referente_nome: string | null
+          note: string | null
+          telefono: string | null
+          tempi_consegna_medi: number | null
+          updated_at: string | null
+          web_address: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          referente_nome?: string | null
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+          updated_at?: string | null
+          web_address?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          referente_nome?: string | null
+          note?: string | null
+          telefono?: string | null
+          tempi_consegna_medi?: number | null
+          updated_at?: string | null
+          web_address?: string | null
+        }
+        Relationships: []
+      }
       fornitori_lac: {
         Row: {
           created_at: string | null
@@ -840,6 +879,7 @@ export type Database = {
           data_ordine: string | null
           descrizione_prodotto: string
           fornitore_id: string | null
+          fornitore_accessori_id: string | null
           fornitore_lab_esterno_id: string | null
           fornitore_lac_id: string | null
           fornitore_lenti_id: string | null
@@ -869,6 +909,7 @@ export type Database = {
           data_ordine?: string | null
           descrizione_prodotto: string
           fornitore_id?: string | null
+          fornitore_accessori_id?: string | null
           fornitore_lab_esterno_id?: string | null
           fornitore_lac_id?: string | null
           fornitore_lenti_id?: string | null
