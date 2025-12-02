@@ -23,7 +23,8 @@ import {
   RotateCcw,
   AlertTriangle,
   BookOpen,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Lightbulb
 } from 'lucide-react';
 import SidebarSection from './SidebarSection';
 import SidebarItem from './SidebarItem';
@@ -41,11 +42,13 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   const [telegramRequestsCount, setTelegramRequestsCount] = useState(0);
   const [errorDraftCount, setErrorDraftCount] = useState(0);
   const [procedureUnreadCount, setProcedureUnreadCount] = useState(0);
+  const [suggestionsCount, setSuggestionsCount] = useState(0);
   const isMountedRef = useRef(true);
   const voiceNotesFetchLock = useRef(false);
   const telegramFetchLock = useRef(false);
   const errorDraftFetchLock = useRef(false);
   const procedureUnreadFetchLock = useRef(false);
+  const suggestionsFetchLock = useRef(false);
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -175,6 +178,31 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     }
   }, []);
 
+  const fetchSuggestionsCount = useCallback(async (background = false) => {
+    if (!userRole || userRole !== 'admin' || suggestionsFetchLock.current) return;
+    suggestionsFetchLock.current = true;
+
+    try {
+      const response = await fetch('/api/procedure-suggestions?summary=count&status=open', { cache: 'no-store' });
+      if (!response.ok) {
+        if (!background) {
+          console.error('Error fetching suggestions count:', response.statusText);
+        }
+        return;
+      }
+
+      const data = await response.json();
+      if (!isMountedRef.current) return;
+      setSuggestionsCount(typeof data.count === 'number' ? data.count : 0);
+    } catch (error) {
+      if (!background) {
+        console.error('Error fetching suggestions count:', error);
+      }
+    } finally {
+      suggestionsFetchLock.current = false;
+    }
+  }, [userRole]);
+
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
@@ -287,6 +315,33 @@ export default function Sidebar({ className = '' }: SidebarProps) {
       window.removeEventListener('procedures:unread:update', handleProceduresUpdate)
     }
   }, [fetchProcedureUnreadCount])
+
+  useEffect(() => {
+    if (!userRole || userRole !== 'admin') {
+      setSuggestionsCount(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      fetchSuggestionsCount(true);
+    }, 90000);
+
+    fetchSuggestionsCount();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchSuggestionsCount(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [userRole, fetchSuggestionsCount]);
 
   useEffect(() => {
     if (!userRole || userRole !== 'admin') {
@@ -466,16 +521,26 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
           {/* GESTIONE Section */}
           <SidebarSection
-            title="Gestione"
-            icon={Settings}
-            isCollapsed={isCollapsed}
-          >
+          title="Gestione"
+          icon={Settings}
+          isCollapsed={isCollapsed}
+        >
+          {userRole === 'admin' && (
             <SidebarItem
-              href="/procedure"
-              icon={BookOpen}
-              label="Procedure"
+              href="/dashboard/procedure-suggestions"
+              icon={Lightbulb}
+              label="Proposte Procedure"
               isCollapsed={isCollapsed}
-              badge={procedureUnreadCount > 0 ? (procedureUnreadCount > 99 ? '99+' : procedureUnreadCount.toString()) : undefined}
+              badge={suggestionsCount > 0 ? (suggestionsCount > 99 ? '99+' : suggestionsCount.toString()) : undefined}
+              badgeVariant="blue"
+            />
+          )}
+          <SidebarItem
+            href="/procedure"
+            icon={BookOpen}
+            label="Procedure"
+            isCollapsed={isCollapsed}
+            badge={procedureUnreadCount > 0 ? (procedureUnreadCount > 99 ? '99+' : procedureUnreadCount.toString()) : undefined}
             />
             {userRole !== 'operatore' && (
               <SidebarItem

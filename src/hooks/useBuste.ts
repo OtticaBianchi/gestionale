@@ -109,7 +109,7 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
     throw new Error(`Database error: ${error.message}`);
   }
 
-  const allBuste = (data as BustaWithCliente[]) || [];
+  const allBuste = (data as unknown as BustaWithCliente[]) || [];
   const normalizedBuste = (allBuste as any[]).map(normalizePaymentPlanRelation) as BustaWithCliente[];
 
   // ✅ CONTROLLO ARCHIVIAZIONE - Solo una volta al giorno

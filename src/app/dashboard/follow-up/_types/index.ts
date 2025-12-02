@@ -22,6 +22,7 @@ export interface FollowUpCall {
   operatore_id?: string
   stato_chiamata: CallStatus
   livello_soddisfazione?: SatisfactionLevel
+  categoria_cliente?: string | null // FU2.0: Auto-categorization
   note_chiamata?: string
   orario_richiamata_da?: string
   orario_richiamata_a?: string

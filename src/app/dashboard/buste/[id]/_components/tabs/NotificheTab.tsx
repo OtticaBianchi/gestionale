@@ -53,7 +53,7 @@ interface NotificheTabProps {
   isReadOnly?: boolean;
 }
 
-type DeliveryMethod = Database['public']['Enums']['metodo_consegna'];
+type DeliveryMethod = Database['public']['Enums']['metodo_consegna_enum'];
 type BustaUpdatePayload = Database['public']['Tables']['buste']['Update'];
 
 const formatDateToInputValue = (date: Date) => {

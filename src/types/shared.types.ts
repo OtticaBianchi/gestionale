@@ -18,16 +18,16 @@ export type BustaWithCliente = Database['public']['Tables']['buste']['Row'] & {
     payment_type: string;
     auto_reminders_enabled: boolean | null;
     reminder_preference: string | null;
-    is_completed: boolean;
+    is_completed: boolean | null;
     payment_installments?: Array<{
       id: string;
       installment_number: number;
       due_date: string;
       expected_amount: number | null;
       paid_amount: number | null;
-      is_completed: boolean;
-      reminder_3_days_sent: boolean;
-      reminder_10_days_sent: boolean;
+      is_completed: boolean | null;
+      reminder_3_days_sent: boolean | null;
+      reminder_10_days_sent: boolean | null;
     }>;
   } | null;
 };

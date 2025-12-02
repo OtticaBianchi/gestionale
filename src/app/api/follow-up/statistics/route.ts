@@ -49,24 +49,24 @@ export async function GET(request: Request) {
     const processedStats = statistiche?.map(stat => ({
       ...stat,
       operatore_nome: stat.profiles?.full_name,
-      tasso_completamento: stat.chiamate_totali > 0
-        ? Math.round((stat.chiamate_completate / stat.chiamate_totali) * 100)
+      tasso_completamento: (stat.chiamate_totali ?? 0) > 0
+        ? Math.round(((stat.chiamate_completate ?? 0) / (stat.chiamate_totali ?? 1)) * 100)
         : 0,
-      tasso_soddisfazione: (stat.molto_soddisfatti + stat.soddisfatti) > 0
-        ? Math.round(((stat.molto_soddisfatti + stat.soddisfatti) / stat.chiamate_completate) * 100)
+      tasso_soddisfazione: ((stat.molto_soddisfatti ?? 0) + (stat.soddisfatti ?? 0)) > 0
+        ? Math.round((((stat.molto_soddisfatti ?? 0) + (stat.soddisfatti ?? 0)) / (stat.chiamate_completate ?? 1)) * 100)
         : 0
     })) || []
 
     // Calcola statistiche aggregate
     const totali = processedStats.reduce((acc, stat) => ({
-      totale_chiamate: acc.totale_chiamate + stat.chiamate_totali,
-      totale_completate: acc.totale_completate + stat.chiamate_completate,
-      totale_molto_soddisfatti: acc.totale_molto_soddisfatti + stat.molto_soddisfatti,
-      totale_soddisfatti: acc.totale_soddisfatti + stat.soddisfatti,
-      totale_poco_soddisfatti: acc.totale_poco_soddisfatti + stat.poco_soddisfatti,
-      totale_insoddisfatti: acc.totale_insoddisfatti + stat.insoddisfatti,
-      totale_problemi_tecnici: acc.totale_problemi_tecnici + stat.numeri_sbagliati, // cellulari_staccati deprecated
-      totale_da_richiamare: acc.totale_da_richiamare + stat.da_richiamare
+      totale_chiamate: acc.totale_chiamate + (stat.chiamate_totali ?? 0),
+      totale_completate: acc.totale_completate + (stat.chiamate_completate ?? 0),
+      totale_molto_soddisfatti: acc.totale_molto_soddisfatti + (stat.molto_soddisfatti ?? 0),
+      totale_soddisfatti: acc.totale_soddisfatti + (stat.soddisfatti ?? 0),
+      totale_poco_soddisfatti: acc.totale_poco_soddisfatti + (stat.poco_soddisfatti ?? 0),
+      totale_insoddisfatti: acc.totale_insoddisfatti + (stat.insoddisfatti ?? 0),
+      totale_problemi_tecnici: acc.totale_problemi_tecnici + (stat.numeri_sbagliati ?? 0), // cellulari_staccati deprecated
+      totale_da_richiamare: acc.totale_da_richiamare + (stat.da_richiamare ?? 0)
     }), {
       totale_chiamate: 0,
       totale_completate: 0,

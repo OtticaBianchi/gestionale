@@ -3,6 +3,13 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import {
+  calculateAssegnazioneColpa,
+  type StepWorkflow,
+  type IntercettatoDa,
+  type ProceduraFlag,
+  type ImpattoCliente
+} from '@/lib/et2/assegnazioneColpa'
 
 type AuthContext = {
   userId: string
@@ -289,7 +296,13 @@ export async function PATCH(request: NextRequest) {
     cost_detail,
     time_lost_minutes = 0,
     client_impacted = false,
-    requires_reorder = false
+    requires_reorder = false,
+    // ET2.0 Fields
+    step_workflow,
+    intercettato_da,
+    procedura_flag,
+    impatto_cliente,
+    operatore_coinvolto
   } = body
 
   if (!employee_id || !error_type || !error_category || !error_description) {
@@ -346,7 +359,26 @@ export async function PATCH(request: NextRequest) {
     client_impacted,
     requires_reorder,
     is_draft: false,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    // ET2.0 Fields
+    step_workflow: step_workflow || null,
+    intercettato_da: intercettato_da || null,
+    procedura_flag: procedura_flag || null,
+    impatto_cliente: impatto_cliente || null,
+    operatore_coinvolto: operatore_coinvolto || null
+  }
+
+  // Calculate assegnazione_colpa before saving (ET2.0)
+  if (updatePayload.step_workflow && updatePayload.procedura_flag) {
+    const assegnazione = calculateAssegnazioneColpa({
+      step_workflow: updatePayload.step_workflow as StepWorkflow,
+      intercettato_da: updatePayload.intercettato_da as IntercettatoDa,
+      procedura_flag: updatePayload.procedura_flag as ProceduraFlag,
+      impatto_cliente: updatePayload.impatto_cliente as ImpattoCliente,
+      operatore_coinvolto: updatePayload.operatore_coinvolto,
+      creato_da_followup: false
+    })
+    updatePayload.assegnazione_colpa = assegnazione
   }
 
   const { error: updateError } = await adminClient

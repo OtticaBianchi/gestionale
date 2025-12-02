@@ -143,23 +143,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Solo amministratori o manager possono accedere alle note vocali' }, { status: 403 });
     }
 
-    // Maintenance cleanup (admin only): auto-dismiss and clean audio after 7 days
+    // Lazy cleanup (admin only): auto-dismiss and clean audio for old completed notes
+    // This runs when admin views the page, not on a schedule (zero external API calls)
     if (role === 'admin') {
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-      
-      // Auto-dismiss completed notes after 7 days (same as manual deletion)
-      // Only dismiss notes that user has manually marked as completed
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      // Auto-dismiss completed notes older than 7 days
+      // This frees up storage space by clearing audio_blob
       await supabase
         .from('voice_notes')
-        .update({ 
+        .update({
           dismissed_at: new Date().toISOString(),
-          audio_blob: '', 
-          file_size: 0 
+          audio_blob: '',  // Clear audio to free space
+          file_size: 0
         })
-        .eq('stato', 'completed') // Only auto-dismiss manually completed notes
-        .lt('updated_at', oneWeekAgo.toISOString()) // Use updated_at since that's when user marked it completed
-        .is('dismissed_at', null); // Only auto-dismiss if not already dismissed
+        .eq('stato', 'completed')
+        .lt('completed_at', sevenDaysAgo.toISOString())  // Use completed_at (when marked complete)
+        .not('completed_at', 'is', null)  // Ensure completed_at exists
+        .is('dismissed_at', null);  // Only if not already dismissed
     }
 
     // Build query with related data - only show non-dismissed notes

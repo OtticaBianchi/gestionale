@@ -4,6 +4,16 @@ import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { X, Search, AlertTriangle, DollarSign, Clock, User, FileText } from 'lucide-react'
 import { Database } from '@/types/database.types'
+import {
+  calculateAssegnazioneColpa,
+  getAssegnazioneColpaLabel,
+  getAssegnazioneColpaColor,
+  type StepWorkflow,
+  type IntercettatoDa,
+  type ProceduraFlag,
+  type ImpattoCliente,
+  type AssegnazioneColpa
+} from '@/lib/et2/assegnazioneColpa'
 
 type Employee = {
   id: string
@@ -52,6 +62,12 @@ interface QuickAddErrorFormProps {
     requires_reorder?: boolean
     busta_label?: string | null
     cliente_label?: string | null
+    // ET2.0 Fields
+    step_workflow?: string
+    intercettato_da?: string
+    procedura_flag?: string
+    impatto_cliente?: string
+    operatore_coinvolto?: string
   } | null
 }
 
@@ -77,7 +93,13 @@ export default function QuickAddErrorForm({
     cost_detail: '',
     time_lost_minutes: '',
     client_impacted: false,
-    requires_reorder: false
+    requires_reorder: false,
+    // ET2.0 Fields
+    step_workflow: '',
+    intercettato_da: '',
+    procedura_flag: '',
+    impatto_cliente: '',
+    operatore_coinvolto: ''
   }
 
   const [formData, setFormData] = useState(defaultFormState)
@@ -89,6 +111,7 @@ export default function QuickAddErrorForm({
   const [searchBusta, setSearchBusta] = useState('')
   const [loading, setLoading] = useState(false)
   const [estimatedCost, setEstimatedCost] = useState<number | null>(null)
+  const [assegnazioneColpa, setAssegnazioneColpa] = useState<AssegnazioneColpa | null>(null)
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -146,7 +169,13 @@ export default function QuickAddErrorForm({
           ? String(draftDefaults.time_lost_minutes)
           : '',
         client_impacted: draftDefaults?.client_impacted ?? false,
-        requires_reorder: draftDefaults?.requires_reorder ?? false
+        requires_reorder: draftDefaults?.requires_reorder ?? false,
+        // ET2.0 Fields (if they exist in draft)
+        step_workflow: (draftDefaults as any)?.step_workflow ?? '',
+        intercettato_da: (draftDefaults as any)?.intercettato_da ?? '',
+        procedura_flag: (draftDefaults as any)?.procedura_flag ?? '',
+        impatto_cliente: (draftDefaults as any)?.impatto_cliente ?? '',
+        operatore_coinvolto: (draftDefaults as any)?.operatore_coinvolto ?? ''
       })
       setSearchCliente(draftDefaults?.cliente_label ?? '')
       setSearchBusta(draftDefaults?.busta_label ?? '')
@@ -175,6 +204,25 @@ export default function QuickAddErrorForm({
       setEstimatedCost(null)
     }
   }, [formData.error_type, formData.error_category, formData.cost_type])
+
+  // ET2.0: Auto-calculate assegnazione_colpa when classification fields change
+  useEffect(() => {
+    const { step_workflow, intercettato_da, procedura_flag, impatto_cliente, operatore_coinvolto } = formData
+
+    if (step_workflow && procedura_flag) {
+      const result = calculateAssegnazioneColpa({
+        step_workflow: step_workflow as StepWorkflow,
+        intercettato_da: intercettato_da as IntercettatoDa,
+        procedura_flag: procedura_flag as ProceduraFlag,
+        impatto_cliente: impatto_cliente as ImpattoCliente,
+        operatore_coinvolto: operatore_coinvolto || undefined,
+        creato_da_followup: false
+      })
+      setAssegnazioneColpa(result)
+    } else {
+      setAssegnazioneColpa(null)
+    }
+  }, [formData.step_workflow, formData.intercettato_da, formData.procedura_flag, formData.impatto_cliente, formData.operatore_coinvolto])
 
   const fetchEmployees = async () => {
     const { data, error } = await supabase
@@ -273,7 +321,14 @@ export default function QuickAddErrorForm({
         ...formData,
         custom_cost: formData.custom_cost ? Number.parseFloat(formData.custom_cost) : undefined,
         time_lost_minutes: Number.parseInt(formData.time_lost_minutes) || 0,
-        cost_detail: formData.cost_type === 'real' ? formData.cost_detail : formData.cost_detail || null
+        cost_detail: formData.cost_type === 'real' ? formData.cost_detail : formData.cost_detail || null,
+        // ET2.0 Fields
+        step_workflow: formData.step_workflow || undefined,
+        intercettato_da: formData.intercettato_da || undefined,
+        procedura_flag: formData.procedura_flag || undefined,
+        impatto_cliente: formData.impatto_cliente || undefined,
+        operatore_coinvolto: formData.operatore_coinvolto || undefined
+        // assegnazione_colpa is calculated server-side
       }
 
       const endpoint = draftId ? '/api/error-tracking/drafts' : '/api/error-tracking'
@@ -399,6 +454,135 @@ export default function QuickAddErrorForm({
               placeholder="Descrivi dettagliatamente l'errore commesso..."
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+          </div>
+
+          {/* ET2.0: Error Classification Section */}
+          <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+            <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+              📊 Classificazione Errore (ET2.0)
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Step Workflow */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fase Workflow <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.step_workflow}
+                  onChange={(e) => setFormData({...formData, step_workflow: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Seleziona fase...</option>
+                  <option value="accoglienza">Accoglienza</option>
+                  <option value="pre_controllo">Pre-Controllo</option>
+                  <option value="sala_controllo">Sala Controllo</option>
+                  <option value="preventivo_vendita">Preventivo/Vendita</option>
+                  <option value="ordine_materiali">Ordine Materiali</option>
+                  <option value="lavorazione">Lavorazione</option>
+                  <option value="controllo_qualita">Controllo Qualità</option>
+                  <option value="consegna">Consegna</option>
+                  <option value="post_vendita">Post-Vendita</option>
+                  <option value="follow_up">Follow-Up</option>
+                </select>
+              </div>
+
+              {/* Intercettato Da */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Intercettato Da
+                </label>
+                <select
+                  value={formData.intercettato_da}
+                  onChange={(e) => setFormData({...formData, intercettato_da: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleziona...</option>
+                  <option value="cliente">Cliente</option>
+                  <option value="ob_controllo_qualita">OB - Controllo Qualità</option>
+                  <option value="ob_processo">OB - Durante Processo</option>
+                  <option value="ob_follow_up">OB - Follow-Up</option>
+                </select>
+              </div>
+
+              {/* Procedura Flag */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Stato Procedura <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.procedura_flag}
+                  onChange={(e) => setFormData({...formData, procedura_flag: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Seleziona...</option>
+                  <option value="procedura_presente">✅ Procedura Presente</option>
+                  <option value="procedura_imprecisa">⚠️ Procedura Imprecisa</option>
+                  <option value="procedura_assente">❌ Procedura Assente</option>
+                </select>
+              </div>
+
+              {/* Impatto Cliente */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Impatto Cliente
+                </label>
+                <select
+                  value={formData.impatto_cliente}
+                  onChange={(e) => setFormData({...formData, impatto_cliente: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleziona...</option>
+                  <option value="basso">🟢 Basso</option>
+                  <option value="medio">🟡 Medio</option>
+                  <option value="alto">🔴 Alto</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Lascia vuoto per calcolo automatico
+                </p>
+              </div>
+
+              {/* Operatore Coinvolto - Only show if procedura_presente */}
+              {formData.procedura_flag === 'procedura_presente' && (
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Operatore Specifico Coinvolto
+                  </label>
+                  <select
+                    value={formData.operatore_coinvolto}
+                    onChange={(e) => setFormData({...formData, operatore_coinvolto: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Nessun operatore specifico</option>
+                    {employees.map(emp => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.full_name || 'Nome non disponibile'}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Indica l'operatore coinvolto se diverso da chi ha registrato l'errore
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Assegnazione Colpa Display (Auto-calculated) */}
+            {assegnazioneColpa && (
+              <div className="p-3 bg-white border border-gray-300 rounded-md">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Assegnazione Colpa (Automatica)
+                </label>
+                <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium ${getAssegnazioneColpaColor(assegnazioneColpa)}`}>
+                  {getAssegnazioneColpaLabel(assegnazioneColpa)}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Calcolato automaticamente in base alla classificazione
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Tipo di costo */}

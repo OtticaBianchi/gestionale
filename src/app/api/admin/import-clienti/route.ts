@@ -60,7 +60,8 @@ export async function POST(request: NextRequest) {
         nome: nome.trim(),
         genere,
         telefono: telefono?.trim() || null,
-        email: email?.trim() || null
+        email: email?.trim() || null,
+        updated_by: user.id  // Required field for audit trail
       })
       .select('id, nome, cognome, telefono')
       .single()

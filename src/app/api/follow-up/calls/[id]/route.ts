@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { logUpdate } from '@/lib/audit/auditLog'
+import { categorizeCustomer, type LivelloSoddisfazione } from '@/lib/fu2/categorizeCustomer'
+import { createClient } from '@supabase/supabase-js'
 
 const pickFollowUpAuditFields = (row: any) => ({
   stato_chiamata: row?.stato_chiamata ?? null,
@@ -10,7 +12,9 @@ const pickFollowUpAuditFields = (row: any) => ({
   data_completamento: row?.data_completamento ?? null,
   archiviato: row?.archiviato ?? null,
   orario_richiamata_da: row?.orario_richiamata_da ?? null,
-  orario_richiamata_a: row?.orario_richiamata_a ?? null
+  orario_richiamata_a: row?.orario_richiamata_a ?? null,
+  categoria_cliente: row?.categoria_cliente ?? null,
+  crea_errore: row?.crea_errore ?? null,
 })
 
 // PATCH - Aggiorna stato chiamata
@@ -37,7 +41,20 @@ export async function PATCH(
 
     const { data: existingCall, error: fetchError } = await supabase
       .from('follow_up_chiamate')
-      .select('id, stato_chiamata, livello_soddisfazione, note_chiamata, data_chiamata, data_completamento, archiviato, orario_richiamata_da, orario_richiamata_a')
+      .select(`
+        id,
+        busta_id,
+        stato_chiamata,
+        livello_soddisfazione,
+        note_chiamata,
+        data_chiamata,
+        data_completamento,
+        archiviato,
+        orario_richiamata_da,
+        orario_richiamata_a,
+        categoria_cliente,
+        crea_errore
+      `)
       .eq('id', id)
       .single()
 
@@ -82,6 +99,72 @@ export async function PATCH(
       patch.data_completamento = null
     }
 
+    // FU2.0: Auto-categorize customer based on call outcome
+    // Check both the update payload and existing state for stato_chiamata
+    const finalStato = updateData.stato_chiamata || existingCall.stato_chiamata;
+
+    // Categorize if:
+    // 1. Satisfaction level is being set (for completed calls)
+    // 2. OR stato_chiamata indicates a terminal state (perso, non_risponde, etc.)
+    const terminalStates = ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato'];
+    const shouldCategorize =
+      (updateData.livello_soddisfazione && finalStato === 'chiamato_completato') ||
+      (updateData.stato_chiamata && terminalStates.includes(updateData.stato_chiamata));
+
+    console.log('🔍 FU2.0 Debug:', {
+      has_satisfaction: !!updateData.livello_soddisfazione,
+      satisfaction_value: updateData.livello_soddisfazione,
+      stato_in_update: updateData.stato_chiamata,
+      existing_stato: existingCall.stato_chiamata,
+      finalStato,
+      shouldCategorize,
+    });
+
+    if (shouldCategorize) {
+      try {
+        // Fetch busta info to get ticket value
+        const adminClient = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+
+        const { data: bustaData } = await adminClient
+          .from('buste')
+          .select(`
+            id,
+            info_pagamenti:info_pagamenti (
+              totale
+            )
+          `)
+          .eq('id', existingCall.busta_id)
+          .single()
+
+        const ticketValue = (bustaData?.info_pagamenti as any)?.totale || 0
+
+        // Determine if problem was resolved (not explicitly tracked, use satisfaction as proxy)
+        const problema_risolto =
+          updateData.livello_soddisfazione === 'molto_soddisfatto' ||
+          updateData.livello_soddisfazione === 'soddisfatto'
+
+        // Calculate category
+        const categoria = categorizeCustomer({
+          soddisfazione: updateData.livello_soddisfazione as LivelloSoddisfazione | undefined,
+          stato_chiamata: finalStato as any,
+          ticket_value: ticketValue,
+          note_chiamata: patch.note_chiamata || existingCall.note_chiamata,
+          problema_risolto,
+        })
+
+        if (categoria) {
+          patch.categoria_cliente = categoria
+          console.log(`✅ FU2.0: Customer categorized as "${categoria}" for follow-up ${id}`)
+        }
+      } catch (err) {
+        console.error('Failed to categorize customer:', err)
+        // Don't fail the request - categorization is supplementary
+      }
+    }
+
     // Aggiorna il record
     const { data, error } = await supabase
       .from('follow_up_chiamate')
@@ -103,6 +186,8 @@ export async function PATCH(
         priorita,
         created_at,
         updated_at,
+        categoria_cliente,
+        crea_errore,
         profiles:profiles!follow_up_chiamate_operatore_id_fkey (
           full_name
         )

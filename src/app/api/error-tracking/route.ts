@@ -5,6 +5,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { logInsert, logUpdate } from '@/lib/audit/auditLog'
 import { Database } from '@/types/database.types'
+import {
+  calculateAssegnazioneColpa,
+  validateErrorClassification,
+  type StepWorkflow,
+  type IntercettatoDa,
+  type ProceduraFlag,
+  type ImpattoCliente,
+  type AssegnazioneColpa,
+} from '@/lib/et2/assegnazioneColpa'
+import { shouldGenerateProcedureSuggestion } from '@/lib/et2/procedureSuggestions'
 
 type ErrorTrackingRow = {
   id: string
@@ -30,6 +40,14 @@ type ErrorTrackingRow = {
   updated_at: string
   is_draft: boolean
   auto_created_from_order: string | null
+  // ET2.0 fields
+  step_workflow: StepWorkflow | null
+  intercettato_da: IntercettatoDa | null
+  procedura_flag: ProceduraFlag | null
+  impatto_cliente: ImpattoCliente | null
+  assegnazione_colpa: AssegnazioneColpa | null
+  operatore_coinvolto: string | null
+  creato_da_followup: boolean
 }
 
 const pickAuditSnapshot = (row: Partial<ErrorTrackingRow>) => ({
@@ -47,7 +65,15 @@ const pickAuditSnapshot = (row: Partial<ErrorTrackingRow>) => ({
   is_draft: row.is_draft ?? null,
   client_impacted: row.client_impacted ?? null,
   requires_reorder: row.requires_reorder ?? null,
-  auto_created_from_order: row.auto_created_from_order ?? null
+  auto_created_from_order: row.auto_created_from_order ?? null,
+  // ET2.0 fields
+  step_workflow: row.step_workflow ?? null,
+  intercettato_da: row.intercettato_da ?? null,
+  procedura_flag: row.procedura_flag ?? null,
+  impatto_cliente: row.impatto_cliente ?? null,
+  assegnazione_colpa: row.assegnazione_colpa ?? null,
+  operatore_coinvolto: row.operatore_coinvolto ?? null,
+  creato_da_followup: row.creato_da_followup ?? null,
 })
 
 // GET - Lista errori con filtri e statistiche
@@ -131,12 +157,23 @@ export async function GET(request: NextRequest) {
         updated_at,
         is_draft,
         auto_created_from_order,
+        step_workflow,
+        intercettato_da,
+        procedura_flag,
+        impatto_cliente,
+        assegnazione_colpa,
+        operatore_coinvolto,
+        creato_da_followup,
         employee:profiles!error_tracking_employee_id_fkey(
           id,
           full_name,
           role
         ),
         reported_by_profile:profiles!error_tracking_reported_by_fkey(
+          id,
+          full_name
+        ),
+        operatore:profiles!error_tracking_operatore_coinvolto_fkey(
           id,
           full_name
         ),
@@ -236,7 +273,15 @@ export async function POST(request: NextRequest) {
       client_impacted = false,
       requires_reorder = false,
       is_draft = false,
-      auto_created_from_order = null
+      auto_created_from_order = null,
+      // ET2.0 fields
+      step_workflow,
+      intercettato_da,
+      procedura_flag,
+      impatto_cliente,
+      operatore_coinvolto,
+      creato_da_followup = false,
+      procedure_id, // For procedure suggestion linking
     } = body
 
     // Validazione input obbligatori
@@ -244,6 +289,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         error: 'Campi obbligatori mancanti: employee_id, error_type, error_category, error_description'
       }, { status: 400 })
+    }
+
+    // ET2.0: Validate classification fields
+    if (step_workflow || procedura_flag) {
+      const validation = validateErrorClassification({
+        step_workflow,
+        intercettato_da,
+        procedura_flag,
+        impatto_cliente,
+        operatore_coinvolto,
+        creato_da_followup,
+      })
+
+      if (!validation.valid) {
+        return NextResponse.json({
+          error: 'Validazione ET2.0 fallita',
+          details: validation.errors
+        }, { status: 400 })
+      }
     }
 
     // Calcola costo automatico se non fornito (come nel pattern esistente)
@@ -277,6 +341,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ET2.0: Calculate automatic fault assignment
+    let assegnazione_colpa: AssegnazioneColpa | null = null
+    if (step_workflow && procedura_flag) {
+      assegnazione_colpa = calculateAssegnazioneColpa({
+        step_workflow,
+        intercettato_da,
+        procedura_flag,
+        impatto_cliente,
+        operatore_coinvolto,
+        creato_da_followup,
+      })
+    }
+
     // Use service role per inserimento (after auth check)
     const adminClient = (await import('@supabase/supabase-js')).createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -301,7 +378,15 @@ export async function POST(request: NextRequest) {
         requires_reorder,
         reported_by: user.id,
         is_draft,
-        auto_created_from_order
+        auto_created_from_order,
+        // ET2.0 fields
+        step_workflow: step_workflow || null,
+        intercettato_da: intercettato_da || null,
+        procedura_flag: procedura_flag || null,
+        impatto_cliente: impatto_cliente || null,
+        assegnazione_colpa,
+        operatore_coinvolto: operatore_coinvolto || null,
+        creato_da_followup,
       })
       .select(`
         id,
@@ -312,11 +397,19 @@ export async function POST(request: NextRequest) {
         cost_type,
         error_type,
         error_category,
+        error_description,
         client_impacted,
         requires_reorder,
         is_draft,
         auto_created_from_order,
         reported_at,
+        step_workflow,
+        intercettato_da,
+        procedura_flag,
+        impatto_cliente,
+        assegnazione_colpa,
+        operatore_coinvolto,
+        creato_da_followup,
         employee:profiles!error_tracking_employee_id_fkey(full_name)
       `)
       .single()
@@ -344,6 +437,39 @@ export async function POST(request: NextRequest) {
       console.error('AUDIT_INSERT_ERROR_TRACKING_FAILED', auditInsert.error)
     }
 
+    // ET2.0: Auto-generate procedure suggestion if needed
+    let procedureSuggestionCreated = false
+    if (step_workflow && procedura_flag && !is_draft) {
+      const suggestionEval = shouldGenerateProcedureSuggestion({
+        errore_id: newError.id,
+        procedure_id,
+        step_workflow,
+        procedura_flag,
+        error_description,
+        error_type,
+      })
+
+      if (suggestionEval.should_create && suggestionEval.suggestion_data) {
+        try {
+          const { error: suggestionError } = await adminClient
+            .from('procedure_suggestions')
+            .insert({
+              ...suggestionEval.suggestion_data,
+              suggested_by: user.id,
+            })
+
+          if (suggestionError) {
+            console.error('Failed to auto-create procedure suggestion:', suggestionError)
+          } else {
+            procedureSuggestionCreated = true
+            console.log(`✅ Auto-generated procedure suggestion for error ${newError.id}`)
+          }
+        } catch (err) {
+          console.error('Error creating procedure suggestion:', err)
+        }
+      }
+    }
+
     // Log per errori critici (come nel pattern esistente)
     if (error_category === 'critico') {
       console.log(`🚨 ERRORE CRITICO registrato: ${newError.id} - €${cost_amount} - ${(newError.employee as any)?.full_name}`)
@@ -352,7 +478,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: newError,
-      message: 'Errore registrato con successo'
+      message: 'Errore registrato con successo',
+      meta: {
+        procedure_suggestion_created: procedureSuggestionCreated,
+        assegnazione_colpa,
+      }
     })
 
   } catch (error) {

@@ -26,6 +26,7 @@ export async function GET(request: Request) {
         operatore_id,
         stato_chiamata,
         livello_soddisfazione,
+        categoria_cliente,
         note_chiamata,
         orario_richiamata_da,
         orario_richiamata_a,

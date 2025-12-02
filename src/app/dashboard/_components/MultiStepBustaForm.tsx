@@ -351,10 +351,12 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   <User className="w-5 h-5 mr-2 text-blue-600" />
                   Cerca Cliente Esistente
                 </h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Prima di creare una nuova anagrafica, verifica se il cliente è già presente nel sistema.
-                  Cerca per cognome o numero di telefono.
-                </p>
+                <div className="mt-2 p-3 border-2 border-red-500 bg-red-50 rounded-lg">
+                  <p className="text-sm font-bold text-red-800">
+                    ⚠️ IMPORTANTE: Prima di creare una nuova anagrafica, verifica se il cliente è già presente nel sistema.
+                    Cerca per cognome o numero di telefono per evitare duplicati.
+                  </p>
+                </div>
               </div>
             </div>
 

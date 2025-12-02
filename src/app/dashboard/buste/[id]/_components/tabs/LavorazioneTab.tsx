@@ -103,7 +103,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
     // Show if: in lavorazione OR already moved to pronto_ritiro with completed check
     const shouldShow = isMounted && lavorazioni.length > 0 && (
       (canEdit && busta.stato_attuale === 'in_lavorazione') ||
-      (busta.stato_attuale === 'pronto_ritiro' && busta.controllo_completato)
+      (busta.stato_attuale === 'pronto_ritiro' && (busta.controllo_completato ?? false))
     );
 
     setShowCheckboxSection(shouldShow);
@@ -896,7 +896,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
               id="controllo-completato"
               checked={controlloCompletato}
               onChange={(e) => handleControlloCompletato(e.target.checked)}
-              disabled={isMovingToReady || busta.controllo_completato}
+              disabled={isMovingToReady || (busta.controllo_completato ?? false)}
               className="mt-1 h-6 w-6 text-green-600 focus:ring-green-500 border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <div className="flex-1">

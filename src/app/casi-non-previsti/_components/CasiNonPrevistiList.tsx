@@ -14,8 +14,8 @@ type UnpredictedCase = {
   description: string;
   context_category: string | null;
   severity: string;
-  created_at: string;
-  is_completed: boolean;
+  created_at: string | null;
+  is_completed: boolean | null;
   completed_at: string | null;
   created_by_profile: { full_name: string | null } | null;
   completed_by_profile: { full_name: string | null } | null;
@@ -223,7 +223,7 @@ export default function CasiNonPrevistiList({ cases: initialCases, isAdmin }: Ca
                   <div className="text-xs text-gray-500 space-y-1">
                     <div>
                       Segnalato da <span className="font-medium">{caso.created_by_profile?.full_name || 'Sconosciuto'}</span>
-                      {' '}il {new Date(caso.created_at).toLocaleString('it-IT')}
+                      {caso.created_at && <>{' '}il {new Date(caso.created_at).toLocaleString('it-IT')}</>}
                     </div>
                     {caso.is_completed && caso.completed_at && (
                       <div>

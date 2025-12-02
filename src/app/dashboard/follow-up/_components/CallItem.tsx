@@ -10,6 +10,13 @@ import {
   SATISFACTION_LABELS,
   COMPLETED_CALL_STATES
 } from '../_types'
+import {
+  getCategoriaClienteLabel,
+  getCategoriaClienteColor,
+  getCategoriaClienteIcon,
+  type CategoriaCliente
+} from '@/lib/fu2/categorizeCustomer'
+import { CreateErrorModal } from './CreateErrorModal'
 
 interface CallItemProps {
   call: FollowUpCall
@@ -19,6 +26,7 @@ interface CallItemProps {
 export function CallItem({ call, onUpdate }: CallItemProps) {
   const [isUpdating, setIsUpdating] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const [showErrorModal, setShowErrorModal] = useState(false)
   const [formData, setFormData] = useState({
     stato_chiamata: call.stato_chiamata,
     livello_soddisfazione: call.livello_soddisfazione || '',
@@ -87,18 +95,27 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
 
   const isCompleted = COMPLETED_CALL_STATES.includes(call.stato_chiamata)
 
+  // FU2.0: Show "Create Error" button if customer is dissatisfied (poco_soddisfatto or insoddisfatto)
+  const isDissatisfied = call.livello_soddisfazione === 'poco_soddisfatto' || call.livello_soddisfazione === 'insoddisfatto'
+  const showCreateErrorButton = isDissatisfied && call.stato_chiamata === 'chiamato_completato'
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
       {/* Header chiamata */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <div className="flex items-center space-x-3 mb-2">
+          <div className="flex items-center space-x-2 mb-2 flex-wrap gap-y-1">
             <h4 className="font-medium text-gray-900">
               {call.cliente_nome} {call.cliente_cognome}
             </h4>
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(call.stato_chiamata)}`}>
               {CALL_STATUS_LABELS[call.stato_chiamata]}
             </span>
+            {call.categoria_cliente && (
+              <span className={`px-2 py-1 rounded-md text-xs font-medium ring-1 ${getCategoriaClienteColor(call.categoria_cliente as CategoriaCliente)}`}>
+                {getCategoriaClienteIcon(call.categoria_cliente as CategoriaCliente)} {getCategoriaClienteLabel(call.categoria_cliente as CategoriaCliente)}
+              </span>
+            )}
           </div>
 
           <div className="text-sm text-gray-600 space-y-1">
@@ -110,8 +127,18 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
             <div>📋 Busta: {call.readable_id}</div>
             <div>📅 {call.giorni_trascorsi} giorni fa</div>
             {call.livello_soddisfazione && (
-              <div className={`font-medium ${getSatisfactionColor(call.livello_soddisfazione)}`}>
-                😊 {SATISFACTION_LABELS[call.livello_soddisfazione]}
+              <div className="flex items-center gap-2">
+                <div className={`font-medium ${getSatisfactionColor(call.livello_soddisfazione)}`}>
+                  😊 {SATISFACTION_LABELS[call.livello_soddisfazione]}
+                </div>
+                {showCreateErrorButton && (
+                  <button
+                    onClick={() => setShowErrorModal(true)}
+                    className="ml-2 px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                  >
+                    ⚠️ Registra Errore
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -270,6 +297,22 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
           </p>
         </div>
       )}
+
+      {/* FU2.0: Error Creation Modal */}
+      <CreateErrorModal
+        isOpen={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        onSuccess={() => {
+          setShowErrorModal(false)
+          // Optionally refresh the call list here if needed
+        }}
+        callId={call.id}
+        bustaId={call.busta_id}
+        clienteNome={call.cliente_nome}
+        clienteCognome={call.cliente_cognome}
+        readableId={call.readable_id}
+        livelloSoddisfazione={SATISFACTION_LABELS[call.livello_soddisfazione || 'insoddisfatto']}
+      />
     </div>
   )
 }

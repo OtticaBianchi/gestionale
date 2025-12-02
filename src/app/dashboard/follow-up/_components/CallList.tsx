@@ -2,6 +2,7 @@
 
 import { FollowUpCall, CallUpdateData } from '../_types'
 import { CallItem } from './CallItem'
+import { CategoriaBreakdown } from './CategoriaBreakdown'
 
 interface CallListProps {
   calls: FollowUpCall[]
@@ -59,6 +60,9 @@ export function CallList({ calls, isLoading, onUpdateCall }: CallListProps) {
           </span>
         </div>
       </div>
+
+      {/* FU2.0: Customer Categorization Breakdown */}
+      <CategoriaBreakdown calls={calls} />
 
       {/* Lista chiamate per priorità */}
       {Object.entries(groupedCalls).map(([priorita, priorityCalls]) => {

@@ -150,62 +150,61 @@ export function EnhancedStatisticsTable({ data, timeView, groupBy }: EnhancedSta
             </tr>
           ))}
         </tbody>
+        {/* Summary Row */}
+        <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+          <tr className="font-medium">
+            <td colSpan={showPeriod && showOperator ? 2 : 1} className="px-6 py-3 text-sm text-gray-900">
+              TOTALE
+            </td>
+            <td className="px-6 py-3 text-sm text-gray-900">
+              <div className="flex flex-col">
+                <span>{data.reduce((sum, stat) => sum + stat.chiamate_totali, 0)}</span>
+                <span className="text-xs text-gray-500">
+                  {data.reduce((sum, stat) => sum + stat.chiamate_completate, 0)} completate
+                </span>
+              </div>
+            </td>
+            <td className="px-6 py-3 text-sm text-gray-900">
+              {(() => {
+                const totCalls = data.reduce((sum, stat) => sum + stat.chiamate_totali, 0)
+                const totCompleted = data.reduce((sum, stat) => sum + stat.chiamate_completate, 0)
+                const completionRate = totCalls > 0 ? Math.round((totCompleted / totCalls) * 100) : 0
+                return (
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(completionRate)}`}>
+                    {completionRate}%
+                  </span>
+                )
+              })()}
+            </td>
+            <td className="px-6 py-3 text-sm text-gray-900">
+              {(() => {
+                const totCompleted = data.reduce((sum, stat) => sum + stat.chiamate_completate, 0)
+                const totSatisfied = data.reduce((sum, stat) => sum + stat.molto_soddisfatti + stat.soddisfatti, 0)
+                const satisfactionRate = totCompleted > 0 ? Math.round((totSatisfied / totCompleted) * 100) : 0
+                return (
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getSatisfactionColor(satisfactionRate)}`}>
+                    {satisfactionRate}%
+                  </span>
+                )
+              })()}
+            </td>
+            <td className="px-6 py-3 text-xs text-gray-600">
+              <div className="space-y-1">
+                <div>⭐ {data.reduce((sum, stat) => sum + stat.molto_soddisfatti, 0)}</div>
+                <div>😊 {data.reduce((sum, stat) => sum + stat.soddisfatti, 0)}</div>
+                <div>😐 {data.reduce((sum, stat) => sum + stat.poco_soddisfatti, 0)}</div>
+                <div>😞 {data.reduce((sum, stat) => sum + stat.insoddisfatti, 0)}</div>
+              </div>
+            </td>
+            <td className="px-6 py-3 text-xs text-gray-600">
+              <div className="space-y-1">
+                <div>❌ {data.reduce((sum, stat) => sum + stat.numeri_sbagliati, 0)}</div>
+                {/* <div>📴 {data.reduce((sum, stat) => sum + stat.cellulari_staccati, 0)}</div> */}
+              </div>
+            </td>
+          </tr>
+        </tfoot>
       </table>
-
-      {/* Summary Row */}
-      <tfoot className="bg-gray-100 border-t-2 border-gray-300">
-        <tr className="font-medium">
-          <td colSpan={showPeriod && showOperator ? 2 : 1} className="px-6 py-3 text-sm text-gray-900">
-            TOTALE
-          </td>
-          <td className="px-6 py-3 text-sm text-gray-900">
-            <div className="flex flex-col">
-              <span>{data.reduce((sum, stat) => sum + stat.chiamate_totali, 0)}</span>
-              <span className="text-xs text-gray-500">
-                {data.reduce((sum, stat) => sum + stat.chiamate_completate, 0)} completate
-              </span>
-            </div>
-          </td>
-          <td className="px-6 py-3 text-sm text-gray-900">
-            {(() => {
-              const totCalls = data.reduce((sum, stat) => sum + stat.chiamate_totali, 0)
-              const totCompleted = data.reduce((sum, stat) => sum + stat.chiamate_completate, 0)
-              const completionRate = totCalls > 0 ? Math.round((totCompleted / totCalls) * 100) : 0
-              return (
-                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(completionRate)}`}>
-                  {completionRate}%
-                </span>
-              )
-            })()}
-          </td>
-          <td className="px-6 py-3 text-sm text-gray-900">
-            {(() => {
-              const totCompleted = data.reduce((sum, stat) => sum + stat.chiamate_completate, 0)
-              const totSatisfied = data.reduce((sum, stat) => sum + stat.molto_soddisfatti + stat.soddisfatti, 0)
-              const satisfactionRate = totCompleted > 0 ? Math.round((totSatisfied / totCompleted) * 100) : 0
-              return (
-                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getSatisfactionColor(satisfactionRate)}`}>
-                  {satisfactionRate}%
-                </span>
-              )
-            })()}
-          </td>
-          <td className="px-6 py-3 text-xs text-gray-600">
-            <div className="space-y-1">
-              <div>⭐ {data.reduce((sum, stat) => sum + stat.molto_soddisfatti, 0)}</div>
-              <div>😊 {data.reduce((sum, stat) => sum + stat.soddisfatti, 0)}</div>
-              <div>😐 {data.reduce((sum, stat) => sum + stat.poco_soddisfatti, 0)}</div>
-              <div>😞 {data.reduce((sum, stat) => sum + stat.insoddisfatti, 0)}</div>
-            </div>
-          </td>
-          <td className="px-6 py-3 text-xs text-gray-600">
-            <div className="space-y-1">
-              <div>❌ {data.reduce((sum, stat) => sum + stat.numeri_sbagliati, 0)}</div>
-              {/* <div>📴 {data.reduce((sum, stat) => sum + stat.cellulari_staccati, 0)}</div> */}
-            </div>
-          </td>
-        </tr>
-      </tfoot>
     </div>
   )
 }
