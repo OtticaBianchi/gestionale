@@ -1,7 +1,7 @@
 'use client';
 
 import { ReactNode, useState, useEffect } from 'react';
-import Sidebar from './Sidebar';
+import NewSidebar from './NewSidebar';
 import { SidebarProvider, useSidebar } from './SidebarContext';
 
 interface DashboardLayoutProps {
@@ -14,7 +14,7 @@ function DashboardLayoutContent({ children }: DashboardLayoutProps) {
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
-      <Sidebar />
+      <NewSidebar />
 
       {/* Main Content Area - Dynamic margin based on collapse state */}
       <div className={`

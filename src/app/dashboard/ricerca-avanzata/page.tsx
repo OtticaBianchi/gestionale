@@ -617,36 +617,44 @@ export default function RicercaAvanzataPage() {
                 </div>
               </div>
 
-              {/* Cliente Result */}
+              {/* Cliente Result - CLICKABLE */}
               {result.type === 'cliente' && result.cliente && (
                 <div>
-                  <h3 className="font-medium text-gray-900 mb-1">
-                    {result.cliente.nome} {result.cliente.cognome}
-                  </h3>
-                  <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-600">
-                    {result.cliente.telefono && (
-                      <span className="flex items-center gap-1">
-                        <span role="img" aria-label="Telefono">📞</span>
-                        <span>{result.cliente.telefono}</span>
-                      </span>
+                  <Link
+                    href={`/dashboard/clienti/${result.cliente.id}`}
+                    className="block group hover:bg-gray-50 rounded-lg p-3 -m-3 transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-gray-900 mb-1 group-hover:text-blue-600 transition-colors">
+                        {result.cliente.nome} {result.cliente.cognome}
+                      </h3>
+                      <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                      {result.cliente.telefono && (
+                        <span className="flex items-center gap-1">
+                          <span role="img" aria-label="Telefono">📞</span>
+                          <span>{result.cliente.telefono}</span>
+                        </span>
+                      )}
+                      {result.cliente.email && (
+                        <span className="flex items-center gap-1">
+                          <span role="img" aria-label="Email">✉️</span>
+                          <span>{result.cliente.email}</span>
+                        </span>
+                      )}
+                      {result.cliente.genere && (
+                        <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 uppercase tracking-wide">
+                          {result.cliente.genere}
+                        </span>
+                      )}
+                    </div>
+                    {result.cliente.note_cliente && (
+                      <p className="mt-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-md p-2">
+                        {result.cliente.note_cliente}
+                      </p>
                     )}
-                    {result.cliente.email && (
-                      <span className="flex items-center gap-1">
-                        <span role="img" aria-label="Email">✉️</span>
-                        <span>{result.cliente.email}</span>
-                      </span>
-                    )}
-                    {result.cliente.genere && (
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 uppercase tracking-wide">
-                        {result.cliente.genere}
-                      </span>
-                    )}
-                  </div>
-                  {result.cliente.note_cliente && (
-                    <p className="mt-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-md p-2">
-                      {result.cliente.note_cliente}
-                    </p>
-                  )}
+                  </Link>
                   
                   {result.buste && result.buste.length > 0 ? (
                     <div className="mt-3">

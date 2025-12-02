@@ -10,6 +10,7 @@ interface SidebarItemProps {
   label: string;
   isCollapsed: boolean;
   disabled?: boolean;
+  disabledTooltip?: string; // Tooltip text for disabled items
   badge?: string;
   className?: string;
   badgeVariant?: 'red' | 'blue' | 'amber' | 'gray';
@@ -21,6 +22,7 @@ export default function SidebarItem({
   label,
   isCollapsed,
   disabled = false,
+  disabledTooltip,
   badge,
   className = '',
   badgeVariant = 'red'
@@ -73,7 +75,10 @@ export default function SidebarItem({
 
   if (disabled) {
     return (
-      <div className={`${baseClasses} ${stateClasses} ${className}`} title={isCollapsed ? label : undefined}>
+      <div
+        className={`${baseClasses} ${stateClasses} ${className}`}
+        title={disabledTooltip || (isCollapsed ? label : "Modulo in sviluppo")}
+      >
         {itemContent}
       </div>
     );
