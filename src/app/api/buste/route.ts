@@ -114,7 +114,9 @@ export async function POST(request: NextRequest) {
           telefono: normalizedPhone,
           email: clienteInput.email?.trim() || null,
           genere: clienteInput.genere || null,
-          note_cliente: clienteInput.note_cliente?.trim() || null
+          note_cliente: clienteInput.note_cliente?.trim() || null,
+          updated_by: user.id,
+          updated_at: new Date().toISOString()
         })
         .select('*')
         .single()
