@@ -23,6 +23,19 @@ interface BustaPayload {
   cliente?: ClientePayload
 }
 
+// ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
+const capitalizeNameProperly = (name: string): string => {
+  if (!name) return '';
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+  // Split by spaces, filter empty strings, and capitalize each word
+  return trimmed
+    .split(' ')
+    .filter(word => word.length > 0) // Remove empty strings from multiple spaces
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -119,8 +132,8 @@ export async function PATCH(
     if (body.cliente && existingBusta.cliente_id) {
       const clienteUpdates: Record<string, any> = {}
       const clienteBody = body.cliente
-      if (clienteBody.nome !== undefined) clienteUpdates.nome = clienteBody.nome.trim()
-      if (clienteBody.cognome !== undefined) clienteUpdates.cognome = clienteBody.cognome.trim()
+      if (clienteBody.nome !== undefined) clienteUpdates.nome = capitalizeNameProperly(clienteBody.nome)
+      if (clienteBody.cognome !== undefined) clienteUpdates.cognome = capitalizeNameProperly(clienteBody.cognome)
       if (clienteBody.genere !== undefined) clienteUpdates.genere = clienteBody.genere
       if (clienteBody.telefono !== undefined) clienteUpdates.telefono = clienteBody.telefono?.trim() || null
       if (clienteBody.email !== undefined) clienteUpdates.email = clienteBody.email?.trim() || null

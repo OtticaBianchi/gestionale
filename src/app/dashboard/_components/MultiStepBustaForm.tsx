@@ -15,6 +15,20 @@ import {
   X
 } from 'lucide-react';
 
+// ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
+const capitalizeNameProperly = (name: string): string => {
+  if (!name) return '';
+  // Don't trim - preserve spaces while typing
+  // Split by spaces and capitalize each word, preserving empty strings (spaces)
+  return name
+    .split(' ')
+    .map(word => {
+      if (!word) return ''; // preserve empty strings between spaces
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+};
+
 const isValidEmail = (rawEmail: string): boolean => {
   const email = rawEmail.trim();
   if (!email) return false;
@@ -54,7 +68,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
   const [formData, setFormData] = useState({
     cliente_cognome: '',
     cliente_nome: '',
-    cliente_genere: '' as '' | 'M' | 'F',
+    cliente_genere: '' as '' | 'M' | 'F' | 'P.Giuridica',
     cliente_telefono: '',
     cliente_email: '',
     cliente_note: '',
@@ -501,7 +515,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   id="cliente-cognome"
                   type="text"
                   value={formData.cliente_cognome}
-                  onChange={(e) => handleInputChange('cliente_cognome', e.target.value)}
+                  onChange={(e) => handleInputChange('cliente_cognome', capitalizeNameProperly(e.target.value))}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.cliente_cognome ? 'border-red-300 bg-red-50' : 'border-gray-300'
                   }`}
@@ -518,7 +532,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   id="cliente-nome"
                   type="text"
                   value={formData.cliente_nome}
-                  onChange={(e) => handleInputChange('cliente_nome', e.target.value)}
+                  onChange={(e) => handleInputChange('cliente_nome', capitalizeNameProperly(e.target.value))}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.cliente_nome ? 'border-red-300 bg-red-50' : 'border-gray-300'
                   }`}
@@ -543,6 +557,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   <option value="">-- Seleziona --</option>
                   <option value="M">👨 Maschio</option>
                   <option value="F">👩 Femmina</option>
+                  <option value="P.Giuridica">🏢 P.Giuridica</option>
                 </select>
                 {errors.cliente_genere && (
                   <p className="text-red-600 text-xs mt-1">{errors.cliente_genere}</p>

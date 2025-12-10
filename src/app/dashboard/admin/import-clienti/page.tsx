@@ -9,11 +9,13 @@ import {
   XCircle,
   Loader2,
   ListChecks,
+  UserPlus,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/context/UserContext';
+import ManualClientForm from './_components/ManualClientForm';
 
 type RawClientRecord = {
   cognome: string;
@@ -63,6 +65,7 @@ export default function ImportClientiPage() {
   const supabase = useMemo(() => createClient(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [activeTab, setActiveTab] = useState<'csv' | 'manual'>('csv');
   const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [parsingError, setParsingError] = useState<string | null>(null);
@@ -316,20 +319,50 @@ export default function ImportClientiPage() {
                 <div>
                   <h1 className="text-2xl font-semibold text-gray-900">Importa Clienti</h1>
                   <p className="text-sm text-gray-500">
-                    Carica il file CSV, controlla i duplicati e importa i nuovi clienti in archivio.
+                    Importa clienti tramite file CSV o inserimento manuale
                   </p>
                 </div>
               </div>
             </div>
-            <div className="hidden sm:flex items-center gap-3 text-sm text-gray-500">
-              <ListChecks className="h-4 w-4" />
-              <span>Formato richiesto: cognome,nome,genere,telefono,email</span>
-            </div>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="flex gap-1 mt-6 border-b border-gray-200">
+            <button
+              onClick={() => setActiveTab('csv')}
+              className={`px-4 py-2 font-medium text-sm transition-colors ${
+                activeTab === 'csv'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4" />
+                Import CSV
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('manual')}
+              className={`px-4 py-2 font-medium text-sm transition-colors ${
+                activeTab === 'manual'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                Inserimento Manuale
+              </div>
+            </button>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-8">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+            {activeTab === 'manual' ? (
+              <ManualClientForm />
+            ) : (
+            <>
             <section>
               <div
                 className={`relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-10 py-16 text-center transition-all ${
@@ -684,6 +717,8 @@ export default function ImportClientiPage() {
                   ) : null}
                 </section>
               </>
+            )}
+            </>
             )}
           </div>
         </div>

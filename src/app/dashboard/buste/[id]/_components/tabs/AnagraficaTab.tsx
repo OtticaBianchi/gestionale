@@ -42,7 +42,21 @@ type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
   > | null;
 };
 
-type GenereCliente = 'M' | 'F' | null;
+type GenereCliente = 'M' | 'F' | 'P.Giuridica' | null;
+
+// ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
+const capitalizeNameProperly = (name: string): string => {
+  if (!name) return '';
+  // Don't trim - preserve spaces while typing
+  // Split by spaces and capitalize each word, preserving empty strings (spaces)
+  return name
+    .split(' ')
+    .map(word => {
+      if (!word) return ''; // preserve empty strings between spaces
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+};
 
 // Tipi props
 interface AnagraficaTabProps {
@@ -285,7 +299,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                   id="edit-cliente-nome"
                   type="text"
                   value={editForm.cliente_nome}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, cliente_nome: e.target.value }))}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, cliente_nome: capitalizeNameProperly(e.target.value) }))}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   required
                 />
@@ -293,7 +307,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                 <p className="text-lg font-medium text-gray-900">{busta.clienti.nome}</p>
               )}
             </div>
-            
+
             <div>
               <label htmlFor="edit-cliente-cognome" className="block text-sm font-medium text-gray-500">Cognome *</label>
               {canEdit && isEditing ? (
@@ -301,7 +315,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                   id="edit-cliente-cognome"
                   type="text"
                   value={editForm.cliente_cognome}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, cliente_cognome: e.target.value }))}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, cliente_cognome: capitalizeNameProperly(e.target.value) }))}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                   required
                 />
@@ -317,20 +331,22 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                 <select
                   id="edit-cliente-genere"
                   value={editForm.cliente_genere || ''}
-                  onChange={(e) => setEditForm(prev => ({ 
-                    ...prev, 
-                    cliente_genere: e.target.value === '' ? null : e.target.value as GenereCliente 
+                  onChange={(e) => setEditForm(prev => ({
+                    ...prev,
+                    cliente_genere: e.target.value === '' ? null : e.target.value as GenereCliente
                   }))}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                 >
                   <option value="">Non specificato</option>
                   <option value="M">👨 Maschio</option>
                   <option value="F">👩 Femmina</option>
+                  <option value="P.Giuridica">🏢 P.Giuridica</option>
                 </select>
               ) : (
                 <p className="text-gray-900">
-                  {busta.clienti.genere === 'M' ? '👨 Maschio' : 
-                   busta.clienti.genere === 'F' ? '👩 Femmina' : 
+                  {busta.clienti.genere === 'M' ? '👨 Maschio' :
+                   busta.clienti.genere === 'F' ? '👩 Femmina' :
+                   busta.clienti.genere === 'P.Giuridica' ? '🏢 P.Giuridica' :
                    'Non specificato'}
                 </p>
               )}

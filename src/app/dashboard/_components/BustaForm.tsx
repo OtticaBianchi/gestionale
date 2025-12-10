@@ -24,10 +24,24 @@ import {
 // Importiamo i tipi dal database invece di definirli manualmente
 type WorkType = Database['public']['Enums']['work_type'];
 
+// ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
+const capitalizeNameProperly = (name: string): string => {
+  if (!name) return '';
+  // Don't trim - preserve spaces while typing
+  // Split by spaces and capitalize each word, preserving empty strings (spaces)
+  return name
+    .split(' ')
+    .map(word => {
+      if (!word) return ''; // preserve empty strings between spaces
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+};
+
 const formSchema = z.object({
-  cliente_cognome: z.string().min(2, "Il cognome è obbligatorio"),
-  cliente_nome: z.string().min(2, "Il nome è obbligatorio"),
-  cliente_genere: z.enum(['M', 'F'], {
+  cliente_cognome: z.string().min(2, "Il cognome è obbligatorio").transform(capitalizeNameProperly),
+  cliente_nome: z.string().min(2, "Il nome è obbligatorio").transform(capitalizeNameProperly),
+  cliente_genere: z.enum(['M', 'F', 'P.Giuridica'], {
     errorMap: () => ({ message: "Seleziona il genere" })
   }),
   cliente_telefono: z.string().min(9, "Numero di cellulare non valido"),
@@ -207,7 +221,7 @@ export default function BustaForm() {
     setValue('cliente_nome', client.nome);
     setValue('cliente_telefono', client.telefono || '');
     setValue('cliente_email', client.email || '');
-    setValue('cliente_genere', (client.genere as 'M' | 'F') || 'M');
+    setValue('cliente_genere', (client.genere as 'M' | 'F' | 'P.Giuridica') || 'M');
     setShowSuggestions(false);
   };
 
@@ -351,7 +365,7 @@ export default function BustaForm() {
                           {client.cognome} {client.nome}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {client.genere === 'M' ? '👨' : client.genere === 'F' ? '👩' : ''}
+                          {client.genere === 'M' ? '👨' : client.genere === 'F' ? '👩' : client.genere === 'P.Giuridica' ? '🏢' : ''}
                           {client.telefono && ` 📞 ${client.telefono}`}
                           {client.email && ` • ${client.email}`}
                         </div>
@@ -419,7 +433,7 @@ export default function BustaForm() {
                           {client.cognome} {client.nome}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {client.genere === 'M' ? '👨' : client.genere === 'F' ? '👩' : ''}
+                          {client.genere === 'M' ? '👨' : client.genere === 'F' ? '👩' : client.genere === 'P.Giuridica' ? '🏢' : ''}
                           {client.telefono && ` 📞 ${client.telefono}`}
                           {client.email && ` • ${client.email}`}
                         </div>
@@ -439,8 +453,9 @@ export default function BustaForm() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 >
                   <option value="">-- Seleziona --</option>
-                  <option value="M">Maschio</option>
-                  <option value="F">Femmina</option>
+                  <option value="M">👨 Maschio</option>
+                  <option value="F">👩 Femmina</option>
+                  <option value="P.Giuridica">🏢 P.Giuridica</option>
                 </select>
                 {errors.cliente_genere && (
                   <p className="text-red-600 text-sm flex items-center gap-1">

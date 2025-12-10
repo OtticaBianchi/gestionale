@@ -23,6 +23,19 @@ const VALID_WORK_TYPES = [
   'SA', 'SG', 'CT', 'ES', 'REL', 'FT', 'SPRT', 'VFT'
 ]
 
+// ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
+const capitalizeNameProperly = (name: string): string => {
+  if (!name) return '';
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+  // Split by spaces, filter empty strings, and capitalize each word
+  return trimmed
+    .split(' ')
+    .filter(word => word.length > 0) // Remove empty strings from multiple spaces
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -89,8 +102,8 @@ export async function POST(request: NextRequest) {
         const { data: byName } = await admin
           .from('clienti')
           .select('id')
-          .eq('cognome', clienteInput.cognome.trim())
-          .eq('nome', clienteInput.nome.trim())
+          .eq('cognome', capitalizeNameProperly(clienteInput.cognome))
+          .eq('nome', capitalizeNameProperly(clienteInput.nome))
           .maybeSingle()
 
         if (byName) {
@@ -109,8 +122,8 @@ export async function POST(request: NextRequest) {
       const { data: insertedClient, error: insertClienteError } = await admin
         .from('clienti')
         .insert({
-          cognome: clienteInput.cognome.trim(),
-          nome: clienteInput.nome.trim(),
+          cognome: capitalizeNameProperly(clienteInput.cognome),
+          nome: capitalizeNameProperly(clienteInput.nome),
           telefono: normalizedPhone,
           email: clienteInput.email?.trim() || null,
           genere: clienteInput.genere || null,

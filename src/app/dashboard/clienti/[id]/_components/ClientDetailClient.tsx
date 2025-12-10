@@ -5,6 +5,20 @@ import { User, Calendar, Phone, Mail, ArrowLeft, Edit3, Save, X, Trash2, Search 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+// ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
+const capitalizeNameProperly = (name: string): string => {
+  if (!name) return '';
+  // Don't trim - preserve spaces while typing
+  // Split by spaces and capitalize each word, preserving empty strings (spaces)
+  return name
+    .split(' ')
+    .map(word => {
+      if (!word) return ''; // preserve empty strings between spaces
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+};
+
 type ClienteDettagliato = {
   id: string;
   nome: string;
@@ -286,7 +300,7 @@ export default function ClientDetailClient({ cliente, userRole }: ClientDetailCl
                   <input
                     type="text"
                     value={editForm.nome}
-                    onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })}
+                    onChange={(e) => setEditForm({ ...editForm, nome: capitalizeNameProperly(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
@@ -300,7 +314,7 @@ export default function ClientDetailClient({ cliente, userRole }: ClientDetailCl
                   <input
                     type="text"
                     value={editForm.cognome}
-                    onChange={(e) => setEditForm({ ...editForm, cognome: e.target.value })}
+                    onChange={(e) => setEditForm({ ...editForm, cognome: capitalizeNameProperly(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
@@ -319,10 +333,14 @@ export default function ClientDetailClient({ cliente, userRole }: ClientDetailCl
                     <option value="">Non specificato</option>
                     <option value="M">👨 Maschio</option>
                     <option value="F">👩 Femmina</option>
+                    <option value="P.Giuridica">🏢 P.Giuridica</option>
                   </select>
                 ) : (
                   <p className="text-gray-900">
-                    {cliente.genere === 'M' ? '👨 Maschio' : cliente.genere === 'F' ? '👩 Femmina' : 'Non specificato'}
+                    {cliente.genere === 'M' ? '👨 Maschio' :
+                     cliente.genere === 'F' ? '👩 Femmina' :
+                     cliente.genere === 'P.Giuridica' ? '🏢 P.Giuridica' :
+                     'Non specificato'}
                   </p>
                 )}
               </div>

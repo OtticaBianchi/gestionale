@@ -18,6 +18,19 @@ const admin = createClient<Database>(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false }
 })
 
+// ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
+const capitalizeNameProperly = (name: string): string => {
+  if (!name) return '';
+  const trimmed = name.trim();
+  if (!trimmed) return '';
+  // Split by spaces, filter empty strings, and capitalize each word
+  return trimmed
+    .split(' ')
+    .filter(word => word.length > 0) // Remove empty strings from multiple spaces
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -56,8 +69,8 @@ export async function POST(request: NextRequest) {
     const { data: inserted, error } = await admin
       .from('clienti')
       .insert({
-        cognome: cognome.trim(),
-        nome: nome.trim(),
+        cognome: capitalizeNameProperly(cognome),
+        nome: capitalizeNameProperly(nome),
         genere,
         telefono: telefono?.trim() || null,
         email: email?.trim() || null,
