@@ -183,6 +183,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
         note_generali: editForm.note_generali.trim() || null,
         is_suspended: editForm.is_suspended,
         cliente: {
+          id: busta.clienti?.id,
           nome: editForm.cliente_nome.trim(),
           cognome: editForm.cliente_cognome.trim(),
           genere: editForm.cliente_genere,

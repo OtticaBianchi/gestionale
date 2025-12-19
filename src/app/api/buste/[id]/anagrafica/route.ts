@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 import { logUpdate } from '@/lib/audit/auditLog'
 
 interface ClientePayload {
+  id?: string
   nome?: string
   cognome?: string
   genere?: string | null
@@ -61,6 +62,7 @@ export async function PATCH(
     }
 
     const body: BustaPayload = await request.json().catch(() => ({}))
+    const clienteBody = body.cliente ?? null
 
     const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -78,6 +80,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Busta non trovata' }, { status: 404 })
     }
 
+    const clienteId = existingBusta.cliente_id ?? clienteBody?.id ?? null
+
     const fieldsToUpdate: Record<string, any> = {}
     if (body.tipo_lavorazione !== undefined) {
       fieldsToUpdate.tipo_lavorazione = body.tipo_lavorazione || null
@@ -90,6 +94,9 @@ export async function PATCH(
     }
     if (body.is_suspended !== undefined) {
       fieldsToUpdate.is_suspended = body.is_suspended
+    }
+    if (!existingBusta.cliente_id && clienteId) {
+      fieldsToUpdate.cliente_id = clienteId
     }
 
     let updatedBusta = existingBusta
@@ -129,13 +136,13 @@ export async function PATCH(
     }
 
     let updatedCliente = null
-    if (body.cliente && existingBusta.cliente_id) {
+    if (clienteBody && clienteId) {
       const clienteUpdates: Record<string, any> = {}
-      const clienteBody = body.cliente
+      const normalizedPhone = clienteBody.telefono?.replace(/[\s\-\.]/g, '') || null
       if (clienteBody.nome !== undefined) clienteUpdates.nome = capitalizeNameProperly(clienteBody.nome)
       if (clienteBody.cognome !== undefined) clienteUpdates.cognome = capitalizeNameProperly(clienteBody.cognome)
       if (clienteBody.genere !== undefined) clienteUpdates.genere = clienteBody.genere
-      if (clienteBody.telefono !== undefined) clienteUpdates.telefono = clienteBody.telefono?.trim() || null
+      if (clienteBody.telefono !== undefined) clienteUpdates.telefono = normalizedPhone
       if (clienteBody.email !== undefined) clienteUpdates.email = clienteBody.email?.trim() || null
       if (clienteBody.note_cliente !== undefined) clienteUpdates.note_cliente = clienteBody.note_cliente?.trim() || null
 
@@ -143,7 +150,7 @@ export async function PATCH(
         const { data: existingCliente, error: fetchClienteError } = await admin
           .from('clienti')
           .select('id, nome, cognome, genere, telefono, email, note_cliente')
-          .eq('id', existingBusta.cliente_id)
+          .eq('id', clienteId)
           .single()
 
         if (fetchClienteError || !existingCliente) {
@@ -184,6 +191,8 @@ export async function PATCH(
           console.error('AUDIT_UPDATE_CLIENTE_FAILED', audit.error)
         }
       }
+    } else if (clienteBody && !clienteId) {
+      return NextResponse.json({ error: 'Cliente non collegato alla busta' }, { status: 400 })
     }
 
     return NextResponse.json({
