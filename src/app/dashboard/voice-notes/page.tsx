@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useUser } from '@/context/UserContext';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { formatPhoneDisplay } from '@/utils/formatPhone'; // ✅ IMPORT PHONE FORMATTER
 
 interface VoiceNote {
   id: string;
@@ -780,7 +781,7 @@ export default function VoiceNotesPage() {
                           {result.cliente.nome} {result.cliente.cognome}
                         </h4>
                         {result.cliente.telefono && (
-                          <p className="text-sm text-gray-600">📞 {result.cliente.telefono}</p>
+                          <p className="text-sm text-gray-600">📞 {formatPhoneDisplay(result.cliente.telefono)}</p>
                         )}
                       </div>
                       {isAdmin && (

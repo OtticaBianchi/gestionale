@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { User, Calendar, Phone, Mail, ArrowLeft, Edit3, Save, X, Trash2, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { formatPhoneDisplay } from '@/utils/formatPhone'; // ✅ IMPORT PHONE FORMATTER
 
 // ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
 const capitalizeNameProperly = (name: string): string => {
@@ -355,10 +356,18 @@ export default function ClientDetailClient({ cliente, userRole }: ClientDetailCl
                     type="tel"
                     value={editForm.telefono}
                     onChange={(e) => setEditForm({ ...editForm, telefono: e.target.value })}
+                    onBlur={(e) => {
+                      // ✅ Format phone on blur
+                      const formatted = formatPhoneDisplay(e.target.value);
+                      if (formatted && formatted !== e.target.value) {
+                        setEditForm({ ...editForm, telefono: formatted });
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="347 7282793"
                   />
                 ) : (
-                  <p className="text-gray-900">{cliente.telefono || 'Non specificato'}</p>
+                  <p className="text-gray-900">{formatPhoneDisplay(cliente.telefono) || 'Non specificato'}</p>
                 )}
               </div>
 

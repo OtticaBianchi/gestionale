@@ -5,6 +5,7 @@ import { useState, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
 import { Database } from '@/types/database.types';
+import { formatPhoneDisplay } from '@/utils/formatPhone'; // ✅ IMPORT PHONE FORMATTER
 import {
   User,
   Package,
@@ -66,6 +67,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
   const [success, setSuccess] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
+    cliente_id: null as string | null,  // ✅ AGGIUNTO per tracciare cliente esistente
     cliente_cognome: '',
     cliente_nome: '',
     cliente_genere: '' as '' | 'M' | 'F' | 'P.Giuridica',
@@ -171,6 +173,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
   const handleSelectClient = (client: any) => {
     setFormData({
       ...formData,
+      cliente_id: client.id,  // ✅ SALVA L'ID DEL CLIENTE ESISTENTE
       cliente_cognome: client.cognome || '',
       cliente_nome: client.nome || '',
       cliente_genere: client.genere || '',
@@ -199,6 +202,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     setSearchValue('');
     setSearchResults([]);
     setFormData({
+      cliente_id: null,  // ✅ RESET ID
       cliente_cognome: '',
       cliente_nome: '',
       cliente_genere: '',
@@ -238,6 +242,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cliente: {
+            id: formData.cliente_id,  // ✅ PASSA L'ID SE CLIENTE ESISTENTE
             cognome: formData.cliente_cognome.trim(),
             nome: formData.cliente_nome.trim(),
             genere: formData.cliente_genere || null,
@@ -282,6 +287,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
   const resetForm = () => {
     setSuccess(false);
     setFormData({
+      cliente_id: null,  // ✅ RESET ID
       cliente_cognome: '',
       cliente_nome: '',
       cliente_genere: '',
@@ -472,7 +478,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                             </p>
                             <p className="text-sm text-gray-600">
                               {client.genere === 'M' ? '👨' : client.genere === 'F' ? '👩' : ''}
-                              {client.telefono && ` 📞 ${client.telefono}`}
+                              {client.telefono && ` 📞 ${formatPhoneDisplay(client.telefono)}`}
                             </p>
                           </div>
                           <span className="text-blue-600">→</span>
@@ -571,10 +577,17 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   type="tel"
                   value={formData.cliente_telefono}
                   onChange={(e) => handleInputChange('cliente_telefono', e.target.value)}
+                  onBlur={(e) => {
+                    // ✅ Format phone on blur (when user leaves field)
+                    const formatted = formatPhoneDisplay(e.target.value);
+                    if (formatted && formatted !== e.target.value) {
+                      handleInputChange('cliente_telefono', formatted);
+                    }
+                  }}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.cliente_telefono ? 'border-red-300 bg-red-50' : 'border-gray-300'
                   }`}
-                  placeholder="333 123 4567"
+                  placeholder="347 7282793"
                 />
                 {errors.cliente_telefono && (
                   <p className="text-red-600 text-xs mt-1">{errors.cliente_telefono}</p>

@@ -5,12 +5,13 @@
 import { useState } from 'react';
 import { Database } from '@/types/database.types';
 import { mutate } from 'swr';
-import { 
-  User, 
-  Calendar, 
-  Package, 
-  Edit3, 
-  Save, 
+import { formatPhoneDisplay } from '@/utils/formatPhone'; // ✅ IMPORT PHONE FORMATTER
+import {
+  User,
+  Calendar,
+  Package,
+  Edit3,
+  Save,
   X,
   Phone,
   Mail,
@@ -360,14 +361,21 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                   type="tel"
                   value={editForm.cliente_telefono}
                   onChange={(e) => setEditForm(prev => ({ ...prev, cliente_telefono: e.target.value }))}
+                  onBlur={(e) => {
+                    // ✅ Format phone on blur
+                    const formatted = formatPhoneDisplay(e.target.value);
+                    if (formatted && formatted !== e.target.value) {
+                      setEditForm(prev => ({ ...prev, cliente_telefono: formatted }));
+                    }
+                  }}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  placeholder="333 123 4567"
+                  placeholder="347 7282793"
                 />
               ) : (
                 busta.clienti.telefono ? (
                   <div className="flex items-center space-x-2">
                     <Phone className="h-4 w-4 text-gray-400" />
-                    <p className="text-gray-900">{busta.clienti.telefono}</p>
+                    <p className="text-gray-900">{formatPhoneDisplay(busta.clienti.telefono)}</p>
                   </div>
                 ) : (
                   <p className="text-gray-500 italic">Non specificato</p>

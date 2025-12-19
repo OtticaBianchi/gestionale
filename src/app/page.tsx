@@ -68,6 +68,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.0.2', date: '10/12/2025', description: 'Import clienti manuale (1-9 alla volta), capitalizzazione intelligente nomi multi-parte (es. Di Maria), opzione P.Giuridica per genere cliente.' },
     { version: '3.4.0', date: '27/10/2025', description: 'Import clienti da CSV con validazioni, ricerca avanzata fase 1, riepiloghi workflow e modifica descrizione materiali.' },
     { version: '3.3.0', date: '25/10/2025', description: 'Availability badges, no-payment fix.' },
     { version: '3.2.1', date: '24/10/2025', description: 'VFT tra i tipi lavorazione, spedizioni con tracking e note, ricerca globale delle note, nuova categoria Ricambi e voce "Nessuna lavorazione".' },

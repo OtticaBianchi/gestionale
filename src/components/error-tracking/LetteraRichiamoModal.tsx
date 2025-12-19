@@ -155,7 +155,7 @@ Data: _____ / _____ / __________
 
 ---
 Documento generato automaticamente dal sistema di tracciamento errori
-OB Moduli v3.4.0 - ${today}
+OB Moduli v4.0.2 - ${today}
     `.trim()
   }
 

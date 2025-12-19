@@ -156,12 +156,51 @@ export async function POST(request: NextRequest) {
         userRole
       )
     } else {
-      const { data: existing } = await admin
-        .from('clienti')
-        .select('*')
-        .eq('id', clienteId)
-        .maybeSingle()
-      clienteRecord = existing
+      // Cliente esistente - AGGIORNA i dati se forniti nel form
+      const updateData: any = {
+        updated_by: user.id,
+        updated_at: new Date().toISOString()
+      }
+
+      // Aggiorna solo i campi forniti nel form
+      if (clienteInput.telefono && normalizedPhone) {
+        updateData.telefono = normalizedPhone
+      }
+      if (clienteInput.email && clienteInput.email.trim()) {
+        updateData.email = clienteInput.email.trim()
+      }
+      if (clienteInput.genere) {
+        updateData.genere = clienteInput.genere
+      }
+      if (clienteInput.note_cliente && clienteInput.note_cliente.trim()) {
+        updateData.note_cliente = clienteInput.note_cliente.trim()
+      }
+
+      // Esegui l'update se ci sono campi da aggiornare
+      if (Object.keys(updateData).length > 2) { // >2 perché updated_by e updated_at sono sempre presenti
+        const { data: updated, error: updateError } = await admin
+          .from('clienti')
+          .update(updateData)
+          .eq('id', clienteId)
+          .select('*')
+          .single()
+
+        if (updateError) {
+          console.error('Errore aggiornamento cliente:', updateError)
+        } else {
+          clienteRecord = updated
+        }
+      }
+
+      // Se non c'è stato update o è fallito, fetch i dati esistenti
+      if (!clienteRecord) {
+        const { data: existing } = await admin
+          .from('clienti')
+          .select('*')
+          .eq('id', clienteId)
+          .maybeSingle()
+        clienteRecord = existing
+      }
     }
 
     const now = new Date().toISOString()
