@@ -3112,6 +3112,7 @@ export type Database = {
         | "SA"
         | "SG"
         | "CT"
+        | "BR"
         | "ES"
         | "REL"
         | "FT"
@@ -3288,6 +3289,7 @@ export const Constants = {
         "SA",
         "SG",
         "CT",
+        "BR",
         "ES",
         "REL",
         "FT",

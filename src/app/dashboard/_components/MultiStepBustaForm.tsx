@@ -904,10 +904,11 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   <option value="SA">📐 SA - Sostituzione anticipata</option>
                   <option value="SG">🧵 SG - Sostituzione in garanzia</option>
                   <option value="CT">👁️ CT - Controllo tecnico</option>
+                  <option value="BR">🎁 BR - Buono Regalo</option>
+                  <option value="SPRT">🚴 SPRT - Sport</option>
                   <option value="ES">🔬 ES - Esercizi oculari</option>
                   <option value="REL">📋 REL - Relazione</option>
                   <option value="FT">🧾 FT - Fattura</option>
-                  <option value="SPRT">🚴 SPRT - Sport</option>
                   <option value="VFT">🔍 VFT - Verifica Fattibilità Tecnica</option>
                 </select>
               </div>
