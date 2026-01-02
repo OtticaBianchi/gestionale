@@ -76,7 +76,8 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     cliente_note: '',
     tipo_lavorazione: '',
     priorita: 'normale' as 'normale' | 'urgente' | 'critica',
-    note_generali: ''
+    note_generali: '',
+    anno_precedente: false  // ✅ AGGIUNTO per gestire buste anno precedente
   });
   const [errors, setErrors] = useState<{[key: string]: string}>({});
 
@@ -211,7 +212,8 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
       cliente_note: '',
       tipo_lavorazione: formData.tipo_lavorazione,
       priorita: formData.priorita,
-      note_generali: formData.note_generali
+      note_generali: formData.note_generali,
+      anno_precedente: formData.anno_precedente
     });
     setErrors({});
     setFormError(null);
@@ -254,7 +256,8 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
             tipo_lavorazione: formData.tipo_lavorazione || null,
             priorita: formData.priorita,
             note_generali: formData.note_generali?.trim() || null,
-            stato_attuale: 'nuove'
+            stato_attuale: 'nuove',
+            anno_precedente: formData.anno_precedente  // ✅ PASSA FLAG ANNO PRECEDENTE
           }
         })
       });
@@ -296,7 +299,8 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
       cliente_note: '',
       tipo_lavorazione: '',
       priorita: 'normale',
-      note_generali: ''
+      note_generali: '',
+      anno_precedente: false
     });
     setErrors({});
     setFormError(null);
@@ -680,8 +684,8 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                       onClick={() => handleInputChange('priorita', priority.value)}
                       className={`
                         flex-1 px-3 py-2 rounded-lg text-center text-xs font-medium border-2 transition-colors
-                        ${formData.priorita === priority.value 
-                          ? priority.color + ' border-current' 
+                        ${formData.priorita === priority.value
+                          ? priority.color + ' border-current'
                           : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
                         }
                       `}
@@ -690,6 +694,29 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* ✅ ANNO BUSTA */}
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-3 p-3 bg-amber-50 border-2 border-amber-200 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={formData.anno_precedente}
+                    onChange={(e) => setFormData(prev => ({ ...prev, anno_precedente: e.target.checked }))}
+                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-semibold text-gray-900">
+                      📅 Busta anno precedente (2025)
+                    </span>
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      Seleziona questa opzione se stai inserendo una busta relativa all'anno 2025.
+                      {formData.anno_precedente
+                        ? ' Il numero busta inizierà con "25-"'
+                        : ' Lascia deselezionato per buste 2026 (numero inizierà con "26-")'}
+                    </p>
+                  </div>
+                </label>
               </div>
 
               <div className="md:col-span-2">

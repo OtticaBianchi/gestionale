@@ -64,6 +64,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Dati cliente o busta mancanti' }, { status: 400 })
     }
 
+    // ✅ GESTIONE ANNO PRECEDENTE
+    const annoPrecedente = bustaInput.anno_precedente === true
+
     if (!clienteInput.nome?.trim() || !clienteInput.cognome?.trim()) {
       return NextResponse.json({ error: 'Nome e cognome cliente sono obbligatori' }, { status: 400 })
     }
@@ -203,6 +206,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ✅ CALCOLA IL PREFISSO ANNO PER IL NUMERO BUSTA
+    const currentYear = new Date().getFullYear()
+    const targetYear = annoPrecedente ? currentYear - 1 : currentYear
+    const yearSuffix = targetYear.toString().slice(-2) // Ultimi 2 caratteri (es. "25" o "26")
+
+    // ✅ TROVA IL PROSSIMO NUMERO PROGRESSIVO PER L'ANNO SELEZIONATO
+    const { data: existingBuste } = await admin
+      .from('buste')
+      .select('readable_id')
+      .like('readable_id', `${yearSuffix}-%`)
+      .order('readable_id', { ascending: false })
+      .limit(1)
+
+    let nextProgressive = 1
+    if (existingBuste && existingBuste.length > 0) {
+      const lastId = existingBuste[0].readable_id
+      if (lastId) {
+        const match = lastId.match(/^\d{2}-(\d{4})$/)
+        if (match) {
+          nextProgressive = parseInt(match[1], 10) + 1
+        }
+      }
+    }
+
+    const customReadableId = `${yearSuffix}-${nextProgressive.toString().padStart(4, '0')}`
+
     const now = new Date().toISOString()
     const { data: newBusta, error: bustaError } = await admin
       .from('buste')
@@ -213,7 +242,8 @@ export async function POST(request: NextRequest) {
         note_generali: bustaInput.note_generali?.trim() || null,
         stato_attuale: bustaInput.stato_attuale || 'nuove',
         creato_da: user.id,
-        updated_by: user.id
+        updated_by: user.id,
+        readable_id: customReadableId  // ✅ SETTA IL READABLE_ID MANUALMENTE
       })
       .select('*')
       .single()
