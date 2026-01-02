@@ -87,36 +87,42 @@ export async function POST(request: NextRequest) {
     let clienteId: string | null = clienteInput.id || null
 
     if (!clienteId) {
+      // ✅ NEW LOGIC: Only auto-match when BOTH phone AND name match
+      // This prevents auto-selecting the wrong person when phone is shared (caregiver/family scenarios)
+
       let existingClient = null
 
-      if (normalizedPhone) {
-        const { data: byPhone } = await admin
-          .from('clienti')
-          .select('id')
-          .eq('telefono', normalizedPhone)
-          .maybeSingle()
+      // First, try to match by name (most reliable identifier)
+      const { data: byName } = await admin
+        .from('clienti')
+        .select('id, telefono')
+        .eq('cognome', capitalizeNameProperly(clienteInput.cognome))
+        .eq('nome', capitalizeNameProperly(clienteInput.nome))
+        .maybeSingle()
 
-        if (byPhone) {
-          existingClient = byPhone
-        }
+      if (byName) {
+        existingClient = byName
       }
 
-      if (!existingClient) {
-        const { data: byName } = await admin
-          .from('clienti')
-          .select('id')
-          .eq('cognome', capitalizeNameProperly(clienteInput.cognome))
-          .eq('nome', capitalizeNameProperly(clienteInput.nome))
-          .maybeSingle()
-
-        if (byName) {
-          existingClient = byName
-        }
-      }
-
+      // If we found a match by name, verify phone compatibility
       if (existingClient) {
-        clienteId = existingClient.id
+        // If names match and phones match (or existing has no phone), reuse client
+        if (!existingClient.telefono || existingClient.telefono === normalizedPhone) {
+          clienteId = existingClient.id
+        } else if (normalizedPhone) {
+          // Names match but phones differ - this is a data conflict
+          // For now, create new client (operator should merge manually if needed)
+          existingClient = null
+        } else {
+          // No phone provided, name matches - reuse client
+          clienteId = existingClient.id
+        }
       }
+
+      // ❌ REMOVED: Automatic phone-only matching
+      // We no longer auto-select clients based on phone alone
+      // This was causing the bug where "Anna Rossi" would be created as "Mario Rossi"
+      // when they share a phone number (caregiver/family scenarios)
     }
 
     let clienteRecord = null
@@ -159,51 +165,17 @@ export async function POST(request: NextRequest) {
         userRole
       )
     } else {
-      // Cliente esistente - AGGIORNA i dati se forniti nel form
-      const updateData: any = {
-        updated_by: user.id,
-        updated_at: new Date().toISOString()
-      }
+      // Cliente esistente - fetch i dati esistenti senza modificarli
+      // ✅ NON aggiorniamo più automaticamente i dati del cliente esistente
+      // Questo previene la sovrascrittura accidentale di dati quando si seleziona
+      // un cliente esistente dalla ricerca manuale
+      const { data: existing } = await admin
+        .from('clienti')
+        .select('*')
+        .eq('id', clienteId)
+        .maybeSingle()
 
-      // Aggiorna solo i campi forniti nel form
-      if (clienteInput.telefono && normalizedPhone) {
-        updateData.telefono = normalizedPhone
-      }
-      if (clienteInput.email && clienteInput.email.trim()) {
-        updateData.email = clienteInput.email.trim()
-      }
-      if (clienteInput.genere) {
-        updateData.genere = clienteInput.genere
-      }
-      if (clienteInput.note_cliente && clienteInput.note_cliente.trim()) {
-        updateData.note_cliente = clienteInput.note_cliente.trim()
-      }
-
-      // Esegui l'update se ci sono campi da aggiornare
-      if (Object.keys(updateData).length > 2) { // >2 perché updated_by e updated_at sono sempre presenti
-        const { data: updated, error: updateError } = await admin
-          .from('clienti')
-          .update(updateData)
-          .eq('id', clienteId)
-          .select('*')
-          .single()
-
-        if (updateError) {
-          console.error('Errore aggiornamento cliente:', updateError)
-        } else {
-          clienteRecord = updated
-        }
-      }
-
-      // Se non c'è stato update o è fallito, fetch i dati esistenti
-      if (!clienteRecord) {
-        const { data: existing } = await admin
-          .from('clienti')
-          .select('*')
-          .eq('id', clienteId)
-          .maybeSingle()
-        clienteRecord = existing
-      }
+      clienteRecord = existing
     }
 
     // ✅ CALCOLA IL PREFISSO ANNO PER IL NUMERO BUSTA

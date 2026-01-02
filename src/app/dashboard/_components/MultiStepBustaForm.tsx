@@ -88,6 +88,12 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
+  // ✅ PHONE CONFLICT DETECTION STATE
+  const [phoneConflicts, setPhoneConflicts] = useState<any[]>([]);
+  const [showPhoneConflict, setShowPhoneConflict] = useState(false);
+  const [selectedConflictResolution, setSelectedConflictResolution] = useState<'new' | 'existing' | null>(null);
+  const [isCheckingPhone, setIsCheckingPhone] = useState(false);
+
   // Prevent double submit
   const isSubmittingRef = useRef(false);
   
@@ -217,6 +223,96 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     });
     setErrors({});
     setFormError(null);
+    // Clear phone conflicts
+    setPhoneConflicts([]);
+    setShowPhoneConflict(false);
+    setSelectedConflictResolution(null);
+  };
+
+  // ✅ CHECK FOR PHONE CONFLICTS
+  const checkPhoneConflicts = async (phone: string, currentName: string, currentSurname: string) => {
+    if (!phone || phone.replace(/\D/g, '').length < 9) {
+      setPhoneConflicts([]);
+      setShowPhoneConflict(false);
+      return false;
+    }
+
+    // Skip check if we already have a cliente_id (user selected from search)
+    if (formData.cliente_id) {
+      setPhoneConflicts([]);
+      setShowPhoneConflict(false);
+      return false;
+    }
+
+    // Skip check if name/surname are not filled yet
+    if (!currentName.trim() || !currentSurname.trim()) {
+      setPhoneConflicts([]);
+      setShowPhoneConflict(false);
+      return false;
+    }
+
+    setIsCheckingPhone(true);
+
+    try {
+      const cleanPhone = phone.replace(/[\s\-\.]/g, '');
+
+      const { data, error } = await supabase
+        .from('clienti')
+        .select('id, nome, cognome, telefono, data_nascita')
+        .eq('telefono', cleanPhone);
+
+      if (error) {
+        console.error('Error checking phone conflicts:', error);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        // Check if any of the results have a different name
+        const conflicts = data.filter(client => {
+          const nameDiffers = client.nome.toLowerCase() !== currentName.toLowerCase().trim();
+          const surnameDiffers = client.cognome.toLowerCase() !== currentSurname.toLowerCase().trim();
+          return nameDiffers || surnameDiffers;
+        });
+
+        if (conflicts.length > 0) {
+          setPhoneConflicts(conflicts);
+          setShowPhoneConflict(true);
+          setSelectedConflictResolution('new'); // Default to creating new person
+          return true; // Conflict found
+        } else {
+          // Same name and phone - will auto-match in API
+          setPhoneConflicts([]);
+          setShowPhoneConflict(false);
+          return false;
+        }
+      } else {
+        setPhoneConflicts([]);
+        setShowPhoneConflict(false);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error checking phone conflicts:', error);
+      // Don't block the user, but log the error
+      setPhoneConflicts([]);
+      setShowPhoneConflict(false);
+      return false;
+    } finally {
+      setIsCheckingPhone(false);
+    }
+  };
+
+  // ✅ HANDLE SELECTING EXISTING CLIENT FROM CONFLICT
+  const handleSelectConflictClient = (client: any) => {
+    setFormData({
+      ...formData,
+      cliente_id: client.id,
+      cliente_cognome: client.cognome || '',
+      cliente_nome: client.nome || '',
+      cliente_telefono: client.telefono || '',
+    });
+    setSelectedConflictResolution('existing');
+    setShowPhoneConflict(false);
+    setPhoneConflicts([]);
   };
 
   type CreateBustaResponse = {
@@ -228,10 +324,47 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
 
   const handleSubmit = async () => {
     if (isSubmittingRef.current) return;
-    
+
     if (!validateForm()) {
       setFormError('Per favore correggi gli errori nei campi evidenziati');
       return;
+    }
+
+    // ✅ CHECK FOR PHONE CONFLICTS BEFORE SUBMITTING
+    // Only if we're creating a new client (no cliente_id)
+    if (!formData.cliente_id) {
+      const hasConflict = await checkPhoneConflicts(
+        formData.cliente_telefono,
+        formData.cliente_nome,
+        formData.cliente_cognome
+      );
+
+      if (hasConflict) {
+        // If conflict found but user hasn't made a choice yet, block submission
+        if (selectedConflictResolution === null) {
+          // Scroll to conflict UI
+          const conflictElement = document.querySelector('[data-phone-conflict]');
+          if (conflictElement) {
+            conflictElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          setFormError('⚠️ Attenzione: questo numero di telefono è già associato ad un altro cliente. Scegli come procedere.');
+          return;
+        }
+
+        // If user chose "existing" but didn't select a specific client, block
+        if (selectedConflictResolution === 'existing' && !formData.cliente_id) {
+          setFormError('⚠️ Seleziona un cliente esistente dalla lista oppure scegli "Nuova persona".');
+          return;
+        }
+
+        // If user chose "new", proceed with creation (conflict acknowledged)
+        // Clear the conflict state and continue
+        if (selectedConflictResolution === 'new') {
+          setShowPhoneConflict(false);
+          setPhoneConflicts([]);
+          // Continue to create new client with same phone
+        }
+      }
     }
 
     try {
@@ -587,6 +720,8 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                     if (formatted && formatted !== e.target.value) {
                       handleInputChange('cliente_telefono', formatted);
                     }
+                    // ✅ Check for phone conflicts
+                    checkPhoneConflicts(e.target.value, formData.cliente_nome, formData.cliente_cognome);
                   }}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.cliente_telefono ? 'border-red-300 bg-red-50' : 'border-gray-300'
@@ -595,6 +730,12 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                 />
                 {errors.cliente_telefono && (
                   <p className="text-red-600 text-xs mt-1">{errors.cliente_telefono}</p>
+                )}
+                {isCheckingPhone && (
+                  <p className="text-blue-600 text-xs mt-1 flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Verifica numero in corso...
+                  </p>
                 )}
               </div>
 
@@ -627,6 +768,107 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   placeholder="Note aggiuntive sul cliente..."
                 />
               </div>
+
+              {/* ✅ PHONE CONFLICT DISAMBIGUATION UI */}
+              {showPhoneConflict && phoneConflicts.length > 0 && (
+                <div className="md:col-span-3" data-phone-conflict>
+                  <div className="bg-amber-50 border-2 border-amber-400 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-amber-900 mb-2">
+                          📞 Questo numero è già associato a:
+                        </h3>
+                        <ul className="mb-3 space-y-1">
+                          {phoneConflicts.map((client) => (
+                            <li key={client.id} className="text-sm text-amber-800">
+                              • {client.cognome} {client.nome}
+                              {client.data_nascita && (
+                                <span className="text-amber-600 ml-2">
+                                  (nato il {new Date(client.data_nascita).toLocaleDateString('it-IT')})
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+
+                        <div className="bg-white rounded-lg p-3 border border-amber-300">
+                          <p className="text-sm font-medium text-gray-700 mb-3">
+                            Stai creando la busta per: <strong>{formData.cliente_cognome} {formData.cliente_nome}</strong>
+                          </p>
+
+                          <div className="space-y-2">
+                            {/* Option 1: New person (default) */}
+                            <label className="flex items-start gap-3 p-3 border-2 rounded-lg cursor-pointer transition-colors hover:bg-blue-50 bg-blue-50 border-blue-500">
+                              <input
+                                type="radio"
+                                name="conflict-resolution"
+                                value="new"
+                                checked={selectedConflictResolution === 'new'}
+                                onChange={() => setSelectedConflictResolution('new')}
+                                className="mt-1 w-4 h-4 text-blue-600"
+                              />
+                              <div className="flex-1">
+                                <div className="font-medium text-gray-900">
+                                  ✅ Nuova persona (collegata a questo contatto)
+                                </div>
+                                <div className="text-sm text-gray-600 mt-1">
+                                  Crea un nuovo cliente "{formData.cliente_cognome} {formData.cliente_nome}" con lo stesso numero di telefono.
+                                  Utile per familiari o caregiver che condividono il numero.
+                                </div>
+                              </div>
+                            </label>
+
+                            {/* Option 2: Select existing person */}
+                            <div className="border-2 border-gray-300 rounded-lg p-3">
+                              <label className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="conflict-resolution"
+                                  value="existing"
+                                  checked={selectedConflictResolution === 'existing'}
+                                  onChange={() => setSelectedConflictResolution('existing')}
+                                  className="mt-1 w-4 h-4 text-blue-600"
+                                />
+                                <div className="flex-1">
+                                  <div className="font-medium text-gray-900">
+                                    Seleziona una persona esistente
+                                  </div>
+                                  <div className="text-sm text-gray-600 mt-1 mb-2">
+                                    La busta verrà creata per una delle persone già presenti nel sistema.
+                                  </div>
+                                </div>
+                              </label>
+
+                              {selectedConflictResolution === 'existing' && (
+                                <div className="ml-7 mt-2 space-y-2">
+                                  {phoneConflicts.map((client) => (
+                                    <button
+                                      key={client.id}
+                                      type="button"
+                                      onClick={() => handleSelectConflictClient(client)}
+                                      className="w-full text-left p-2 bg-gray-50 border border-gray-300 rounded hover:bg-blue-50 hover:border-blue-400 transition-colors"
+                                    >
+                                      <div className="font-medium text-gray-900">
+                                        {client.cognome} {client.nome}
+                                      </div>
+                                      {client.data_nascita && (
+                                        <div className="text-xs text-gray-600">
+                                          Nato il {new Date(client.data_nascita).toLocaleDateString('it-IT')}
+                                        </div>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
