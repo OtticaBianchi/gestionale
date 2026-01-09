@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode } from 'react';
 import { LucideIcon, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface AccordionSectionProps {
@@ -8,8 +8,9 @@ interface AccordionSectionProps {
   icon: LucideIcon;
   children: ReactNode;
   isCollapsed: boolean;
-  defaultOpen?: boolean;
-  storageKey?: string; // Key for localStorage to remember state
+  isOpen: boolean;
+  onToggle: () => void;
+  sectionId: string;
 }
 
 export default function AccordionSection({
@@ -17,25 +18,12 @@ export default function AccordionSection({
   icon: Icon,
   children,
   isCollapsed,
-  defaultOpen = false,
-  storageKey
+  isOpen,
+  onToggle,
+  sectionId
 }: AccordionSectionProps) {
-  // Initialize state from localStorage if available
-  const [isOpen, setIsOpen] = useState(() => {
-    if (typeof window === 'undefined' || !storageKey) return defaultOpen;
-    const stored = localStorage.getItem(storageKey);
-    return stored !== null ? stored === 'true' : defaultOpen;
-  });
-
-  // Save state to localStorage when it changes
-  useEffect(() => {
-    if (storageKey) {
-      localStorage.setItem(storageKey, String(isOpen));
-    }
-  }, [isOpen, storageKey]);
-
   const toggleOpen = () => {
-    setIsOpen(!isOpen);
+    onToggle();
   };
 
   return (

@@ -28,18 +28,23 @@ export default function SidebarItem({
   badgeVariant = 'red'
 }: SidebarItemProps) {
   const pathname = usePathname();
-  const isActive = pathname === href || (href !== '/dashboard' && pathname.startsWith(href));
+  // For /dashboard, only match exactly. For others, match if pathname starts with href
+  const isActive = href === '#'
+    ? false
+    : href === '/dashboard'
+      ? pathname === '/dashboard'
+      : pathname.startsWith(href);
 
   const baseClasses = `
-    relative flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
+    relative flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-all duration-200
     ${isCollapsed ? 'justify-center' : 'justify-start'}
   `;
 
   const stateClasses = disabled
-    ? 'text-gray-400 cursor-not-allowed opacity-50'
+    ? 'text-gray-400 cursor-not-allowed opacity-50 font-medium'
     : isActive
-    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900';
+    ? '!bg-blue-600 !text-white !font-bold !shadow-md hover:!bg-blue-700'
+    : 'text-gray-700 font-medium hover:bg-gray-100 hover:text-gray-900';
 
   const badgeClasses: Record<NonNullable<SidebarItemProps['badgeVariant']>, string> = {
     red: 'bg-red-500 text-white',
@@ -76,7 +81,7 @@ export default function SidebarItem({
   if (disabled) {
     return (
       <div
-        className={`${baseClasses} ${stateClasses} ${className}`}
+        className={`${className} ${baseClasses} ${stateClasses}`}
         title={disabledTooltip || (isCollapsed ? label : "Modulo in sviluppo")}
       >
         {itemContent}
@@ -87,7 +92,13 @@ export default function SidebarItem({
   return (
     <Link
       href={href}
-      className={`${baseClasses} ${stateClasses} ${className}`}
+      className={`${className} ${baseClasses} ${stateClasses}`}
+      style={isActive ? {
+        backgroundColor: '#2563eb',
+        color: 'white',
+        fontWeight: 'bold',
+        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+      } : undefined}
       title={isCollapsed ? label : undefined}
     >
       {itemContent}

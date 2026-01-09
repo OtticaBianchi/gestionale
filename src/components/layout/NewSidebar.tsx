@@ -29,7 +29,8 @@ import {
   CheckSquare,
   DollarSign,
   ClipboardCheck,
-  Filter
+  Filter,
+  Eye
 } from 'lucide-react';
 import AccordionSection from './AccordionSection';
 import SidebarItem from './SidebarItem';
@@ -47,11 +48,33 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
   const [errorDraftCount, setErrorDraftCount] = useState(0);
   const [procedureUnreadCount, setProcedureUnreadCount] = useState(0);
   const [suggestionsCount, setSuggestionsCount] = useState(0);
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [nestedSections, setNestedSections] = useState<Record<string, boolean>>({});
   const isMountedRef = useRef(true);
   const voiceNotesFetchLock = useRef(false);
   const errorDraftFetchLock = useRef(false);
   const procedureUnreadFetchLock = useRef(false);
   const suggestionsFetchLock = useRef(false);
+
+  // Handler to toggle accordion sections - only one open at a time
+  const handleToggleSection = (sectionId: string) => {
+    setOpenSection(prevOpen => {
+      const newSection = prevOpen === sectionId ? null : sectionId;
+      // When switching to a different main section, close all nested accordions
+      if (newSection !== prevOpen) {
+        setNestedSections({});
+      }
+      return newSection;
+    });
+  };
+
+  // Handler for nested accordions - can have multiple open
+  const handleToggleNestedSection = (sectionId: string) => {
+    setNestedSections(prev => ({
+      ...prev,
+      [sectionId]: !prev[sectionId]
+    }));
+  };
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -346,8 +369,9 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
             title="Operazioni"
             icon={ClipboardList}
             isCollapsed={isCollapsed}
-            defaultOpen={true}
-            storageKey="sidebar-operazioni-open"
+            isOpen={openSection === 'operazioni'}
+            onToggle={() => handleToggleSection('operazioni')}
+            sectionId="operazioni"
           >
             <SidebarItem
               href="/dashboard/buste/new"
@@ -418,8 +442,9 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
             title="Procedure"
             icon={BookOpen}
             isCollapsed={isCollapsed}
-            defaultOpen={true}
-            storageKey="sidebar-procedure-open"
+            isOpen={openSection === 'procedure'}
+            onToggle={() => handleToggleSection('procedure')}
+            sectionId="procedure"
           >
             <SidebarItem
               href="/procedure"
@@ -442,8 +467,9 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
               title="Admin & Governance"
               icon={Activity}
               isCollapsed={isCollapsed}
-              defaultOpen={false}
-              storageKey="sidebar-admin-open"
+              isOpen={openSection === 'admin'}
+              onToggle={() => handleToggleSection('admin')}
+              sectionId="admin"
             >
               <SidebarItem
                 href="/dashboard/analytics"
@@ -488,25 +514,41 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
                 label="Import Clienti"
                 isCollapsed={isCollapsed}
               />
-              <SidebarItem
-                href="/dashboard/procedure-suggestions"
-                icon={Lightbulb}
-                label="Proposte Procedure"
+              <AccordionSection
+                title="Procedure"
+                icon={BookOpen}
                 isCollapsed={isCollapsed}
-                badge={suggestionsCount > 0 ? (suggestionsCount > 99 ? '99+' : suggestionsCount.toString()) : undefined}
-                badgeVariant="blue"
-              />
+                isOpen={nestedSections['procedure-admin'] || false}
+                onToggle={() => handleToggleNestedSection('procedure-admin')}
+                sectionId="procedure-admin"
+              >
+                <SidebarItem
+                  href="/dashboard/procedure-suggestions"
+                  icon={Lightbulb}
+                  label="Modifiche Proposte"
+                  isCollapsed={isCollapsed}
+                  badge={suggestionsCount > 0 ? (suggestionsCount > 99 ? '99+' : suggestionsCount.toString()) : undefined}
+                  badgeVariant="blue"
+                />
+                <SidebarItem
+                  href="/dashboard/procedure-compliance"
+                  icon={Eye}
+                  label="Controllo Letture"
+                  isCollapsed={isCollapsed}
+                />
+              </AccordionSection>
             </AccordionSection>
           )}
 
           {/* 2.E - MARKETING & INTELLIGENCE Section (Admin Only, All Disabled) */}
           {userRole === 'admin' && (
             <AccordionSection
-              title="Marketing & Intelligence"
+              title="Marketing"
               icon={TrendingUp}
               isCollapsed={isCollapsed}
-              defaultOpen={false}
-              storageKey="sidebar-marketing-open"
+              isOpen={openSection === 'marketing'}
+              onToggle={() => handleToggleSection('marketing')}
+              sectionId="marketing"
             >
               <SidebarItem
                 href="#"
