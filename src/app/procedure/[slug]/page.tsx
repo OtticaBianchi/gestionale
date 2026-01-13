@@ -74,7 +74,7 @@ export default function ProcedurePage() {
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string>('')
   const [isPropostaModalOpen, setIsPropostaModalOpen] = useState(false)
-  const [ackCountdown, setAckCountdown] = useState(30)
+  const [ackCountdown, setAckCountdown] = useState(120)
   const [canAcknowledge, setCanAcknowledge] = useState(false)
   const [isAcknowledging, setIsAcknowledging] = useState(false)
   const [isUnread, setIsUnread] = useState(false)
@@ -224,7 +224,7 @@ export default function ProcedurePage() {
     setIsUnread(needsAck)
 
     if (needsAck) {
-      setAckCountdown(30)
+      setAckCountdown(120)
       setCanAcknowledge(false)
 
       countdownRef.current = setInterval(() => {
