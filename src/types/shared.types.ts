@@ -32,4 +32,4 @@ export type BustaWithCliente = Database['public']['Tables']['buste']['Row'] & {
   } | null;
 };
 
-export type OrdineMaterialeEssenziale = Pick<Database['public']['Tables']['ordini_materiali']['Row'], 'id' | 'descrizione_prodotto' | 'stato' | 'stato_disponibilita' | 'promemoria_disponibilita' | 'note'>;
+export type OrdineMaterialeEssenziale = Pick<Database['public']['Tables']['ordini_materiali']['Row'], 'id' | 'descrizione_prodotto' | 'stato' | 'stato_disponibilita' | 'promemoria_disponibilita' | 'da_ordinare' | 'note'>;

@@ -1,7 +1,7 @@
 // app/dashboard/_components/CompactBustaCard.tsx
 
 import { Clock } from 'lucide-react';
-import { BustaWithCliente } from '@/types/shared.types';
+import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
 
 interface CompactBustaCardProps {
   busta: BustaWithCliente;
@@ -15,38 +15,74 @@ const calculateDaysOpen = (dataApertura: string) => {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 };
 
+const abbreviateName = (cognome: string, nome: string) => {
+  const inizialeNome = nome.charAt(0).toUpperCase();
+  return `${cognome} ${inizialeNome}.`;
+};
+
 const getTipoLavorazioneSigla = (tipo: string | null) => {
   const tipiLavorazione: Record<string, string> = {
-    OCV: '👓 OCV',
-    OV: '👓 OV',
-    OS: '🕶️ OS',
-    LV: '🔍 LV',
-    LS: '🌅 LS',
-    LAC: '👁️ LAC',
-    ACC: '🔧 ACC',
-    RIC: '🔄 RIC',
-    RIP: '🔨 RIP',
-    SA: '📐 SA',
-    SG: '🧵 SG',
-    CT: '👁️ CT',
-    ES: '🔬 ES',
-    REL: '📋 REL',
-    FT: '🧾 FT',
-    SPRT: '🚴 SPRT',
-    VFT: '🔍 VFT'
+    OCV: 'OCV',
+    OV: 'OV',
+    OS: 'OS',
+    LV: 'LV',
+    LS: 'LS',
+    LAC: 'LAC',
+    ACC: 'ACC',
+    RIC: 'RIC',
+    RIP: 'RIP',
+    SA: 'SA',
+    SG: 'SG',
+    CT: 'CT',
+    ES: 'ES',
+    REL: 'REL',
+    FT: 'FT',
+    SPRT: 'SPRT',
+    VFT: 'VFT',
+    BR: 'BR'
   };
-  return tipo ? tipiLavorazione[tipo] || tipo : '❓ ---';
+  return tipo ? tipiLavorazione[tipo] || tipo : '---';
+};
+
+const getMaterialsStats = (ordini: OrdineMaterialeEssenziale[]) => {
+  const stats = {
+    da_ordinare: 0,
+    ordinati: 0,
+    in_arrivo: 0,
+    in_ritardo: 0,
+    consegnati: 0
+  };
+
+  ordini.forEach(ordine => {
+    const stato = (ordine.stato || '').toLowerCase();
+
+    if (stato === 'annullato') return;
+
+    if (ordine.da_ordinare === true) {
+      stats.da_ordinare++;
+    } else if (stato === 'ordinato') {
+      stats.ordinati++;
+    } else if (stato === 'in_arrivo') {
+      stats.in_arrivo++;
+    } else if (stato === 'in_ritardo') {
+      stats.in_ritardo++;
+    } else if (stato === 'consegnato') {
+      stats.consegnati++;
+    }
+  });
+
+  return stats;
 };
 
 const getPriorityBadge = (priorita: string, hasDelays: boolean) => {
   if (priorita === 'critica') {
-    return { text: '🔴 CRITICA', className: 'text-red-700 font-bold' };
+    return { text: 'CRITICA', className: 'text-red-700 font-bold' };
   }
   if (priorita === 'urgente') {
-    return { text: '🟠 URGENTE', className: 'text-orange-600 font-bold' };
+    return { text: 'URGENTE', className: 'text-orange-600 font-bold' };
   }
   if (hasDelays) {
-    return { text: '⚠️ IN RITARDO', className: 'text-amber-600 font-semibold' };
+    return { text: 'RITARDO', className: 'text-amber-600 font-semibold' };
   }
   return null;
 };
@@ -54,14 +90,16 @@ const getPriorityBadge = (priorita: string, hasDelays: boolean) => {
 export default function CompactBustaCard({ busta, onClick }: CompactBustaCardProps) {
   const daysOpen = calculateDaysOpen(busta.data_apertura);
   const cliente = busta.clienti;
-  const displayName = cliente ? `${cliente.cognome} ${cliente.nome}` : 'Cliente non specificato';
+  const displayName = cliente
+    ? abbreviateName(cliente.cognome, cliente.nome)
+    : 'Cliente sconosciuto';
 
-  // Check if any orders are delayed (in_ritardo)
   const hasDelays = (busta.ordini_materiali || []).some(
     (ordine) => ordine.stato === 'in_ritardo'
   );
 
-  const priorityBadge = getPriorityBadge(busta.priorita, hasDelays);
+  const materialsStats = getMaterialsStats(busta.ordini_materiali || []);
+  const hasPaymentPlan = busta.payment_plan && busta.payment_plan.payment_installments && busta.payment_plan.payment_installments.length > 0;
 
   const priorityStyles: Record<string, string> = {
     normale: 'border-l-gray-400',
@@ -74,45 +112,68 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
       onClick={onClick}
       data-busta-id={busta.id}
       className={`
-        bg-white rounded-md shadow-sm p-3 mb-2 border-l-4
+        bg-white rounded-md shadow-sm p-2.5 mb-2 border-l-4
         hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer
         ${priorityStyles[busta.priorita]}
         ${busta.is_suspended ? 'bg-gray-50 opacity-90' : ''}
       `}
     >
-      {/* Row 1: ID | Priority | Tipo Lav */}
-      <div className="flex items-center justify-between mb-1.5">
+      {/* Row 1: ID + Nome abbreviato + Tipo Lavorazione */}
+      <div className="flex justify-between items-center mb-1.5">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-xs font-bold text-gray-700 flex-shrink-0">
-            {busta.readable_id}
+          <span className="text-xs font-bold text-gray-600">{busta.readable_id}</span>
+          <span className="text-xs text-gray-900 truncate">
+            {displayName}
           </span>
-          {busta.is_suspended && (
-            <span className="text-[10px] font-bold text-yellow-600 bg-yellow-100 px-1.5 py-0.5 rounded">
-              SOSP
-            </span>
-          )}
-          {priorityBadge && (
-            <span className={`text-[10px] flex-shrink-0 ${priorityBadge.className}`}>
-              {priorityBadge.text}
-            </span>
-          )}
         </div>
-        <span className="text-xs text-gray-600 flex-shrink-0 ml-2">
+        <span className="text-xs text-gray-700 font-semibold ml-2 flex-shrink-0">
           {getTipoLavorazioneSigla(busta.tipo_lavorazione)}
         </span>
       </div>
 
-      {/* Row 2: Nome | Days */}
-      <div className="flex items-center justify-between">
-        <span className={`text-sm font-medium truncate flex-1 min-w-0 ${
-          priorityBadge ? priorityBadge.className.split(' ')[0] : 'text-gray-900'
-        }`}>
-          {displayName}
-        </span>
-        <div className="flex items-center gap-1 text-xs text-gray-500 flex-shrink-0 ml-2">
-          <Clock className="h-3 w-3" />
-          <span>{daysOpen}g</span>
+      {/* Row 2: Icone materiali + Badge sospesa/rate */}
+      <div className="flex justify-between items-center mb-2">
+        <div className="flex items-center gap-2 text-xs">
+          {materialsStats.da_ordinare > 0 && (
+            <span className="flex items-center gap-0.5 text-orange-700">
+              🛒 x{materialsStats.da_ordinare}
+            </span>
+          )}
+          {materialsStats.in_ritardo > 0 && (
+            <span className="flex items-center gap-0.5 text-red-700">
+              ⚠️ x{materialsStats.in_ritardo}
+            </span>
+          )}
+          {materialsStats.in_arrivo > 0 && (
+            <span className="flex items-center gap-0.5 text-cyan-700">
+              🚚 x{materialsStats.in_arrivo}
+            </span>
+          )}
+          {materialsStats.ordinati > 0 && (
+            <span className="flex items-center gap-0.5 text-blue-700">
+              📦 x{materialsStats.ordinati}
+            </span>
+          )}
         </div>
+
+        <div className="flex items-center gap-1.5">
+          {busta.is_suspended && (
+            <span className="text-[10px] font-bold text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded">
+              SOSP
+            </span>
+          )}
+          {hasPaymentPlan && (
+            <span className="text-[10px] font-semibold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
+              RATE
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Row 3: Giorni apertura */}
+      <div className="flex items-center gap-1 text-[11px] text-gray-500">
+        <Clock className="h-3 w-3" />
+        <span>{daysOpen} giorni</span>
       </div>
     </div>
   );

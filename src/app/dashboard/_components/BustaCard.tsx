@@ -26,26 +26,41 @@ const calculateDaysOpen = (dataApertura: string) => {
 };
 
 const getTipoLavorazioneSigla = (tipo: string | null) => {
-  const tipiLavorazione: Record<string, string> = {
-    OCV: '👓 OCV',
-    OV: '👓 OV',
-    OS: '🕶️ OS',
-    LV: '🔍 LV',
-    LS: '🌅 LS',
-    LAC: '👁️ LAC',
-    ACC: '🔧 ACC',
-    RIC: '🔄 RIC',
-    RIP: '🔨 RIP',
-    SA: '📐 SA',
-    SG: '🧵 SG',
-    CT: '👁️ CT',
-    ES: '🔬 ES',
-    REL: '📋 REL',
-    FT: '🧾 FT',
-    SPRT: '🚴 SPRT',
-    VFT: '🔍 VFT'
+  // Ritorna solo la sigla senza icona
+  return tipo || '---';
+};
+
+// Calcola le statistiche degli ordini materiali per le icone
+const getMaterialsStats = (ordini: OrdineMaterialeEssenziale[]) => {
+  const stats = {
+    da_ordinare: 0,
+    ordinati: 0,
+    in_arrivo: 0,
+    in_ritardo: 0,
+    consegnati: 0
   };
-  return tipo ? tipiLavorazione[tipo] || tipo : '❓ ---';
+
+  ordini.forEach(ordine => {
+    const stato = (ordine.stato || '').toLowerCase();
+
+    // Salta gli annullati
+    if (stato === 'annullato') return;
+
+    // Conta in base allo stato
+    if (ordine.da_ordinare === true) {
+      stats.da_ordinare++;
+    } else if (stato === 'ordinato') {
+      stats.ordinati++;
+    } else if (stato === 'in_arrivo') {
+      stats.in_arrivo++;
+    } else if (stato === 'in_ritardo') {
+      stats.in_ritardo++;
+    } else if (stato === 'consegnato') {
+      stats.consegnati++;
+    }
+  });
+
+  return stats;
 };
 
 const getStatoOrdineEmoji = (stato: string | null) => {
@@ -366,6 +381,9 @@ export default function BustaCard({ busta }: BustaCardProps) {
   const ordiniOrdinati = sortOrdersByPriority(displayOrders);
   const delayLevel = getDelayLevel(displayOrders);
 
+  // Calcola le statistiche dei materiali per le icone
+  const materialsStats = getMaterialsStats(displayOrders);
+
   const availabilityOrders = activeOrders;
   let worstAvailability: AvailabilityStatus | null = null;
   const availabilityReminders: Date[] = [];
@@ -444,150 +462,107 @@ export default function BustaCard({ busta }: BustaCardProps) {
       <div
         data-busta-id={busta.id}
         className={`
-          bg-white rounded-lg shadow-sm p-4 mb-3 border-l-4 min-h-[190px]
+          bg-white rounded-lg shadow-sm p-4 mb-3 border-l-4
           hover:shadow-lg hover:-translate-y-2 hover:border-blue-400 transition-all cursor-pointer
           ${priorityStyles[busta.priorita]}
           ${busta.is_suspended ? 'bg-gray-50 opacity-90' : ''}
         `}
       >
-        <div className="flex justify-between items-start mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-gray-600">{busta.readable_id}</span>
-            {busta.is_suspended && (
-              <span className="text-xs font-bold text-yellow-600 bg-yellow-100 px-2 py-1 rounded-full">
-                SOSPESA
-              </span>
-            )}
-            {installmentAlert && (
-              <span className={`text-xs font-bold px-2 py-1 rounded-full ${installmentAlert.className}`}>
-                {installmentAlert.label}
-              </span>
-            )}
-            {delayIndicator[delayLevel]}
-            {showDeliveryWarning && (
-              <AlertTriangle className="h-4 w-4 text-red-600 fill-red-100" />
-            )}
+        {/* Row 1: ID + Nome completo + Tipo Lavorazione */}
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <span className="text-sm font-bold text-gray-700">{busta.readable_id}</span>
+            <span className="text-sm font-medium text-gray-900">
+              {cliente ? `${cliente.cognome} ${cliente.nome}` : 'Cliente sconosciuto'}
+            </span>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            {showAvailabilityBadge && availabilityBadge && (
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${availabilityBadge.className}`}>
-                {availabilityBadge.label}
-              </span>
-            )}
-            {paymentBadge && (
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${paymentBadge.className} flex items-center`}>
-                {paymentBadge.icon}
-                <span>{paymentBadge.label}</span>
-              </span>
-            )}
-            {paymentBadge?.sublabel && (
-              <span className="text-[10px] text-gray-500">{paymentBadge.sublabel}</span>
-            )}
-            {busta.priorita !== 'normale' && (
-              <span className={`text-xs px-2 py-1 rounded-full font-bold ${
-                busta.priorita === 'critica'
-                  ? 'bg-red-100 text-red-700'
-                  : 'bg-orange-100 text-orange-700'
-              }`}>
-                {busta.priorita.toUpperCase()}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="mb-2">
-          <h3 className="font-semibold text-gray-900 text-base leading-tight">
-            {cliente ? `${cliente.cognome} ${cliente.nome}` : 'Cliente non specificato'}
-          </h3>
-        </div>
-
-        <div className="mb-3">
-          <p className="text-sm text-gray-700 font-medium">
+          <span className="text-sm text-gray-700 font-semibold ml-2 flex-shrink-0">
             {getTipoLavorazioneSigla(busta.tipo_lavorazione)}
-          </p>
-          {paymentBadge?.sublabel && (
-            <p className="text-xs text-gray-500 mt-1">{paymentBadge.sublabel}</p>
+          </span>
+        </div>
+
+        {/* Row 2: Badge stato materiali/sospensione/rate */}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          {materialsStats.da_ordinare > 0 && (
+            <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded-full font-medium">
+              🛒 {materialsStats.da_ordinare} da ordinare
+            </span>
+          )}
+          {materialsStats.in_ritardo > 0 && (
+            <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium">
+              ⚠️ {materialsStats.in_ritardo} in ritardo
+            </span>
+          )}
+          {materialsStats.in_arrivo > 0 && (
+            <span className="text-xs px-2 py-1 bg-cyan-100 text-cyan-700 rounded-full font-medium">
+              🚚 {materialsStats.in_arrivo} in arrivo
+            </span>
+          )}
+          {materialsStats.ordinati > 0 && (
+            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
+              📦 {materialsStats.ordinati} ordinati
+            </span>
+          )}
+          {busta.is_suspended && (
+            <span className="text-xs font-bold text-yellow-700 bg-yellow-100 px-2 py-1 rounded-full">
+              SOSPESA
+            </span>
+          )}
+          {installmentAlert && (
+            <span className={`text-xs font-bold px-2 py-1 rounded-full ${installmentAlert.className}`}>
+              {installmentAlert.label}
+            </span>
           )}
         </div>
 
-        <div className="mb-3 flex-1">
-          {displayOrders.length === 0 ? (
-            <p className="text-xs text-gray-400 italic">Nessun prodotto ordinato</p>
-          ) : (
-            <div className="space-y-2">
-              {ordiniOrdinati.slice(0, 3).map((ordine) => {
-                const isCancelled = (ordine.stato || '').toLowerCase() === 'annullato';
-                const descrizioneBreve = ordine.descrizione_prodotto.length > 50
-                  ? `${ordine.descrizione_prodotto.substring(0, 50)}...`
-                  : ordine.descrizione_prodotto;
-                const availabilityStatus = (ordine.stato_disponibilita || 'disponibile') as AvailabilityStatus;
-                const orderAvailability = AVAILABILITY_BADGE[availabilityStatus];
-                const orderReminder = parseDateSafe(ordine.promemoria_disponibilita);
-                const orderReminderLabel = orderReminder
-                  ? orderReminder.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })
-                  : null;
-                const orderReminderDue = orderReminder ? orderReminder.getTime() <= Date.now() : false;
-
-                return (
-                  <div key={ordine.id} className="flex items-start gap-2">
-                    <span className={`text-sm flex-shrink-0 mt-0.5 ${isCancelled ? 'text-gray-400' : ''}`}>
-                      {getStatoOrdineEmoji(ordine.stato)}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className={`text-xs leading-tight ${isCancelled ? 'text-gray-400' : 'text-gray-900'}`}
-                        title={ordine.descrizione_prodotto}
-                      >
-                        {descrizioneBreve}
-                      </p>
-                      {showAvailabilityBadge && (
-                        <div className="mt-1 flex items-center gap-2">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[10px] ${orderAvailability.className}`}
-                          >
-                            {orderAvailability.label}
-                          </span>
-                          {orderReminderLabel && (
-                            <span className={`text-[10px] ${orderReminderDue ? 'text-red-600 font-semibold' : 'text-gray-500'}`}>
-                              {orderReminderDue ? 'Scad.' : 'Check'} {orderReminderLabel}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {ordine.note && (
-                        <p
-                          className={`text-xs italic mt-1 ${isCancelled ? 'text-gray-300' : 'text-gray-500'}`}
-                          title={ordine.note}
-                        >
-                          "
-                          {ordine.note.length > 30 ? `${ordine.note.substring(0, 30)}...` : ordine.note}
-                          "
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {displayOrders.length > 3 && (
-                <p className="text-xs text-gray-500 italic pl-6">
-                  +{displayOrders.length - 3} altri prodotti...
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="flex justify-between items-center mt-auto pt-2 border-t border-gray-100">
-          <div className="flex items-center gap-1 text-xs text-gray-500">
-            <Clock className="h-3 w-3" />
-            <span>{daysOpen} giorni</span>
+        {/* Row 3: Dettagli prezzo/pagamento (se presente) */}
+        {paymentBadge && (
+          <div className="mb-3">
+            <span className={`text-xs font-semibold px-3 py-1.5 rounded-full border ${paymentBadge.className} inline-flex items-center`}>
+              {paymentBadge.icon}
+              <span>{paymentBadge.label}</span>
+            </span>
+            {paymentBadge.sublabel && (
+              <span className="text-xs text-gray-600 ml-2">{paymentBadge.sublabel}</span>
+            )}
           </div>
-          <div className="flex items-center gap-3 text-xs text-gray-500">
+        )}
+
+        {/* Row 4: Lista completa prodotti con dettagli */}
+        {displayOrders.length > 0 && (
+          <div className="mb-2 space-y-2">
+            {ordiniOrdinati.map((ordine) => (
+              <div key={ordine.id} className="flex items-start gap-2">
+                <span className="text-sm flex-shrink-0">
+                  {getStatoOrdineEmoji(ordine.stato)}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-gray-800 leading-relaxed">
+                    {ordine.descrizione_prodotto}
+                  </p>
+                  {ordine.note && (
+                    <p className="text-[10px] text-gray-500 italic mt-0.5">
+                      Note: {ordine.note}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Footer: Giorni aperti + Info prodotti */}
+        <div className="flex justify-between items-center mt-3 pt-2 border-t border-gray-200">
+          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+            <Clock className="h-3.5 w-3.5" />
+            <span>{daysOpen} giorni aperti</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-gray-600">
             {displayOrders.length > 0 && <span>{displayOrders.length} prodott{displayOrders.length === 1 ? 'o' : 'i'}</span>}
-            {normalizedPlanType !== 'none' && (
-              <span className="flex items-center gap-1">
-                <Euro className="h-3 w-3" />
-                {paymentData.outstanding > 0.5 ? `Residuo ${formatCurrency(paymentData.outstanding)}` : 'Saldo ok'}
+            {normalizedPlanType !== 'none' && paymentData.outstanding > 0.5 && (
+              <span className="flex items-center gap-1 text-orange-600 font-semibold">
+                <Euro className="h-3.5 w-3.5" />
+                {formatCurrency(paymentData.outstanding)}
               </span>
             )}
           </div>
