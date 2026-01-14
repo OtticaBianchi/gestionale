@@ -25,7 +25,8 @@ import {
   Check,
   Euro,
   Save,
-  Edit3
+  Edit3,
+  FileText
 } from 'lucide-react';
 import type { WorkflowState } from '@/app/dashboard/_components/WorkflowLogic';
 import { areAllOrdersCancelled } from '@/lib/buste/archiveRules';
@@ -141,6 +142,9 @@ interface MaterialiTabProps {
 }                                                                                                            
 
 export default function MaterialiTab({ busta, isReadOnly = false, canDelete = false }: MaterialiTabProps) {
+  const getDefaultOrderDate = () =>
+    formatDateForInput(busta.data_apertura) || new Date().toISOString().split('T')[0];
+
   // ===== STATE =====
   const [ordiniMateriali, setOrdiniMateriali] = useState<OrdineMateriale[]>([]);
   const [tipiOrdine, setTipiOrdine] = useState<TipoOrdine[]>([]);
@@ -171,6 +175,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   // ✅ NUOVO: State per editing descrizione prodotto
   const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
   const [editingDescriptionValue, setEditingDescriptionValue] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteValue, setEditingNoteValue] = useState('');
+  const [isSavingNote, setIsSavingNote] = useState(false);
 
   const disponibilitaStats = useMemo<{
     counts: Record<typeof DISPONIBILITA_STATES[number], number>;
@@ -242,7 +249,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     data_ordine: new Date().toISOString().split('T')[0],
     giorni_consegna_custom: '',
     note: '',
-    primo_acquisto_lac: false
+    primo_acquisto_lac: false,
+    ordine_gia_effettuato: false,
+    data_consegna_effettiva: ''
   });
 
   const supabase = createBrowserClient<Database>(
@@ -589,7 +598,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
   // ===== CALCOLO DATA CONSEGNA PREVISTA =====
   const calcolaDataConsegnaPrevista = () => {
+    if (!nuovoOrdineForm.data_ordine) return '';
     const dataOrdine = new Date(nuovoOrdineForm.data_ordine);
+    if (Number.isNaN(dataOrdine.getTime())) return '';
     let giorniConsegna = 5;
 
     if (nuovoOrdineForm.giorni_consegna_custom) {
@@ -900,7 +911,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const saveAccontoInfo = async (importoString: string) => {
     if (!canEdit) return;
 
-    const importo = Number.parseFloat(importoString);
+    const cleaned = importoString.trim();
+    const importo = cleaned === '' ? 0 : Number.parseFloat(cleaned);
     if (Number.isNaN(importo) || importo < 0) {
       return; // Ignora valori non validi
     }
@@ -926,7 +938,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
       setAccontoInfo(prev => ({
         ...prev,
-        currentAcconto: importo,
+        currentAcconto: importo > 0 ? importo : null,
         ha_acconto: importo > 0
       }));
 
@@ -946,9 +958,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     setAccontoInfo(prev => ({ ...prev, importo_acconto: value }));
 
     // Salva immediatamente come fa il resto del sistema
-    if (value.trim() !== '') {
-      saveAccontoInfo(value);
-    }
+    saveAccontoInfo(value);
   };
 
   // ===== HANDLE NUOVO ORDINE - ✅ AGGIORNATO CON da_ordinare =====
@@ -959,6 +969,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     }
     if (!nuovoOrdineForm.categoria_prodotto) {
       throw new Error('Categoria prodotto obbligatoria');
+    }
+    if (nuovoOrdineForm.ordine_gia_effettuato && !nuovoOrdineForm.data_ordine) {
+      throw new Error('Inserisci la data ordine per gli ordini già effettuati');
     }
   };
 
@@ -1033,19 +1046,32 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       };
     }
 
+    const ordineGiaEffettuato = nuovoOrdineForm.ordine_gia_effettuato;
+    const dataConsegnaEffettiva = ordineGiaEffettuato
+      ? (nuovoOrdineForm.data_consegna_effettiva || null)
+      : null;
+    const statoIniziale = dataConsegnaEffettiva
+      ? 'consegnato'
+      : (ordineGiaEffettuato ? 'ordinato' : 'da_ordinare');
+    const daOrdinare = dataConsegnaEffettiva ? false : !ordineGiaEffettuato;
+    const dataConsegnaPrevista = ordineGiaEffettuato
+      ? (calcolaDataConsegnaPrevista() || null)
+      : null;
+
     // Ordine normale con date
     return {
       busta_id: busta.id,
       tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
       tipo_ordine_id: nuovoOrdineForm.tipo_ordine_id ? Number.parseInt(nuovoOrdineForm.tipo_ordine_id) : null,
       descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
-      data_ordine: nuovoOrdineForm.data_ordine,
-      data_consegna_prevista: calcolaDataConsegnaPrevista(),
+      data_ordine: ordineGiaEffettuato ? nuovoOrdineForm.data_ordine : null,
+      data_consegna_prevista: dataConsegnaPrevista,
+      data_consegna_effettiva: dataConsegnaEffettiva,
       giorni_consegna_medi: nuovoOrdineForm.giorni_consegna_custom
         ? Number.parseInt(nuovoOrdineForm.giorni_consegna_custom)
         : getTempiConsegnaByCategoria(nuovoOrdineForm.categoria_prodotto, nuovoOrdineForm.tipo_lenti),
-      stato: 'da_ordinare' as const,
-      da_ordinare: true,
+      stato: statoIniziale,
+      da_ordinare: daOrdinare,
       note: nuovoOrdineForm.note.trim() || null,
       ...fornitoreTableField
     };
@@ -1142,7 +1168,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       data_ordine: new Date().toISOString().split('T')[0],
       giorni_consegna_custom: '',
       note: '',
-      primo_acquisto_lac: false
+      primo_acquisto_lac: false,
+      ordine_gia_effettuato: false,
+      data_consegna_effettiva: ''
     });
     setShowNuovoOrdineForm(false);
   };
@@ -1203,6 +1231,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       }
 
       const oggi = new Date().toISOString().split('T')[0];
+      const dataOrdine = ordine.data_ordine || oggi;
       let updateData: any = {
         da_ordinare: newValue,
         stato: newValue ? 'da_ordinare' : 'ordinato',
@@ -1211,10 +1240,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       // 🔥 CORREZIONE: Quando l'ordine viene piazzato (da_ordinare = false)
       if (!newValue) {
         // Imposta data ordine a oggi
-        updateData.data_ordine = oggi;
+        updateData.data_ordine = dataOrdine;
         // Ricalcola data consegna prevista basata su OGGI
-        updateData.data_consegna_prevista = calcolaDataConsegnaPerOrdineEsistente(ordine, oggi);
-        console.log(`📅 Ricalcolo consegna: ordine piazzato ${oggi} → consegna prevista ${updateData.data_consegna_prevista}`);
+        updateData.data_consegna_prevista = calcolaDataConsegnaPerOrdineEsistente(ordine, dataOrdine);
+        console.log(`📅 Ricalcolo consegna: ordine piazzato ${dataOrdine} → consegna prevista ${updateData.data_consegna_prevista}`);
       }
 
       // 🔥 Via API con nuovi campi
@@ -1322,7 +1351,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         updateData.data_consegna_prevista = null;
         updateData.data_consegna_effettiva = null;
       } else if (nuovoStato === 'consegnato') {
-        updateData.data_consegna_effettiva = new Date().toISOString().split('T')[0];
+        updateData.data_consegna_effettiva = ordineCorrente.data_consegna_effettiva
+          || new Date().toISOString().split('T')[0];
       } else if (nuovoStato === 'sbagliato') {
         updateData.data_consegna_effettiva = null;
       }
@@ -1562,6 +1592,64 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     } catch (error: any) {
       console.error('❌ Error updating description:', error);
       alert(`Errore aggiornamento: ${error.message}`);
+    }
+  };
+
+  // ===== HANDLE EDIT NOTE ORDINE =====
+  const handleStartEditingNote = (ordineId: string, currentNote: string | null) => {
+    setEditingNoteId(ordineId);
+    setEditingNoteValue(currentNote || '');
+  };
+
+  const handleCancelEditingNote = () => {
+    setEditingNoteId(null);
+    setEditingNoteValue('');
+  };
+
+  const handleSaveNote = async (ordineId: string) => {
+    const trimmedValue = editingNoteValue.trim();
+    const notePayload = trimmedValue.length > 0 ? trimmedValue : null;
+
+    if (!canEdit || isSavingNote) return;
+
+    setIsSavingNote(true);
+    try {
+      const response = await fetch(`/api/ordini/${ordineId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: notePayload })
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result?.success) {
+        const message = result?.error || 'Errore aggiornamento note';
+        throw new Error(message);
+      }
+
+      setOrdiniMateriali(prev => prev.map((ordine) =>
+        ordine.id === ordineId
+          ? {
+              ...ordine,
+              note: notePayload,
+              updated_at: result?.ordine?.updated_at ?? ordine.updated_at,
+              updated_by: result?.ordine?.updated_by ?? ordine.updated_by
+            }
+          : ordine
+      ));
+
+      setEditingNoteId(null);
+      setEditingNoteValue('');
+
+      await mutate('/api/buste');
+      window.dispatchEvent(
+        new CustomEvent('busta:notes:update', { detail: { bustaId: busta.id } })
+      );
+    } catch (error: any) {
+      console.error('❌ Error updating note:', error);
+      alert(`Errore aggiornamento note: ${error.message}`);
+    } finally {
+      setIsSavingNote(false);
     }
   };
 
@@ -1938,9 +2026,40 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               const isNegozio = tipoSelezionato?.nome?.toLowerCase() === 'negozio';
               return !isNegozio ? (
                 <>
+                  <div className="lg:col-span-3">
+                    <label className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <input
+                        type="checkbox"
+                        checked={nuovoOrdineForm.ordine_gia_effettuato}
+                        onChange={(e) =>
+                          setNuovoOrdineForm(prev => ({
+                            ...prev,
+                            ordine_gia_effettuato: e.target.checked,
+                            data_consegna_effettiva: e.target.checked ? prev.data_consegna_effettiva : '',
+                            data_ordine: e.target.checked
+                              ? (prev.data_ordine && prev.data_ordine !== new Date().toISOString().split('T')[0]
+                                  ? prev.data_ordine
+                                  : getDefaultOrderDate())
+                              : prev.data_ordine
+                          }))
+                        }
+                        className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="text-sm font-semibold text-blue-900">
+                          Ordine già effettuato (inserimento storico)
+                        </span>
+                        <p className="text-xs text-blue-700 mt-1">
+                          Seleziona quando l&apos;ordine è stato già fatto in passato. Useremo la data ordine inserita
+                          e potrai indicare la data di arrivo se già consegnato.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+
                   <div>
                     <label htmlFor="data-ordine" className="block text-sm font-medium text-gray-700 mb-1">
-                      Data Ordine
+                      Data Ordine {nuovoOrdineForm.ordine_gia_effettuato ? '(effettiva)' : '(stimata)'}
                     </label>
                     <input
                       id="data-ordine"
@@ -1985,6 +2104,23 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                       Calcolata su giorni lavorativi (Lun-Sab)
                     </p>
                   </div>
+
+                  {nuovoOrdineForm.ordine_gia_effettuato && (
+                    <div>
+                      <label htmlFor="data-consegna-effettiva" className="block text-sm font-medium text-gray-700 mb-1">
+                        Data Arrivo Effettiva (se già consegnato)
+                      </label>
+                      <input
+                        id="data-consegna-effettiva"
+                        type="date"
+                        value={nuovoOrdineForm.data_consegna_effettiva}
+                        onChange={(e) =>
+                          setNuovoOrdineForm(prev => ({ ...prev, data_consegna_effettiva: e.target.value }))
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  )}
                 </>
               ) : null;
             })()}
@@ -2363,26 +2499,64 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                         )}
                       </div>
 
-                      {ordine.note && (
-                        <div className={`mt-3 p-3 rounded-md ${isAnnullato ? 'bg-slate-100 border border-slate-200' : 'bg-gray-50'}`}>
-                          <p className={`text-sm ${isAnnullato ? 'text-gray-500' : 'text-gray-700'}`}>
-                            <strong>Note:</strong> {ordine.note}
-                          </p>
-                        </div>
-                      )}
+      {ordine.note && (
+        <div className={`mt-3 p-3 rounded-md ${isAnnullato ? 'bg-slate-100 border border-slate-200' : 'bg-gray-50'}`}>
+          <p className={`text-sm ${isAnnullato ? 'text-gray-500' : 'text-gray-700'}`}>
+            <strong>Note:</strong> {ordine.note}
+          </p>
+        </div>
+      )}
 
-                      {isSbagliato && (
-                        <div className="mt-3 p-3 rounded-md border border-amber-200 bg-amber-50">
-                          <p className="text-sm text-amber-800">
-                            ⚠️ La bozza dell&apos;errore è stata creata. Contatta un amministratore per completarla.
-                          </p>
-                        </div>
-                      )}
+      {editingNoteId === ordine.id && (
+        <div className="mt-3 p-3 rounded-md border border-blue-200 bg-blue-50">
+          <label className="block text-xs font-semibold text-blue-900 mb-2">
+            Note ordine
+          </label>
+          <textarea
+            value={editingNoteValue}
+            onChange={(e) => setEditingNoteValue(e.target.value)}
+            rows={4}
+            className="w-full px-3 py-2 text-sm border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Scrivi qui le note o i solleciti al fornitore..."
+          />
+          <div className="flex justify-end gap-2 mt-3">
+            <button
+              onClick={handleCancelEditingNote}
+              className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800"
+            >
+              Annulla
+            </button>
+            <button
+              onClick={() => handleSaveNote(ordine.id)}
+              disabled={isSavingNote}
+              className="px-3 py-1.5 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isSavingNote ? 'Salvataggio...' : 'Salva note'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isSbagliato && (
+        <div className="mt-3 p-3 rounded-md border border-amber-200 bg-amber-50">
+          <p className="text-sm text-amber-800">
+            ⚠️ La bozza dell&apos;errore è stata creata. Contatta un amministratore per completarla.
+          </p>
+        </div>
+      )}
                     </div>
 
                     {/* ✅ MODIFICA: AZIONI - NASCOSTE PER OPERATORI */}
                     {canEdit && (
                       <div className="flex flex-col items-end space-y-2 ml-4">
+                        <button
+                          onClick={() => handleStartEditingNote(ordine.id, ordine.note)}
+                          className="px-3 py-2 text-xs text-blue-700 bg-blue-50 rounded border border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-2"
+                          title="Aggiungi o modifica note ordine"
+                        >
+                          <FileText className="w-4 h-4" />
+                          <span>Note</span>
+                        </button>
                         <select
                           value={statoDisponibilita}
                           onChange={(e) => handleAggiornaDisponibilita(ordine.id, e.target.value as typeof DISPONIBILITA_STATES[number])}

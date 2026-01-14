@@ -48,27 +48,128 @@ export async function GET(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Get quiz analytics using the database function
-    let analytics: any[] = []
-    const { data: analyticsData, error: analyticsError } = await adminClient
-      .rpc('get_quiz_analytics', {
-        p_start_date: startDate || null,
-        p_end_date: endDate || null
-      })
+    // Fetch quiz procedures (used to build analytics per procedure)
+    const { data: quizProcedures, error: quizProceduresError } = await adminClient
+      .from('procedure_quiz_questions')
+      .select('procedure_id, procedure:procedures(id, title, slug, is_active)')
 
-    if (analyticsError) {
-      console.error('Error fetching quiz analytics:', analyticsError)
-    } else if (analyticsData) {
-      analytics = analyticsData
+    if (quizProceduresError) {
+      throw quizProceduresError
     }
+
+    // Fetch quiz attempts with optional date filters
+    let attemptsQuery = adminClient
+      .from('procedure_quiz_attempts')
+      .select('procedure_id, passed, attempt_number, submitted_at')
+
+    if (startDate) {
+      attemptsQuery = attemptsQuery.gte('submitted_at', startDate)
+    }
+
+    if (endDate) {
+      attemptsQuery = attemptsQuery.lte('submitted_at', endDate)
+    }
+
+    const { data: attemptsData, error: attemptsError } = await attemptsQuery
+
+    if (attemptsError) {
+      throw attemptsError
+    }
+
+    const procedureMap = new Map<string, {
+      procedure_id: string
+      procedure_title: string
+      procedure_slug: string
+      total_attempts: number
+      total_passed: number
+      total_failed: number
+      pass_rate: number
+      avg_attempts_to_pass: number
+      _passes_count: number
+      _passes_sum: number
+    }>()
+
+    quizProcedures?.forEach((row) => {
+      const procedureValue = (row as { procedure?: any }).procedure
+      const procedure = Array.isArray(procedureValue) ? procedureValue[0] : procedureValue
+      const procedureData = procedure as { id: string; title: string; slug: string; is_active: boolean } | null | undefined
+      if (!procedureData || procedureData.is_active === false) return
+      if (procedureMap.has(row.procedure_id)) return
+
+      procedureMap.set(row.procedure_id, {
+        procedure_id: row.procedure_id,
+        procedure_title: procedureData.title,
+        procedure_slug: procedureData.slug,
+        total_attempts: 0,
+        total_passed: 0,
+        total_failed: 0,
+        pass_rate: 0,
+        avg_attempts_to_pass: 0,
+        _passes_count: 0,
+        _passes_sum: 0
+      })
+    })
+
+    attemptsData?.forEach((attempt) => {
+      const entry = procedureMap.get(attempt.procedure_id)
+        ?? {
+          procedure_id: attempt.procedure_id,
+          procedure_title: 'Procedura',
+          procedure_slug: attempt.procedure_id,
+          total_attempts: 0,
+          total_passed: 0,
+          total_failed: 0,
+          pass_rate: 0,
+          avg_attempts_to_pass: 0,
+          _passes_count: 0,
+          _passes_sum: 0
+        }
+
+      entry.total_attempts += 1
+      if (attempt.passed) {
+        entry.total_passed += 1
+        entry._passes_count += 1
+        entry._passes_sum += attempt.attempt_number || 0
+      } else {
+        entry.total_failed += 1
+      }
+
+      procedureMap.set(attempt.procedure_id, entry)
+    })
+
+    const analytics = Array.from(procedureMap.values()).map((entry) => {
+      const passRate = entry.total_attempts > 0
+        ? (entry.total_passed / entry.total_attempts) * 100
+        : 0
+
+      const avgAttemptsToPass = entry._passes_count > 0
+        ? Number((entry._passes_sum / entry._passes_count).toFixed(2))
+        : 0
+
+      return {
+        procedure_id: entry.procedure_id,
+        procedure_title: entry.procedure_title,
+        procedure_slug: entry.procedure_slug,
+        total_attempts: entry.total_attempts,
+        total_passed: entry.total_passed,
+        total_failed: entry.total_failed,
+        pass_rate: Number(passRate.toFixed(2)),
+        avg_attempts_to_pass: avgAttemptsToPass
+      }
+    })
 
     // Get users requiring manager review
     const { data: reviewNeeded, error: reviewError } = await adminClient
       .from('procedure_quiz_status')
       .select(`
-        *,
+        id,
+        procedure_id,
+        user_id,
+        total_attempts,
+        consecutive_failures,
+        manager_review_requested_at,
         procedure:procedures(id, title, slug),
-        user:profiles(id, nome, cognome, email)
+        user:profiles!procedure_quiz_status_user_id_fkey(id, full_name)
       `)
       .eq('requires_manager_review', true)
       .order('manager_review_requested_at', { ascending: true })
@@ -78,19 +179,14 @@ export async function GET(request: NextRequest) {
       // Continue without review data
     }
 
-    // Get overall statistics
-    const { data: overallStats, error: statsError } = await adminClient
-      .from('procedure_quiz_attempts')
-      .select('id, passed, submitted_at')
-
     let totalAttempts = 0
     let totalPassed = 0
     let totalFailed = 0
 
-    if (!statsError && overallStats) {
-      totalAttempts = overallStats.length
-      totalPassed = overallStats.filter(a => a.passed).length
-      totalFailed = overallStats.filter(a => !a.passed).length
+    if (attemptsData) {
+      totalAttempts = attemptsData.length
+      totalPassed = attemptsData.filter(a => a.passed).length
+      totalFailed = attemptsData.filter(a => !a.passed).length
     }
 
     // Get total users who have taken quizzes

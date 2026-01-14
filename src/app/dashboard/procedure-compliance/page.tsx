@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createBrowserClient } from '@supabase/ssr'
 import { Database } from '@/types/database.types'
@@ -275,8 +275,8 @@ export default function ProcedureCompliancePage() {
               </tr>
             ) : (
               filteredUsers.map((user) => (
-                <>
-                  <tr key={user.user_id} className="hover:bg-gray-50 transition-colors">
+                <Fragment key={user.user_id}>
+                  <tr className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="font-medium text-gray-900">{user.full_name}</div>
                     </td>
@@ -370,7 +370,7 @@ export default function ProcedureCompliancePage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))
             )}
           </tbody>

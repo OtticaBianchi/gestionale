@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
 import { FileText, Loader2, Package, Wrench, Euro, Ship } from 'lucide-react';
@@ -30,11 +30,7 @@ export default function UnifiedNotesDisplay({ bustaId }: UnifiedNotesDisplayProp
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  useEffect(() => {
-    fetchAllNotes();
-  }, [bustaId]);
-
-  const fetchAllNotes = async () => {
+  const fetchAllNotes = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     const allNotes: NoteItem[] = [];
@@ -127,7 +123,23 @@ export default function UnifiedNotesDisplay({ bustaId }: UnifiedNotesDisplayProp
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [bustaId, supabase]);
+
+  useEffect(() => {
+    fetchAllNotes();
+  }, [fetchAllNotes]);
+
+  useEffect(() => {
+    const handleNotesUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<{ bustaId?: string }>;
+      if (!customEvent.detail?.bustaId || customEvent.detail.bustaId === bustaId) {
+        fetchAllNotes();
+      }
+    };
+
+    window.addEventListener('busta:notes:update', handleNotesUpdate);
+    return () => window.removeEventListener('busta:notes:update', handleNotesUpdate);
+  }, [bustaId, fetchAllNotes]);
 
   const getSourceIcon = (source: NoteItem['source']) => {
     switch (source) {

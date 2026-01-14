@@ -104,6 +104,7 @@ export default function GestioneOrdiniPage() {
   const [collapsedSuppliers, setCollapsedSuppliers] = useState(new Set<string>())
   const [selectedOrders, setSelectedOrders] = useState(new Set<string>())
   const [bulkUpdating, setBulkUpdating] = useState(false)
+  const [bulkOrderDate, setBulkOrderDate] = useState(() => new Date().toISOString().split('T')[0])
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -267,6 +268,41 @@ export default function GestioneOrdiniPage() {
     return groups
   }, [ordini])
 
+  const getDefaultDeliveryDays = (ordine: OrdineEnhanced) => {
+    if (typeof ordine.fornitore_tempi_medi === 'number' && ordine.fornitore_tempi_medi > 0) {
+      return ordine.fornitore_tempi_medi
+    }
+
+    const fallbackByType: Record<string, number> = {
+      lenti: 5,
+      lac: 3,
+      montature: 4,
+      sport: 5,
+      lab_esterno: 5
+    }
+
+    return fallbackByType[ordine.fornitore_tipo || 'lenti'] || 5
+  }
+
+  const computeDeliveryDate = (orderDate: string, deliveryDays: number) => {
+    const start = new Date(orderDate)
+    if (Number.isNaN(start.getTime())) return null
+
+    const target = new Date(start)
+    let added = 0
+    const days = Math.max(1, Math.round(deliveryDays))
+
+    while (added < days) {
+      target.setDate(target.getDate() + 1)
+      const day = target.getDay()
+      if (day >= 1 && day <= 6) {
+        added += 1
+      }
+    }
+
+    return target.toISOString().split('T')[0]
+  }
+
   // Bulk operations
   const markSelectedAsOrdered = async () => {
     if (selectedOrders.size === 0) return
@@ -276,19 +312,31 @@ export default function GestioneOrdiniPage() {
 
     setBulkUpdating(true)
     try {
-      const oggi = new Date().toISOString().split('T')[0]
+      const ordineData = bulkOrderDate || new Date().toISOString().split('T')[0]
+      const updatedAt = new Date().toISOString()
+      const ordiniToUpdate = ordini.filter((ordine) => selectedOrders.has(ordine.id))
 
-      const { error } = await supabase
-        .from('ordini_materiali')
-        .update({
-          da_ordinare: false,
-          stato: 'ordinato',
-          data_ordine: oggi,
-          updated_at: new Date().toISOString()
-        })
-        .in('id', Array.from(selectedOrders))
+      const updatePromises = ordiniToUpdate.map(async (ordine) => {
+        const deliveryDays = getDefaultDeliveryDays(ordine)
+        const dataPrevista = ordine.data_consegna_prevista || computeDeliveryDate(ordineData, deliveryDays)
 
-      if (error) throw error
+        const { error } = await supabase
+          .from('ordini_materiali')
+          .update({
+            da_ordinare: false,
+            stato: 'ordinato',
+            data_ordine: ordineData,
+            data_consegna_prevista: dataPrevista,
+            updated_at: updatedAt
+          })
+          .eq('id', ordine.id)
+
+        if (error) {
+          throw error
+        }
+      })
+
+      await Promise.all(updatePromises)
 
       await fetchOrdiniEnhanced()
       setSelectedOrders(new Set())
@@ -493,7 +541,16 @@ export default function GestioneOrdiniPage() {
               <span className="text-blue-800 font-medium">
                 {selectedOrders.size} ordini selezionati
               </span>
-              <div className="flex space-x-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-blue-700">
+                  <span>Data ordine</span>
+                  <input
+                    type="date"
+                    value={bulkOrderDate}
+                    onChange={(event) => setBulkOrderDate(event.target.value)}
+                    className="px-2 py-1 text-sm rounded border border-blue-200 bg-white focus:border-blue-500"
+                  />
+                </label>
                 <button
                   onClick={markSelectedAsOrdered}
                   disabled={bulkUpdating}

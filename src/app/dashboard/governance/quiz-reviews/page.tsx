@@ -32,9 +32,7 @@ type ReviewItem = {
   }
   user: {
     id: string
-    nome: string
-    cognome: string
-    email: string
+    full_name: string | null
   }
 }
 
@@ -213,9 +211,9 @@ export default function QuizReviewsPage() {
                     </div>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">
-                        {item.user?.nome} {item.user?.cognome}
+                        {item.user?.full_name || 'Utente'}
                       </h3>
-                      <p className="text-sm text-gray-500">{item.user?.email}</p>
+                      <p className="text-sm text-gray-500">Email non disponibile</p>
                       <div className="flex items-center gap-4 mt-3">
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <FileText className="w-4 h-4" />
@@ -257,7 +255,7 @@ export default function QuizReviewsPage() {
             </h3>
             <div className="bg-gray-50 rounded-lg p-4 mb-4">
               <p className="text-sm text-gray-600">
-                <strong>Utente:</strong> {selectedItem.user?.nome} {selectedItem.user?.cognome}
+                <strong>Utente:</strong> {selectedItem.user?.full_name || 'Utente'}
               </p>
               <p className="text-sm text-gray-600 mt-1">
                 <strong>Procedura:</strong> {selectedItem.procedure?.title}
