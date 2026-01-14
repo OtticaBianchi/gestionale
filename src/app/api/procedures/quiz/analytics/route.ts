@@ -49,7 +49,8 @@ export async function GET(request: NextRequest) {
     )
 
     // Get quiz analytics using the database function
-    const { data: analytics, error: analyticsError } = await adminClient
+    let analytics: any[] = []
+    const { data: analyticsData, error: analyticsError } = await adminClient
       .rpc('get_quiz_analytics', {
         p_start_date: startDate || null,
         p_end_date: endDate || null
@@ -57,10 +58,8 @@ export async function GET(request: NextRequest) {
 
     if (analyticsError) {
       console.error('Error fetching quiz analytics:', analyticsError)
-      return NextResponse.json(
-        { error: 'Errore nel caricamento delle analitiche' },
-        { status: 500 }
-      )
+    } else if (analyticsData) {
+      analytics = analyticsData
     }
 
     // Get users requiring manager review
@@ -118,7 +117,7 @@ export async function GET(request: NextRequest) {
         total_users: totalUsers,
         pending_reviews: pendingReviews || 0
       },
-      procedure_analytics: analytics || [],
+      procedure_analytics: analytics,
       users_requiring_review: reviewNeeded || [],
       filters: {
         start_date: startDate,

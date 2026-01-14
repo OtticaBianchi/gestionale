@@ -34,10 +34,12 @@ const getTipoLavorazioneFull = (tipo: string | null): string => {
     'SA': 'SAGOMATURA',
     'SG': 'STRINGATURA',
     'CT': 'CONTROLLO VISTA',
+    'BR': 'BUONO REGALO',
     'ES': 'ESAME SPECIALISTICO',
     'REL': 'RELAZIONE',
     'FT': 'FATTURA',
-    'SPRT': 'SPORT'
+    'SPRT': 'SPORT',
+    'VFT': 'VERIFICA FATTIBILITA TECNICA'
 };
   
 return tipiLavorazione[tipo] || tipo.toUpperCase();

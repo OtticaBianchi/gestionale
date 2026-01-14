@@ -93,11 +93,24 @@ export async function PATCH(
       .eq('busta_id', id)
       .maybeSingle()
 
+    const now = new Date().toISOString()
+    const modalitaSaldo = existing?.modalita_saldo ?? 'saldo_unico'
+    const dataAcconto = importo > 0 ? (existing?.data_acconto ?? now) : null
+
     const newData = {
       busta_id: id,
       importo_acconto: importo,
       ha_acconto: importo > 0,
-      updated_at: new Date().toISOString()
+      data_acconto: dataAcconto,
+      modalita_saldo: modalitaSaldo,
+      updated_at: now,
+      updated_by: userId,
+      ...(existing
+        ? {}
+        : {
+            created_at: now,
+            is_saldato: false
+          })
     }
 
     const { data: upserted, error: upsertError } = await admin
@@ -108,7 +121,10 @@ export async function PATCH(
 
     if (upsertError || !upserted) {
       console.error('Errore salvataggio acconto:', upsertError)
-      return NextResponse.json({ error: 'Errore salvataggio acconto' }, { status: 500 })
+      return NextResponse.json({
+        error: 'Errore salvataggio acconto',
+        details: upsertError?.message
+      }, { status: 500 })
     }
 
     if (existing) {

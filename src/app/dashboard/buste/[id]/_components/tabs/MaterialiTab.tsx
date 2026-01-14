@@ -868,6 +868,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     success?: boolean;
     acconto?: { importo_acconto: number | null; ha_acconto: boolean | null } | null;
     error?: string;
+    details?: string;
   };
 
   const loadAccontoInfo = async () => {
@@ -918,7 +919,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         .catch(() => ({} as AccontoResponse));
 
       if (!response.ok || !result?.success) {
-        console.error('❌ Errore salvataggio acconto:', result?.error);
+        const details = result?.details ? ` (${result.details})` : '';
+        console.error(`❌ Errore salvataggio acconto: ${result?.error || 'Errore'}${details}`);
         return;
       }
 

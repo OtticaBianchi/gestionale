@@ -20,7 +20,7 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 
 const VALID_WORK_TYPES = [
   'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'ACC', 'RIC', 'RIP',
-  'SA', 'SG', 'CT', 'ES', 'REL', 'FT', 'SPRT', 'VFT'
+  'SA', 'SG', 'CT', 'BR', 'ES', 'REL', 'FT', 'SPRT', 'VFT'
 ]
 
 // ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
