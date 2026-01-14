@@ -100,3 +100,54 @@ Addetti vendita. Coinvolgere l’optometrista se servono verifiche ottiche o ri-
 
 **In sintesi:** cliente **seduto**, montatura regolata, testa che guida lo sguardo.  
 **Azione rapida:** prova lontano → intermedio → vicino → fissa follow-up (7–10 gg).
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+Qual è il tempo minimo da dedicare alla consegna di lenti progressive?
+
+- A. 5 minuti
+- B. 15-20 minuti
+- C. 30 minuti
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+Cosa va spiegato PRIMA di far indossare gli occhiali al cliente?
+
+- A. Il prezzo finale
+- B. Le zone di visione e il periodo di adattamento
+- C. Le istruzioni di pulizia
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+Il cliente lamenta visione offuscata laterale con le nuove progressive. Risposta corretta?
+
+- A. Sostituirle immediatamente
+- B. Spiegare che è normale nelle zone periferiche e serve abitudine
+- C. Inviarlo da un altro ottico
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+

@@ -63,3 +63,54 @@ Optometrista + Manager.
 **In sintesi:** ogni 15 giorni lista clienti → chiama → verifica adattamento → registra esito.  
 **Azione rapida:** apri scheda → chiama cliente → chiedi soddisfazione → chiudi con nota.  
 👉 [Leggi procedura completa]
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+Quando va effettuato il primo follow-up dopo consegna di lenti multifocali?
+
+- A. 7-10 giorni
+- B. 1 mese
+- C. Solo se il cliente chiama
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+Durante il follow-up, cosa NON bisogna chiedere?
+
+- A. Se ha dolori o fastidi
+- B. Se vuole cambiare montatura
+- C. Come si trova con la visione da vicino
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+Il cliente riferisce mal di testa dopo 5 giorni con le nuove progressive. Azione corretta?
+
+- A. Dirgli di abituarsi ancora
+- B. Fissare controllo con optometrista per verifica centratura e parametri
+- C. Offrire subito lenti diverse
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+

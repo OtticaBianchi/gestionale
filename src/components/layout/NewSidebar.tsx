@@ -30,7 +30,9 @@ import {
   DollarSign,
   ClipboardCheck,
   Filter,
-  Eye
+  Eye,
+  GraduationCap,
+  ClipboardPen
 } from 'lucide-react';
 import AccordionSection from './AccordionSection';
 import SidebarItem from './SidebarItem';
@@ -48,6 +50,7 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
   const [errorDraftCount, setErrorDraftCount] = useState(0);
   const [procedureUnreadCount, setProcedureUnreadCount] = useState(0);
   const [suggestionsCount, setSuggestionsCount] = useState(0);
+  const [quizReviewsCount, setQuizReviewsCount] = useState(0);
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [nestedSections, setNestedSections] = useState<Record<string, boolean>>({});
   const isMountedRef = useRef(true);
@@ -55,6 +58,7 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
   const errorDraftFetchLock = useRef(false);
   const procedureUnreadFetchLock = useRef(false);
   const suggestionsFetchLock = useRef(false);
+  const quizReviewsFetchLock = useRef(false);
 
   // Handler to toggle accordion sections - only one open at a time
   const handleToggleSection = (sectionId: string) => {
@@ -186,6 +190,27 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
     }
   }, [userRole]);
 
+  const fetchQuizReviewsCount = useCallback(async (background = false) => {
+    if (!userRole || userRole !== 'admin' || quizReviewsFetchLock.current) return;
+    quizReviewsFetchLock.current = true;
+
+    try {
+      const response = await fetch('/api/procedures/quiz/analytics', { cache: 'no-store' });
+      if (!response.ok) {
+        if (!background) console.error('Error fetching quiz reviews count:', response.statusText);
+        return;
+      }
+
+      const data = await response.json();
+      if (!isMountedRef.current) return;
+      setQuizReviewsCount(data.overall_stats?.pending_reviews || 0);
+    } catch (error) {
+      if (!background) console.error('Error fetching quiz reviews count:', error);
+    } finally {
+      quizReviewsFetchLock.current = false;
+    }
+  }, [userRole]);
+
   // Cleanup
   useEffect(() => {
     return () => {
@@ -255,6 +280,30 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [userRole, fetchSuggestionsCount]);
+
+  useEffect(() => {
+    if (!userRole || userRole !== 'admin') {
+      setQuizReviewsCount(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      fetchQuizReviewsCount(true);
+    }, 120000); // 2 minutes
+
+    fetchQuizReviewsCount();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchQuizReviewsCount(true);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [userRole, fetchQuizReviewsCount]);
 
   useEffect(() => {
     if (!userRole || userRole !== 'admin') {
@@ -535,6 +584,20 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
                   icon={Eye}
                   label="Controllo Letture"
                   isCollapsed={isCollapsed}
+                />
+                <SidebarItem
+                  href="/dashboard/governance/quiz-analytics"
+                  icon={GraduationCap}
+                  label="Analitiche Quiz"
+                  isCollapsed={isCollapsed}
+                />
+                <SidebarItem
+                  href="/dashboard/governance/quiz-reviews"
+                  icon={ClipboardPen}
+                  label="Revisioni Quiz"
+                  isCollapsed={isCollapsed}
+                  badge={quizReviewsCount > 0 ? (quizReviewsCount > 99 ? '99+' : quizReviewsCount.toString()) : undefined}
+                  badgeVariant="amber"
                 />
               </AccordionSection>
             </AccordionSection>

@@ -109,6 +109,57 @@ Questa procedura si applica:
 
 ---
 
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+Cosa significa assumersi responsabilità sul posto di lavoro?
+
+- A. Fare solo ciò che viene ordinato
+- B. Prendere iniziativa, rispondere delle proprie azioni e aiutare il team
+- C. Evitare decisioni difficili
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+Cosa fare se si commette un errore?
+
+- A. Nasconderlo
+- B. Comunicarlo subito, proporre soluzione e imparare
+- C. Aspettare che qualcuno se ne accorga
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+Un collega è in difficoltà con un cliente. Tu hai già un cliente. Cosa fare?
+
+- A. Ignorare il collega
+- B. Valutare se puoi dare supporto rapido o chiamare un altro collega
+- C. Lasciare il tuo cliente per aiutare
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+
 ### **Mini-Help (per pulsante “?”)**  
 
 **Titolo sintetico:** Responsabilità sul lavoro  

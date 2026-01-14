@@ -69,3 +69,54 @@ Addetti vendita.
 **In sintesi:** apri Focus 10 → carico da DDT con asterisco → stampa/verifica etichette → aggiorna cassettini.  
 **Azione rapida:** seleziona STARS → conferma → stampa → controlla → archivia.  
 👉 [Leggi procedura completa]
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+Dove va registrato il carico degli occhiali Luxottica Stars?
+
+- A. Solo su carta
+- B. Nel gestionale con codici e quantità
+- C. Solo nel portale Luxottica
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+Cosa fare se mancano articoli rispetto al DDT?
+
+- A. Accettare comunque la merce
+- B. Annotare le differenze sul DDT e segnalare immediatamente
+- C. Rimandare indietro tutto
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+Un occhiale arriva danneggiato. Procedura corretta?
+
+- A. Rifiutarlo alla consegna
+- B. Fotografare, annotare sul DDT, accettare con riserva e aprire contestazione
+- C. Accettarlo e ripararlo internamente
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+

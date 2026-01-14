@@ -125,6 +125,57 @@ Questa procedura si applica:
 
 ---
 
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+Con quale frequenza va fatta la pulizia degli occhiali in esposizione?
+
+- A. Settimanale
+- B. Giornaliera
+- C. Mensile
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+Cosa usare per pulire le lenti degli occhiali in esposizione?
+
+- A. Detergente generico per vetri
+- B. Spray specifico per lenti ottiche e panno microfibra
+- C. Acqua e carta
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+Durante la pulizia si nota un graffio su una lente da sole in esposizione. Procedura?
+
+- A. Rimetterlo in esposizione
+- B. Rimuoverlo, segnalarlo e sostituirlo se possibile
+- C. Venderlo con sconto
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+
 ### **Mini-Help (per pulsante “?”)**  
 
 **Titolo sintetico:** Pulizia e Riesposizione Occhiali  

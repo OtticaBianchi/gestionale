@@ -115,6 +115,57 @@ Questa procedura si applica ogni volta che:
 
 ---
 
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+Le note vocali Telegram sono appropriate per comunicazioni formali con clienti?
+
+- A. Sì, sempre
+- B. Solo per comunicazioni interne rapide
+- C. Mai
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+Qual è la durata massima consigliata per una nota vocale di lavoro?
+
+- A. 5 minuti
+- B. 30-60 secondi
+- C. Nessun limite
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+Un collega invia nota vocale con info importante durante orario negozio. Cosa fare?
+
+- A. Ignorarla fino a fine turno
+- B. Ascoltarla appena possibile in pausa o momento libero
+- C. Ascoltarla subito davanti ai clienti
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+
 ### **Mini-Help (per pulsante “?”)**  
 
 **Titolo sintetico:** Uso Note Vocali Telegram  

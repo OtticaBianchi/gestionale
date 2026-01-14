@@ -34,6 +34,7 @@ import {
 import { Database } from '@/types/database.types'
 import PropostaModificheModal from './_components/PropostaModificheModal'
 import HelpfulnessVote from './_components/HelpfulnessVote'
+import ProcedureQuiz from '@/components/procedures/ProcedureQuiz'
 import { toast } from 'sonner'
 
 type Procedure = {
@@ -65,6 +66,27 @@ type Procedure = {
   dependent_procedures: any[]
 }
 
+const stripQuizPreview = (content: string) => {
+  const quizHeaderRegex = /(^|\n)##\s*Quiz di Verifica Comprensione[^\n]*\n/i
+  const quizIndex = content.search(quizHeaderRegex)
+
+  if (quizIndex === -1) return content
+
+  const afterQuiz = content.slice(quizIndex)
+  const miniHelpRegex = /(^|\n)###\s*\*{0,2}Mini-Help[^\n]*\n/i
+  const miniIndex = afterQuiz.search(miniHelpRegex)
+
+  if (miniIndex === -1) return content.slice(0, quizIndex).trimEnd()
+
+  const before = content.slice(0, quizIndex).trimEnd()
+  const after = afterQuiz.slice(miniIndex).trimStart()
+
+  if (!before) return after
+  if (!after) return before
+
+  return `${before}\n\n${after}`
+}
+
 export default function ProcedurePage() {
   const router = useRouter()
   const params = useParams()
@@ -78,6 +100,8 @@ export default function ProcedurePage() {
   const [canAcknowledge, setCanAcknowledge] = useState(false)
   const [isAcknowledging, setIsAcknowledging] = useState(false)
   const [isUnread, setIsUnread] = useState(false)
+  const [quizPassed, setQuizPassed] = useState<boolean | null>(null)
+  const [hasQuiz, setHasQuiz] = useState<boolean | null>(null)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const contentMetadata = useMemo(() => {
     if (!procedure?.content) return { author: null, reviewer: null }
@@ -90,6 +114,11 @@ export default function ProcedurePage() {
       reviewer: reviewerMatch ? reviewerMatch[1].replace(/\*\*/g, '').trim() : null
     }
   }, [procedure?.content])
+  const displayContent = useMemo(() => {
+    if (!procedure?.content) return ''
+    if (hasQuiz === true) return stripQuizPreview(procedure.content)
+    return procedure.content
+  }, [procedure?.content, hasQuiz])
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -129,7 +158,33 @@ export default function ProcedurePage() {
   useEffect(() => {
     fetchUserRole()
     fetchProcedure()
+    fetchQuizStatus()
   }, [slug])
+
+  const fetchQuizStatus = async () => {
+    try {
+      // First check if quiz exists
+      const quizRes = await fetch(`/api/procedures/${slug}/quiz`)
+      const quizData = await quizRes.json()
+
+      if (!quizData.has_quiz) {
+        setHasQuiz(false)
+        setQuizPassed(null)
+        return
+      }
+
+      setHasQuiz(true)
+
+      // Then check status
+      const statusRes = await fetch(`/api/procedures/${slug}/quiz/status`)
+      const statusData = await statusRes.json()
+
+      setQuizPassed(statusData.status?.is_passed || false)
+    } catch (error) {
+      console.error('Error fetching quiz status:', error)
+      setHasQuiz(false)
+    }
+  }
 
   const fetchUserRole = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -253,9 +308,19 @@ export default function ProcedurePage() {
     }
   }, [procedure?.id, procedure?.updated_at, procedure?.user_acknowledged_updated_at, procedure?.is_unread])
 
-  const handleMarkAsRead = async () => {
-    if (!procedure || !canAcknowledge || isAcknowledging) {
+  const handleMarkAsRead = async (force = false) => {
+    if (!procedure || isAcknowledging) {
       return
+    }
+
+    if (!force) {
+      const requiresQuiz = hasQuiz === true
+      const quizBlocking = requiresQuiz && quizPassed !== true
+      const timeBlocking = !requiresQuiz && !canAcknowledge
+
+      if (quizBlocking || timeBlocking) {
+        return
+      }
     }
 
     setIsAcknowledging(true)
@@ -346,6 +411,10 @@ export default function ProcedurePage() {
   const updatedAtDisplay = procedure.updated_at
     ? new Date(procedure.updated_at).toLocaleString('it-IT')
     : null
+  const requiresQuiz = hasQuiz === true
+  const quizBlocking = requiresQuiz && quizPassed !== true
+  const timeBlocking = !requiresQuiz && !canAcknowledge
+  const canConfirmRead = !quizBlocking && !timeBlocking
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -573,7 +642,7 @@ export default function ProcedurePage() {
                 ),
               }}
             >
-              {procedure.content}
+              {displayContent}
             </ReactMarkdown>
           </div>
         </div>
@@ -672,6 +741,21 @@ export default function ProcedurePage() {
           <HelpfulnessVote procedureId={procedure.id} />
         </div>
 
+        {/* Quiz Section - Only show if this procedure has a quiz and user hasn't passed yet */}
+        {hasQuiz === true && quizPassed === false && (
+          <div className="mb-8">
+            <ProcedureQuiz
+              procedureSlug={procedure.slug}
+              procedureTitle={procedure.title}
+              onQuizPassed={() => {
+                setQuizPassed(true)
+                // Auto-acknowledge when quiz is passed
+                handleMarkAsRead(true)
+              }}
+            />
+          </div>
+        )}
+
         {/* Read acknowledgement */}
         <div className="mb-8">
           {isUnread ? (
@@ -681,23 +765,33 @@ export default function ProcedurePage() {
                 <div>
                   <h3 className="text-lg font-semibold text-emerald-900">Conferma lettura</h3>
                   <p className="text-sm text-emerald-700">
-                    Leggi la procedura con attenzione e attendi {ackCountdown}s prima di flaggare la lettura.
-                    {updatedAtDisplay ? ` Ultimo aggiornamento: ${updatedAtDisplay}.` : ''}
+                    {quizBlocking ? (
+                      <>Devi superare il quiz prima di poter confermare la lettura.</>
+                    ) : requiresQuiz ? (
+                      <>Quiz superato. Puoi confermare la lettura.</>
+                    ) : (
+                      <>
+                        Leggi la procedura con attenzione e attendi {ackCountdown}s prima di flaggare la lettura.
+                        {updatedAtDisplay ? ` Ultimo aggiornamento: ${updatedAtDisplay}.` : ''}
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
               <button
-                onClick={handleMarkAsRead}
-                disabled={!canAcknowledge || isAcknowledging}
+                onClick={() => handleMarkAsRead()}
+                disabled={!canConfirmRead || isAcknowledging}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
-                  canAcknowledge
+                  canConfirmRead
                     ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'bg-blue-100 text-blue-500'
                 }`}
               >
-                {canAcknowledge
-                  ? isAcknowledging ? 'Salvataggio...' : 'Segna come letta'
-                  : `Disponibile tra ${ackCountdown}s`}
+                {quizBlocking
+                  ? 'Completa il quiz'
+                  : canConfirmRead
+                    ? isAcknowledging ? 'Salvataggio...' : 'Segna come letta'
+                    : `Disponibile tra ${ackCountdown}s`}
               </button>
             </div>
           ) : (
@@ -708,6 +802,7 @@ export default function ProcedurePage() {
                   <h3 className="text-lg font-semibold text-gray-900">Procedura letta</h3>
                   <p className="text-sm text-gray-600">
                     Confermata {acknowledgedAtDisplay ? `il ${acknowledgedAtDisplay}` : 'di recente'}.
+                    {hasQuiz === true && quizPassed === true && ' Quiz superato ✓'}
                   </p>
                   {updatedAtDisplay && (
                     <p className="text-xs text-gray-500 mt-1">Ultimo aggiornamento: {updatedAtDisplay}</p>
@@ -715,7 +810,7 @@ export default function ProcedurePage() {
                 </div>
               </div>
               <button
-                onClick={handleMarkAsRead}
+                onClick={() => handleMarkAsRead()}
                 disabled={isAcknowledging}
                 className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >

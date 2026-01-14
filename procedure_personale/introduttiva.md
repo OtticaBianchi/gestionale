@@ -59,3 +59,54 @@ Chi se ne discosta deve essere aiutato dai colleghi o dalla direzione a rialline
 **In sintesi**: OB è premium da 63 anni grazie a competenza, onestà e gentilezza.  
 **Azione rapida**: Ricorda storia, missione, posizionamento e valori. Le procedure non sono un optional.  
 👉 [Leggi procedura completa]
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+Qual è lo scopo principale del sistema di procedure di Ottica Bianchi?
+
+- A. Controllare i dipendenti
+- B. Garantire qualità, coerenza e efficienza nel servizio
+- C. Aumentare il carico di lavoro
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+Cosa fare se una procedura non è chiara?
+
+- A. Ignorarla
+- B. Chiedere chiarimenti al responsabile
+- C. Interpretarla a proprio modo
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+Le procedure sono modificabili?
+
+- A. No, mai
+- B. Sì, possono essere aggiornate in base a feedback e miglioramenti
+- C. Solo dal titolare
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+

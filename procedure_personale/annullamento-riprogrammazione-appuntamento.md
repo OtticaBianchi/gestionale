@@ -131,6 +131,57 @@ Questa procedura si applica ogni volta che:
 
 ---
 
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+Quando un cliente chiede di spostare un appuntamento, cosa bisogna fare PRIMA?
+
+- A. Proporre subito un nuovo orario
+- B. Verificare la disponibilità in agenda
+- C. Cancellare l'appuntamento esistente
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+Come va registrato nel gestionale un appuntamento annullato dal cliente?
+
+- A. Eliminarlo completamente
+- B. Segnarlo come "Cancellato cliente" con motivazione
+- C. Lasciarlo com'è senza note
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+Un cliente cancella per la terza volta consecutiva. Quale approccio è corretto?
+
+- A. Rifiutare ulteriori prenotazioni
+- B. Segnalare al manager per valutazione
+- C. Accettare normalmente senza segnalazioni
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+
 ### **Mini-Help (per pulsante “?”)**  
 
 **Titolo sintetico:** Annullamento o Riprogrammazione Appuntamento  

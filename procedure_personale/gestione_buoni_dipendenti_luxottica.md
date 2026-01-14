@@ -59,3 +59,54 @@ Addetti vendita.
 **In sintesi:** 50% sul listino, compilare e trattenere buono, inviare a referente.  
 **Azione rapida:** verifica → applica sconto → compila → trattieni → invia.  
 👉 [Leggi procedura completa]
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+I buoni dipendenti Luxottica hanno scadenza?
+
+- A. Sì, va verificata
+- B. No, mai
+- C. Solo dopo 2 anni
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+Cosa va verificato PRIMA di accettare un buono dipendente?
+
+- A. Solo il nome del dipendente
+- B. Validità, importo, prodotti inclusi e documenti richiesti
+- C. Solo l'importo
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+Un buono dipendente copre solo lenti, ma il cliente vuole montatura. Procedura?
+
+- A. Rifiutare la vendita
+- B. Applicare buono sulle lenti, fatturare separatamente la montatura
+- C. Applicare buono su tutto
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+

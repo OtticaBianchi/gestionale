@@ -71,3 +71,54 @@ Addetti vendita.
 **In sintesi:** documenti completi + materiale pronto + doppio controllo barcode → poi compila la busta.  
 **Azione rapida:** verifica scheda cliente → controlla montatura/astuccio → spara barcode → compila.  
 👉 [Leggi procedura completa]
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+Qual è il primo passo quando si crea una nuova busta lavoro?
+
+- A. Stampare l'etichetta
+- B. Verificare i dati nel gestionale e creare la busta
+- C. Chiamare il laboratorio
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+Cosa deve contenere SEMPRE una busta lavoro?
+
+- A. Solo la montatura
+- B. Scheda con dati cliente, prescrizione, note e montatura
+- C. Solo i dati di pagamento
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+La busta lavoro di un ordine urgente viene confusa con una normale. Cosa fare?
+
+- A. Ignorare e procedere normalmente
+- B. Identificarla immediatamente, marcarla come urgente e avvisare il laboratorio
+- C. Aspettare che il cliente chiami
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+

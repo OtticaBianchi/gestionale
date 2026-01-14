@@ -34,6 +34,32 @@ export async function POST(
       return NextResponse.json({ error: 'Procedura non trovata' }, { status: 404 })
     }
 
+    // Check if this procedure has a quiz
+    const { data: quizQuestions } = await adminClient
+      .from('procedure_quiz_questions')
+      .select('id')
+      .eq('procedure_id', procedure.id)
+      .limit(1)
+
+    const hasQuiz = quizQuestions && quizQuestions.length > 0
+
+    // If there's a quiz, check if the user has passed it
+    if (hasQuiz) {
+      const { data: quizStatus } = await adminClient
+        .from('procedure_quiz_status')
+        .select('is_passed')
+        .eq('user_id', user.id)
+        .eq('procedure_id', procedure.id)
+        .single()
+
+      if (!quizStatus || !quizStatus.is_passed) {
+        return NextResponse.json(
+          { error: 'Devi superare il quiz prima di confermare la lettura' },
+          { status: 403 }
+        )
+      }
+    }
+
     const nowIso = new Date().toISOString()
     const acknowledgedUpdatedAt = procedure.updated_at || procedure.created_at || nowIso
 

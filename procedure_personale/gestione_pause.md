@@ -55,3 +55,54 @@ Per tutti i turni di lavoro superiori a 6 ore consecutive.
 **In sintesi:** 10 minuti ogni 6 ore, non retribuiti, una sola pausa.  
 **Azione rapida:** concorda l’orario → sospendi 10 minuti → rientra.  
 👉 [Leggi procedura completa]
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+Qual è la durata standard della pausa pranzo?
+
+- A. 30 minuti
+- B. 45-60 minuti
+- C. 2 ore
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+Le pause vanno coordinate con i colleghi?
+
+- A. Sì, sempre
+- B. No, ognuno decide liberamente
+- C. Solo in alta stagione
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+Durante la pausa pranzo, un cliente chiama per un'emergenza. Cosa fare?
+
+- A. Ignorare la chiamata
+- B. Gestire l'emergenza se si è l'unico presente, altrimenti passare a collega disponibile
+- C. Dire al cliente di richiamare dopo
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+

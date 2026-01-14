@@ -140,6 +140,57 @@ Se un caso si ripete spesso → si crea una **nuova procedura dedicata**.
 
 ---
 
+
+---
+
+## Quiz di Verifica Comprensione 📝
+
+> **Importante:** Questa procedura richiede il superamento di un quiz di verifica.
+> Dovrai rispondere correttamente a **tutte e 3 le domande** per confermare la lettura.
+> - ✅ Hai **3 tentativi** disponibili
+> - ⏱️ Tra un tentativo e l'altro devi attendere **1 ora**
+> - 📚 Dopo 3 tentativi falliti, sarà richiesto un **colloquio con il manager**
+
+_Il quiz verrà presentato automaticamente al termine della lettura della procedura._
+
+### Anteprima Domande
+
+<details>
+<summary><strong>Clicca per vedere un'anteprima delle domande del quiz</strong></summary>
+
+**Domanda 1** 🟢 _Facile_
+
+Quando ci si trova di fronte a un caso non previsto dalle procedure, cosa fare PRIMA?
+
+- A. Decidere autonomamente
+- B. Valutare se è urgente e raccogliere informazioni
+- C. Rimandare il cliente
+
+---
+
+**Domanda 2** 🟡 _Media_
+
+A chi va segnalato un caso non previsto?
+
+- A. A nessuno, basta gestirlo
+- B. Al responsabile o manager per valutazione
+- C. Solo al titolare
+
+---
+
+**Domanda 3** 🔴 _Difficile_
+
+Un cliente chiede un servizio mai offerto prima. Approccio corretto?
+
+- A. Rifiutare immediatamente
+- B. Accettare senza consultare
+- C. Raccogliere dettagli, consultare il responsabile, valutare fattibilità
+
+</details>
+
+> 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
+> Le risposte si trovano nel contenuto sopra!
+
 ### **Mini-Help (per pulsante “?”)**  
 
 **Titolo sintetico:** Casi non previsti  
