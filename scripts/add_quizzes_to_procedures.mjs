@@ -9,13 +9,13 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Quiz data mapping - matches the SQL seed file
-const QUIZ_DATA = {
+export const QUIZ_DATA = {
   'rispondere-al-telefono': [
     {
       number: 1,
@@ -37,11 +37,11 @@ const QUIZ_DATA = {
     },
     {
       number: 3,
-      text: 'Cosa fare se la verifica di una richiesta richiede più di 30 secondi?',
+      text: 'Un cliente chiama chiedendo informazioni su un ordine. Mentre cerchi nel gestionale, noti che la verifica richiederà almeno 2 minuti. Nel frattempo, un altro cliente entra in negozio. Cosa fai?',
       options: [
-        { text: 'Mettere il cliente in attesa senza avvisare', correct: false },
-        { text: 'Proporre una richiamata dopo aver verificato', correct: true },
-        { text: 'Passare immediatamente la chiamata al manager', correct: false }
+        { text: 'Metti il cliente in attesa senza dire nulla e vai ad accogliere chi è entrato', correct: false },
+        { text: 'Proponi al cliente una richiamata entro pochi minuti, così puoi verificare con calma e accogliere il nuovo cliente', correct: true },
+        { text: 'Ignori il cliente in negozio finché non finisci la chiamata', correct: false }
       ]
     }
   ],
@@ -66,11 +66,11 @@ const QUIZ_DATA = {
     },
     {
       number: 3,
-      text: 'Quale approccio è corretto per clienti anziani o non pratici di WhatsApp?',
+      text: 'Devi confermare un appuntamento per domani. Il cliente è una signora di 78 anni che ha WhatsApp, ma guardando lo storico noti che non ha mai risposto ai messaggi precedenti. Inoltre, sulla scheda c\'è una nota "preferisce essere chiamata". Come ti comporti?',
       options: [
-        { text: 'Insistere comunque con WhatsApp', correct: false },
-        { text: 'Preferire una chiamata diretta', correct: true },
-        { text: 'Inviare un SMS formale', correct: false }
+        { text: 'Mandi comunque il messaggio WhatsApp standard perché è la procedura', correct: false },
+        { text: 'Effettui una chiamata diretta, come suggerito dalla nota e dal comportamento passato', correct: true },
+        { text: 'Non confermi l\'appuntamento perché tanto non risponde mai', correct: false }
       ]
     }
   ],
@@ -164,11 +164,11 @@ const QUIZ_DATA = {
   'gestione-acconti-su-vendita-merce': [
     {
       number: 1,
-      text: 'Qual è l\'importo minimo per richiedere un acconto?',
+      text: 'Su quanti livelli deve essere gestito ogni acconto secondo la procedura?',
       options: [
-        { text: '30% del totale', correct: true },
-        { text: '50% del totale', correct: false },
-        { text: '10% del totale', correct: false }
+        { text: 'Solo su Focus', correct: false },
+        { text: 'Contemporaneamente su Focus (contabile) e Moduli (operativo)', correct: true },
+        { text: 'Solo su Moduli', correct: false }
       ]
     },
     {
@@ -182,11 +182,11 @@ const QUIZ_DATA = {
     },
     {
       number: 3,
-      text: 'Un cliente chiede di annullare un ordine con acconto. Cosa fare?',
+      text: 'Stai chiudendo una vendita per un cliente che aveva versato €200 di acconto un mese fa. Il carrello su Focus non scala l\'acconto e appare un errore bloccante. Verifichi e scopri che l\'acconto era stato registrato con IVA al 22%, ma la fornitura finale è con IVA al 4% (lenti per ipovedente). Cosa fai?',
       options: [
-        { text: 'Rimborsare immediatamente l\'acconto', correct: false },
-        { text: 'Verificare le condizioni di annullamento e consultare il titolare', correct: true },
-        { text: 'Rifiutare sempre l\'annullamento', correct: false }
+        { text: 'Chiudi comunque la vendita facendo pagare di nuovo l\'intero importo al cliente', correct: false },
+        { text: 'Contatti il manager/titolare per gestire l\'anomalia e correggere l\'errore IVA prima di procedere', correct: true },
+        { text: 'Cancelli l\'acconto dal sistema senza dire nulla al cliente', correct: false }
       ]
     }
   ],
@@ -269,11 +269,11 @@ const QUIZ_DATA = {
     },
     {
       number: 3,
-      text: 'Il cliente arriva 10 minuti in ritardo. Cosa fare?',
+      text: 'Un cliente arriva con 15 minuti di ritardo per il controllo della vista. La sala refrazione è libera, ma l\'optometrista ha un altro appuntamento tra 25 minuti. Inoltre, sulla scheda c\'è scritto "prima esperienza, mai portato occhiali". Come gestisci la situazione?',
       options: [
-        { text: 'Rifiutare la visita', correct: false },
-        { text: 'Valutare se c\'è tempo sufficiente o proporre riprogrammazione', correct: true },
-        { text: 'Accettarlo sempre senza valutazioni', correct: false }
+        { text: 'Fai entrare subito il cliente senza informare l\'optometrista del ritardo', correct: false },
+        { text: 'Avvisi l\'optometrista della situazione, valutate insieme se c\'è tempo sufficiente per un controllo accurato o se proporre riprogrammazione', correct: true },
+        { text: 'Mandi via il cliente e gli dici di riprogrammare', correct: false }
       ]
     }
   ],
@@ -356,11 +356,11 @@ const QUIZ_DATA = {
     },
     {
       number: 3,
-      text: 'Un cliente chiede un astuccio extra per occhiali Luxottica. Come comportarsi?',
+      text: 'Stai consegnando degli occhiali Ray-Ban a un cliente. Cercando l\'astuccio corrispondente, ti accorgi che non ce ne sono più: sono finiti. Il cliente ha fretta e vuole portare via subito gli occhiali. Come ti comporti?',
       options: [
-        { text: 'Regalarlo sempre', correct: false },
-        { text: 'Verificare disponibilità e politica aziendale prima di fornirlo', correct: true },
-        { text: 'Rifiutare sempre', correct: false }
+        { text: 'Gli dai un astuccio di un altro brand senza dire nulla', correct: false },
+        { text: 'Informi il cliente della situazione, proponi un astuccio generico temporaneo o la possibilità di tornare quando arriverà quello originale, e segnali la mancanza', correct: true },
+        { text: 'Gli dici che non può ritirare gli occhiali senza astuccio originale', correct: false }
       ]
     }
   ],
@@ -385,11 +385,11 @@ const QUIZ_DATA = {
     },
     {
       number: 3,
-      text: 'Un buono dipendente copre solo lenti, ma il cliente vuole montatura. Procedura?',
+      text: 'Un dipendente Luxottica presenta un buono valido e sceglie una montatura Ray-Ban Stories a €350. Verifichi che i Ray-Ban Stories sono esclusi dallo sconto. Il cliente insiste che "il buono copre tutto". Come ti comporti?',
       options: [
-        { text: 'Rifiutare la vendita', correct: false },
-        { text: 'Applicare buono sulle lenti, fatturare separatamente la montatura', correct: true },
-        { text: 'Applicare buono su tutto', correct: false }
+        { text: 'Applichi lo sconto comunque per non creare discussioni', correct: false },
+        { text: 'Spieghi gentilmente l\'esclusione e proponi montature alternative compatibili, oppure contatti la Sig.ra Cason per conferma', correct: true },
+        { text: 'Rifiuti la vendita senza offrire alternative', correct: false }
       ]
     }
   ],
@@ -501,11 +501,11 @@ const QUIZ_DATA = {
     },
     {
       number: 3,
-      text: 'Un cliente chiede se il filtro antiluce blu sostituisce gli occhiali da sole. Risposta corretta?',
+      text: 'Un cliente lavora 8 ore al giorno davanti al PC e lamenta bruciore e occhi rossi. Non ha mai fatto un controllo della vista da voi e chiede direttamente di comprare "delle lenti per il computer". Come procedi?',
       options: [
-        { text: 'Sì, sono equivalenti', correct: false },
-        { text: 'No, filtrano lunghezze d\'onda diverse: antiluce blu per schermi, da sole per UV', correct: true },
-        { text: 'Sì, ma solo d\'inverno', correct: false }
+        { text: 'Vendi subito le lenti con filtro BlueGuard senza ulteriori domande', correct: false },
+        { text: 'Proponi gentilmente un controllo optometrico per capire se è solo affaticamento o anche secchezza oculare, e nel frattempo spieghi il funzionamento del filtro', correct: true },
+        { text: 'Gli dici che non puoi aiutarlo senza prescrizione medica', correct: false }
       ]
     }
   ],
@@ -530,11 +530,11 @@ const QUIZ_DATA = {
     },
     {
       number: 3,
-      text: 'Un collega invia nota vocale con info importante durante orario negozio. Cosa fare?',
+      text: 'Stai servendo un cliente quando ricevi una notifica di nota vocale sul canale OB. Il cliente sta scegliendo tra due montature e ti chiede un parere. Come gestisci la situazione?',
       options: [
-        { text: 'Ignorarla fino a fine turno', correct: false },
-        { text: 'Ascoltarla appena possibile in pausa o momento libero', correct: true },
-        { text: 'Ascoltarla subito davanti ai clienti', correct: false }
+        { text: 'Interrompi il cliente per ascoltare subito la nota vocale', correct: false },
+        { text: 'Continui ad assistere il cliente e ascolti la nota vocale appena hai un momento libero o durante la pausa', correct: true },
+        { text: 'Ignori completamente la nota vocale perché stai lavorando', correct: false }
       ]
     }
   ],
@@ -559,11 +559,11 @@ const QUIZ_DATA = {
     },
     {
       number: 3,
-      text: 'Durante la pulizia si nota un graffio su una lente da sole in esposizione. Procedura?',
+      text: 'Durante la sanificazione UV noti che 3 occhiali da sole hanno graffi sulle lenti. Uno è un modello Gucci da €380 molto richiesto, di cui non hai altri esemplari. Un cliente sta entrando e sembra interessato proprio a quella categoria. Come ti comporti?',
       options: [
-        { text: 'Rimetterlo in esposizione', correct: false },
-        { text: 'Rimuoverlo, segnalarlo e sostituirlo se possibile', correct: true },
-        { text: 'Venderlo con sconto', correct: false }
+        { text: 'Rimetti tutti gli occhiali in esposizione, tanto sono graffi piccoli', correct: false },
+        { text: 'Rimuovi tutti e 3 dalla vendita, li segnali nel registro anomalie, e proponi al cliente altri modelli disponibili', correct: true },
+        { text: 'Vendi il Gucci graffiato con sconto senza informare il cliente del difetto', correct: false }
       ]
     }
   ],
@@ -617,18 +617,51 @@ const QUIZ_DATA = {
     },
     {
       number: 3,
-      text: 'Le procedure sono modificabili?',
+      text: 'Durante una giornata intensa, un tuo collega serve un cliente in modo frettoloso: non lo saluta, non si presenta e liquida rapidamente la richiesta dicendo "non abbiamo tempo oggi". Il cliente se ne va visibilmente deluso. Tu sei impegnato con un altro cliente. Cosa fai dopo?',
       options: [
-        { text: 'No, mai', correct: false },
-        { text: 'Sì, possono essere aggiornate in base a feedback e miglioramenti', correct: true },
-        { text: 'Solo dal titolare', correct: false }
+        { text: 'Non dici nulla, ognuno lavora come preferisce', correct: false },
+        { text: 'Parli con il collega in modo costruttivo, ricordando i valori OB, oppure segnali la situazione al responsabile', correct: true },
+        { text: 'Critichi il collega davanti agli altri clienti', correct: false }
+      ]
+    }
+  ],
+  'procedura-ricontatto-clienti-per-posizioni-amministrative-aperte': [
+    {
+      number: 1,
+      text: 'Cosa bisogna verificare PRIMA di contattare un cliente con posizione aperta?',
+      options: [
+        { text: 'Solo il nome del cliente', correct: false },
+        { text: 'Che la fattura sia corretta, scaduta, senza pagamenti in corso, note di credito o accordi esistenti', correct: true },
+        { text: 'Solo l\'importo dovuto', correct: false }
+      ]
+    },
+    {
+      number: 2,
+      text: 'Senza quale elemento il cliente NON deve essere contattato?',
+      options: [
+        { text: 'Senza il numero di telefono', correct: false },
+        { text: 'Senza autorizzazione esplicita del Manager o Titolare', correct: true },
+        { text: 'Senza l\'email del cliente', correct: false }
+      ]
+    },
+    {
+      number: 3,
+      text: 'Un cliente ha una fattura scaduta da 3 mesi per €450. Hai verificato nel gestionale: nessun pagamento registrato, nessun bonifico in corso, nessuna nota di credito. Però trovi una nota che dice "accordo rateizzazione verbale con Valentina". Cosa fai?',
+      options: [
+        { text: 'Procedi a contattare il cliente perché la fattura è scaduta e l\'importo è rilevante', correct: false },
+        { text: 'Non contatti il cliente e verifichi prima con Valentina i dettagli dell\'accordo', correct: true },
+        { text: 'Contatti il cliente per ricordargli l\'accordo di rateizzazione', correct: false }
       ]
     }
   ]
 };
 
+// Alias for filename-based lookups (file key differs from procedure slug)
+QUIZ_DATA['ricontatto-clienti-posizioni-amministrative-aperte'] =
+  QUIZ_DATA['procedura-ricontatto-clienti-per-posizioni-amministrative-aperte'];
+
 // Procedures that don't require quizzes (reference/general)
-const NO_QUIZ_PROCEDURES = [
+export const NO_QUIZ_PROCEDURES = [
   'elenco_procedure_client_side'
 ];
 
@@ -773,5 +806,15 @@ function main() {
   console.log('\n✨ Done!\n');
 }
 
+const argvPath = process.argv[1]
+  ? (path.isAbsolute(process.argv[1])
+    ? process.argv[1]
+    : path.resolve(process.cwd(), process.argv[1]))
+  : null;
+const isDirectRun = argvPath
+  && import.meta.url === pathToFileURL(argvPath).href;
+
 // Run the script
-main();
+if (isDirectRun) {
+  main();
+}

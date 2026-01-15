@@ -96,6 +96,13 @@ export default function ProceduresPage() {
     'errori_frequenti': { label: 'Errori Frequenti', icon: AlertTriangle, color: 'text-red-600' }
   }
 
+  const priorityLevels = {
+    'priorita-p1': { label: 'P1 Critica', color: 'bg-red-100 text-red-800 border-red-200', border: 'border-red-300' },
+    'priorita-p2': { label: 'P2 Servizio e Clienti', color: 'bg-orange-100 text-orange-800 border-orange-200', border: 'border-orange-300' },
+    'priorita-p3': { label: 'P3 Operativa', color: 'bg-yellow-100 text-yellow-800 border-yellow-200', border: 'border-yellow-300' },
+    'priorita-p4': { label: 'P4 Cultura Aziendale', color: 'bg-blue-100 text-blue-800 border-blue-200', border: 'border-blue-300' }
+  }
+
   const roles = {
     'addetti_vendita': 'Addetti Vendita',
     'optometrista': 'Optometrista',
@@ -231,54 +238,59 @@ export default function ProceduresPage() {
   const ProcedureCard = ({ procedure }: { procedure: Procedure }) => {
     const categoryInfo = categories[procedure.context_category as keyof typeof categories]
     const typeInfo = procedureTypes[procedure.procedure_type as keyof typeof procedureTypes]
-    const CategoryIcon = categoryInfo?.icon || FileText
-    const TypeIcon = typeInfo?.icon || FileText
-
     const isUnread = procedure.is_unread !== false
     const isNew = procedure.is_new === true
     const isUpdated = !isNew && procedure.is_updated === true
     const acknowledgedAt = procedure.user_acknowledged_at
       ? new Date(procedure.user_acknowledged_at).toLocaleDateString('it-IT')
       : null
+    const normalizedTags = procedure.search_tags?.map((tag) => tag.replace(/_/g, '-')) || []
+    const priorityTag = normalizedTags.find((tag) => tag in priorityLevels)
+    const priorityInfo = priorityTag
+      ? priorityLevels[priorityTag as keyof typeof priorityLevels]
+      : null
+    const priorityBorder = priorityInfo?.border || 'border-gray-200'
 
     return (
       <div
-        className={`bg-white rounded-lg shadow-sm border transition-shadow ${
-          isUnread ? 'border-blue-200 bg-blue-50/40 hover:shadow-lg' : 'border-gray-200 hover:shadow-md'
+        className={`bg-white rounded-lg shadow-sm border transition-shadow ${priorityBorder} ${
+          isUnread ? 'bg-blue-50/40 hover:shadow-lg' : 'hover:shadow-md'
         }`}
       >
-        <div className="p-6">
+        <div className="p-5">
           {/* Header */}
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${categoryInfo?.color || 'bg-gray-500'} text-white`}>
-                <CategoryIcon className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 text-lg mb-1">{procedure.title}</h3>
-                <div className="flex items-center flex-wrap gap-2 mb-1">
-                  {isNew && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium">
-                      Nuova
-                    </span>
-                  )}
-                  {isUpdated && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
-                      Aggiornata
-                    </span>
-                  )}
-                  {!isUnread && acknowledgedAt && showRead && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs">
-                      Letta il {acknowledgedAt}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h3 className="font-semibold text-gray-900 text-base">{procedure.title}</h3>
+              <div className="flex items-center flex-wrap gap-2 mt-1 text-xs text-gray-600">
+                <span className="inline-flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${categoryInfo?.color || 'bg-gray-500'}`} />
                   <span className="capitalize">{categoryInfo?.label || procedure.context_category}</span>
-                  <span>•</span>
-                  <TypeIcon className={`w-4 h-4 ${typeInfo?.color || 'text-gray-500'}`} />
-                  <span>{typeInfo?.label || procedure.procedure_type}</span>
-                </div>
+                </span>
+                <span>•</span>
+                <span>{typeInfo?.label || procedure.procedure_type}</span>
+              </div>
+              <div className="flex items-center flex-wrap gap-2 mt-2">
+                {isNew && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium">
+                    Nuova
+                  </span>
+                )}
+                {isUpdated && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+                    Aggiornata
+                  </span>
+                )}
+                {!isUnread && acknowledgedAt && showRead && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs">
+                    Letta il {acknowledgedAt}
+                  </span>
+                )}
+                  {priorityInfo && (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold ${priorityInfo.color}`}>
+                      {priorityInfo.label} · priorita
+                    </span>
+                  )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -293,18 +305,13 @@ export default function ProceduresPage() {
             </div>
           </div>
 
-          {/* Description */}
-          {procedure.description && (
-            <p className="text-gray-600 text-sm mb-4 line-clamp-2">{procedure.description}</p>
-          )}
-
           {/* Mini Help */}
           {procedure.mini_help_summary && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
               <div className="flex items-start gap-2">
                 <BookOpen className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-blue-800 text-sm font-medium">{procedure.mini_help_title}</p>
+                  <p className="text-blue-800 text-xs font-semibold">{procedure.mini_help_title}</p>
                   <p className="text-blue-700 text-xs mt-1">{procedure.mini_help_summary}</p>
                   {procedure.mini_help_action && (
                     <p className="text-blue-600 text-xs mt-1 font-medium">{procedure.mini_help_action}</p>
@@ -321,13 +328,13 @@ export default function ProceduresPage() {
                 {procedure.target_roles.slice(0, 3).map((role) => (
                   <span
                     key={role}
-                    className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full"
+                    className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-[11px] rounded-full"
                   >
                     {roles[role as keyof typeof roles] || role}
                   </span>
                 ))}
                 {procedure.target_roles.length > 3 && (
-                  <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
+                  <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-[11px] rounded-full">
                     +{procedure.target_roles.length - 3}
                   </span>
                 )}
@@ -337,7 +344,7 @@ export default function ProceduresPage() {
 
           {/* Footer */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-            <div className="flex items-center gap-4 text-xs text-gray-500">
+            <div className="flex items-center gap-4 text-[11px] text-gray-500">
               <div className="flex items-center gap-1">
                 <TrendingUp className="w-3 h-3" />
                 <span>{procedure.view_count} visualizzazioni</span>
@@ -495,6 +502,29 @@ export default function ProceduresPage() {
               {showRead ? 'Nascondi lette' : 'Mostra anche lette'}
             </button>
           </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 px-6 py-4 mb-6">
+          <div className="text-sm text-gray-700">
+            <p className="font-semibold text-gray-900 mb-2">Schema priorità (ordine P1 → P4):</p>
+            <p className="mb-2">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold ${priorityLevels['priorita-p1'].color}`}>P1 Critica</span>
+              <span className="ml-2">P1 (Priorità 1): Critica. Significa che la procedura riguarda rischi legali/finanziari o sicurezza/qualita del servizio.</span>
+            </p>
+            <p className="mb-2">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold ${priorityLevels['priorita-p2'].color}`}>P2 Servizio e Clienti</span>
+              <span className="ml-2">P2 (Priorità 2): Servizio e Clienti. Questo livello di priorità riguarda le procedure che governano il servizio al cliente e il flusso operativo quotidiano.</span>
+            </p>
+            <p className="mb-2">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold ${priorityLevels['priorita-p3'].color}`}>P3 Operativa</span>
+              <span className="ml-2">P3 (Priorità 3): Operativa. Supporto operativo e logistica interna.</span>
+            </p>
+            <p>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold ${priorityLevels['priorita-p4'].color}`}>P4 Cultura Aziendale</span>
+              <span className="ml-2">P4 (Priorità 4): Cultura Aziendale. Spiega i valori ed il modus operandi di OB per i nuovi assunti o chi sembra essersene dimenticato.</span>
+            </p>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Secondo criterio: piu recenti prima (ultima revisione/aggiornamento).</p>
         </div>
 
         {loading ? (

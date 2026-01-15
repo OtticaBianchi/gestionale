@@ -2,7 +2,7 @@
 
 // Procedura Interna
 
-**Tag:** lavorazioni, addetti_vendita
+**Tag:** lavorazioni, addetti_vendita, priorita_p3
 
 ## 1. Scopo
 

@@ -2,7 +2,7 @@
 
 // Procedura Interna
 
-**Tag:** amministrazione, addetti_vendita, laboratorio
+**Tag:** amministrazione, addetti_vendita, laboratorio, priorita_p3
 
 ## 1. Scopo
 

@@ -1,6 +1,6 @@
 # Gestione Buoni Dipendenti Luxottica
 
-**Tag:** amministrazione, addetti_vendita
+**Tag:** amministrazione, addetti_vendita, priorita_p1
 
 ## 1. Scopo
 
@@ -99,11 +99,11 @@ Cosa va verificato PRIMA di accettare un buono dipendente?
 
 **Domanda 3** 🔴 _Difficile_
 
-Un buono dipendente copre solo lenti, ma il cliente vuole montatura. Procedura?
+Un dipendente Luxottica presenta un buono valido e sceglie una montatura Ray-Ban Stories a €350. Verifichi che i Ray-Ban Stories sono esclusi dallo sconto. Il cliente insiste che "il buono copre tutto". Come ti comporti?
 
-- A. Rifiutare la vendita
-- B. Applicare buono sulle lenti, fatturare separatamente la montatura
-- C. Applicare buono su tutto
+- A. Applichi lo sconto comunque per non creare discussioni
+- B. Spieghi gentilmente l'esclusione e proponi montature alternative compatibili, oppure contatti la Sig.ra Cason per conferma
+- C. Rifiuti la vendita senza offrire alternative
 
 </details>
 

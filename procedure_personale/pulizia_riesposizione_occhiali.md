@@ -1,6 +1,6 @@
 # Procedura Pulizia e Riesposizione Occhiali
 
-**Tag:** laboratorio, esposizione, igiene, addetti_vendita  
+**Tag:** laboratorio, esposizione, igiene, addetti_vendita, priorita_p3  
 
 ---
 
@@ -165,11 +165,11 @@ Cosa usare per pulire le lenti degli occhiali in esposizione?
 
 **Domanda 3** 🔴 _Difficile_
 
-Durante la pulizia si nota un graffio su una lente da sole in esposizione. Procedura?
+Durante la sanificazione UV noti che 3 occhiali da sole hanno graffi sulle lenti. Uno è un modello Gucci da €380 molto richiesto, di cui non hai altri esemplari. Un cliente sta entrando e sembra interessato proprio a quella categoria. Come ti comporti?
 
-- A. Rimetterlo in esposizione
-- B. Rimuoverlo, segnalarlo e sostituirlo se possibile
-- C. Venderlo con sconto
+- A. Rimetti tutti gli occhiali in esposizione, tanto sono graffi piccoli
+- B. Rimuovi tutti e 3 dalla vendita, li segnali nel registro anomalie, e proponi al cliente altri modelli disponibili
+- C. Vendi il Gucci graffiato con sconto senza informare il cliente del difetto
 
 </details>
 

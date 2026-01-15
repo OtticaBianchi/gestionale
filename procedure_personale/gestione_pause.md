@@ -2,7 +2,7 @@
 
 // Procedura Interna
 
-**Tag:** amministrazione, manager_responsabile, addetti_vendita
+**Tag:** amministrazione, manager_responsabile, addetti_vendita, priorita_p3
 
 ## 1. Scopo
 

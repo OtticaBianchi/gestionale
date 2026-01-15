@@ -1,6 +1,6 @@
 # Procedura Gestione Astucci Occhiali Luxottica
 
-**Tag:** amministrazione, addetti_vendita
+**Tag:** amministrazione, addetti_vendita, priorita_p3
 
 ## 1. Scopo
 
@@ -95,14 +95,13 @@ Cosa fare se l'astuccio originale manca?
 
 **Domanda 3** 🔴 _Difficile_
 
-Un cliente chiede un astuccio extra per occhiali Luxottica. Come comportarsi?
+Stai consegnando degli occhiali Ray-Ban a un cliente. Cercando l'astuccio corrispondente, ti accorgi che non ce ne sono più: sono finiti. Il cliente ha fretta e vuole portare via subito gli occhiali. Come ti comporti?
 
-- A. Regalarlo sempre
-- B. Verificare disponibilità e politica aziendale prima di fornirlo
-- C. Rifiutare sempre
+- A. Gli dai un astuccio di un altro brand senza dire nulla
+- B. Informi il cliente della situazione, proponi un astuccio generico temporaneo o la possibilità di tornare quando arriverà quello originale, e segnali la mancanza
+- C. Gli dici che non può ritirare gli occhiali senza astuccio originale
 
 </details>
 
 > 💡 **Suggerimento:** Leggi attentamente tutta la procedura prima di affrontare il quiz.
 > Le risposte si trovano nel contenuto sopra!
-

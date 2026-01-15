@@ -1,6 +1,6 @@
 # Procedura Ricontatto Clienti Lenti Varifocali
 
-**Tag:** followup, optometrista, addetti_vendita
+**Tag:** followup, optometrista, addetti_vendita, priorita_p2
 
 ## 1. Scopo
 

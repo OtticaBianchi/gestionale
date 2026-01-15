@@ -87,6 +87,13 @@ const stripQuizPreview = (content: string) => {
   return `${before}\n\n${after}`
 }
 
+const priorityLevels = {
+  'priorita-p1': { label: 'P1 Critica', color: 'bg-red-100 text-red-800 border-red-200' },
+  'priorita-p2': { label: 'P2 Servizio e Clienti', color: 'bg-orange-100 text-orange-800 border-orange-200' },
+  'priorita-p3': { label: 'P3 Operativa', color: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
+  'priorita-p4': { label: 'P4 Cultura Aziendale', color: 'bg-blue-100 text-blue-800 border-blue-200' }
+}
+
 export default function ProcedurePage() {
   const router = useRouter()
   const params = useParams()
@@ -402,6 +409,11 @@ export default function ProcedurePage() {
   const typeInfo = procedureTypes[procedure.procedure_type as keyof typeof procedureTypes]
   const CategoryIcon = categoryInfo?.icon || FileText
   const TypeIcon = typeInfo?.icon || FileText
+  const normalizedTags = procedure.search_tags?.map((tag) => tag.replace(/_/g, '-')) || []
+  const priorityTag = normalizedTags.find((tag) => tag in priorityLevels)
+  const priorityInfo = priorityTag
+    ? priorityLevels[priorityTag as keyof typeof priorityLevels]
+    : null
   const createdByDisplay = contentMetadata.author || procedure.created_by_profile?.full_name || 'Sistema'
   const updatedByDisplay = contentMetadata.reviewer || procedure.updated_by_profile?.full_name || 'Sistema'
   const reviewedByDisplay = contentMetadata.reviewer || procedure.last_reviewed_by_profile?.full_name || 'Sistema'
@@ -503,6 +515,20 @@ export default function ProcedurePage() {
                   <span className="font-medium text-gray-900">
                     {typeInfo?.label || procedure.procedure_type}
                   </span>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2 text-gray-500 mb-1">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>Priorità</span>
+                  </div>
+                  {priorityInfo ? (
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold ${priorityInfo.color}`}>
+                      {priorityInfo.label}
+                    </span>
+                  ) : (
+                    <span className="font-medium text-gray-500">Non definita</span>
+                  )}
                 </div>
 
                 <div>

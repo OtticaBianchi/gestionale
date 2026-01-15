@@ -1,6 +1,6 @@
 # Consegna Occhiali con Lenti Progressive
 
-**Tag:** consegna, istruzioni, addetti_vendita
+**Tag:** consegna, istruzioni, addetti_vendita, priorita_p1
 
 ## 1. Scopo
 

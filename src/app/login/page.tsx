@@ -177,13 +177,19 @@ function LoginForm() {
 
         <div className="mt-6 pt-6 border-t border-gray-200">
           <div className="text-xs text-center text-gray-400 mb-2">
-            Versione 4.0.2
+            Versione 4.1.0
           </div>
           <details className="text-xs text-gray-500">
             <summary className="cursor-pointer text-center hover:text-gray-700 font-medium">
               Novità e aggiornamenti
             </summary>
             <div className="mt-3 space-y-2 text-left bg-gray-50 p-3 rounded">
+              <div className="font-semibold text-gray-700">v4.1.0 - Gennaio 2026</div>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>Nuova gestione procedure con quiz e livelli di priorità</li>
+                <li>Inserimento buste a posteriori con date ordine/consegna</li>
+                <li>Dashboard admin per lettura procedure e superamento quiz</li>
+              </ul>
               <div className="font-semibold text-gray-700">v4.0.2 - Dicembre 2025</div>
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li>Import clienti manuale con form dinamico (1-9 clienti alla volta)</li>

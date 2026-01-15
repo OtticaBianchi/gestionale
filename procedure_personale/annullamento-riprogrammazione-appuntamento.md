@@ -1,6 +1,6 @@
 # Procedura Annullamento o Riprogrammazione Appuntamento
 
-**Tag:** amministrazione, accoglienza, gestione_clienti, addetti_vendita  
+**Tag:** amministrazione, accoglienza, gestione_clienti, addetti_vendita, priorita_p2  
 
 ---
 

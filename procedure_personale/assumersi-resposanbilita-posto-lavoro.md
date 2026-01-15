@@ -1,6 +1,6 @@
 # Procedura Assumersi Responsabilità sul Posto di Lavoro
 
-**Tag:** comportamento, comunicazione, collaborazione, responsabilità  
+**Tag:** comportamento, comunicazione, collaborazione, responsabilità, priorita_p4  
 
 ---
 

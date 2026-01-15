@@ -39,6 +39,19 @@ export async function GET(request: NextRequest) {
     const recent_only = searchParams.get('recent') === 'true'
     const summary = searchParams.get('summary')
     const summaryOnly = summary === 'unread_count'
+    const priorityOrder = ['priorita-p1', 'priorita-p2', 'priorita-p3', 'priorita-p4']
+
+    const getPriorityRank = (proc: { search_tags?: string[] }) => {
+      if (!Array.isArray(proc.search_tags)) return priorityOrder.length
+      const normalizedTags = proc.search_tags.map((tag) => tag.replace(/_/g, '-'))
+      const idx = priorityOrder.findIndex((tag) => normalizedTags.includes(tag))
+      return idx === -1 ? priorityOrder.length : idx
+    }
+
+    const getSortTimestamp = (proc: { last_reviewed_at?: string; updated_at?: string; created_at?: string }) => {
+      const value = proc.last_reviewed_at || proc.updated_at || proc.created_at
+      return value ? new Date(value).getTime() : 0
+    }
 
     // Use service role for queries after auth check
     const adminClient = (await import('@supabase/supabase-js')).createClient(
@@ -174,9 +187,18 @@ export async function GET(request: NextRequest) {
       }
     })
 
+    const sortedProcedures = enrichedProcedures
+      .slice()
+      .sort((a, b) => {
+        const rankA = getPriorityRank(a)
+        const rankB = getPriorityRank(b)
+        if (rankA !== rankB) return rankA - rankB
+        return getSortTimestamp(b) - getSortTimestamp(a)
+      })
+
     const visibleProcedures = include_read
-      ? enrichedProcedures
-      : enrichedProcedures.filter(proc => proc.is_unread)
+      ? sortedProcedures
+      : sortedProcedures.filter(proc => proc.is_unread)
 
     return NextResponse.json({
       success: true,

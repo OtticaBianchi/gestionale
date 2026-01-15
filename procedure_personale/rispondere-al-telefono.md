@@ -1,6 +1,6 @@
 # Procedura Risposta al Telefono
 
-**Tag:** accoglienza, comunicazione, addetti_vendita  
+**Tag:** accoglienza, comunicazione, addetti_vendita, priorita_p2  
 
 ---
 
@@ -177,11 +177,11 @@ Qual è la formula standard corretta per rispondere al telefono?
 
 **Domanda 3** 🔴 _Difficile_
 
-Cosa fare se la verifica di una richiesta richiede più di 30 secondi?
+Un cliente chiama chiedendo informazioni su un ordine. Mentre cerchi nel gestionale, noti che la verifica richiederà almeno 2 minuti. Nel frattempo, un altro cliente entra in negozio. Cosa fai?
 
-- A. Mettere il cliente in attesa senza avvisare
-- B. Proporre una richiamata dopo aver verificato
-- C. Passare immediatamente la chiamata al manager
+- A. Metti il cliente in attesa senza dire nulla e vai ad accogliere chi è entrato
+- B. Proponi al cliente una richiamata entro pochi minuti, così puoi verificare con calma e accogliere il nuovo cliente
+- C. Ignori il cliente in negozio finché non finisci la chiamata
 
 </details>
 

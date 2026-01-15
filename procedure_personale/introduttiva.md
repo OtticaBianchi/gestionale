@@ -2,7 +2,7 @@
 
 // Procedura Interna
 
-**Tag:** accoglienza, formazione, addetti_vendita, optometrista, titolare, manager_responsabile, laboratorio, responsabile_sport
+**Tag:** accoglienza, formazione, addetti_vendita, optometrista, titolare, manager_responsabile, laboratorio, responsabile_sport, priorita_p4
 
 ## 1. Scopo
 
@@ -99,11 +99,11 @@ Cosa fare se una procedura non è chiara?
 
 **Domanda 3** 🔴 _Difficile_
 
-Le procedure sono modificabili?
+Durante una giornata intensa, un tuo collega serve un cliente in modo frettoloso: non lo saluta, non si presenta e liquida rapidamente la richiesta dicendo "non abbiamo tempo oggi". Il cliente se ne va visibilmente deluso. Tu sei impegnato con un altro cliente. Cosa fai dopo?
 
-- A. No, mai
-- B. Sì, possono essere aggiornate in base a feedback e miglioramenti
-- C. Solo dal titolare
+- A. Non dici nulla, ognuno lavora come preferisce
+- B. Parli con il collega in modo costruttivo, ricordando i valori OB, oppure segnali la situazione al responsabile
+- C. Critichi il collega davanti agli altri clienti
 
 </details>
 

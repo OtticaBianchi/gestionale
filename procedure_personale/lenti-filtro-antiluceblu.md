@@ -1,6 +1,6 @@
 # Procedura Consulenza per Lenti con Filtro Antiriflesso / Antiluceblu e Benessere Oculare
 
-**Tag:** consulenza, vendita, lenti, salute_visiva, addetti_vendita, optometrista  
+**Tag:** consulenza, vendita, lenti, salute_visiva, addetti_vendita, optometrista, priorita_p2  
 
 ---
 
@@ -169,11 +169,11 @@ Il filtro antiluce blu è consigliato per chi?
 
 **Domanda 3** 🔴 _Difficile_
 
-Un cliente chiede se il filtro antiluce blu sostituisce gli occhiali da sole. Risposta corretta?
+Un cliente lavora 8 ore al giorno davanti al PC e lamenta bruciore e occhi rossi. Non ha mai fatto un controllo della vista da voi e chiede direttamente di comprare "delle lenti per il computer". Come procedi?
 
-- A. Sì, sono equivalenti
-- B. No, filtrano lunghezze d'onda diverse: antiluce blu per schermi, da sole per UV
-- C. Sì, ma solo d'inverno
+- A. Vendi subito le lenti con filtro BlueGuard senza ulteriori domande
+- B. Proponi gentilmente un controllo optometrico per capire se è solo affaticamento o anche secchezza oculare, e nel frattempo spieghi il funzionamento del filtro
+- C. Gli dici che non puoi aiutarlo senza prescrizione medica
 
 </details>
 

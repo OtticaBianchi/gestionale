@@ -1,6 +1,6 @@
 # Procedura Registrazione Appuntamenti
 
-**Tag:** accoglienza, amministrazione, addetti_vendita  
+**Tag:** accoglienza, amministrazione, addetti_vendita, priorita_p2  
 
 ---
 

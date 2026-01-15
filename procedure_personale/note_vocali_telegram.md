@@ -1,6 +1,6 @@
 # Procedura Utilizzo Note Vocali Telegram
 
-**Tag:** comunicazione_interna, gestione_operativa, addetti_vendita, optometrista  
+**Tag:** comunicazione_interna, gestione_operativa, addetti_vendita, optometrista, priorita_p3  
 
 ---
 
@@ -155,11 +155,11 @@ Qual è la durata massima consigliata per una nota vocale di lavoro?
 
 **Domanda 3** 🔴 _Difficile_
 
-Un collega invia nota vocale con info importante durante orario negozio. Cosa fare?
+Stai servendo un cliente quando ricevi una notifica di nota vocale sul canale OB. Il cliente sta scegliendo tra due montature e ti chiede un parere. Come gestisci la situazione?
 
-- A. Ignorarla fino a fine turno
-- B. Ascoltarla appena possibile in pausa o momento libero
-- C. Ascoltarla subito davanti ai clienti
+- A. Interrompi il cliente per ascoltare subito la nota vocale
+- B. Continui ad assistere il cliente e ascolti la nota vocale appena hai un momento libero o durante la pausa
+- C. Ignori completamente la nota vocale perché stai lavorando
 
 </details>
 

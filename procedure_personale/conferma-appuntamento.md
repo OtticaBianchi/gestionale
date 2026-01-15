@@ -1,6 +1,6 @@
 # Procedura Conferma Appuntamento (SMS / WhatsApp)
 
-**Tag:** comunicazione, accoglienza, amministrazione, addetti_vendita  
+**Tag:** comunicazione, accoglienza, amministrazione, addetti_vendita, priorita_p2  
 
 ---
 
@@ -170,11 +170,11 @@ Cosa fare se il cliente non risponde al messaggio di conferma entro la mattina d
 
 **Domanda 3** 🔴 _Difficile_
 
-Quale approccio è corretto per clienti anziani o non pratici di WhatsApp?
+Devi confermare un appuntamento per domani. Il cliente è una signora di 78 anni che ha WhatsApp, ma guardando lo storico noti che non ha mai risposto ai messaggi precedenti. Inoltre, sulla scheda c'è una nota "preferisce essere chiamata". Come ti comporti?
 
-- A. Insistere comunque con WhatsApp
-- B. Preferire una chiamata diretta
-- C. Inviare un SMS formale
+- A. Mandi comunque il messaggio WhatsApp standard perché è la procedura
+- B. Effettui una chiamata diretta, come suggerito dalla nota e dal comportamento passato
+- C. Non confermi l'appuntamento perché tanto non risponde mai
 
 </details>
 

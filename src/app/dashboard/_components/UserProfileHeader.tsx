@@ -204,7 +204,7 @@ export default function UserProfileHeader() {
           <div className="flex items-center space-x-3">
             <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
             <span className="text-sm text-gray-500">Dashboard</span>
-            <span className="text-sm text-gray-400">v4.0.2</span>
+            <span className="text-sm text-gray-400">v4.1.0</span>
           </div>
 
           <div className="flex items-center space-x-2 text-gray-500">
@@ -224,7 +224,7 @@ export default function UserProfileHeader() {
           <div className="flex items-center space-x-3">
             <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
             <span className="text-sm text-gray-500">Dashboard</span>
-            <span className="text-sm text-gray-400">v4.0.2</span>
+            <span className="text-sm text-gray-400">v4.1.0</span>
           </div>
 
           <div className="flex items-center space-x-3">
@@ -263,7 +263,7 @@ export default function UserProfileHeader() {
         <div className="flex items-center space-x-3">
           <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
           <span className="text-sm text-gray-500">Dashboard</span>
-          <span className="text-sm text-gray-400">v4.0.2</span>
+          <span className="text-sm text-gray-400">v4.1.0</span>
         </div>
 
         {/* Profilo Utente */}

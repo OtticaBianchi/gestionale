@@ -3,6 +3,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import { QUIZ_DATA, NO_QUIZ_PROCEDURES } from './add_quizzes_to_procedures.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -121,6 +122,96 @@ function slugify(value) {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
+}
+
+const NO_QUIZ_KEYS = new Set(NO_QUIZ_PROCEDURES)
+const DIFFICULTY_BY_NUMBER = {
+  1: 'easy',
+  2: 'medium',
+  3: 'hard'
+}
+
+function validateQuizDefinition(fileKey) {
+  const issues = []
+
+  if (NO_QUIZ_KEYS.has(fileKey)) {
+    return issues
+  }
+
+  const quiz = QUIZ_DATA[fileKey]
+  if (!quiz) {
+    return [`Quiz mancante per "${fileKey}"`]
+  }
+
+  if (!Array.isArray(quiz) || quiz.length !== 3) {
+    issues.push('Il quiz deve avere esattamente 3 domande')
+    return issues
+  }
+
+  const requiredNumbers = new Set([1, 2, 3])
+  const seenNumbers = new Set()
+
+  quiz.forEach((question, index) => {
+    if (!question || typeof question !== 'object') {
+      issues.push(`Domanda ${index + 1} non valida`)
+      return
+    }
+
+    if (!Number.isInteger(question.number)) {
+      issues.push(`Domanda ${index + 1}: numero mancante o non valido`)
+    } else {
+      seenNumbers.add(question.number)
+    }
+
+    if (!question.text || typeof question.text !== 'string') {
+      issues.push(`Domanda ${question.number ?? index + 1}: testo mancante`)
+    }
+
+    if (!Array.isArray(question.options) || question.options.length !== 3) {
+      issues.push(`Domanda ${question.number ?? index + 1}: servono 3 opzioni`)
+      return
+    }
+
+    let correctCount = 0
+    question.options.forEach((option, optionIndex) => {
+      if (!option || typeof option !== 'object') {
+        issues.push(`Domanda ${question.number ?? index + 1}: opzione ${optionIndex + 1} non valida`)
+        return
+      }
+      if (!option.text || typeof option.text !== 'string') {
+        issues.push(`Domanda ${question.number ?? index + 1}: opzione ${optionIndex + 1} senza testo`)
+      }
+      if (option.correct === true) {
+        correctCount += 1
+      } else if (option.correct !== false) {
+        issues.push(`Domanda ${question.number ?? index + 1}: opzione ${optionIndex + 1} senza flag "correct"`)
+      }
+    })
+
+    if (correctCount !== 1) {
+      issues.push(`Domanda ${question.number ?? index + 1}: deve esserci una sola risposta corretta`)
+    }
+  })
+
+  const missingNumbers = [...requiredNumbers].filter((number) => !seenNumbers.has(number))
+  if (missingNumbers.length > 0) {
+    issues.push(`Numeri domanda mancanti: ${missingNumbers.join(', ')}`)
+  }
+
+  return issues
+}
+
+function buildQuizRows(procedureId, quiz) {
+  return quiz.map((question) => ({
+    procedure_id: procedureId,
+    question_number: question.number,
+    question_text: question.text,
+    difficulty: DIFFICULTY_BY_NUMBER[question.number] || 'medium',
+    options: question.options.map((option) => ({
+      text: option.text,
+      is_correct: option.correct === true
+    }))
+  }))
 }
 
 function sanitiseKeyword(value) {
@@ -279,10 +370,17 @@ async function main() {
 
   const existingSlugs = await loadExistingSlugs()
   const records = []
+  const quizValidationIssues = []
+  const quizKeyBySlug = new Map()
 
   for (const fileName of files) {
     if (!fileName.endsWith('.md')) continue
     if (skipFiles.has(fileName)) continue
+    const fileKey = fileName.replace(/\.md$/, '')
+    const quizIssues = validateQuizDefinition(fileKey)
+    if (quizIssues.length > 0) {
+      quizValidationIssues.push({ fileKey, issues: quizIssues })
+    }
 
     const filePath = path.join(procedureDir, fileName)
     const content = await fs.readFile(filePath, 'utf8')
@@ -318,6 +416,10 @@ async function main() {
     const updatedById = metadata.reviewerId || metadata.authorId
     const lastReviewedById = metadata.reviewerId || metadata.authorId
 
+    if (!NO_QUIZ_KEYS.has(fileKey)) {
+      quizKeyBySlug.set(slug, fileKey)
+    }
+
     records.push({
       title,
       slug,
@@ -339,6 +441,16 @@ async function main() {
     })
   }
 
+  if (quizValidationIssues.length > 0) {
+    console.error('Quiz validation failed. Risolvi i problemi prima di importare:')
+    quizValidationIssues.forEach(({ fileKey, issues }) => {
+      issues.forEach((issue) => {
+        console.error(`- ${fileKey}: ${issue}`)
+      })
+    })
+    process.exit(1)
+  }
+
   if (records.length === 0) {
     console.log('No new procedures to import.')
     return
@@ -347,14 +459,38 @@ async function main() {
   const { data, error } = await supabase
     .from('procedures')
     .upsert(records, { onConflict: 'slug' })
-    .select('slug')
+    .select('id, slug')
 
   if (error) {
     console.error('Failed to upsert procedures:', error)
     process.exit(1)
   }
 
+  const quizRows = []
+
+  data.forEach((row) => {
+    const quizKey = quizKeyBySlug.get(row.slug)
+    if (!quizKey) return
+    const quiz = QUIZ_DATA[quizKey]
+    if (!quiz) return
+    quizRows.push(...buildQuizRows(row.id, quiz))
+  })
+
+  if (quizRows.length > 0) {
+    const { error: quizError } = await supabase
+      .from('procedure_quiz_questions')
+      .upsert(quizRows, { onConflict: 'procedure_id,question_number' })
+
+    if (quizError) {
+      console.error('Failed to upsert quiz questions:', quizError)
+      process.exit(1)
+    }
+  }
+
   console.log('Imported procedures:', data.map((row) => row.slug))
+  if (quizRows.length > 0) {
+    console.log(`Upserted quiz questions: ${quizRows.length}`)
+  }
 }
 
 main().catch((error) => {
