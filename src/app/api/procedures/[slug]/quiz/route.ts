@@ -4,6 +4,15 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+const shuffleOptions = <T,>(options: T[]): T[] => {
+  const shuffled = [...options]
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
 /**
  * GET /api/procedures/[slug]/quiz
  * Fetch quiz questions for a specific procedure
@@ -67,17 +76,21 @@ export async function GET(
     }
 
     // Return quiz data (without revealing correct answers)
-    const quizQuestions = questions.map(q => ({
-      id: q.id,
-      question_number: q.question_number,
-      question_text: q.question_text,
-      difficulty: q.difficulty,
-      options: (q.options as any[]).map((opt, idx) => ({
+    const quizQuestions = questions.map(q => {
+      const options = (q.options as any[]).map((opt, idx) => ({
         index: idx,
         text: opt.text
         // Don't include is_correct in response
       }))
-    }))
+
+      return {
+        id: q.id,
+        question_number: q.question_number,
+        question_text: q.question_text,
+        difficulty: q.difficulty,
+        options: shuffleOptions(options)
+      }
+    })
 
     return NextResponse.json({
       has_quiz: true,
