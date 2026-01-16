@@ -7,6 +7,7 @@ import UserProfileHeader from './_components/UserProfileHeader';
 import { BustaWithCliente } from '@/types/shared.types';
 import ButtonsBar from './_components/ButtonsBar';
 import ErrorActions from './_components/ErrorActions';
+import SuspensionReminder from './_components/SuspensionReminder';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { shouldArchiveBusta } from '@/lib/buste/archiveRules';
 
@@ -113,11 +114,12 @@ export default async function DashboardPage() {
 
   const normalizedBuste = (buste || []).map(normalizePaymentPlanRelation) as BustaWithCliente[];
   const activeBuste = normalizedBuste.filter(busta => !shouldArchiveBusta(busta) && !busta.is_suspended);
+  const suspendedBuste = normalizedBuste.filter(busta => busta.is_suspended && !shouldArchiveBusta(busta));
 
   console.log('🔍 Dashboard - Buste fetch result:', `Success: ${normalizedBuste.length} totali, ${activeBuste.length} attive (${normalizedBuste.filter(b => b.is_suspended).length} sospese)`);
   console.log('🔍 Dashboard - Stati delle buste attive:', activeBuste.map(b => ({ id: b.readable_id, stato: b.stato_attuale })));
 
-  return renderDashboard(activeBuste);
+  return renderDashboard(activeBuste, suspendedBuste);
 }
 
 function renderError(error: { message: string; details?: string | null; hint?: string | null; code?: string | null }) {
@@ -155,10 +157,11 @@ function renderError(error: { message: string; details?: string | null; hint?: s
     );
 }
 
-function renderDashboard(busteWithCliente: BustaWithCliente[]) {
+function renderDashboard(busteWithCliente: BustaWithCliente[], suspendedBuste: BustaWithCliente[]) {
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
+        <SuspensionReminder buste={suspendedBuste} />
         {/* Header Profilo Utente */}
         <UserProfileHeader />
 

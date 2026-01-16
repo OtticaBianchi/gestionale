@@ -141,6 +141,7 @@ function DraggableBustaCard({
 function DroppableColumn({
   status,
   buste,
+  suspendedCount,
   isOver,
   isDragEnabled,
   isLoading,
@@ -151,6 +152,7 @@ function DroppableColumn({
 }: {
   status: WorkflowState;
   buste: BustaWithCliente[];
+  suspendedCount: number;
   isOver: boolean;
   isDragEnabled: boolean;
   isLoading: boolean;
@@ -164,6 +166,7 @@ function DroppableColumn({
   });
 
   const isFinalColumn = status === 'consegnato_pagato';
+  const showSuspendedBadge = status === 'nuove' && suspendedCount > 0;
   const columnShellClasses = isFinalColumn
     ? 'bg-emerald-50 border border-emerald-100'
     : 'bg-gray-100';
@@ -186,14 +189,28 @@ function DroppableColumn({
             aria-expanded={!!isHeaderActive}
             aria-pressed={!!isHeaderActive}
           >
-            <h2 className={`font-semibold text-xs ${titleColor}`}>{getColumnName(status)}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className={`font-semibold text-xs ${titleColor}`}>{getColumnName(status)}</h2>
+              {showSuspendedBadge && (
+                <span className="text-[10px] font-semibold text-yellow-800 bg-yellow-100 px-2 py-0.5 rounded-full">
+                  SOSPESE {suspendedCount}
+                </span>
+              )}
+            </div>
             <span className={countBadgeClasses}>
               {buste.length}
             </span>
           </button>
         ) : (
           <div className="flex justify-between items-center mb-4 px-2">
-            <h2 className={`font-semibold text-xs ${titleColor}`}>{getColumnName(status)}</h2>
+            <div className="flex items-center gap-2">
+              <h2 className={`font-semibold text-xs ${titleColor}`}>{getColumnName(status)}</h2>
+              {showSuspendedBadge && (
+                <span className="text-[10px] font-semibold text-yellow-800 bg-yellow-100 px-2 py-0.5 rounded-full">
+                  SOSPESE {suspendedCount}
+                </span>
+              )}
+            </div>
             <span className={countBadgeClasses}>
               {buste.length}
             </span>
@@ -277,6 +294,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
   
   // Use SWR data if available, fallback to initial data
   const currentBuste = buste || initialBuste || [];
+  const suspendedCount = currentBuste.filter(busta => busta.is_suspended).length;
   
   // User context for role checking
   const { profile } = useUser();
@@ -810,6 +828,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
                 key={status}
                 status={status}
                 buste={groupedBuste[status] || []}
+                suspendedCount={suspendedCount}
                 isOver={overId === `column-${status}`}
                 isDragEnabled={!isLoading && isOnline && profile?.role !== 'operatore'}
                 isLoading={isLoading}

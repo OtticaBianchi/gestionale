@@ -107,15 +107,18 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
     critica: 'border-l-red-600'
   };
 
+  const suspendedClasses = busta.is_suspended
+    ? 'bg-yellow-50 border border-yellow-200'
+    : 'bg-white';
+
   return (
     <div
       onClick={onClick}
       data-busta-id={busta.id}
       className={`
-        bg-white rounded-md shadow-sm p-2.5 mb-2 border-l-4
+        ${suspendedClasses} rounded-md shadow-sm p-2.5 mb-2 border-l-4
         hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer
         ${priorityStyles[busta.priorita]}
-        ${busta.is_suspended ? 'bg-gray-50 opacity-90' : ''}
       `}
     >
       {/* Row 1: ID + Nome abbreviato + Tipo Lavorazione */}

@@ -21,6 +21,8 @@ interface BustaPayload {
   priorita?: string
   note_generali?: string | null
   is_suspended?: boolean
+  data_sospensione?: string | null
+  data_riesame_sospensione?: string | null
   cliente?: ClientePayload
 }
 
@@ -71,7 +73,7 @@ export async function PATCH(
 
     const { data: existingBusta, error: bustaFetchError } = await admin
       .from('buste')
-      .select('id, cliente_id, tipo_lavorazione, priorita, note_generali, is_suspended')
+      .select('id, cliente_id, tipo_lavorazione, priorita, note_generali, is_suspended, data_sospensione, data_riesame_sospensione')
       .eq('id', id)
       .single()
 
@@ -95,6 +97,16 @@ export async function PATCH(
     if (body.is_suspended !== undefined) {
       fieldsToUpdate.is_suspended = body.is_suspended
     }
+    if (body.data_sospensione !== undefined) {
+      fieldsToUpdate.data_sospensione = body.data_sospensione || null
+    }
+    if (body.data_riesame_sospensione !== undefined) {
+      fieldsToUpdate.data_riesame_sospensione = body.data_riesame_sospensione || null
+    }
+    if (body.is_suspended === false) {
+      fieldsToUpdate.data_sospensione = null
+      fieldsToUpdate.data_riesame_sospensione = null
+    }
     if (!existingBusta.cliente_id && clienteId) {
       fieldsToUpdate.cliente_id = clienteId
     }
@@ -109,7 +121,7 @@ export async function PATCH(
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
-        .select('id, cliente_id, tipo_lavorazione, priorita, note_generali, is_suspended, updated_at')
+        .select('id, cliente_id, tipo_lavorazione, priorita, note_generali, is_suspended, data_sospensione, data_riesame_sospensione, updated_at')
         .single()
 
       if (updateBustaError || !data) {

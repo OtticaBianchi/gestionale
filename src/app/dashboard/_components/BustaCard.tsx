@@ -457,15 +457,18 @@ export default function BustaCard({ busta }: BustaCardProps) {
     critical: <AlertTriangle className="h-4 w-4 text-red-600" />
   };
 
+  const suspendedClasses = busta.is_suspended
+    ? 'bg-yellow-50 border border-yellow-200'
+    : 'bg-white';
+
   return (
     <Link href={`/dashboard/buste/${busta.id}`}>
       <div
         data-busta-id={busta.id}
         className={`
-          bg-white rounded-lg shadow-sm p-4 mb-3 border-l-4
+          ${suspendedClasses} rounded-lg shadow-sm p-4 mb-3 border-l-4
           hover:shadow-lg hover:-translate-y-2 hover:border-blue-400 transition-all cursor-pointer
           ${priorityStyles[busta.priorita]}
-          ${busta.is_suspended ? 'bg-gray-50 opacity-90' : ''}
         `}
       >
         {/* Row 1: ID + Nome completo + Tipo Lavorazione */}

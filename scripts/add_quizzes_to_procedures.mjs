@@ -21,8 +21,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Entro quanti squilli bisogna rispondere al telefono secondo la procedura?',
       options: [
-        { text: '5 squilli', correct: false },
         { text: '3 squilli', correct: true },
+        { text: '5 squilli', correct: false },
         { text: 'Appena possibile, senza limiti specifici', correct: false }
       ]
     },
@@ -40,8 +40,8 @@ export const QUIZ_DATA = {
       text: 'Un cliente chiama chiedendo informazioni su un ordine. Mentre cerchi nel gestionale, noti che la verifica richiederà almeno 2 minuti. Nel frattempo, un altro cliente entra in negozio. Cosa fai?',
       options: [
         { text: 'Metti il cliente in attesa senza dire nulla e vai ad accogliere chi è entrato', correct: false },
-        { text: 'Proponi al cliente una richiamata entro pochi minuti, così puoi verificare con calma e accogliere il nuovo cliente', correct: true },
-        { text: 'Ignori il cliente in negozio finché non finisci la chiamata', correct: false }
+        { text: 'Ignori il cliente in negozio finché non finisci la chiamata', correct: false },
+        { text: 'Proponi al cliente una richiamata entro pochi minuti, così puoi verificare con calma e accogliere il nuovo cliente', correct: true }
       ]
     }
   ],
@@ -50,8 +50,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Quando va inviato il messaggio di conferma dell\'appuntamento?',
       options: [
-        { text: 'Una settimana prima', correct: false },
         { text: '24 ore prima dell\'appuntamento', correct: true },
+        { text: 'Una settimana prima', correct: false },
         { text: 'Il giorno stesso dell\'appuntamento', correct: false }
       ]
     },
@@ -69,8 +69,8 @@ export const QUIZ_DATA = {
       text: 'Devi confermare un appuntamento per domani. Il cliente è una signora di 78 anni che ha WhatsApp, ma guardando lo storico noti che non ha mai risposto ai messaggi precedenti. Inoltre, sulla scheda c\'è una nota "preferisce essere chiamata". Come ti comporti?',
       options: [
         { text: 'Mandi comunque il messaggio WhatsApp standard perché è la procedura', correct: false },
-        { text: 'Effettui una chiamata diretta, come suggerito dalla nota e dal comportamento passato', correct: true },
-        { text: 'Non confermi l\'appuntamento perché tanto non risponde mai', correct: false }
+        { text: 'Non confermi l\'appuntamento perché tanto non risponde mai', correct: false },
+        { text: 'Effettui una chiamata diretta, come suggerito dalla nota e dal comportamento passato', correct: true }
       ]
     }
   ],
@@ -79,8 +79,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Quando un cliente chiede di spostare un appuntamento, cosa bisogna fare PRIMA?',
       options: [
-        { text: 'Proporre subito un nuovo orario', correct: false },
         { text: 'Verificare la disponibilità in agenda', correct: true },
+        { text: 'Proporre subito un nuovo orario', correct: false },
         { text: 'Cancellare l\'appuntamento esistente', correct: false }
       ]
     },
@@ -98,8 +98,8 @@ export const QUIZ_DATA = {
       text: 'Un cliente cancella per la terza volta consecutiva. Quale approccio è corretto?',
       options: [
         { text: 'Rifiutare ulteriori prenotazioni', correct: false },
-        { text: 'Segnalare al manager per valutazione', correct: true },
-        { text: 'Accettare normalmente senza segnalazioni', correct: false }
+        { text: 'Accettare normalmente senza segnalazioni', correct: false },
+        { text: 'Segnalare al manager per valutazione', correct: true }
       ]
     }
   ],
@@ -127,8 +127,8 @@ export const QUIZ_DATA = {
       text: 'Un cliente chiama per un controllo urgente. Come gestirlo?',
       options: [
         { text: 'Dirgli di aspettare il primo slot disponibile', correct: false },
-        { text: 'Valutare l\'urgenza e consultare l\'optometrista per eventuale slot extra', correct: true },
-        { text: 'Inserirlo in uno slot già occupato', correct: false }
+        { text: 'Inserirlo in uno slot già occupato', correct: false },
+        { text: 'Valutare l\'urgenza e consultare l\'optometrista per eventuale slot extra', correct: true }
       ]
     }
   ],
@@ -166,8 +166,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Su quanti livelli deve essere gestito ogni acconto secondo la procedura?',
       options: [
-        { text: 'Solo su Focus', correct: false },
         { text: 'Contemporaneamente su Focus (contabile) e Moduli (operativo)', correct: true },
+        { text: 'Solo su Focus', correct: false },
         { text: 'Solo su Moduli', correct: false }
       ]
     },
@@ -185,8 +185,8 @@ export const QUIZ_DATA = {
       text: 'Stai chiudendo una vendita per un cliente che aveva versato €200 di acconto un mese fa. Il carrello su Focus non scala l\'acconto e appare un errore bloccante. Verifichi e scopri che l\'acconto era stato registrato con IVA al 22%, ma la fornitura finale è con IVA al 4% (lenti per ipovedente). Cosa fai?',
       options: [
         { text: 'Chiudi comunque la vendita facendo pagare di nuovo l\'intero importo al cliente', correct: false },
-        { text: 'Contatti il manager/titolare per gestire l\'anomalia e correggere l\'errore IVA prima di procedere', correct: true },
-        { text: 'Cancelli l\'acconto dal sistema senza dire nulla al cliente', correct: false }
+        { text: 'Cancelli l\'acconto dal sistema senza dire nulla al cliente', correct: false },
+        { text: 'Contatti il manager/titolare per gestire l\'anomalia e correggere l\'errore IVA prima di procedere', correct: true }
       ]
     }
   ],
@@ -195,8 +195,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Qual è il tempo minimo da dedicare alla consegna di lenti progressive?',
       options: [
-        { text: '5 minuti', correct: false },
         { text: '15-20 minuti', correct: true },
+        { text: '5 minuti', correct: false },
         { text: '30 minuti', correct: false }
       ]
     },
@@ -214,8 +214,8 @@ export const QUIZ_DATA = {
       text: 'Il cliente lamenta visione offuscata laterale con le nuove progressive. Risposta corretta?',
       options: [
         { text: 'Sostituirle immediatamente', correct: false },
-        { text: 'Spiegare che è normale nelle zone periferiche e serve abitudine', correct: true },
-        { text: 'Inviarlo da un altro ottico', correct: false }
+        { text: 'Inviarlo da un altro ottico', correct: false },
+        { text: 'Spiegare che è normale nelle zone periferiche e serve abitudine', correct: true }
       ]
     }
   ],
@@ -243,8 +243,8 @@ export const QUIZ_DATA = {
       text: 'Il cliente riferisce mal di testa dopo 5 giorni con le nuove progressive. Azione corretta?',
       options: [
         { text: 'Dirgli di abituarsi ancora', correct: false },
-        { text: 'Fissare controllo con optometrista per verifica centratura e parametri', correct: true },
-        { text: 'Offrire subito lenti diverse', correct: false }
+        { text: 'Offrire subito lenti diverse', correct: false },
+        { text: 'Fissare controllo con optometrista per verifica centratura e parametri', correct: true }
       ]
     }
   ],
@@ -272,8 +272,8 @@ export const QUIZ_DATA = {
       text: 'Un cliente arriva con 15 minuti di ritardo per il controllo della vista. La sala refrazione è libera, ma l\'optometrista ha un altro appuntamento tra 25 minuti. Inoltre, sulla scheda c\'è scritto "prima esperienza, mai portato occhiali". Come gestisci la situazione?',
       options: [
         { text: 'Fai entrare subito il cliente senza informare l\'optometrista del ritardo', correct: false },
-        { text: 'Avvisi l\'optometrista della situazione, valutate insieme se c\'è tempo sufficiente per un controllo accurato o se proporre riprogrammazione', correct: true },
-        { text: 'Mandi via il cliente e gli dici di riprogrammare', correct: false }
+        { text: 'Mandi via il cliente e gli dici di riprogrammare', correct: false },
+        { text: 'Avvisi l\'optometrista della situazione, valutate insieme se c\'è tempo sufficiente per un controllo accurato o se proporre riprogrammazione', correct: true }
       ]
     }
   ],
@@ -282,8 +282,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Qual è il primo passo quando si crea una nuova busta lavoro?',
       options: [
-        { text: 'Stampare l\'etichetta', correct: false },
         { text: 'Verificare i dati nel gestionale e creare la busta', correct: true },
+        { text: 'Stampare l\'etichetta', correct: false },
         { text: 'Chiamare il laboratorio', correct: false }
       ]
     },
@@ -301,8 +301,8 @@ export const QUIZ_DATA = {
       text: 'La busta lavoro di un ordine urgente viene confusa con una normale. Cosa fare?',
       options: [
         { text: 'Ignorare e procedere normalmente', correct: false },
-        { text: 'Identificarla immediatamente, marcarla come urgente e avvisare il laboratorio', correct: true },
-        { text: 'Aspettare che il cliente chiami', correct: false }
+        { text: 'Aspettare che il cliente chiami', correct: false },
+        { text: 'Identificarla immediatamente, marcarla come urgente e avvisare il laboratorio', correct: true }
       ]
     }
   ],
@@ -311,8 +311,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Dove va registrato il carico degli occhiali Luxottica Stars?',
       options: [
-        { text: 'Solo su carta', correct: false },
         { text: 'Nel gestionale con codici e quantità', correct: true },
+        { text: 'Solo su carta', correct: false },
         { text: 'Solo nel portale Luxottica', correct: false }
       ]
     },
@@ -330,8 +330,8 @@ export const QUIZ_DATA = {
       text: 'Un occhiale arriva danneggiato. Procedura corretta?',
       options: [
         { text: 'Rifiutarlo alla consegna', correct: false },
-        { text: 'Fotografare, annotare sul DDT, accettare con riserva e aprire contestazione', correct: true },
-        { text: 'Accettarlo e ripararlo internamente', correct: false }
+        { text: 'Accettarlo e ripararlo internamente', correct: false },
+        { text: 'Fotografare, annotare sul DDT, accettare con riserva e aprire contestazione', correct: true }
       ]
     }
   ],
@@ -359,8 +359,8 @@ export const QUIZ_DATA = {
       text: 'Stai consegnando degli occhiali Ray-Ban a un cliente. Cercando l\'astuccio corrispondente, ti accorgi che non ce ne sono più: sono finiti. Il cliente ha fretta e vuole portare via subito gli occhiali. Come ti comporti?',
       options: [
         { text: 'Gli dai un astuccio di un altro brand senza dire nulla', correct: false },
-        { text: 'Informi il cliente della situazione, proponi un astuccio generico temporaneo o la possibilità di tornare quando arriverà quello originale, e segnali la mancanza', correct: true },
-        { text: 'Gli dici che non può ritirare gli occhiali senza astuccio originale', correct: false }
+        { text: 'Gli dici che non può ritirare gli occhiali senza astuccio originale', correct: false },
+        { text: 'Informi il cliente della situazione, proponi un astuccio generico temporaneo o la possibilità di tornare quando arriverà quello originale, e segnali la mancanza', correct: true }
       ]
     }
   ],
@@ -388,8 +388,8 @@ export const QUIZ_DATA = {
       text: 'Un dipendente Luxottica presenta un buono valido e sceglie una montatura Ray-Ban Stories a €350. Verifichi che i Ray-Ban Stories sono esclusi dallo sconto. Il cliente insiste che "il buono copre tutto". Come ti comporti?',
       options: [
         { text: 'Applichi lo sconto comunque per non creare discussioni', correct: false },
-        { text: 'Spieghi gentilmente l\'esclusione e proponi montature alternative compatibili, oppure contatti la Sig.ra Cason per conferma', correct: true },
-        { text: 'Rifiuti la vendita senza offrire alternative', correct: false }
+        { text: 'Rifiuti la vendita senza offrire alternative', correct: false },
+        { text: 'Spieghi gentilmente l\'esclusione e proponi montature alternative compatibili, oppure contatti la Sig.ra Cason per conferma', correct: true }
       ]
     }
   ],
@@ -398,8 +398,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Qual è la durata standard della pausa pranzo?',
       options: [
-        { text: '30 minuti', correct: false },
         { text: '45-60 minuti', correct: true },
+        { text: '30 minuti', correct: false },
         { text: '2 ore', correct: false }
       ]
     },
@@ -407,8 +407,8 @@ export const QUIZ_DATA = {
       number: 2,
       text: 'Le pause vanno coordinate con i colleghi?',
       options: [
-        { text: 'Sì, sempre', correct: true },
         { text: 'No, ognuno decide liberamente', correct: false },
+        { text: 'Sì, sempre', correct: true },
         { text: 'Solo in alta stagione', correct: false }
       ]
     },
@@ -417,8 +417,8 @@ export const QUIZ_DATA = {
       text: 'Durante la pausa pranzo, un cliente chiama per un\'emergenza. Cosa fare?',
       options: [
         { text: 'Ignorare la chiamata', correct: false },
-        { text: 'Gestire l\'emergenza se si è l\'unico presente, altrimenti passare a collega disponibile', correct: true },
-        { text: 'Dire al cliente di richiamare dopo', correct: false }
+        { text: 'Dire al cliente di richiamare dopo', correct: false },
+        { text: 'Gestire l\'emergenza se si è l\'unico presente, altrimenti passare a collega disponibile', correct: true }
       ]
     }
   ],
@@ -427,8 +427,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Quando ci si trova di fronte a un caso non previsto dalle procedure, cosa fare PRIMA?',
       options: [
-        { text: 'Decidere autonomamente', correct: false },
         { text: 'Valutare se è urgente e raccogliere informazioni', correct: true },
+        { text: 'Decidere autonomamente', correct: false },
         { text: 'Rimandare il cliente', correct: false }
       ]
     },
@@ -456,8 +456,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Cosa significa assumersi responsabilità sul posto di lavoro?',
       options: [
-        { text: 'Fare solo ciò che viene ordinato', correct: false },
         { text: 'Prendere iniziativa, rispondere delle proprie azioni e aiutare il team', correct: true },
+        { text: 'Fare solo ciò che viene ordinato', correct: false },
         { text: 'Evitare decisioni difficili', correct: false }
       ]
     },
@@ -475,8 +475,8 @@ export const QUIZ_DATA = {
       text: 'Un collega è in difficoltà con un cliente. Tu hai già un cliente. Cosa fare?',
       options: [
         { text: 'Ignorare il collega', correct: false },
-        { text: 'Valutare se puoi dare supporto rapido o chiamare un altro collega', correct: true },
-        { text: 'Lasciare il tuo cliente per aiutare', correct: false }
+        { text: 'Lasciare il tuo cliente per aiutare', correct: false },
+        { text: 'Valutare se puoi dare supporto rapido o chiamare un altro collega', correct: true }
       ]
     }
   ],
@@ -485,8 +485,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'A cosa serve il filtro antiluce blu?',
       options: [
-        { text: 'Bloccare i raggi UV', correct: false },
         { text: 'Ridurre l\'affaticamento visivo da schermi digitali', correct: true },
+        { text: 'Bloccare i raggi UV', correct: false },
         { text: 'Migliorare la vista notturna', correct: false }
       ]
     },
@@ -504,8 +504,8 @@ export const QUIZ_DATA = {
       text: 'Un cliente lavora 8 ore al giorno davanti al PC e lamenta bruciore e occhi rossi. Non ha mai fatto un controllo della vista da voi e chiede direttamente di comprare "delle lenti per il computer". Come procedi?',
       options: [
         { text: 'Vendi subito le lenti con filtro BlueGuard senza ulteriori domande', correct: false },
-        { text: 'Proponi gentilmente un controllo optometrico per capire se è solo affaticamento o anche secchezza oculare, e nel frattempo spieghi il funzionamento del filtro', correct: true },
-        { text: 'Gli dici che non puoi aiutarlo senza prescrizione medica', correct: false }
+        { text: 'Gli dici che non puoi aiutarlo senza prescrizione medica', correct: false },
+        { text: 'Proponi gentilmente un controllo optometrico per capire se è solo affaticamento o anche secchezza oculare, e nel frattempo spieghi il funzionamento del filtro', correct: true }
       ]
     }
   ],
@@ -514,8 +514,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Le note vocali Telegram sono appropriate per comunicazioni formali con clienti?',
       options: [
-        { text: 'Sì, sempre', correct: false },
         { text: 'Solo per comunicazioni interne rapide', correct: true },
+        { text: 'Sì, sempre', correct: false },
         { text: 'Mai', correct: false }
       ]
     },
@@ -533,8 +533,8 @@ export const QUIZ_DATA = {
       text: 'Stai servendo un cliente quando ricevi una notifica di nota vocale sul canale OB. Il cliente sta scegliendo tra due montature e ti chiede un parere. Come gestisci la situazione?',
       options: [
         { text: 'Interrompi il cliente per ascoltare subito la nota vocale', correct: false },
-        { text: 'Continui ad assistere il cliente e ascolti la nota vocale appena hai un momento libero o durante la pausa', correct: true },
-        { text: 'Ignori completamente la nota vocale perché stai lavorando', correct: false }
+        { text: 'Ignori completamente la nota vocale perché stai lavorando', correct: false },
+        { text: 'Continui ad assistere il cliente e ascolti la nota vocale appena hai un momento libero o durante la pausa', correct: true }
       ]
     }
   ],
@@ -543,8 +543,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Con quale frequenza va fatta la pulizia degli occhiali in esposizione?',
       options: [
-        { text: 'Settimanale', correct: false },
         { text: 'Giornaliera', correct: true },
+        { text: 'Settimanale', correct: false },
         { text: 'Mensile', correct: false }
       ]
     },
@@ -562,8 +562,8 @@ export const QUIZ_DATA = {
       text: 'Durante la sanificazione UV noti che 3 occhiali da sole hanno graffi sulle lenti. Uno è un modello Gucci da €380 molto richiesto, di cui non hai altri esemplari. Un cliente sta entrando e sembra interessato proprio a quella categoria. Come ti comporti?',
       options: [
         { text: 'Rimetti tutti gli occhiali in esposizione, tanto sono graffi piccoli', correct: false },
-        { text: 'Rimuovi tutti e 3 dalla vendita, li segnali nel registro anomalie, e proponi al cliente altri modelli disponibili', correct: true },
-        { text: 'Vendi il Gucci graffiato con sconto senza informare il cliente del difetto', correct: false }
+        { text: 'Vendi il Gucci graffiato con sconto senza informare il cliente del difetto', correct: false },
+        { text: 'Rimuovi tutti e 3 dalla vendita, li segnali nel registro anomalie, e proponi al cliente altri modelli disponibili', correct: true }
       ]
     }
   ],
@@ -572,8 +572,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Quando va pulita la sala refrazione?',
       options: [
-        { text: 'Fine settimana', correct: false },
         { text: 'Ogni giorno prima e dopo gli appuntamenti', correct: true },
+        { text: 'Fine settimana', correct: false },
         { text: 'Solo quando è visibilmente sporca', correct: false }
       ]
     },
@@ -591,8 +591,8 @@ export const QUIZ_DATA = {
       text: 'Un paziente starnutisce durante la visita. Cosa fare dopo?',
       options: [
         { text: 'Continuare normalmente', correct: false },
-        { text: 'Igienizzare immediatamente tutte le superfici e strumenti usati', correct: true },
-        { text: 'Igienizzare solo a fine giornata', correct: false }
+        { text: 'Igienizzare solo a fine giornata', correct: false },
+        { text: 'Igienizzare immediatamente tutte le superfici e strumenti usati', correct: true }
       ]
     }
   ],
@@ -601,8 +601,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Qual è lo scopo principale del sistema di procedure di Ottica Bianchi?',
       options: [
-        { text: 'Controllare i dipendenti', correct: false },
         { text: 'Garantire qualità, coerenza e efficienza nel servizio', correct: true },
+        { text: 'Controllare i dipendenti', correct: false },
         { text: 'Aumentare il carico di lavoro', correct: false }
       ]
     },
@@ -620,8 +620,8 @@ export const QUIZ_DATA = {
       text: 'Durante una giornata intensa, un tuo collega serve un cliente in modo frettoloso: non lo saluta, non si presenta e liquida rapidamente la richiesta dicendo "non abbiamo tempo oggi". Il cliente se ne va visibilmente deluso. Tu sei impegnato con un altro cliente. Cosa fai dopo?',
       options: [
         { text: 'Non dici nulla, ognuno lavora come preferisce', correct: false },
-        { text: 'Parli con il collega in modo costruttivo, ricordando i valori OB, oppure segnali la situazione al responsabile', correct: true },
-        { text: 'Critichi il collega davanti agli altri clienti', correct: false }
+        { text: 'Critichi il collega davanti agli altri clienti', correct: false },
+        { text: 'Parli con il collega in modo costruttivo, ricordando i valori OB, oppure segnali la situazione al responsabile', correct: true }
       ]
     }
   ],
@@ -630,8 +630,8 @@ export const QUIZ_DATA = {
       number: 1,
       text: 'Cosa bisogna verificare PRIMA di contattare un cliente con posizione aperta?',
       options: [
-        { text: 'Solo il nome del cliente', correct: false },
         { text: 'Che la fattura sia corretta, scaduta, senza pagamenti in corso, note di credito o accordi esistenti', correct: true },
+        { text: 'Solo il nome del cliente', correct: false },
         { text: 'Solo l\'importo dovuto', correct: false }
       ]
     },
@@ -649,8 +649,8 @@ export const QUIZ_DATA = {
       text: 'Un cliente ha una fattura scaduta da 3 mesi per €450. Hai verificato nel gestionale: nessun pagamento registrato, nessun bonifico in corso, nessuna nota di credito. Però trovi una nota che dice "accordo rateizzazione verbale con Valentina". Cosa fai?',
       options: [
         { text: 'Procedi a contattare il cliente perché la fattura è scaduta e l\'importo è rilevante', correct: false },
-        { text: 'Non contatti il cliente e verifichi prima con Valentina i dettagli dell\'accordo', correct: true },
-        { text: 'Contatti il cliente per ricordargli l\'accordo di rateizzazione', correct: false }
+        { text: 'Contatti il cliente per ricordargli l\'accordo di rateizzazione', correct: false },
+        { text: 'Non contatti il cliente e verifichi prima con Valentina i dettagli dell\'accordo', correct: true }
       ]
     }
   ]

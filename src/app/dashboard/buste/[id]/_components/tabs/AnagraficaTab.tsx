@@ -59,6 +59,37 @@ const capitalizeNameProperly = (name: string): string => {
     .join(' ');
 };
 
+const formatDateInput = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const normalizeDateInputValue = (value: string | null | undefined): string => {
+  if (!value) return '';
+  return value.split('T')[0] || '';
+};
+
+const parseDateInputValue = (value: string): Date | null => {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
+const addDaysToInputValue = (value: string, days: number): string => {
+  const date = parseDateInputValue(value);
+  if (!date) return '';
+  date.setDate(date.getDate() + days);
+  return formatDateInput(date);
+};
+
+const formatDateDisplay = (value: string | null | undefined): string => {
+  if (!value) return '—';
+  const date = parseDateInputValue(normalizeDateInputValue(value));
+  return date ? date.toLocaleDateString('it-IT') : '—';
+};
+
 // Tipi props
 interface AnagraficaTabProps {
   busta: BustaDettagliata;
@@ -84,6 +115,8 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
     priorita: busta.priorita,
     note_generali: busta.note_generali || '',
     is_suspended: busta.is_suspended,
+    data_sospensione: normalizeDateInputValue(busta.data_sospensione),
+    data_riesame_sospensione: normalizeDateInputValue(busta.data_riesame_sospensione),
     // ✅ Dati cliente - INCLUSO NUOVO CAMPO GENERE
     cliente_nome: busta.clienti?.nome || '',
     cliente_cognome: busta.clienti?.cognome || '',
@@ -140,6 +173,8 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
       priorita: serverData?.busta?.priorita ?? editForm.priorita,
       note_generali: serverData?.busta?.note_generali ?? (editForm.note_generali.trim() || null),
       is_suspended: serverData?.busta?.is_suspended ?? editForm.is_suspended,
+      data_sospensione: serverData?.busta?.data_sospensione ?? (editForm.data_sospensione || null),
+      data_riesame_sospensione: serverData?.busta?.data_riesame_sospensione ?? (editForm.data_riesame_sospensione || null),
       updated_at: serverData?.busta?.updated_at ?? new Date().toISOString(),
       clienti: busta.clienti
         ? {
@@ -176,12 +211,21 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
     try {
       validateFormData();
       const tipoLavorazioneValue = validateWorkType();
+      const todayInput = formatDateInput(new Date());
+      const sospensioneDate = editForm.is_suspended
+        ? (editForm.data_sospensione || todayInput)
+        : null;
+      const riesameDate = editForm.is_suspended && sospensioneDate
+        ? (editForm.data_riesame_sospensione || addDaysToInputValue(sospensioneDate, 3))
+        : null;
 
       const payload = {
         tipo_lavorazione: tipoLavorazioneValue,
         priorita: editForm.priorita,
         note_generali: editForm.note_generali.trim() || null,
         is_suspended: editForm.is_suspended,
+        data_sospensione: sospensioneDate,
+        data_riesame_sospensione: riesameDate,
         cliente: {
           id: busta.clienti?.id,
           nome: editForm.cliente_nome.trim(),
@@ -224,6 +268,8 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
       priorita: busta.priorita,
       note_generali: busta.note_generali || '',
       is_suspended: busta.is_suspended,
+      data_sospensione: normalizeDateInputValue(busta.data_sospensione),
+      data_riesame_sospensione: normalizeDateInputValue(busta.data_riesame_sospensione),
       cliente_nome: busta.clienti?.nome || '',
       cliente_cognome: busta.clienti?.cognome || '',
       cliente_genere: busta.clienti?.genere || null,  // ✅ NUOVO CAMPO
@@ -545,7 +591,26 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                 <input
                   type="checkbox"
                   checked={editForm.is_suspended}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, is_suspended: e.target.checked }))}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setEditForm(prev => {
+                      if (!checked) {
+                        return {
+                          ...prev,
+                          is_suspended: false,
+                          data_sospensione: '',
+                          data_riesame_sospensione: ''
+                        };
+                      }
+                      const sospensioneDate = prev.data_sospensione || formatDateInput(new Date());
+                      return {
+                        ...prev,
+                        is_suspended: true,
+                        data_sospensione: sospensioneDate,
+                        data_riesame_sospensione: prev.data_riesame_sospensione || addDaysToInputValue(sospensioneDate, 3)
+                      };
+                    });
+                  }}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm font-medium text-gray-700 flex items-center">
@@ -553,6 +618,42 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                   Busta sospesa
                 </span>
               </label>
+            </div>
+          )}
+
+          {canEdit && isEditing && editForm.is_suspended && (
+            <div className="md:col-span-2">
+              <label htmlFor="data-sospensione" className="block text-sm font-medium text-gray-500">Data sospensione</label>
+              <div className="flex flex-col gap-1">
+                <input
+                  id="data-sospensione"
+                  type="date"
+                  value={editForm.data_sospensione}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setEditForm(prev => ({
+                      ...prev,
+                      data_sospensione: value,
+                      data_riesame_sospensione: value ? addDaysToInputValue(value, 3) : ''
+                    }));
+                  }}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+                {editForm.data_riesame_sospensione && (
+                  <p className="text-xs text-gray-500">
+                    Riesame sospensione: {formatDateDisplay(editForm.data_riesame_sospensione)} (3 giorni)
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!isEditing && busta.is_suspended && (
+            <div>
+              <label className="block text-sm font-medium text-gray-500">Sospensione</label>
+              <p className="text-gray-900 text-sm">
+                Dal {formatDateDisplay(busta.data_sospensione)} · Riesame {formatDateDisplay(busta.data_riesame_sospensione)}
+              </p>
             </div>
           )}
           

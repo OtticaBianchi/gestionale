@@ -290,6 +290,8 @@ export type Database = {
           data_completamento_consegna: string | null
           data_consegna_prevista: string | null
           data_selezione_consegna: string | null
+          data_sospensione: string | null
+          data_riesame_sospensione: string | null
           id: string
           is_suspended: boolean
           metodo_consegna:
@@ -321,6 +323,8 @@ export type Database = {
           data_completamento_consegna?: string | null
           data_consegna_prevista?: string | null
           data_selezione_consegna?: string | null
+          data_sospensione?: string | null
+          data_riesame_sospensione?: string | null
           id?: string
           is_suspended?: boolean
           metodo_consegna?:
@@ -352,6 +356,8 @@ export type Database = {
           data_completamento_consegna?: string | null
           data_consegna_prevista?: string | null
           data_selezione_consegna?: string | null
+          data_sospensione?: string | null
+          data_riesame_sospensione?: string | null
           id?: string
           is_suspended?: boolean
           metodo_consegna?:

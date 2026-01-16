@@ -176,6 +176,44 @@ export async function POST(request: NextRequest) {
         .maybeSingle()
 
       clienteRecord = existing
+
+      if (existing) {
+        const updates: Record<string, any> = {}
+        const normalizedEmail = clienteInput.email?.trim() || null
+
+        if (normalizedPhone && (!existing.telefono || existing.telefono.trim() === '')) {
+          updates.telefono = normalizedPhone
+        }
+        if (normalizedEmail && (!existing.email || existing.email.trim() === '')) {
+          updates.email = normalizedEmail
+        }
+        if (clienteInput.genere && !existing.genere) {
+          updates.genere = clienteInput.genere
+        }
+        if (clienteInput.note_cliente?.trim() && (!existing.note_cliente || existing.note_cliente.trim() === '')) {
+          updates.note_cliente = clienteInput.note_cliente.trim()
+        }
+
+        if (Object.keys(updates).length > 0) {
+          const { data: updatedClient, error: updateError } = await admin
+            .from('clienti')
+            .update({
+              ...updates,
+              updated_by: user.id,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', clienteId)
+            .select('*')
+            .single()
+
+          if (updateError || !updatedClient) {
+            console.error('Errore aggiornamento cliente esistente:', updateError)
+            return NextResponse.json({ error: 'Errore aggiornamento cliente' }, { status: 500 })
+          }
+
+          clienteRecord = updatedClient
+        }
+      }
     }
 
     // ✅ CALCOLA IL PREFISSO ANNO PER IL NUMERO BUSTA
