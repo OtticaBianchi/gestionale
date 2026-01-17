@@ -165,6 +165,7 @@ export async function GET(request: NextRequest) {
       const status = computeReadStatus(
         {
           id: proc.id,
+          last_reviewed_at: (proc as any).last_reviewed_at ?? null,
           updated_at: proc.updated_at,
           created_at: proc.created_at,
           version: (proc as any).version ?? null

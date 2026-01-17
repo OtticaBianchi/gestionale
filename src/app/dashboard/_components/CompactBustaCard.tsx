@@ -1,6 +1,6 @@
 // app/dashboard/_components/CompactBustaCard.tsx
 
-import { Clock } from 'lucide-react';
+import { Clock, Bell } from 'lucide-react';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
 
 interface CompactBustaCardProps {
@@ -98,6 +98,17 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
     (ordine) => ordine.stato === 'in_ritardo'
   );
 
+  const openActionCount = (busta.ordini_materiali || []).filter(
+    ordine => ordine.needs_action && !ordine.needs_action_done
+  ).length;
+  const hasOpenActions = openActionCount > 0;
+  const showReminder = hasOpenActions || busta.is_suspended;
+  const reminderTooltip = hasOpenActions && busta.is_suspended
+    ? 'Busta sospesa + azioni richieste aperte'
+    : busta.is_suspended
+      ? 'Busta sospesa: follow-up richiesto'
+      : 'Azione richiesta: promemoria aperto';
+
   const materialsStats = getMaterialsStats(busta.ordini_materiali || []);
   const hasPaymentPlan = busta.payment_plan && busta.payment_plan.payment_installments && busta.payment_plan.payment_installments.length > 0;
 
@@ -160,6 +171,15 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
         </div>
 
         <div className="flex items-center gap-1.5">
+          {showReminder && (
+            <span
+              className="text-[10px] font-semibold text-red-700 bg-red-50 px-1.5 py-0.5 rounded border border-red-200 flex items-center gap-1"
+              title={reminderTooltip}
+            >
+              <Bell className="h-3 w-3" />
+              {hasOpenActions && <span>!{openActionCount}</span>}
+            </span>
+          )}
           {busta.is_suspended && (
             <span className="text-[10px] font-bold text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded">
               SOSP

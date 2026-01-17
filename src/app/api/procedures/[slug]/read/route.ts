@@ -26,7 +26,7 @@ export async function POST(
 
     const { data: procedure, error: procedureError } = await adminClient
       .from('procedures')
-      .select('id, updated_at, created_at, version, is_active')
+      .select('id, updated_at, created_at, last_reviewed_at, version, is_active')
       .eq('slug', slug)
       .single()
 
@@ -61,7 +61,8 @@ export async function POST(
     }
 
     const nowIso = new Date().toISOString()
-    const acknowledgedUpdatedAt = procedure.updated_at || procedure.created_at || nowIso
+    const acknowledgedUpdatedAt =
+      procedure.last_reviewed_at || procedure.updated_at || procedure.created_at || nowIso
 
     const { data: receipt, error: upsertError } = await adminClient
       .from('procedure_read_receipts')

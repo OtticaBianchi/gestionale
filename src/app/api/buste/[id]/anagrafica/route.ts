@@ -23,6 +23,10 @@ interface BustaPayload {
   is_suspended?: boolean
   data_sospensione?: string | null
   data_riesame_sospensione?: string | null
+  archived_mode?: string | null
+  sospesa_followup_done_at?: string | null
+  sospesa_followup_reason?: string | null
+  sospesa_followup_note?: string | null
   cliente?: ClientePayload
 }
 
@@ -73,7 +77,7 @@ export async function PATCH(
 
     const { data: existingBusta, error: bustaFetchError } = await admin
       .from('buste')
-      .select('id, cliente_id, tipo_lavorazione, priorita, note_generali, is_suspended, data_sospensione, data_riesame_sospensione')
+      .select('id, cliente_id, tipo_lavorazione, priorita, note_generali, is_suspended, data_sospensione, data_riesame_sospensione, archived_mode, sospesa_followup_done_at, sospesa_followup_reason, sospesa_followup_note')
       .eq('id', id)
       .single()
 
@@ -103,6 +107,18 @@ export async function PATCH(
     if (body.data_riesame_sospensione !== undefined) {
       fieldsToUpdate.data_riesame_sospensione = body.data_riesame_sospensione || null
     }
+    if (body.archived_mode !== undefined) {
+      fieldsToUpdate.archived_mode = body.archived_mode || null
+    }
+    if (body.sospesa_followup_done_at !== undefined) {
+      fieldsToUpdate.sospesa_followup_done_at = body.sospesa_followup_done_at || null
+    }
+    if (body.sospesa_followup_reason !== undefined) {
+      fieldsToUpdate.sospesa_followup_reason = body.sospesa_followup_reason || null
+    }
+    if (body.sospesa_followup_note !== undefined) {
+      fieldsToUpdate.sospesa_followup_note = body.sospesa_followup_note || null
+    }
     if (body.is_suspended === false) {
       fieldsToUpdate.data_sospensione = null
       fieldsToUpdate.data_riesame_sospensione = null
@@ -121,7 +137,7 @@ export async function PATCH(
           updated_at: new Date().toISOString()
         })
         .eq('id', id)
-        .select('id, cliente_id, tipo_lavorazione, priorita, note_generali, is_suspended, data_sospensione, data_riesame_sospensione, updated_at')
+        .select('id, cliente_id, tipo_lavorazione, priorita, note_generali, is_suspended, data_sospensione, data_riesame_sospensione, archived_mode, sospesa_followup_done_at, sospesa_followup_reason, sospesa_followup_note, updated_at')
         .single()
 
       if (updateBustaError || !data) {

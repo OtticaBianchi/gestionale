@@ -13,7 +13,6 @@ import {
   Truck,
   Factory,
   Eye,
-  Trash2,
   X,
   Package,
   Calendar,
@@ -26,10 +25,12 @@ import {
   Euro,
   Save,
   Edit3,
-  FileText
+  FileText,
+  MoreVertical
 } from 'lucide-react';
 import type { WorkflowState } from '@/app/dashboard/_components/WorkflowLogic';
 import { areAllOrdersCancelled } from '@/lib/buste/archiveRules';
+import { useUser } from '@/context/UserContext';
 
 // ===== TYPES LOCALI =====
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
@@ -54,6 +55,11 @@ type OrdineMateriale = Database['public']['Tables']['ordini_materiali']['Row'] &
   da_ordinare?: boolean | null;
   stato_disponibilita?: 'disponibile' | 'riassortimento' | 'esaurito';
   promemoria_disponibilita?: string | null;
+  needs_action?: boolean | null;
+  needs_action_type?: string | null;
+  needs_action_done?: boolean | null;
+  needs_action_due_date?: string | null;
+  cancel_reason?: string | null;
   updated_by?: string | null;
   updated_at?: string | null;
   fornitori_lenti?: { nome: string } | null;
@@ -107,6 +113,54 @@ const DISPONIBILITA_BADGE: Record<typeof DISPONIBILITA_STATES[number], { label: 
   }
 };
 
+type NeedsActionType = 'CALL_CLIENT' | 'CONTACT_SUPPLIER' | 'MID_PROCESS' | 'OTHER';
+type ActionRequiredValue = 'none' | NeedsActionType;
+type EventType =
+  | 'ritardo_slittamento'
+  | 'riassortimento'
+  | 'esaurito'
+  | 'variazione_prodotto'
+  | 'serve_cliente'
+  | 'prodotto_errato'
+  | 'altro';
+
+const ACTION_REQUIRED_OPTIONS: Array<{ value: ActionRequiredValue; label: string }> = [
+  { value: 'none', label: 'Nessuna' },
+  { value: 'CALL_CLIENT', label: 'Contattare cliente' },
+  { value: 'CONTACT_SUPPLIER', label: 'Sollecitare fornitore' },
+  { value: 'MID_PROCESS', label: 'Cliente necessario a metà lavorazione' },
+  { value: 'OTHER', label: 'Altro' }
+];
+
+const ACTION_CHIP_LABELS: Record<NeedsActionType, string> = {
+  CALL_CLIENT: '📞 Cliente da contattare',
+  CONTACT_SUPPLIER: '🏭 Sollecito fornitore',
+  MID_PROCESS: '👤 Cliente necessario (metà lavorazione)',
+  OTHER: '⚠️ Azione richiesta'
+};
+
+const ACTION_COMPLETION_LABELS: Record<NeedsActionType, string> = {
+  CALL_CLIENT: 'Cliente contattato',
+  CONTACT_SUPPLIER: 'Sollecito fornitore',
+  MID_PROCESS: 'Cliente a metà lavorazione',
+  OTHER: 'Azione generica'
+};
+
+const EVENT_TYPES: Array<{ value: EventType; label: string }> = [
+  { value: 'ritardo_slittamento', label: 'Ritardo / slittamento consegna' },
+  { value: 'riassortimento', label: 'In riassortimento' },
+  { value: 'esaurito', label: 'Esaurito' },
+  { value: 'variazione_prodotto', label: 'Variazione prodotto / tempi' },
+  { value: 'serve_cliente', label: 'Serve cliente a metà lavorazione' },
+  { value: 'prodotto_errato', label: 'Prodotto non corrisponde / ordine errato' },
+  { value: 'altro', label: 'Altro' }
+];
+
+const EVENT_LABELS: Record<EventType, string> = EVENT_TYPES.reduce((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {} as Record<EventType, string>);
+
 const formatDateForInput = (value: string | null | undefined) => {
   if (!value) return '';
   try {
@@ -131,6 +185,39 @@ const parseDateSafe = (value: string | null | undefined): Date | null => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const formatTimestamp = (value: Date = new Date()) => {
+  const pad = (input: number) => String(input).padStart(2, '0');
+  const year = value.getFullYear();
+  const month = pad(value.getMonth() + 1);
+  const day = pad(value.getDate());
+  const hours = pad(value.getHours());
+  const minutes = pad(value.getMinutes());
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+};
+
+const formatDateInputValue = (value: Date) => {
+  const pad = (input: number) => String(input).padStart(2, '0');
+  const year = value.getFullYear();
+  const month = pad(value.getMonth() + 1);
+  const day = pad(value.getDate());
+  return `${year}-${month}-${day}`;
+};
+
+const getTomorrowDateInput = () => {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return formatDateInputValue(tomorrow);
+};
+
+const normalizeNoteMessage = (value: string) =>
+  value.replace(/\s+/g, ' ').trim();
+
+const buildNoteLine = (message: string, author: string) =>
+  `${formatTimestamp()} - ${author}: ${message}`;
+
+const appendNoteLine = (existing: string | null | undefined, line: string) =>
+  existing ? `${existing}\n${line}` : line;
+
 const resolveWorkflowState = (state: string): WorkflowState =>
   (WORKFLOW_STATES.includes(state as WorkflowState) ? (state as WorkflowState) : 'nuove');
 
@@ -144,6 +231,13 @@ interface MaterialiTabProps {
 export default function MaterialiTab({ busta, isReadOnly = false, canDelete = false }: MaterialiTabProps) {
   const getDefaultOrderDate = () =>
     formatDateForInput(busta.data_apertura) || new Date().toISOString().split('T')[0];
+
+  const { user, profile } = useUser();
+  const currentUserLabel = useMemo(() => {
+    if (profile?.full_name) return profile.full_name;
+    if (user?.email) return user.email.split('@')[0] || 'Utente';
+    return 'Utente';
+  }, [profile?.full_name, user?.email]);
 
   // ===== STATE =====
   const [ordiniMateriali, setOrdiniMateriali] = useState<OrdineMateriale[]>([]);
@@ -178,6 +272,30 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteValue, setEditingNoteValue] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [actionsMenuId, setActionsMenuId] = useState<string | null>(null);
+  const [actionMenuId, setActionMenuId] = useState<string | null>(null);
+  const [eventOrderId, setEventOrderId] = useState<string | null>(null);
+  const [eventForm, setEventForm] = useState({
+    type: '' as EventType | '',
+    description: '',
+    actionRequired: 'none' as ActionRequiredValue,
+    dueDate: '',
+    actionDoneNow: false
+  });
+  const [eventErrors, setEventErrors] = useState<{ type?: string; description?: string }>({});
+  const [availabilityPrompt, setAvailabilityPrompt] = useState<{ ordineId: string; stato: 'riassortimento' | 'esaurito' } | null>(null);
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelNote, setCancelNote] = useState('');
+  const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+  const [showSospesaFollowupModal, setShowSospesaFollowupModal] = useState(false);
+  const [sospesaFollowupReason, setSospesaFollowupReason] = useState('');
+  const [sospesaFollowupNote, setSospesaFollowupNote] = useState('');
+  const [isSavingSospesaFollowup, setIsSavingSospesaFollowup] = useState(false);
+  const [sospesaFollowupDoneAt, setSospesaFollowupDoneAt] = useState<string | null>(
+    busta.sospesa_followup_done_at ?? null
+  );
+  const [noteGenerali, setNoteGenerali] = useState<string | null>(busta.note_generali ?? null);
 
   const disponibilitaStats = useMemo<{
     counts: Record<typeof DISPONIBILITA_STATES[number], number>;
@@ -329,6 +447,17 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
     if (areAllOrdersCancelled(ordini)) {
       console.log(`📁 Archiviazione automatica (${context}): tutti gli ordini sono stati annullati`);
+      if (busta.archived_mode !== 'ANNULLATA') {
+        try {
+          await appendBustaNote(
+            'Tutti gli ordini annullati → busta archiviata automaticamente (ANNULLATA).',
+            'Sistema',
+            { archived_mode: 'ANNULLATA' }
+          );
+        } catch (error: any) {
+          console.error('❌ Errore archiviazione automatica busta:', error);
+        }
+      }
       setWorkflowStatus('materiali_ordinati');
       await mutate('/api/buste');
       return;
@@ -373,6 +502,51 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     }
   };
 
+  const notifyNotesUpdated = () => {
+    window.dispatchEvent(new CustomEvent('busta:notes:update', { detail: { bustaId: busta.id } }));
+  };
+
+  const patchOrdine = async (ordineId: string, updates: Record<string, any>) => {
+    const response = await fetch(`/api/ordini/${ordineId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload?.success) {
+      throw new Error(payload?.error || 'Errore aggiornamento ordine');
+    }
+
+    return payload?.ordine || updates;
+  };
+
+  const patchBusta = async (updates: Record<string, any>) => {
+    const response = await fetch(`/api/buste/${busta.id}/anagrafica`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload?.success) {
+      throw new Error(payload?.error || 'Errore aggiornamento busta');
+    }
+
+    return payload?.busta || updates;
+  };
+
+  const appendBustaNote = async (message: string, author: string, extraUpdates: Record<string, any> = {}) => {
+    const noteLine = buildNoteLine(message, author);
+    const nextNotes = appendNoteLine(noteGenerali, noteLine);
+    await patchBusta({
+      note_generali: nextNotes,
+      ...extraUpdates
+    });
+    setNoteGenerali(nextNotes);
+    notifyNotesUpdated();
+  };
+
   // ===== HELPER FUNCTIONS =====
 
   // Check se ordine è "da negozio" (già in stock)
@@ -395,6 +569,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     loadMaterialiData();
     loadAccontoInfo(); // ✅ CARICA INFO ACCONTO
   }, [busta.id]);
+
+  useEffect(() => {
+    setSospesaFollowupDoneAt(busta.sospesa_followup_done_at ?? null);
+    setNoteGenerali(busta.note_generali ?? null);
+  }, [busta.id, busta.sospesa_followup_done_at, busta.note_generali]);
 
   // ✅ NUOVO EFFECT: Auto-aggiornamento ordini "in arrivo"
   useEffect(() => {
@@ -456,6 +635,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         da_ordinare: ordine.da_ordinare ?? true,
         stato_disponibilita: ordine.stato_disponibilita || 'disponibile',
         promemoria_disponibilita: ordine.promemoria_disponibilita || null,
+        needs_action: ordine.needs_action ?? false,
+        needs_action_done: ordine.needs_action_done ?? false,
+        needs_action_type: ordine.needs_action_type || null,
+        needs_action_due_date: ordine.needs_action_due_date || null,
         tipi_lenti: ordine.tipi_lenti && typeof ordine.tipi_lenti === 'object' && 'nome' in ordine.tipi_lenti
           ? {
               ...ordine.tipi_lenti,
@@ -731,12 +914,15 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         const dataInArrivoCorretta = calcolaDataInArrivo(ordine.data_ordine!);
         const dataInArrivoFormattata = dataInArrivoCorretta.toLocaleDateString('it-IT');
 
+        const line = buildNoteLine(`Auto-aggiornato: In arrivo da ${dataInArrivoFormattata}.`, 'Sistema');
+        const updatedNote = appendNoteLine(ordine.note, line);
+
         const resp = await fetch(`/api/ordini/${ordine.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             stato: 'in_arrivo',
-            note: ordine.note ? `${ordine.note}\n[Auto-aggiornato: In arrivo da ${dataInArrivoFormattata}]` : `[Auto-aggiornato: In arrivo da ${dataInArrivoFormattata}]`
+            note: updatedNote
           })
         });
 
@@ -760,9 +946,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
             const dataInArrivoCorretta = calcolaDataInArrivo(ordine.data_ordine!);
             const dataInArrivoFormattata = dataInArrivoCorretta.toLocaleDateString('it-IT');
 
-            const noteAggiornate = ordine.note
-              ? `${ordine.note}\n[Auto-aggiornato: In arrivo da ${dataInArrivoFormattata}]`
-              : `[Auto-aggiornato: In arrivo da ${dataInArrivoFormattata}]`;
+            const line = buildNoteLine(`Auto-aggiornato: In arrivo da ${dataInArrivoFormattata}.`, 'Sistema');
+            const noteAggiornate = appendNoteLine(ordine.note, line);
 
             return {
               ...ordine,
@@ -775,6 +960,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
         // Invalida cache
         await mutate('/api/buste');
+        notifyNotesUpdated();
 
         console.log(`✅ Aggiornati ${successi.length} ordini a "in_arrivo"`);
       }
@@ -812,14 +998,18 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
         const dataRitardoFormattata = oggi.toLocaleDateString('it-IT');
 
+        const line = buildNoteLine(
+          `Auto-aggiornato: In ritardo da ${dataRitardoFormattata} - ${giorniRitardo} giorni.`,
+          'Sistema'
+        );
+        const updatedNote = appendNoteLine(ordine.note, line);
+
         const resp = await fetch(`/api/ordini/${ordine.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             stato: 'in_ritardo',
-            note: ordine.note
-              ? `${ordine.note}\n[Auto-aggiornato: In ritardo da ${dataRitardoFormattata} - ${giorniRitardo} giorni]`
-              : `[Auto-aggiornato: In ritardo da ${dataRitardoFormattata} - ${giorniRitardo} giorni]`
+            note: updatedNote
           })
         });
 
@@ -850,9 +1040,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
             const dataRitardoFormattata = oggi.toLocaleDateString('it-IT');
 
-            const noteAggiornate = ordine.note
-              ? `${ordine.note}\n[Auto-aggiornato: In ritardo da ${dataRitardoFormattata} - ${giorniRitardo} giorni]`
-              : `[Auto-aggiornato: In ritardo da ${dataRitardoFormattata} - ${giorniRitardo} giorni]`;
+            const line = buildNoteLine(
+              `Auto-aggiornato: In ritardo da ${dataRitardoFormattata} - ${giorniRitardo} giorni.`,
+              'Sistema'
+            );
+            const noteAggiornate = appendNoteLine(ordine.note, line);
 
             return {
               ...ordine,
@@ -865,6 +1057,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
         // Invalida cache
         await mutate('/api/buste');
+        notifyNotesUpdated();
 
         console.log(`✅ Aggiornati ${successi.length} ordini a "in_ritardo"`);
       }
@@ -1030,6 +1223,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     const isNegozio = tipoSelezionato?.nome?.toLowerCase() === 'negozio';
 
     // Se è "negozio", salta tutte le date e imposta come già consegnato
+    const rawNote = normalizeNoteMessage(nuovoOrdineForm.note);
+    const formattedNote = rawNote ? buildNoteLine(rawNote, currentUserLabel) : null;
+
     if (isNegozio) {
       return {
         busta_id: busta.id,
@@ -1041,7 +1237,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         giorni_consegna_medi: null,
         stato: 'consegnato' as const, // Già disponibile!
         da_ordinare: false, // Non va ordinato
-        note: nuovoOrdineForm.note.trim() || null,
+        note: formattedNote,
         ...fornitoreTableField
       };
     }
@@ -1072,7 +1268,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         : getTempiConsegnaByCategoria(nuovoOrdineForm.categoria_prodotto, nuovoOrdineForm.tipo_lenti),
       stato: statoIniziale,
       da_ordinare: daOrdinare,
-      note: nuovoOrdineForm.note.trim() || null,
+      note: formattedNote,
       ...fornitoreTableField
     };
   };
@@ -1102,6 +1298,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       ...ordineCreato,
       stato: ordineCreato.stato || 'ordinato',
       da_ordinare: ordineCreato.da_ordinare ?? true,
+      needs_action: ordineCreato.needs_action ?? false,
+      needs_action_done: ordineCreato.needs_action_done ?? false,
+      needs_action_type: ordineCreato.needs_action_type || null,
+      needs_action_due_date: ordineCreato.needs_action_due_date || null,
       tipi_lenti: ordineCreato.tipi_lenti && typeof ordineCreato.tipi_lenti === 'object' && 'nome' in ordineCreato.tipi_lenti
         ? {
             ...ordineCreato.tipi_lenti,
@@ -1197,6 +1397,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
       // Invalidate cache
       await mutate('/api/buste');
+      if (ordineConTipiCorretti.note) {
+        notifyNotesUpdated();
+      }
 
       await syncBustaWorkflowWithOrdini(ordiniAggiornati, 'creazione ordine');
 
@@ -1315,12 +1518,20 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   };
 
   const handleAggiornaStatoOrdine = async (ordineId: string, nuovoStato: string) => {
+    if (!canEdit) return;
     try {
       console.log('🔄 Aggiornamento stato ordine:', ordineId, nuovoStato);
       const ordineCorrente = ordiniMateriali.find((ordine) => ordine.id === ordineId);
 
       if (!ordineCorrente) {
         alert('Ordine non trovato. Aggiornare la pagina e riprovare.');
+        return;
+      }
+
+      if (nuovoStato === 'annullato') {
+        setCancelOrderId(ordineId);
+        setCancelReason('');
+        setCancelNote('');
         return;
       }
 
@@ -1345,12 +1556,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         updated_at: new Date().toISOString()
       };
 
-      if (nuovoStato === 'annullato') {
-        updateData.da_ordinare = false;
-        updateData.data_ordine = null;
-        updateData.data_consegna_prevista = null;
-        updateData.data_consegna_effettiva = null;
-      } else if (nuovoStato === 'consegnato') {
+      if (nuovoStato === 'consegnato') {
         updateData.data_consegna_effettiva = ordineCorrente.data_consegna_effettiva
           || new Date().toISOString().split('T')[0];
       } else if (nuovoStato === 'sbagliato') {
@@ -1393,10 +1599,15 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     ordineId: string,
     nuovoStato: 'disponibile' | 'riassortimento' | 'esaurito'
   ) => {
+    if (!canEdit) return;
     try {
       const corrente = ordiniMateriali.find(o => o.id === ordineId);
       if (!corrente) {
         alert('Ordine non trovato. Aggiornare la pagina e riprovare.');
+        return;
+      }
+      const statoCorrente = (corrente.stato_disponibilita || 'disponibile') as typeof DISPONIBILITA_STATES[number];
+      if (statoCorrente === nuovoStato) {
         return;
       }
 
@@ -1410,33 +1621,56 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         promemoria = reminder.toISOString();
       }
 
-      const response = await fetch(`/api/ordini/${ordineId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stato_disponibilita: nuovoStato,
-          promemoria_disponibilita: promemoria
-        })
-      });
+      const hasOpenAction = Boolean(corrente.needs_action && !corrente.needs_action_done);
+      const actionRequired = nuovoStato !== 'disponibile';
+      const dueDate = actionRequired ? getTomorrowDateInput() : null;
 
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload?.error || 'Impossibile aggiornare la disponibilità');
+      let noteMessage = '';
+      if (nuovoStato === 'riassortimento') {
+        noteMessage = 'Fornitore comunica RIASSORTIMENTO. Cliente da avvisare.';
+      } else if (nuovoStato === 'esaurito') {
+        noteMessage = 'Fornitore comunica ESAURITO. Cliente da avvisare.';
+      } else {
+        noteMessage = 'Disponibilità ripristinata dal fornitore.';
       }
+
+      const noteLine = buildNoteLine(noteMessage, currentUserLabel);
+      const noteAggiornate = appendNoteLine(corrente.note, noteLine);
+
+      const updates: Record<string, any> = {
+        stato_disponibilita: nuovoStato,
+        promemoria_disponibilita: promemoria,
+        note: noteAggiornate
+      };
+
+      if (actionRequired) {
+        updates.needs_action_due_date = dueDate;
+        if (!hasOpenAction) {
+          updates.needs_action = true;
+          updates.needs_action_done = false;
+          updates.needs_action_type = 'CALL_CLIENT';
+        }
+      }
+
+      await patchOrdine(ordineId, updates);
 
       setOrdiniMateriali(prev =>
         prev.map(ordine =>
           ordine.id === ordineId
             ? {
                 ...ordine,
-                stato_disponibilita: nuovoStato,
-                promemoria_disponibilita: promemoria
+                ...updates
               }
             : ordine
         )
       );
 
       await mutate('/api/buste');
+      notifyNotesUpdated();
+
+      if (actionRequired && (!hasOpenAction || corrente.needs_action_type === 'CALL_CLIENT')) {
+        setAvailabilityPrompt({ ordineId, stato: nuovoStato });
+      }
     } catch (error: any) {
       console.error('❌ Errore aggiornamento disponibilità:', error);
       alert(`Errore aggiornamento disponibilità: ${error.message}`);
@@ -1596,9 +1830,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   };
 
   // ===== HANDLE EDIT NOTE ORDINE =====
-  const handleStartEditingNote = (ordineId: string, currentNote: string | null) => {
+  const handleStartEditingNote = (ordineId: string) => {
     setEditingNoteId(ordineId);
-    setEditingNoteValue(currentNote || '');
+    setEditingNoteValue('');
   };
 
   const handleCancelEditingNote = () => {
@@ -1607,49 +1841,395 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   };
 
   const handleSaveNote = async (ordineId: string) => {
-    const trimmedValue = editingNoteValue.trim();
-    const notePayload = trimmedValue.length > 0 ? trimmedValue : null;
+    const trimmedValue = normalizeNoteMessage(editingNoteValue);
 
     if (!canEdit || isSavingNote) return;
+    if (!trimmedValue) {
+      alert('Scrivi una nota prima di salvare.');
+      return;
+    }
 
     setIsSavingNote(true);
     try {
-      const response = await fetch(`/api/ordini/${ordineId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: notePayload })
-      });
-
-      const result = await response.json().catch(() => ({}));
-
-      if (!response.ok || !result?.success) {
-        const message = result?.error || 'Errore aggiornamento note';
-        throw new Error(message);
+      const ordine = ordiniMateriali.find(o => o.id === ordineId);
+      if (!ordine) {
+        throw new Error('Ordine non trovato');
       }
 
-      setOrdiniMateriali(prev => prev.map((ordine) =>
-        ordine.id === ordineId
+      const noteLine = buildNoteLine(trimmedValue, currentUserLabel);
+      const notePayload = appendNoteLine(ordine.note, noteLine);
+
+      const updated = await patchOrdine(ordineId, { note: notePayload });
+
+      setOrdiniMateriali(prev => prev.map((item) =>
+        item.id === ordineId
           ? {
-              ...ordine,
+              ...item,
               note: notePayload,
-              updated_at: result?.ordine?.updated_at ?? ordine.updated_at,
-              updated_by: result?.ordine?.updated_by ?? ordine.updated_by
+              updated_at: updated?.updated_at ?? item.updated_at,
+              updated_by: updated?.updated_by ?? item.updated_by
             }
-          : ordine
+          : item
       ));
 
       setEditingNoteId(null);
       setEditingNoteValue('');
 
       await mutate('/api/buste');
-      window.dispatchEvent(
-        new CustomEvent('busta:notes:update', { detail: { bustaId: busta.id } })
-      );
+      notifyNotesUpdated();
     } catch (error: any) {
       console.error('❌ Error updating note:', error);
       alert(`Errore aggiornamento note: ${error.message}`);
     } finally {
       setIsSavingNote(false);
+    }
+  };
+
+  const openEventModal = (ordineId: string) => {
+    setEventOrderId(ordineId);
+    setEventForm({
+      type: '',
+      description: '',
+      actionRequired: 'none',
+      dueDate: '',
+      actionDoneNow: false
+    });
+    setEventErrors({});
+  };
+
+  const closeEventModal = () => {
+    setEventOrderId(null);
+    setEventErrors({});
+  };
+
+  const handleEventTypeChange = (value: EventType | '') => {
+    setEventForm(prev => ({
+      ...prev,
+      type: value,
+      actionRequired: value === 'serve_cliente' ? 'MID_PROCESS' : prev.actionRequired
+    }));
+  };
+
+  const handleSaveEvent = async () => {
+    if (!eventOrderId) return;
+
+    const ordine = ordiniMateriali.find(o => o.id === eventOrderId);
+    if (!ordine) {
+      alert('Ordine non trovato.');
+      return;
+    }
+
+    const tipoEvento = eventForm.type;
+    const descrizione = normalizeNoteMessage(eventForm.description);
+
+    const errors: { type?: string; description?: string } = {};
+    if (!tipoEvento) errors.type = 'Seleziona un tipo di evento.';
+    if (!descrizione) errors.description = 'Scrivi una descrizione breve.';
+    setEventErrors(errors);
+
+    if (!tipoEvento || !descrizione) return;
+
+    const enforcedAction: ActionRequiredValue =
+      tipoEvento === 'serve_cliente' ? 'MID_PROCESS' : eventForm.actionRequired;
+    const actionOption = ACTION_REQUIRED_OPTIONS.find(option => option.value === enforcedAction);
+    const actionLabel = actionOption?.label ?? 'Nessuna';
+
+    const eventLabel = EVENT_LABELS[tipoEvento];
+    const noteMessage = `EVENTO — ${eventLabel}. ${descrizione}. Azione: ${actionLabel}.`;
+    let updatedNote = appendNoteLine(ordine.note, buildNoteLine(noteMessage, currentUserLabel));
+
+    const updates: Record<string, any> = { note: updatedNote };
+    const actionRequired = enforcedAction !== 'none';
+
+    if (actionRequired) {
+      const hasOpenAction = Boolean(ordine.needs_action && !ordine.needs_action_done);
+      const dueDate = eventForm.dueDate || getTomorrowDateInput();
+
+      if (!hasOpenAction) {
+        updates.needs_action = true;
+        updates.needs_action_done = false;
+        updates.needs_action_type = enforcedAction;
+      }
+
+      updates.needs_action_due_date = eventForm.actionDoneNow
+        ? (eventForm.dueDate || ordine.needs_action_due_date || null)
+        : dueDate;
+
+      if (eventForm.actionDoneNow) {
+        updates.needs_action = true;
+        updates.needs_action_done = true;
+        if (!hasOpenAction) {
+          updates.needs_action_type = enforcedAction;
+        }
+
+        const completionLabel = ACTION_COMPLETION_LABELS[enforcedAction as NeedsActionType] || 'Azione completata';
+        updatedNote = appendNoteLine(
+          updatedNote,
+          buildNoteLine(`Azione completata: ${completionLabel}.`, currentUserLabel)
+        );
+        updates.note = updatedNote;
+      }
+    }
+
+    try {
+      await patchOrdine(eventOrderId, updates);
+
+      setOrdiniMateriali(prev =>
+        prev.map(item =>
+          item.id === eventOrderId
+            ? {
+                ...item,
+                ...updates
+              }
+            : item
+        )
+      );
+
+      await mutate('/api/buste');
+      notifyNotesUpdated();
+      closeEventModal();
+    } catch (error: any) {
+      console.error('❌ Error saving event:', error);
+      alert(`Errore salvataggio evento: ${error.message}`);
+    }
+  };
+
+  const handleAvailabilityPromptChoice = async (confirmed: boolean) => {
+    if (!availabilityPrompt) return;
+    const { ordineId } = availabilityPrompt;
+    setAvailabilityPrompt(null);
+    if (!confirmed) return;
+
+    const ordine = ordiniMateriali.find(o => o.id === ordineId);
+    if (!ordine) return;
+
+    const actionType = (ordine.needs_action_type || 'CALL_CLIENT') as NeedsActionType;
+    const completionLabel = ACTION_COMPLETION_LABELS[actionType] || 'Azione completata';
+    const noteLine = buildNoteLine(`Azione completata: ${completionLabel}.`, currentUserLabel);
+    const notePayload = appendNoteLine(ordine.note, noteLine);
+
+    const updates: Record<string, any> = {
+      needs_action: true,
+      needs_action_done: true,
+      needs_action_type: ordine.needs_action_type || 'CALL_CLIENT',
+      note: notePayload
+    };
+
+    try {
+      await patchOrdine(ordineId, updates);
+      setOrdiniMateriali(prev =>
+        prev.map(item =>
+          item.id === ordineId
+            ? { ...item, ...updates }
+            : item
+        )
+      );
+      await mutate('/api/buste');
+      notifyNotesUpdated();
+    } catch (error: any) {
+      console.error('❌ Error completing action:', error);
+      alert(`Errore aggiornamento azione: ${error.message}`);
+    }
+  };
+
+  const handleCompleteAction = async (ordineId: string) => {
+    const ordine = ordiniMateriali.find(o => o.id === ordineId);
+    if (!ordine) return;
+    const confirmed = window.confirm('Vuoi segnare questa azione come completata?');
+    if (!confirmed) return;
+
+    const actionType = (ordine.needs_action_type || 'OTHER') as NeedsActionType;
+    const completionLabel = ACTION_COMPLETION_LABELS[actionType] || 'Azione completata';
+    const noteLine = buildNoteLine(`Azione completata: ${completionLabel}.`, currentUserLabel);
+    const notePayload = appendNoteLine(ordine.note, noteLine);
+
+    const updates: Record<string, any> = {
+      needs_action: true,
+      needs_action_done: true,
+      note: notePayload
+    };
+    if (!ordine.needs_action_type) {
+      updates.needs_action_type = actionType;
+    }
+
+    try {
+      await patchOrdine(ordineId, updates);
+      setOrdiniMateriali(prev =>
+        prev.map(item =>
+          item.id === ordineId
+            ? { ...item, ...updates }
+            : item
+        )
+      );
+      await mutate('/api/buste');
+      notifyNotesUpdated();
+      setActionMenuId(null);
+    } catch (error: any) {
+      console.error('❌ Error completing action:', error);
+      alert(`Errore aggiornamento azione: ${error.message}`);
+    }
+  };
+
+  const handleUpdateActionDueDate = async (ordineId: string, value: string) => {
+    if (!canEdit) return;
+    const isoValue = value || null;
+    try {
+      await patchOrdine(ordineId, { needs_action_due_date: isoValue });
+      setOrdiniMateriali(prev =>
+        prev.map(item =>
+          item.id === ordineId
+            ? { ...item, needs_action_due_date: isoValue }
+            : item
+        )
+      );
+      await mutate('/api/buste');
+    } catch (error: any) {
+      console.error('❌ Error updating action due date:', error);
+      alert(`Errore aggiornamento scadenza: ${error.message}`);
+    }
+  };
+
+  const resolveCategoriaForDuplica = (ordine: OrdineMateriale) => {
+    if (ordine.fornitore_lenti_id) return 'lenti';
+    if (ordine.fornitore_lac_id) return 'lac';
+    if (ordine.fornitore_montature_id) return 'montature';
+    if (ordine.fornitore_lab_esterno_id) return 'lab.esterno';
+    if (ordine.fornitore_sport_id) return 'sport';
+    if (ordine.fornitore_accessori_id) return 'accessori';
+    return '';
+  };
+
+  const handleDuplicateOrder = (ordine: OrdineMateriale) => {
+    const categoria = resolveCategoriaForDuplica(ordine);
+    if (!categoria) {
+      alert('Impossibile duplicare: categoria non riconosciuta.');
+      return;
+    }
+
+    const supplierId =
+      ordine.fornitore_lenti_id ||
+      ordine.fornitore_lac_id ||
+      ordine.fornitore_montature_id ||
+      ordine.fornitore_lab_esterno_id ||
+      ordine.fornitore_sport_id ||
+      ordine.fornitore_accessori_id ||
+      '';
+
+    setNuovoOrdineForm({
+      categoria_prodotto: categoria as typeof nuovoOrdineForm.categoria_prodotto,
+      tipo_prodotto_assistenza: '',
+      tipo_prodotto_ricambi: '',
+      fornitore_id: supplierId,
+      tipo_lenti: ordine.tipo_lenti_id || '',
+      tipo_ordine_id: ordine.tipo_ordine_id ? String(ordine.tipo_ordine_id) : '',
+      descrizione_prodotto: ordine.descrizione_prodotto || '',
+      data_ordine: getDefaultOrderDate(),
+      giorni_consegna_custom: '',
+      note: '',
+      primo_acquisto_lac: false,
+      ordine_gia_effettuato: false,
+      data_consegna_effettiva: ''
+    });
+
+    setShowNuovoOrdineForm(true);
+  };
+
+  const handleConfirmCancelOrder = async () => {
+    if (!cancelOrderId) return;
+    const ordine = ordiniMateriali.find(o => o.id === cancelOrderId);
+    if (!ordine) {
+      setCancelOrderId(null);
+      return;
+    }
+
+    if (!cancelReason) {
+      alert('Seleziona un motivo di annullo.');
+      return;
+    }
+
+    const trimmedNote = normalizeNoteMessage(cancelNote);
+    if (cancelReason === 'Altro' && !trimmedNote) {
+      alert('Inserisci una nota per il motivo "Altro".');
+      return;
+    }
+
+    setIsCancellingOrder(true);
+
+    const noteMessage = `Ordine ANNULLATO. Motivo: ${cancelReason}${trimmedNote ? `. ${trimmedNote}` : ''}`;
+    const noteLine = buildNoteLine(noteMessage, currentUserLabel);
+    const notePayload = appendNoteLine(ordine.note, noteLine);
+
+    const updates: Record<string, any> = {
+      stato: 'annullato',
+      da_ordinare: false,
+      data_ordine: null,
+      data_consegna_prevista: null,
+      data_consegna_effettiva: null,
+      cancel_reason: cancelReason,
+      note: notePayload
+    };
+
+    try {
+      await patchOrdine(cancelOrderId, updates);
+
+      let ordiniAggiornati: OrdineMateriale[] = [];
+      setOrdiniMateriali(prev => {
+        const next = prev.map(item =>
+          item.id === cancelOrderId
+            ? { ...item, ...updates }
+            : item
+        );
+        ordiniAggiornati = next;
+        return next;
+      });
+
+      await mutate('/api/buste');
+      notifyNotesUpdated();
+      await syncBustaWorkflowWithOrdini(ordiniAggiornati, 'annullamento ordine');
+
+      setCancelOrderId(null);
+      setCancelReason('');
+      setCancelNote('');
+    } catch (error: any) {
+      console.error('❌ Error cancelling ordine:', error);
+      alert(`Errore annullamento: ${error.message}`);
+    } finally {
+      setIsCancellingOrder(false);
+    }
+  };
+
+  const handleSaveSospesaFollowup = async () => {
+    if (!canEdit) return;
+    if (!sospesaFollowupReason) {
+      alert('Seleziona un esito per il follow-up.');
+      return;
+    }
+    const trimmedNote = normalizeNoteMessage(sospesaFollowupNote);
+    if (!trimmedNote) {
+      alert('Inserisci una nota per il follow-up.');
+      return;
+    }
+
+    setIsSavingSospesaFollowup(true);
+    const doneAt = new Date().toISOString();
+    const noteMessage = `FOLLOW-UP SOSPESA — Esito: ${sospesaFollowupReason}. Nota: ${trimmedNote}`;
+
+    try {
+      await appendBustaNote(noteMessage, currentUserLabel, {
+        sospesa_followup_done_at: doneAt,
+        sospesa_followup_reason: sospesaFollowupReason,
+        sospesa_followup_note: trimmedNote
+      });
+      setSospesaFollowupDoneAt(doneAt);
+      setShowSospesaFollowupModal(false);
+      setSospesaFollowupReason('');
+      setSospesaFollowupNote('');
+      await mutate('/api/buste');
+    } catch (error: any) {
+      console.error('❌ Error saving sospesa follow-up:', error);
+      alert(`Errore salvataggio follow-up: ${error.message}`);
+    } finally {
+      setIsSavingSospesaFollowup(false);
     }
   };
 
@@ -1669,6 +2249,30 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {busta.is_suspended && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-yellow-800">Busta sospesa</h3>
+            <p className="text-sm text-yellow-700">
+              Follow-up richiesto per la busta sospesa.
+            </p>
+            {sospesaFollowupDoneAt && (
+              <p className="text-xs text-yellow-700 mt-1">
+                Follow-up registrato.
+              </p>
+            )}
+          </div>
+          {canEdit && !sospesaFollowupDoneAt && (
+            <button
+              onClick={() => setShowSospesaFollowupModal(true)}
+              className="px-3 py-2 text-sm text-yellow-900 bg-yellow-100 border border-yellow-200 rounded hover:bg-yellow-200"
+            >
+              Esito follow-up
+            </button>
+          )}
         </div>
       )}
 
@@ -1732,23 +2336,29 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       </div>
 
       {/* Header con pulsante nuovo ordine */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-              <ShoppingCart className="w-6 h-6 mr-3 text-green-600" />
-              Materiali & Ordini
-            </h2>
-            <p className="text-gray-600 text-sm mt-1">
-              Gestione ordini presso fornitori per questa busta
-            </p>
+      <div className="relative overflow-hidden rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-sky-50 p-6 shadow-sm animate-fade-in">
+        <div className="pointer-events-none absolute -top-24 -right-16 h-48 w-48 rounded-full bg-emerald-100/70 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-16 h-48 w-48 rounded-full bg-sky-100/70 blur-3xl" />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/80 shadow-sm">
+              <ShoppingCart className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">
+                Materiali & Ordini
+              </h2>
+              <p className="text-sm text-slate-600">
+                Gestione ordini presso fornitori per questa busta
+              </p>
+            </div>
           </div>
           
           {/* ✅ MODIFICA: PULSANTE NUOVO ORDINE - NASCOSTO PER OPERATORI */}
           {canEdit && (
             <button
               onClick={() => setShowNuovoOrdineForm(true)}
-              className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
             >
               <Plus className="w-4 h-4" />
               <span>Nuovo Ordine</span>
@@ -2182,28 +2792,34 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       )}
 
       {/* Lista Ordini */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-            <Truck className="w-5 h-5 mr-2 text-gray-500" />
-            Ordini per questa Busta
-            {ordiniMateriali.length > 0 && (
-              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                {ordiniMateriali.length}
-              </span>
-            )}
-            {showDisponibilitaBadge && (
-              <span
-                className={`ml-2 px-2 py-1 text-xs font-semibold rounded-full border ${DISPONIBILITA_BADGE[disponibilitaStats.worstStatus].className}`}
-              >
-                {DISPONIBILITA_BADGE[disponibilitaStats.worstStatus].label}
-              </span>
-            )}
-          </h3>
+      <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 shadow-sm animate-slide-up">
+        <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/70 px-6 py-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm">
+              <Truck className="w-4 h-4 text-slate-500" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-lg font-semibold text-slate-900">
+                Ordini per questa Busta
+              </h3>
+              {ordiniMateriali.length > 0 && (
+                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                  {ordiniMateriali.length}
+                </span>
+              )}
+              {showDisponibilitaBadge && (
+                <span
+                  className={`px-2 py-1 text-xs font-semibold rounded-full border ${DISPONIBILITA_BADGE[disponibilitaStats.worstStatus].className}`}
+                >
+                  {DISPONIBILITA_BADGE[disponibilitaStats.worstStatus].label}
+                </span>
+              )}
+            </div>
+          </div>
           {showDisponibilitaBadge && disponibilitaReminderLabel && (
-            <div className="mt-2 flex items-center text-xs">
-              <Clock className={`w-3 h-3 mr-1 ${promemoriaDisponibilitaScaduto ? 'text-red-500' : 'text-gray-400'}`} />
-              <span className={promemoriaDisponibilitaScaduto ? 'text-red-600 font-semibold' : 'text-gray-500'}>
+            <div className="flex items-center text-xs">
+              <Clock className={`w-3 h-3 mr-1 ${promemoriaDisponibilitaScaduto ? 'text-red-500' : 'text-slate-400'}`} />
+              <span className={promemoriaDisponibilitaScaduto ? 'text-red-600 font-semibold' : 'text-slate-500'}>
                 Prossimo controllo disponibilità: {disponibilitaReminderLabel}
               </span>
             </div>
@@ -2216,25 +2832,25 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
             <p className="text-gray-500 mt-2">Caricamento ordini...</p>
           </div>
         ) : ordiniMateriali.length === 0 ? (
-          <div className="p-8 text-center">
-            <Package className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <h4 className="text-lg font-medium text-gray-900 mb-2">Nessun ordine ancora</h4>
-            <p className="text-gray-500 mb-4">
+          <div className="px-6 py-12 text-center">
+            <Package className="w-12 h-12 mx-auto text-slate-300 mb-4" />
+            <h4 className="text-lg font-semibold text-slate-900 mb-2">Nessun ordine ancora</h4>
+            <p className="text-sm text-slate-500 mb-4">
               {canEdit ? 'Inizia creando il primo ordine per questa busta' : 'Non ci sono ordini per questa busta'}
             </p>
             {/* ✅ MODIFICA: PULSANTE SOLO SE canEdit */}
             {canEdit && (
               <button
                 onClick={() => setShowNuovoOrdineForm(true)}
-                className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4" />
                 Crea Primo Ordine
               </button>
             )}
           </div>
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="p-4 sm:p-6 space-y-4">
             {ordiniMateriali.map((ordine) => {
               const oggi = new Date();
               const statoOrdine = (ordine.stato || 'ordinato') as string;
@@ -2265,6 +2881,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 });
                 promemoriaScaduto = promemoriaDisponibilitaDate.getTime() <= Date.now();
               }
+              const hasOpenAction = Boolean(ordine.needs_action && !ordine.needs_action_done);
+              const actionType = (ordine.needs_action_type || 'OTHER') as NeedsActionType;
+              const actionDueDate = formatDateForInput(ordine.needs_action_due_date);
 
               let nomeFornitore = 'Non specificato';
               if (ordine.fornitori_lenti?.nome) nomeFornitore = ordine.fornitori_lenti.nome;
@@ -2274,14 +2893,24 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               else if (ordine.fornitori_sport?.nome) nomeFornitore = ordine.fornitori_sport.nome;
 
               const cardBaseClasses = isAnnullato
-                ? 'bg-slate-100/70 border border-slate-200 cursor-not-allowed'
+                ? 'border-slate-200 bg-slate-50/80 text-slate-500 cursor-not-allowed'
                 : isSbagliato
-                  ? 'bg-gray-100 border border-gray-200'
-                  : 'hover:bg-gray-50';
+                  ? 'border-amber-200 bg-amber-50/70'
+                  : 'border-slate-200 bg-white hover:border-emerald-200 hover:shadow-md';
+              const chipsContainerClass = isAnnullato
+                ? 'border-slate-200 bg-slate-100/70'
+                : isSbagliato
+                  ? 'border-amber-200 bg-amber-50'
+                  : 'border-slate-200 bg-slate-50';
+              const infoPanelClass = isAnnullato
+                ? 'border-slate-200 bg-slate-100/60'
+                : isSbagliato
+                  ? 'border-amber-200 bg-amber-50/60'
+                  : 'border-slate-100 bg-white';
               const titoloOrdineClass = isAnnullato || isSbagliato
-                ? 'text-lg font-medium text-gray-500'
-                : 'text-lg font-medium text-gray-900';
-              const infoRowTextClass = isAnnullato || isSbagliato ? 'text-gray-500' : 'text-gray-600';
+                ? 'text-lg font-medium text-slate-500'
+                : 'text-lg font-semibold text-slate-900';
+              const infoRowTextClass = isAnnullato || isSbagliato ? 'text-slate-500' : 'text-slate-600';
 
               const statoBadgeLabelMap: Record<string, string> = {
                 da_ordinare: 'DA ORDINARE',
@@ -2295,15 +2924,33 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 sbagliato: 'SBAGLIATO'
               };
               const statoBadgeLabel = statoBadgeLabelMap[statoOrdine] ?? statoOrdine.replace(/_/g, ' ').toUpperCase();
+              const statoBadgeClass = statoOrdine === 'consegnato'
+                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                : statoOrdine === 'in_arrivo'
+                  ? 'bg-sky-100 text-sky-800 border-sky-200'
+                  : statoOrdine === 'in_ritardo'
+                    ? 'bg-red-100 text-red-800 border-red-200'
+                    : statoOrdine === 'ordinato'
+                      ? 'bg-blue-100 text-blue-800 border-blue-200'
+                      : statoOrdine === 'da_ordinare'
+                        ? 'bg-amber-100 text-amber-800 border-amber-200'
+                        : statoOrdine === 'rifiutato'
+                          ? 'bg-slate-100 text-slate-700 border-slate-200'
+                          : statoOrdine === 'annullato'
+                            ? 'bg-slate-100 text-slate-500 border-slate-200'
+                            : statoOrdine === 'sbagliato'
+                              ? 'bg-rose-100 text-rose-800 border-rose-200'
+                              : 'bg-orange-100 text-orange-800 border-orange-200';
+              const showGreenOrderStatus = ['da_ordinare', 'ordinato'].includes(statoOrdine);
 
               return (
-                <div key={ordine.id} className={`p-6 transition-colors ${cardBaseClasses}`}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
+                <div key={ordine.id} className={`group rounded-xl border shadow-sm transition-shadow ${cardBaseClasses}`}>
+                  <div className="flex flex-col lg:flex-row">
+                    <div className="flex-1 p-5">
+                      <div className="flex flex-wrap items-start gap-3">
                         {/* ✅ EDITABLE DESCRIPTION */}
                         {editingDescriptionId === ordine.id ? (
-                          <div className="flex items-center space-x-2 flex-1">
+                          <div className="flex items-center gap-2 flex-1">
                             <input
                               type="text"
                               value={editingDescriptionValue}
@@ -2327,14 +2974,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             </button>
                             <button
                               onClick={handleCancelEditingDescription}
-                              className="p-1 text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded"
+                              className="p-1 text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded"
                               title="Annulla"
                             >
                               <X className="w-4 h-4" />
                             </button>
                           </div>
                         ) : (
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center gap-2">
                             <h4 className={titoloOrdineClass}>
                               {ordine.descrizione_prodotto}
                             </h4>
@@ -2349,18 +2996,74 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             )}
                           </div>
                         )}
+                      </div>
+
+                      <div className={`mt-3 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 ${chipsContainerClass}`}>
                         <span
                           className={`px-2 py-1 text-xs font-semibold rounded-full border ${disponibilitaBadge.className}`}
                           title="Stato disponibilità presso il fornitore"
                         >
                           {disponibilitaBadge.label}
                         </span>
+
+                        {hasOpenAction && (
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!canEdit) return;
+                                setActionMenuId(prev => prev === ordine.id ? null : ordine.id);
+                              }}
+                              disabled={!canEdit}
+                              className={`px-2 py-1 text-xs font-semibold rounded-full border ${
+                                canEdit
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                                  : 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
+                              }`}
+                              title={`Azione richiesta non completata${actionDueDate ? `. Scadenza: ${actionDueDate}` : ''}. Clicca per aggiornare.`}
+                            >
+                              {ACTION_CHIP_LABELS[actionType]}
+                            </button>
+                            {canEdit && actionMenuId === ordine.id && (
+                              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCompleteAction(ordine.id)}
+                                  className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50"
+                                >
+                                  Segna come completata
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActionMenuId(null);
+                                    handleStartEditingNote(ordine.id);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50"
+                                >
+                                  Aggiungi nota
+                                </button>
+                                <div className="px-3 py-2 border-t border-gray-100">
+                                  <label className="block text-[11px] text-gray-500 mb-1">
+                                    Imposta scadenza
+                                  </label>
+                                  <input
+                                    type="date"
+                                    value={actionDueDate}
+                                    onChange={(e) => handleUpdateActionDueDate(ordine.id, e.target.value)}
+                                    className="w-full px-2 py-1 text-xs rounded border border-gray-200"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         
                         {/* ✅ MODIFICA: Toggle da_ordinare - NASCOSTO PER OPERATORI */}
-                        {canEdit && !isAnnullato && (
+                        {showGreenOrderStatus && canEdit && !isAnnullato && (
                           <button
                             onClick={() => handleToggleDaOrdinare(ordine.id, daOrdinare)}
-                            className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                            className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                               daOrdinare 
                                 ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' 
                                 : 'bg-green-100 text-green-700 hover:bg-green-200'
@@ -2382,8 +3085,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                         )}
                         
                         {/* ✅ Per operatori, mostra solo lo stato senza possibilità di cambiarlo */}
-                        {!canEdit && !isAnnullato && (
-                          <span className={`flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium ${
+                        {showGreenOrderStatus && !canEdit && !isAnnullato && (
+                          <span className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
                             daOrdinare 
                               ? 'bg-orange-100 text-orange-700' 
                               : 'bg-green-100 text-green-700'
@@ -2401,53 +3104,44 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             )}
                           </span>
                         )}
-                        
-                        <div className="flex items-center space-x-2">
-                          {/* Mostra icone di warning anche per ordini "in_arrivo" se sono in ritardo */}
-                          {!isAnnullato && ['ordinato', 'in_arrivo'].includes(statoOrdine) && giorniRitardo > 0 && giorniRitardo <= 2 && (
-                            <span className="text-yellow-500 text-xl ml-2" title={`${giorniRitardo} giorno${giorniRitardo > 1 ? 'i' : ''} di ritardo`}>
-                              ⚠️
-                            </span>
-                          )}
-                          {!isAnnullato && ['ordinato', 'in_arrivo'].includes(statoOrdine) && giorniRitardo > 2 && (
-                            <span className="text-red-600 text-xl ml-2" title={`${giorniRitardo} giorni di ritardo grave`}>
-                              🚨
-                            </span>
-                          )}
-                          
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            statoOrdine === 'consegnato' ? 'bg-green-100 text-green-800' :
-                            statoOrdine === 'in_arrivo' ? 'bg-cyan-100 text-cyan-800' :
-                            statoOrdine === 'in_ritardo' ? 'bg-red-100 text-red-800' :
-                            statoOrdine === 'ordinato' ? 'bg-blue-100 text-blue-800' :
-                            statoOrdine === 'da_ordinare' ? 'bg-purple-100 text-purple-800' :
-                            statoOrdine === 'rifiutato' ? 'bg-gray-100 text-gray-800' :
-                            statoOrdine === 'annullato' ? 'bg-slate-100 text-slate-600' :
-                            statoOrdine === 'sbagliato' ? 'bg-gray-200 text-gray-800 border border-gray-300' :
-                            'bg-orange-100 text-orange-800'
-                            }`}>
+
+                        {giorniRitardo > 0 && !isArrivato && (
+                          <span
+                            className={`px-2 py-1 text-xs font-semibold rounded-full border ${
+                              giorniRitardo > 2
+                                ? 'bg-red-100 text-red-700 border-red-200'
+                                : 'bg-amber-100 text-amber-700 border-amber-200'
+                            }`}
+                            title={`${giorniRitardo} giorno${giorniRitardo > 1 ? 'i' : ''} di ritardo`}
+                          >
+                            Ritardo {giorniRitardo}g
+                          </span>
+                        )}
+
+                        {!showGreenOrderStatus && (
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${statoBadgeClass}`}>
                             {statoBadgeLabel}
                           </span>
-                        </div>
-                        </div>
+                        )}
+                      </div>
 
-                        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm ${infoRowTextClass}`}>
-                          <div className="flex items-center space-x-2">
-                            <Factory className="w-4 h-4 text-gray-400" />
-                            <span>
-                              <strong>Fornitore:</strong> {nomeFornitore}
-                            </span>
+                      <div className={`mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 rounded-lg border p-4 text-sm ${infoPanelClass} ${infoRowTextClass}`}>
+                        <div className="flex items-center gap-2">
+                          <Factory className="w-4 h-4 text-slate-400" />
+                          <span>
+                            <strong>Fornitore:</strong> {nomeFornitore}
+                          </span>
                         </div>
                         
-                        <div className="flex items-center space-x-2">
-                          <Phone className="w-4 h-4 text-gray-400" />
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-slate-400" />
                           <span>
                             <strong>Via:</strong> {ordine.tipi_ordine?.nome || 'Non specificato'}
                           </span>
                         </div>
                         {ordine.data_ordine && (
-                          <div className="flex items-center space-x-2">
-                            <Calendar className="w-4 h-4 text-gray-400" />
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-slate-400" />
                             <span>
                               <strong>Ordinato:</strong> {new Date(ordine.data_ordine).toLocaleDateString('it-IT')}
                             </span>
@@ -2455,8 +3149,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                         )}
                         
                         {ordine.data_consegna_prevista && (
-                          <div className="flex items-center space-x-2">
-                            <Clock className="w-4 h-4 text-gray-400" />
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-4 h-4 text-slate-400" />
                             <span>
                               <strong>Previsto:</strong> {new Date(ordine.data_consegna_prevista).toLocaleDateString('it-IT')}
                             </span>
@@ -2464,8 +3158,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                         )}
 
                         {ordine.tipi_lenti?.nome && (
-                          <div className="flex items-center space-x-2">
-                            <Eye className="w-4 h-4 text-gray-400" />
+                          <div className="flex items-center gap-2">
+                            <Eye className="w-4 h-4 text-slate-400" />
                             <span>
                               <strong>Tipo Lenti:</strong> {ordine.tipi_lenti.nome}
                             </span>
@@ -2473,8 +3167,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                         )}
 
                         {ordine.data_consegna_effettiva && (
-                          <div className="flex items-center space-x-2">
-                            <CheckCircle className="w-4 h-4 text-green-500" />
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-emerald-500" />
                             <span>
                               <strong>Arrivato:</strong> {new Date(ordine.data_consegna_effettiva).toLocaleDateString('it-IT')}
                             </span>
@@ -2482,149 +3176,237 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                         )}
 
                         {giorniRitardo > 0 && !isArrivato && (
-                          <div className="flex items-center space-x-2">
-                            <AlertTriangle className={`w-4 h-4 ${giorniRitardo > 2 ? 'text-red-500' : 'text-yellow-500'}`} />
-                            <span className={giorniRitardo > 2 ? 'text-red-600 font-medium' : 'text-yellow-600 font-medium'}>
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className={`w-4 h-4 ${giorniRitardo > 2 ? 'text-red-500' : 'text-amber-500'}`} />
+                            <span className={giorniRitardo > 2 ? 'text-red-600 font-medium' : 'text-amber-600 font-medium'}>
                               {giorniRitardo} giorni di ritardo
                             </span>
                           </div>
                         )}
                         {promemoriaFormattato && (
-                          <div className="flex items-center space-x-2">
-                            <Clock className={`w-4 h-4 ${promemoriaScaduto ? 'text-red-500' : 'text-gray-400'}`} />
-                            <span className={`text-xs ${promemoriaScaduto ? 'text-red-600 font-semibold' : 'text-gray-600'}`}>
+                          <div className="flex items-center gap-2">
+                            <Clock className={`w-4 h-4 ${promemoriaScaduto ? 'text-red-500' : 'text-slate-400'}`} />
+                            <span className={`text-xs ${promemoriaScaduto ? 'text-red-600 font-semibold' : 'text-slate-600'}`}>
                               Promemoria disponibilità: {promemoriaFormattato}
                             </span>
                           </div>
                         )}
                       </div>
 
-      {ordine.note && (
-        <div className={`mt-3 p-3 rounded-md ${isAnnullato ? 'bg-slate-100 border border-slate-200' : 'bg-gray-50'}`}>
-          <p className={`text-sm ${isAnnullato ? 'text-gray-500' : 'text-gray-700'}`}>
-            <strong>Note:</strong> {ordine.note}
-          </p>
-        </div>
-      )}
+                      {ordine.note && (
+                        <div className={`mt-4 rounded-lg border p-3 ${isAnnullato ? 'bg-slate-100 border-slate-200' : 'bg-slate-50 border-slate-100'}`}>
+                          <p className={`text-sm whitespace-pre-line ${isAnnullato ? 'text-slate-500' : 'text-slate-700'}`}>
+                            <strong>Note:</strong> {ordine.note}
+                          </p>
+                        </div>
+                      )}
 
-      {editingNoteId === ordine.id && (
-        <div className="mt-3 p-3 rounded-md border border-blue-200 bg-blue-50">
-          <label className="block text-xs font-semibold text-blue-900 mb-2">
-            Note ordine
-          </label>
-          <textarea
-            value={editingNoteValue}
-            onChange={(e) => setEditingNoteValue(e.target.value)}
-            rows={4}
-            className="w-full px-3 py-2 text-sm border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Scrivi qui le note o i solleciti al fornitore..."
-          />
-          <div className="flex justify-end gap-2 mt-3">
-            <button
-              onClick={handleCancelEditingNote}
-              className="px-3 py-1.5 text-xs text-gray-600 hover:text-gray-800"
-            >
-              Annulla
-            </button>
-            <button
-              onClick={() => handleSaveNote(ordine.id)}
-              disabled={isSavingNote}
-              className="px-3 py-1.5 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {isSavingNote ? 'Salvataggio...' : 'Salva note'}
-            </button>
-          </div>
-        </div>
-      )}
+                      {editingNoteId === ordine.id && (
+                        <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50/70 p-3">
+                          <label className="block text-xs font-semibold text-blue-900 mb-2">
+                            Aggiungi nota
+                          </label>
+                          <textarea
+                            value={editingNoteValue}
+                            onChange={(e) => setEditingNoteValue(e.target.value)}
+                            rows={4}
+                            className="w-full px-3 py-2 text-sm border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Scrivi una nota breve da aggiungere alla storia..."
+                          />
+                          <div className="flex justify-end gap-2 mt-3">
+                            <button
+                              onClick={handleCancelEditingNote}
+                              className="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-800"
+                            >
+                              Annulla
+                            </button>
+                            <button
+                              onClick={() => handleSaveNote(ordine.id)}
+                              disabled={isSavingNote}
+                              className="px-3 py-1.5 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
+                            >
+                              {isSavingNote ? 'Salvataggio...' : 'Salva nota'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
-      {isSbagliato && (
-        <div className="mt-3 p-3 rounded-md border border-amber-200 bg-amber-50">
-          <p className="text-sm text-amber-800">
-            ⚠️ La bozza dell&apos;errore è stata creata. Contatta un amministratore per completarla.
-          </p>
-        </div>
-      )}
+                      {isSbagliato && (
+                        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                          <p className="text-sm text-amber-800">
+                            ⚠️ La bozza dell&apos;errore è stata creata. Contatta un amministratore per completarla.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* ✅ MODIFICA: AZIONI - NASCOSTE PER OPERATORI */}
                     {canEdit && (
-                      <div className="flex flex-col items-end space-y-2 ml-4">
-                        <button
-                          onClick={() => handleStartEditingNote(ordine.id, ordine.note)}
-                          className="px-3 py-2 text-xs text-blue-700 bg-blue-50 rounded border border-blue-200 hover:bg-blue-100 transition-colors flex items-center gap-2"
-                          title="Aggiungi o modifica note ordine"
-                        >
-                          <FileText className="w-4 h-4" />
-                          <span>Note</span>
-                        </button>
-                        <select
-                          value={statoDisponibilita}
-                          onChange={(e) => handleAggiornaDisponibilita(ordine.id, e.target.value as typeof DISPONIBILITA_STATES[number])}
-                          className="px-2 py-1 text-xs rounded border border-gray-300 focus:border-blue-500"
-                          disabled={isAnnullato}
-                          title="Disponibilità presso il fornitore"
-                        >
-                          {DISPONIBILITA_STATES.map(opzione => (
-                            <option key={opzione} value={opzione}>
-                              {DISPONIBILITA_BADGE[opzione].label}
-                            </option>
-                          ))}
-                        </select>
+                      <div className={`w-full lg:w-64 border-t lg:border-t-0 lg:border-l border-slate-200 p-4 ${isAnnullato ? 'bg-slate-100/60' : 'bg-slate-50/80'}`}>
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                          Azioni
+                        </div>
+                        <div className="mt-3 flex flex-col gap-3">
+                          <button
+                            onClick={() => openEventModal(ordine.id)}
+                            disabled={isAnnullato}
+                            className={`w-full px-3 py-2 text-xs rounded-lg border transition-colors flex items-center justify-center gap-2 ${
+                              isAnnullato
+                                ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                                : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                            }`}
+                            title="Registra un imprevisto (fornitore/cliente) e crea un promemoria se necessario."
+                          >
+                            <AlertTriangle className="w-4 h-4" />
+                            <span>Segnala evento</span>
+                          </button>
+                          <button
+                            onClick={() => handleStartEditingNote(ordine.id)}
+                            className="w-full px-3 py-2 text-xs text-blue-700 bg-blue-50 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                            title="Aggiungi nota ordine"
+                          >
+                            <FileText className="w-4 h-4" />
+                            <span>Aggiungi nota</span>
+                          </button>
+                          <div className="rounded-lg border border-slate-200 bg-white p-2">
+                            <label className="block text-[11px] text-slate-500 mb-1">
+                              Disponibilità fornitore
+                            </label>
+                            <select
+                              value={statoDisponibilita}
+                              onChange={(e) => handleAggiornaDisponibilita(ordine.id, e.target.value as typeof DISPONIBILITA_STATES[number])}
+                              className="w-full px-2 py-1 text-xs rounded border border-slate-300 focus:border-blue-500"
+                              disabled={isAnnullato}
+                              title="Disponibilità presso il fornitore"
+                            >
+                              {DISPONIBILITA_STATES.map(opzione => (
+                                <option key={opzione} value={opzione}>
+                                  {DISPONIBILITA_BADGE[opzione].label}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="text-[10px] text-slate-400 mt-1">
+                              Usa queste opzioni solo se comunicate dal fornitore.
+                            </div>
+                          </div>
 
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="date"
-                            className="px-2 py-1 text-xs rounded border border-gray-300 focus:border-blue-500"
-                            value={formatDateForInput(ordine.promemoria_disponibilita)}
-                            onChange={(e) => handleAggiornaPromemoriaDisponibilita(ordine.id, e.target.value)}
-                            disabled={isAnnullato || statoDisponibilita === 'disponibile'}
-                            title="Promemoria per ricontrollare la disponibilità"
-                          />
-                          {ordine.promemoria_disponibilita && (
+                          <div className="rounded-lg border border-slate-200 bg-white p-2">
+                            <label className="block text-[11px] text-slate-500 mb-1">
+                              Promemoria disponibilità
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="date"
+                                className="w-full px-2 py-1 text-xs rounded border border-slate-300 focus:border-blue-500"
+                                value={formatDateForInput(ordine.promemoria_disponibilita)}
+                                onChange={(e) => handleAggiornaPromemoriaDisponibilita(ordine.id, e.target.value)}
+                                disabled={isAnnullato || statoDisponibilita === 'disponibile'}
+                                title="Promemoria per ricontrollare la disponibilità"
+                              />
+                              {ordine.promemoria_disponibilita && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAggiornaPromemoriaDisponibilita(ordine.id, '')}
+                                  className="text-xs text-slate-400 hover:text-slate-600"
+                                  title="Rimuovi promemoria"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="rounded-lg border border-slate-200 bg-white p-2">
+                            <label className="block text-[11px] text-slate-500 mb-1">
+                              Stato ordine
+                            </label>
+                            <select
+                              value={statoOrdine}
+                              onChange={(e) => handleAggiornaStatoOrdine(ordine.id, e.target.value)}
+                              className="w-full px-2 py-1 text-xs rounded border border-slate-300 focus:border-blue-500"
+                              disabled={isAnnullato}
+                              title="Solo stati manuali disponibili. Stati automatici gestiti dal sistema"
+                            >
+                              {/* Mostra lo stato corrente se automatico (disabled placeholder) */}
+                              {['da_ordinare', 'ordinato', 'in_arrivo', 'in_ritardo'].includes(statoOrdine) && (
+                                <option value={statoOrdine} disabled>
+                                  {statoOrdine === 'da_ordinare' && '🛒 Da Ordinare (auto)'}
+                                  {statoOrdine === 'ordinato' && '📦 Ordinato (auto)'}
+                                  {statoOrdine === 'in_arrivo' && '🚚 In Arrivo (auto)'}
+                                  {statoOrdine === 'in_ritardo' && '⏰ In Ritardo (auto)'}
+                                </option>
+                              )}
+                              {/* Stati manuali selezionabili */}
+                              <option value="consegnato">✅ Arrivato</option>
+                              <option value="accettato_con_riserva">🔄 Con Riserva</option>
+                              <option value="rifiutato">❌ Rifiutato</option>
+                              <option value="sbagliato">⚠️ Sbagliato</option>
+                            </select>
+                          </div>
+
+                          <div className="relative">
                             <button
                               type="button"
-                              onClick={() => handleAggiornaPromemoriaDisponibilita(ordine.id, '')}
-                              className="text-xs text-gray-400 hover:text-gray-600"
-                              title="Rimuovi promemoria"
+                              onClick={() => setActionsMenuId(prev => prev === ordine.id ? null : ordine.id)}
+                              className="w-full px-3 py-2 text-xs text-slate-700 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 flex items-center justify-center gap-2"
                             >
-                              <X className="w-3 h-3" />
+                              <MoreVertical className="w-4 h-4" />
+                              <span>Azioni</span>
                             </button>
-                          )}
+                            {actionsMenuId === ordine.id && (
+                              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-10">
+                                {!isAnnullato && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActionsMenuId(null);
+                                      handleStartEditingDescription(ordine.id, ordine.descrizione_prodotto);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50"
+                                  >
+                                    Modifica ordine
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActionsMenuId(null);
+                                    handleDuplicateOrder(ordine);
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50"
+                                >
+                                  Duplica ordine
+                                </button>
+                                {!isAnnullato && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActionsMenuId(null);
+                                      setCancelOrderId(ordine.id);
+                                      setCancelReason('');
+                                      setCancelNote('');
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs text-orange-700 hover:bg-orange-50"
+                                  >
+                                    Annulla ordine
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActionsMenuId(null);
+                                      handleDeleteOrdine(ordine.id);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50"
+                                  >
+                                    Elimina definitivamente
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-
-                        <select
-                          value={statoOrdine}
-                          onChange={(e) => handleAggiornaStatoOrdine(ordine.id, e.target.value)}
-                          className="px-2 py-1 text-xs rounded border border-gray-300 focus:border-blue-500"
-                          title="Solo stati manuali disponibili. Stati automatici gestiti dal sistema"
-                        >
-                          {/* Mostra lo stato corrente se automatico (disabled placeholder) */}
-                          {['da_ordinare', 'ordinato', 'in_arrivo', 'in_ritardo'].includes(statoOrdine) && (
-                            <option value={statoOrdine} disabled>
-                              {statoOrdine === 'da_ordinare' && '🛒 Da Ordinare (auto)'}
-                              {statoOrdine === 'ordinato' && '📦 Ordinato (auto)'}
-                              {statoOrdine === 'in_arrivo' && '🚚 In Arrivo (auto)'}
-                              {statoOrdine === 'in_ritardo' && '⏰ In Ritardo (auto)'}
-                            </option>
-                          )}
-                          {/* Stati manuali selezionabili */}
-                          <option value="consegnato">✅ Arrivato</option>
-                          <option value="accettato_con_riserva">🔄 Con Riserva</option>
-                          <option value="rifiutato">❌ Rifiutato</option>
-                          <option value="sbagliato">⚠️ Sbagliato</option>
-                          <option value="annullato">🚫 Annullato</option>
-                        </select>
-                  
-                        {canDelete && (
-                          <button
-                            onClick={() => handleDeleteOrdine(ordine.id)}
-                            className="px-3 py-2 text-sm text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors border border-red-200"
-                            title="Elimina ordine"
-                          >
-                            <span className="hidden md:block">Elimina</span>
-                            <Trash2 className="w-4 h-4 md:hidden" />
-                          </button>
-                        )}
                       </div>
                     )}
                   </div>
@@ -2637,59 +3419,341 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
       {/* Riepilogo - SEMPRE VISIBILE */}
       {ordiniMateriali.length > 0 && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Riepilogo</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
+        <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-slate-50 p-6 shadow-sm animate-fade-in">
+          <h3 className="text-lg font-semibold text-slate-900">Riepilogo</h3>
+          <div className="mt-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Totale ordini</div>
+              <div className="text-2xl font-semibold text-blue-600">
                 {ordiniMateriali.length}
               </div>
-              <div className="text-sm text-gray-500">Totale Ordini</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Da ordinare</div>
+              <div className="text-2xl font-semibold text-orange-600">
                 {ordiniMateriali.filter(o => (o.da_ordinare ?? true) === true).length}
               </div>
-              <div className="text-sm text-gray-500">Da Ordinare</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Arrivati</div>
+              <div className="text-2xl font-semibold text-emerald-600">
                 {ordiniMateriali.filter(o => (o.stato || 'ordinato') === 'consegnato').length}
               </div>
-              <div className="text-sm text-gray-500">Arrivati</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <div className="text-xs uppercase tracking-wide text-slate-500">In ritardo</div>
+              <div className="text-2xl font-semibold text-red-600">
                 {ordiniMateriali.filter(o => (o.stato || 'ordinato') === 'in_ritardo').length}
               </div>
-              <div className="text-sm text-gray-500">In Ritardo</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-emerald-600">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Disponibili</div>
+              <div className="text-2xl font-semibold text-emerald-600">
                 {disponibilitaStats.counts.disponibile}
               </div>
-              <div className="text-sm text-gray-500">Disponibili</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-amber-600">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Riassortimento</div>
+              <div className="text-2xl font-semibold text-amber-600">
                 {disponibilitaStats.counts.riassortimento}
               </div>
-              <div className="text-sm text-gray-500">In Riassortimento</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-rose-600">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <div className="text-xs uppercase tracking-wide text-slate-500">Esauriti</div>
+              <div className="text-2xl font-semibold text-rose-600">
                 {disponibilitaStats.counts.esaurito}
               </div>
-              <div className="text-sm text-gray-500">Esauriti</div>
             </div>
             {disponibilitaReminderLabel && (
-              <div className="text-center">
-                <div className={`text-base font-semibold ${promemoriaDisponibilitaScaduto ? 'text-red-600' : 'text-gray-700'}`}>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <div className="text-xs uppercase tracking-wide text-slate-500">Prossimo controllo</div>
+                <div className={`text-base font-semibold ${promemoriaDisponibilitaScaduto ? 'text-red-600' : 'text-slate-700'}`}>
                   {disponibilitaReminderLabel}
                 </div>
-                <div className="text-sm text-gray-500">Prossimo controllo</div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {eventOrderId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-lg rounded-lg bg-white shadow-xl border border-gray-200">
+            <div className="flex items-start justify-between border-b border-gray-100 px-6 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Segnala evento ordine</h3>
+                <p className="text-sm text-gray-500">
+                  Registra cosa è successo e, se serve, crea un promemoria.
+                </p>
+              </div>
+              <button
+                onClick={closeEventModal}
+                className="text-gray-400 hover:text-gray-600"
+                title="Chiudi"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo evento (obbligatorio)
+                </label>
+                <select
+                  value={eventForm.type}
+                  onChange={(e) => handleEventTypeChange(e.target.value as EventType | '')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleziona...</option>
+                  {EVENT_TYPES.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {eventErrors.type && (
+                  <p className="text-xs text-red-600 mt-1">{eventErrors.type}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Cosa è successo? (obbligatorio)
+                </label>
+                <textarea
+                  value={eventForm.description}
+                  onChange={(e) => setEventForm(prev => ({ ...prev, description: e.target.value }))}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Es. Fornitore sposta consegna a venerdì / montatura non disponibile / serve prova cliente..."
+                />
+                {eventErrors.description && (
+                  <p className="text-xs text-red-600 mt-1">{eventErrors.description}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Azione richiesta
+                </label>
+                <select
+                  value={eventForm.actionRequired}
+                  onChange={(e) => setEventForm(prev => ({ ...prev, actionRequired: e.target.value as ActionRequiredValue }))}
+                  disabled={eventForm.type === 'serve_cliente'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                >
+                  {ACTION_REQUIRED_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Se scegli un'azione, Prisma crea un promemoria.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Scadenza promemoria (opzionale)
+                </label>
+                <input
+                  type="date"
+                  value={eventForm.dueDate}
+                  onChange={(e) => setEventForm(prev => ({ ...prev, dueDate: e.target.value }))}
+                  disabled={eventForm.actionRequired === 'none' && eventForm.type !== 'serve_cliente'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={eventForm.actionDoneNow}
+                  onChange={(e) => setEventForm(prev => ({ ...prev, actionDoneNow: e.target.checked }))}
+                  disabled={eventForm.actionRequired === 'none' && eventForm.type !== 'serve_cliente'}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                Azione fatta ora (chiudi promemoria)
+              </label>
+              <p className="text-xs text-gray-500">
+                Spunta solo se hai già contattato o gestito l'azione.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-3">
+              <button
+                onClick={closeEventModal}
+                className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleSaveEvent}
+                className="px-3 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded"
+              >
+                Salva evento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {availabilityPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200">
+            <div className="border-b border-gray-100 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">Promemoria cliente</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Il fornitore ha indicato {availabilityPrompt.stato === 'riassortimento' ? 'RIASSORTIMENTO' : 'ESAURITO'}. Vuoi segnare il cliente come contattato subito?
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-3">
+              <button
+                onClick={() => handleAvailabilityPromptChoice(false)}
+                className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+                title="Resterà un promemoria aperto sulla busta."
+              >
+                No, più tardi
+              </button>
+              <button
+                onClick={() => handleAvailabilityPromptChoice(true)}
+                className="px-3 py-2 text-sm text-white bg-green-600 hover:bg-green-700 rounded"
+              >
+                Sì, contattato ora
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelOrderId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200">
+            <div className="border-b border-gray-100 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">Annulla ordine</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                L'ordine verrà impostato come ANNULLATO e non verrà eliminato.
+              </p>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Motivo annullo (obbligatorio)
+                </label>
+                <select
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleziona...</option>
+                  <option value="Cliente rinuncia">Cliente rinuncia</option>
+                  <option value="Ordine errato / da rifare">Ordine errato / da rifare</option>
+                  <option value="Fornitore non disponibile">Fornitore non disponibile</option>
+                  <option value="Sostituito con alternativa">Sostituito con alternativa</option>
+                  <option value="Altro">Altro</option>
+                </select>
+              </div>
+
+              {cancelReason === 'Altro' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nota (obbligatoria se "Altro")
+                  </label>
+                  <textarea
+                    value={cancelNote}
+                    onChange={(e) => setCancelNote(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Scrivi cosa è successo..."
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-3">
+              <button
+                onClick={() => {
+                  setCancelOrderId(null);
+                  setCancelReason('');
+                  setCancelNote('');
+                }}
+                className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleConfirmCancelOrder}
+                disabled={isCancellingOrder}
+                className="px-3 py-2 text-sm text-white bg-red-600 hover:bg-red-700 rounded disabled:opacity-60"
+              >
+                {isCancellingOrder ? 'Annullamento...' : 'Conferma annullo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSospesaFollowupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200">
+            <div className="border-b border-gray-100 px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">Esito follow-up busta sospesa</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Registra l'esito del follow-up. Non è previsto un secondo follow-up automatico.
+              </p>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Esito (obbligatorio)
+                </label>
+                <select
+                  value={sospesaFollowupReason}
+                  onChange={(e) => setSospesaFollowupReason(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleziona...</option>
+                  <option value="Cliente irreperibile">Cliente irreperibile</option>
+                  <option value="Cliente non convinto">Cliente non convinto</option>
+                  <option value="Prezzo eccessivo">Prezzo eccessivo</option>
+                  <option value="Prodotto non convince">Prodotto non convince</option>
+                  <option value="Altro">Altro</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nota (obbligatoria)
+                </label>
+                <textarea
+                  value={sospesaFollowupNote}
+                  onChange={(e) => setSospesaFollowupNote(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Es. cliente vuole ripassare per alternativa / conferma che non procede / nessuna risposta..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-3">
+              <button
+                onClick={() => {
+                  setShowSospesaFollowupModal(false);
+                  setSospesaFollowupReason('');
+                  setSospesaFollowupNote('');
+                }}
+                className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleSaveSospesaFollowup}
+                disabled={isSavingSospesaFollowup}
+                className="px-3 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-60"
+              >
+                {isSavingSospesaFollowup ? 'Salvataggio...' : 'Salva esito'}
+              </button>
+            </div>
           </div>
         </div>
       )}

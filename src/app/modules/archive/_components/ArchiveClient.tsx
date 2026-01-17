@@ -12,6 +12,7 @@ interface ArchivedBusta {
   stato_attuale: string;
   updated_at: string | null;
   data_apertura: string;
+  archived_mode: string | null;
   clienti: {
     id: string;
     nome: string;
@@ -49,10 +50,10 @@ export default function ArchiveClient() {
           stato_attuale,
           updated_at,
           data_apertura,
+          archived_mode,
           clienti:cliente_id (id, nome, cognome, telefono)
         `)
-        .eq('stato_attuale', 'consegnato_pagato')
-        .lt('updated_at', sevenDaysAgo.toISOString())
+        .or(`and(stato_attuale.eq.consegnato_pagato,updated_at.lt.${sevenDaysAgo.toISOString()}),archived_mode.eq.ANNULLATA`)
         .order('updated_at', { ascending: false });
 
       if (error) {
@@ -173,7 +174,7 @@ export default function ArchiveClient() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Archivio Buste</h1>
             <p className="text-sm text-gray-600">
-              Buste consegnate e pagate (archiviate dopo 7 giorni) • {buste.length} buste totali
+              Buste consegnate e pagate (archiviate dopo 7 giorni) o annullate • {buste.length} buste totali
               {searchTerm && ` • ${filteredBuste.length} risultati`}
             </p>
           </div>
@@ -235,6 +236,7 @@ export default function ArchiveClient() {
                   <th className="text-left px-4 py-2">ID</th>
                   <th className="text-left px-4 py-2">Cliente</th>
                   <th className="text-left px-4 py-2">Aggiornata</th>
+                  <th className="text-left px-4 py-2">Archivio</th>
                   <th className="text-left px-4 py-2">Azioni</th>
                 </tr>
               </thead>
@@ -249,6 +251,22 @@ export default function ArchiveClient() {
                     </td>
                     <td className="px-4 py-2 text-gray-600">
                       {busta.updated_at ? new Date(busta.updated_at).toLocaleString('it-IT') : '—'}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span
+                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                          busta.archived_mode === 'ANNULLATA'
+                            ? 'bg-red-50 text-red-700 border-red-200'
+                            : 'bg-gray-100 text-gray-700 border-gray-200'
+                        }`}
+                        title={
+                          busta.archived_mode === 'ANNULLATA'
+                            ? 'Busta archiviata perché tutti gli ordini sono stati annullati.'
+                            : undefined
+                        }
+                      >
+                        {busta.archived_mode === 'ANNULLATA' ? 'Archiviata — Annullata' : 'Archiviata'}
+                      </span>
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-2">

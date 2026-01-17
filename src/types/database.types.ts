@@ -292,6 +292,10 @@ export type Database = {
           data_selezione_consegna: string | null
           data_sospensione: string | null
           data_riesame_sospensione: string | null
+          archived_mode: string | null
+          sospesa_followup_done_at: string | null
+          sospesa_followup_reason: string | null
+          sospesa_followup_note: string | null
           id: string
           is_suspended: boolean
           metodo_consegna:
@@ -325,6 +329,10 @@ export type Database = {
           data_selezione_consegna?: string | null
           data_sospensione?: string | null
           data_riesame_sospensione?: string | null
+          archived_mode?: string | null
+          sospesa_followup_done_at?: string | null
+          sospesa_followup_reason?: string | null
+          sospesa_followup_note?: string | null
           id?: string
           is_suspended?: boolean
           metodo_consegna?:
@@ -358,6 +366,10 @@ export type Database = {
           data_selezione_consegna?: string | null
           data_sospensione?: string | null
           data_riesame_sospensione?: string | null
+          archived_mode?: string | null
+          sospesa_followup_done_at?: string | null
+          sospesa_followup_reason?: string | null
+          sospesa_followup_note?: string | null
           id?: string
           is_suspended?: boolean
           metodo_consegna?:
@@ -1519,6 +1531,11 @@ export type Database = {
           giorni_consegna_medi: number | null
           giorni_ritardo: number | null
           id: string
+          cancel_reason: string | null
+          needs_action: boolean | null
+          needs_action_type: string | null
+          needs_action_done: boolean | null
+          needs_action_due_date: string | null
           note: string | null
           prezzo_prodotto: number | null
           promemoria_disponibilita: string | null
@@ -1551,6 +1568,11 @@ export type Database = {
           giorni_consegna_medi?: number | null
           giorni_ritardo?: number | null
           id?: string
+          cancel_reason?: string | null
+          needs_action?: boolean | null
+          needs_action_type?: string | null
+          needs_action_done?: boolean | null
+          needs_action_due_date?: string | null
           note?: string | null
           prezzo_prodotto?: number | null
           promemoria_disponibilita?: string | null
@@ -1583,6 +1605,11 @@ export type Database = {
           giorni_consegna_medi?: number | null
           giorni_ritardo?: number | null
           id?: string
+          cancel_reason?: string | null
+          needs_action?: boolean | null
+          needs_action_type?: string | null
+          needs_action_done?: boolean | null
+          needs_action_due_date?: string | null
           note?: string | null
           prezzo_prodotto?: number | null
           promemoria_disponibilita?: string | null

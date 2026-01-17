@@ -31,6 +31,11 @@ const FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
   note: (value) => value,
   stato_disponibilita: (value) => value,
   promemoria_disponibilita: (value) => value,
+  needs_action: (value) => Boolean(value),
+  needs_action_type: (value) => value,
+  needs_action_done: (value) => Boolean(value),
+  needs_action_due_date: (value) => value,
+  cancel_reason: (value) => value,
 }
 
 type AllowedPayload = Record<string, unknown>

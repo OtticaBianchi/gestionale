@@ -2,7 +2,19 @@ import { Database } from './database.types';
 
 export type BustaWithCliente = Database['public']['Tables']['buste']['Row'] & {
   clienti: Pick<Database['public']['Tables']['clienti']['Row'], 'nome' | 'cognome' | 'telefono' | 'email' | 'data_nascita' | 'genere'> | null;
-  ordini_materiali?: Pick<Database['public']['Tables']['ordini_materiali']['Row'], 'id' | 'descrizione_prodotto' | 'stato' | 'stato_disponibilita' | 'promemoria_disponibilita' | 'da_ordinare' | 'note'>[];
+  ordini_materiali?: Pick<
+    Database['public']['Tables']['ordini_materiali']['Row'],
+    | 'id'
+    | 'descrizione_prodotto'
+    | 'stato'
+    | 'stato_disponibilita'
+    | 'promemoria_disponibilita'
+    | 'da_ordinare'
+    | 'note'
+    | 'needs_action'
+    | 'needs_action_done'
+    | 'needs_action_type'
+  >[];
   info_pagamenti?: {
     is_saldato: boolean | null;
     modalita_saldo: string;
@@ -32,4 +44,16 @@ export type BustaWithCliente = Database['public']['Tables']['buste']['Row'] & {
   } | null;
 };
 
-export type OrdineMaterialeEssenziale = Pick<Database['public']['Tables']['ordini_materiali']['Row'], 'id' | 'descrizione_prodotto' | 'stato' | 'stato_disponibilita' | 'promemoria_disponibilita' | 'da_ordinare' | 'note'>;
+export type OrdineMaterialeEssenziale = Pick<
+  Database['public']['Tables']['ordini_materiali']['Row'],
+  | 'id'
+  | 'descrizione_prodotto'
+  | 'stato'
+  | 'stato_disponibilita'
+  | 'promemoria_disponibilita'
+  | 'da_ordinare'
+  | 'note'
+  | 'needs_action'
+  | 'needs_action_done'
+  | 'needs_action_type'
+>;

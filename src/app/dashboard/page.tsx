@@ -74,7 +74,10 @@ export default async function DashboardPage() {
         stato_disponibilita,
         promemoria_disponibilita,
         da_ordinare,
-        note
+        note,
+        needs_action,
+        needs_action_done,
+        needs_action_type
       ),
       payment_plan:payment_plans (
         id,

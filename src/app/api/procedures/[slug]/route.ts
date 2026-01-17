@@ -79,6 +79,7 @@ export async function GET(
     const status = computeReadStatus(
       {
         id: procedure.id,
+        last_reviewed_at: procedure.last_reviewed_at ?? null,
         updated_at: procedure.updated_at,
         created_at: procedure.created_at,
         version: procedure.version

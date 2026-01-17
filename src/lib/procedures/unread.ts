@@ -6,6 +6,7 @@ export type ProcedureRecord = {
   id: string;
   updated_at: string;
   created_at: string;
+  last_reviewed_at?: string | null;
   version?: number | null;
 };
 
@@ -29,8 +30,11 @@ export function computeReadStatus(
   procedure: ProcedureRecord,
   receipt?: ProcedureReceiptRecord | null
 ): ProcedureReadStatus {
-  const updatedAtIso = procedure.updated_at || procedure.created_at;
-  const updatedAt = updatedAtIso ? new Date(updatedAtIso).getTime() : 0;
+  const contentUpdatedAtIso =
+    procedure.last_reviewed_at || procedure.updated_at || procedure.created_at;
+  const contentUpdatedAt = contentUpdatedAtIso
+    ? new Date(contentUpdatedAtIso).getTime()
+    : 0;
 
   const acknowledgedUpdatedAtIso =
     receipt?.acknowledged_updated_at || receipt?.acknowledged_at || null;
@@ -39,7 +43,13 @@ export function computeReadStatus(
     : 0;
 
   const isNew = !receipt;
-  const isUpdated = !!receipt && updatedAt > acknowledgedUpdatedAt;
+  const version = procedure.version ?? null;
+  const acknowledgedVersion = receipt?.acknowledged_version ?? null;
+  const isVersionUpdated =
+    version !== null &&
+    acknowledgedVersion !== null &&
+    version > acknowledgedVersion;
+  const isUpdated = !!receipt && (isVersionUpdated || contentUpdatedAt > acknowledgedUpdatedAt);
   const isUnread = isNew || isUpdated;
 
   return {
@@ -85,7 +95,7 @@ export async function getUnreadProceduresCount(
 ): Promise<number> {
   const { data: procedures, error } = await adminClient
     .from('procedures')
-    .select('id, updated_at, created_at, version')
+    .select('id, updated_at, created_at, last_reviewed_at, version')
     .eq('is_active', true);
 
   if (error) {

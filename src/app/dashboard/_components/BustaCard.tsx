@@ -1,7 +1,7 @@
 // app/dashboard/_components/BustaCard.tsx
 
 import type { ReactNode } from 'react';
-import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins, Receipt } from 'lucide-react';
+import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins, Receipt, Bell } from 'lucide-react';
 import Link from 'next/link';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
 
@@ -376,6 +376,11 @@ export default function BustaCard({ busta }: BustaCardProps) {
   const daysOpen = calculateDaysOpen(busta.data_apertura);
   const cliente = busta.clienti;
   const rawOrders = busta.ordini_materiali || [];
+  const openActionOrders = rawOrders.filter(
+    ordine => ordine.needs_action && !ordine.needs_action_done
+  );
+  const openActionCount = openActionOrders.length;
+  const hasOpenActions = openActionCount > 0;
   const activeOrders = rawOrders.filter((ordine) => (ordine.stato || '').toLowerCase() !== 'annullato');
   const displayOrders = activeOrders.length > 0 ? activeOrders : rawOrders;
   const ordiniOrdinati = sortOrdersByPriority(displayOrders);
@@ -461,6 +466,13 @@ export default function BustaCard({ busta }: BustaCardProps) {
     ? 'bg-yellow-50 border border-yellow-200'
     : 'bg-white';
 
+  const showReminder = hasOpenActions || busta.is_suspended;
+  const reminderTooltip = hasOpenActions && busta.is_suspended
+    ? 'Busta sospesa + azioni richieste aperte'
+    : busta.is_suspended
+      ? 'Busta sospesa: follow-up richiesto'
+      : 'Azione richiesta: promemoria aperto';
+
   return (
     <Link href={`/dashboard/buste/${busta.id}`}>
       <div
@@ -509,6 +521,15 @@ export default function BustaCard({ busta }: BustaCardProps) {
           {busta.is_suspended && (
             <span className="text-xs font-bold text-yellow-700 bg-yellow-100 px-2 py-1 rounded-full">
               SOSPESA
+            </span>
+          )}
+          {showReminder && (
+            <span
+              className="text-xs font-semibold text-red-700 bg-red-50 px-2 py-1 rounded-full border border-red-200 inline-flex items-center gap-1"
+              title={reminderTooltip}
+            >
+              <Bell className="h-3.5 w-3.5" />
+              {hasOpenActions && <span>!{openActionCount}</span>}
             </span>
           )}
           {installmentAlert && (

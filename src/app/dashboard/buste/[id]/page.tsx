@@ -100,7 +100,10 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
         stato,
         stato_disponibilita,
         promemoria_disponibilita,
-        note
+        note,
+        needs_action,
+        needs_action_done,
+        needs_action_type
       )
     `)
     .eq('id', (await params).id)
