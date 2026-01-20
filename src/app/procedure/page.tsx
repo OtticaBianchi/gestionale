@@ -490,17 +490,15 @@ export default function ProceduresPage() {
               <Heart className={`w-4 h-4 ${favoritesOnly ? 'text-red-600' : 'text-gray-500'}`} />
               {favoritesOnly ? 'Mostra tutte' : 'Solo preferite'}
             </button>
-            <button
-              onClick={toggleShowRead}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${
-                showRead
-                  ? 'border-blue-200 bg-blue-50 text-blue-700'
-                  : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <CheckSquare className={`w-4 h-4 ${showRead ? 'text-blue-600' : 'text-gray-500'}`} />
-              {showRead ? 'Nascondi lette' : 'Mostra anche lette'}
-            </button>
+            <label className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 cursor-pointer transition-colors">
+              <input
+                type="checkbox"
+                checked={!showRead}
+                onChange={toggleShowRead}
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <span className="text-gray-600 text-sm">Nascondi lette</span>
+            </label>
           </div>
         </div>
 

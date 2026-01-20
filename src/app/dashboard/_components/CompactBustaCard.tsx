@@ -1,6 +1,6 @@
 // app/dashboard/_components/CompactBustaCard.tsx
 
-import { Clock, Bell } from 'lucide-react';
+import { Clock, Bell, Phone } from 'lucide-react';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
 
 interface CompactBustaCardProps {
@@ -171,6 +171,15 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
         </div>
 
         <div className="flex items-center gap-1.5">
+          {/* Red phone icon when call is pending */}
+          {busta.richiede_telefonata && !busta.telefonata_completata && (
+            <span
+              className="flex items-center justify-center w-5 h-5 bg-red-100 rounded border border-red-300"
+              title={`Da chiamare - Assegnato a: ${busta.telefonata_assegnata_a || 'N/A'}`}
+            >
+              <Phone className="h-3 w-3 text-red-600" />
+            </span>
+          )}
           {showReminder && (
             <span
               className="text-[10px] font-semibold text-red-700 bg-red-50 px-1.5 py-0.5 rounded border border-red-200 flex items-center gap-1"

@@ -69,6 +69,16 @@ interface LavorazioneTabProps {
 }
 
 export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdate }: LavorazioneTabProps) {
+  const formatTimestamp = (value: Date = new Date()) => {
+    const pad = (input: number) => String(input).padStart(2, '0');
+    const year = value.getFullYear();
+    const month = pad(value.getMonth() + 1);
+    const day = pad(value.getDate());
+    const hours = pad(value.getHours());
+    const minutes = pad(value.getMinutes());
+    return `${day}:${month}:${year} ${hours}:${minutes}`;
+  };
+
   // ===== STATE =====
   const [lavorazioni, setLavorazioni] = useState<Lavorazione[]>([]);
   const [tipiMontaggio, setTipiMontaggio] = useState<TipoMontaggio[]>([]);
@@ -397,9 +407,17 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
   const handleAggiornaStatoLavorazione = async (lavorazioneId: string, nuovoStato: string, noteAggiuntive: string) => {
     try {
       const oggi = new Date().toISOString().split('T')[0];
+      const trimmedNote = noteAggiuntive.trim();
+      const lavorazioneCorrente = lavorazioni.find(lav => lav.id === lavorazioneId);
+      const noteEsistenti = lavorazioneCorrente?.note?.trim() || '';
+      const esitoLabel = nuovoStato === 'completato' ? 'COMPLETATA' : 'FALLITA';
+      const noteLine = trimmedNote ? `${formatTimestamp()} - ${esitoLabel}: ${trimmedNote}` : '';
+      const noteAggiornate = noteLine
+        ? (noteEsistenti ? `${noteEsistenti}\n\n${noteLine}` : noteLine)
+        : (noteEsistenti || null);
       const updateData: any = {
         stato: nuovoStato,
-        note: noteAggiuntive.trim() || null
+        note: noteAggiornate
       };
 
       if (nuovoStato === 'completato') {
@@ -424,7 +442,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
               stato: nuovoStato,
               data_completamento: updateData.data_completamento,
               data_fallimento: updateData.data_fallimento,
-              note: noteAggiuntive.trim() || lav.note,
+              note: noteAggiornate,
               updated_at: new Date().toISOString()
             }
           : lav
@@ -795,7 +813,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
                     {/* ✅ SEMPRE VISIBILE: Note per tutti gli utenti */}
                     {lavorazione.note && (
                       <div className="mt-3 p-3 bg-gray-50 rounded-md">
-                        <p className="text-sm text-gray-700">
+                        <p className="text-sm text-gray-700 whitespace-pre-line">
                           <strong>Note:</strong> {lavorazione.note}
                         </p>
                       </div>

@@ -15,10 +15,14 @@ import {
   AlertTriangle,
   Loader2,
   Phone,
+  PhoneCall,
+  Trash2,
   Eye,
   Store,
   Home,
   Package,
+  Check,
+  X,
 } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 import { useRouter } from 'next/navigation';
@@ -47,6 +51,10 @@ type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
 };
 
 type Comunicazione = Database['public']['Tables']['comunicazioni']['Row'];
+type ComunicazioneTipo =
+  | 'ordine_pronto'
+  | 'sollecito_ritiro'
+  | 'nota_comunicazione_cliente';
 
 interface NotificheTabProps {
   busta: BustaDettagliata;
@@ -104,6 +112,15 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
   const [numeroTracking, setNumeroTracking] = useState<string>(busta.numero_tracking || '');
   const [noteSpedizione, setNoteSpedizione] = useState<string>(busta.note_spedizione || '');
 
+  // Phone contact request state
+  const [richiedeTelefonata, setRichiedeTelefonata] = useState<boolean>(busta.richiede_telefonata || false);
+  const [telefonataAssegnataA, setTelefonataAssegnataA] = useState<string>(busta.telefonata_assegnata_a || '');
+  const [telefonataCompletata, setTelefonataCompletata] = useState<boolean>(busta.telefonata_completata || false);
+  const [telefonataCompletataData, setTelefonataCompletataData] = useState<string | null>(busta.telefonata_completata_data || null);
+  const [isSavingPhoneRequest, setIsSavingPhoneRequest] = useState(false);
+
+  const PHONE_ASSIGNEES = ['Enrico', 'Valentina', 'Marco', 'Roberta', 'Cecilia', 'Anna', 'Monica', 'Noemi'];
+
   const router = useRouter();
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -126,7 +143,11 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
     });
     setNumeroTracking(busta.numero_tracking || '');
     setNoteSpedizione(busta.note_spedizione || '');
-  }, [busta.metodo_consegna, busta.data_selezione_consegna, busta.numero_tracking, busta.note_spedizione, busta.id]);
+    setRichiedeTelefonata(busta.richiede_telefonata || false);
+    setTelefonataAssegnataA(busta.telefonata_assegnata_a || '');
+    setTelefonataCompletata(busta.telefonata_completata || false);
+    setTelefonataCompletataData(busta.telefonata_completata_data || null);
+  }, [busta.metodo_consegna, busta.data_selezione_consegna, busta.numero_tracking, busta.note_spedizione, busta.id, busta.richiede_telefonata, busta.telefonata_assegnata_a, busta.telefonata_completata, busta.telefonata_completata_data]);
 
   // Carica dati operatore corrente
   const getCurrentUser = async () => {
@@ -340,8 +361,15 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
 
   // ===== DATABASE OPERATIONS =====
   const createCommunicationRecord = async (
-    tipo: 'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente',
-    testoFinale: string
+    tipo: ComunicazioneTipo,
+    testoFinale: string,
+    overrides?: {
+      canaleInvio?: string | null;
+      statoInvio?: string | null;
+      destinatarioNome?: string | null;
+      destinatarioContatto?: string | null;
+      destinatarioTipo?: string;
+    }
   ) => {
     const response = await fetch('/api/comunicazioni', {
       method: 'POST',
@@ -352,11 +380,11 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
         bustaId: busta.id,
         tipoMessaggio: tipo,
         testoMessaggio: testoFinale,
-        destinatarioTipo: 'cliente',
-        destinatarioNome: busta.clienti ? `${busta.clienti.cognome} ${busta.clienti.nome}` : '',
-        destinatarioContatto: busta.clienti?.telefono ?? '',
-        canaleInvio: 'whatsapp',
-        statoInvio: 'inviato'
+        destinatarioTipo: overrides?.destinatarioTipo ?? 'cliente',
+        destinatarioNome: overrides?.destinatarioNome ?? (busta.clienti ? `${busta.clienti.cognome} ${busta.clienti.nome}` : ''),
+        destinatarioContatto: overrides?.destinatarioContatto ?? (busta.clienti?.telefono ?? ''),
+        canaleInvio: overrides?.canaleInvio ?? 'sms',
+        statoInvio: overrides?.statoInvio ?? 'inviato'
       })
     });
 
@@ -374,6 +402,48 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
     setEditingMessageType(null);
     setCustomMessage('');
     setFreeNote('');
+  };
+
+  const isPhoneCallCommunication = (comunicazione: Comunicazione) =>
+    comunicazione.canale_invio?.toLowerCase() === 'telefono' ||
+    comunicazione.testo_messaggio?.toLowerCase().startsWith('telefonata al cliente');
+
+  const getLatestPhoneCall = (records: Comunicazione[]) =>
+    records
+      .filter(isPhoneCallCommunication)
+      .sort((a, b) => new Date(b.data_invio).getTime() - new Date(a.data_invio).getTime())[0];
+
+  const deleteCommunicationRecord = async (id: string) => {
+    const response = await fetch('/api/comunicazioni', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        id,
+        bustaId: busta.id
+      })
+    });
+
+    if (!response.ok) {
+      const payload = await response.json();
+      throw new Error(payload?.error || 'Errore durante la rimozione della comunicazione.');
+    }
+  };
+
+  const handleDeleteCommunication = async (comunicazione: Comunicazione) => {
+    if (!canEdit) return;
+
+    const confirmed = window.confirm('Eliminare questa nota interna?');
+    if (!confirmed) return;
+
+    try {
+      await deleteCommunicationRecord(comunicazione.id);
+      setComunicazioni(prev => prev.filter(record => record.id !== comunicazione.id));
+    } catch (error: any) {
+      console.error('Errore rimozione comunicazione:', error);
+      alert(`Errore: ${error.message}`);
+    }
   };
 
   // ===== MAIN MESSAGE FUNCTION =====
@@ -403,6 +473,121 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
   };
 
   const isBustaReadyForNotification = busta.stato_attuale === 'pronto_ritiro';
+
+  // Phone contact request handlers
+  const handleSavePhoneRequest = async () => {
+    if (!telefonataAssegnataA) {
+      alert('Seleziona a chi assegnare la telefonata');
+      return;
+    }
+
+    setIsSavingPhoneRequest(true);
+    try {
+      const { error } = await supabase
+        .from('buste')
+        .update({
+          richiede_telefonata: true,
+          telefonata_assegnata_a: telefonataAssegnataA,
+          telefonata_completata: false,
+          telefonata_completata_data: null,
+          telefonata_completata_da: null
+        })
+        .eq('id', busta.id);
+
+      if (error) throw error;
+
+      setRichiedeTelefonata(true);
+      setTelefonataCompletata(false);
+      setTelefonataCompletataData(null);
+      router.refresh();
+      alert('Richiesta telefonata salvata!');
+    } catch (error: any) {
+      console.error('Errore salvataggio richiesta telefonata:', error);
+      alert(`Errore: ${error.message}`);
+    } finally {
+      setIsSavingPhoneRequest(false);
+    }
+  };
+
+  const handleMarkPhoneCallDone = async () => {
+    setIsSavingPhoneRequest(true);
+    try {
+      const completedAt = new Date().toISOString();
+      const { error } = await supabase
+        .from('buste')
+        .update({
+          telefonata_completata: true,
+          telefonata_completata_data: completedAt,
+          telefonata_completata_da: currentUser?.id || null
+        })
+        .eq('id', busta.id);
+
+      if (error) throw error;
+
+      setTelefonataCompletata(true);
+      setTelefonataCompletataData(completedAt);
+      try {
+        const assignedTo = telefonataAssegnataA ? `Assegnata a: ${telefonataAssegnataA}.` : 'Assegnazione non indicata.';
+        const nuovaComunicazione = await createCommunicationRecord(
+          'nota_comunicazione_cliente',
+          `Telefonata al cliente completata. ${assignedTo}`
+        );
+        setComunicazioni(prev => [...prev, nuovaComunicazione]);
+      } catch (communicationError) {
+        console.error('Errore salvataggio comunicazione telefonata:', communicationError);
+      }
+      router.refresh();
+      alert('Telefonata registrata!');
+    } catch (error: any) {
+      console.error('Errore registrazione telefonata:', error);
+      alert(`Errore: ${error.message}`);
+    } finally {
+      setIsSavingPhoneRequest(false);
+    }
+  };
+
+  const handleCancelPhoneRequest = async () => {
+    setIsSavingPhoneRequest(true);
+    try {
+      const shouldRemoveCommunication = telefonataCompletata;
+      const { error } = await supabase
+        .from('buste')
+        .update({
+          richiede_telefonata: false,
+          telefonata_assegnata_a: null,
+          telefonata_completata: false,
+          telefonata_completata_data: null,
+          telefonata_completata_da: null
+        })
+        .eq('id', busta.id);
+
+      if (error) throw error;
+
+      if (shouldRemoveCommunication) {
+        const latestPhoneCall = getLatestPhoneCall(comunicazioni);
+        if (latestPhoneCall) {
+          try {
+            await deleteCommunicationRecord(latestPhoneCall.id);
+            setComunicazioni(prev => prev.filter(record => record.id !== latestPhoneCall.id));
+          } catch (communicationError) {
+            console.error('Errore rimozione comunicazione telefonata:', communicationError);
+          }
+        }
+      }
+
+      setRichiedeTelefonata(false);
+      setTelefonataAssegnataA('');
+      setTelefonataCompletata(false);
+      setTelefonataCompletataData(null);
+      router.refresh();
+      alert('Richiesta telefonata annullata!');
+    } catch (error: any) {
+      console.error('Errore annullamento richiesta:', error);
+      alert(`Errore: ${error.message}`);
+    } finally {
+      setIsSavingPhoneRequest(false);
+    }
+  };
 
   // ===== RENDER =====
   return (
@@ -539,7 +724,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
               {/* Messaggio Ordine Pronto */}
               <div className="border border-gray-200 rounded-lg p-4">
@@ -600,7 +785,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                 </p>
                 <div className="bg-gray-50 rounded-md p-3 mb-3">
                   <p className="text-xs text-gray-700 italic">
-                    Es: "È passato il marito", "Avvertito via WhatsApp personale", "Cliente chiamato telefonicamente"
+                    Es: "È passato il marito", "Avvertito via WhatsApp personale"
                   </p>
                 </div>
                 <button
@@ -611,6 +796,114 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                   <User className="w-4 h-4 mr-2" />
                   Aggiungi Nota
                 </button>
+              </div>
+
+              {/* Richiesta Telefonata */}
+              <div className={`border rounded-lg p-4 ${
+                richiedeTelefonata && !telefonataCompletata
+                  ? 'border-red-300 bg-red-50'
+                  : telefonataCompletata
+                    ? 'border-green-300 bg-green-50'
+                    : 'border-gray-200'
+              }`}>
+                <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                  <PhoneCall className={`w-4 h-4 mr-2 ${
+                    richiedeTelefonata && !telefonataCompletata
+                      ? 'text-red-600'
+                      : 'text-purple-600'
+                  }`} />
+                  Contatto Telefonico
+                </h4>
+
+                {telefonataCompletata ? (
+                  // Telefonata completata
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-green-700">
+                      <Check className="w-4 h-4" />
+                      <span className="text-sm font-medium">Telefonata effettuata</span>
+                    </div>
+                    <p className="text-xs text-gray-600">
+                      Assegnata a: <strong>{telefonataAssegnataA || 'Non assegnata'}</strong>
+                    </p>
+                    {telefonataCompletataData && (
+                      <p className="text-xs text-gray-500">
+                        Completata il {new Date(telefonataCompletataData).toLocaleDateString('it-IT')}
+                      </p>
+                    )}
+                    <button
+                      onClick={handleCancelPhoneRequest}
+                      disabled={isSavingPhoneRequest}
+                      className="w-full mt-2 flex items-center justify-center px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                    >
+                      Resetta
+                    </button>
+                  </div>
+                ) : richiedeTelefonata ? (
+                  // Telefonata richiesta ma non completata
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-red-700">
+                      <Phone className="w-4 h-4 animate-pulse" />
+                      <span className="text-sm font-medium">Da contattare</span>
+                    </div>
+                    <p className="text-xs text-gray-700">
+                      Assegnata a: <strong>{telefonataAssegnataA || 'Non assegnata'}</strong>
+                    </p>
+                    <button
+                      onClick={handleMarkPhoneCallDone}
+                      disabled={isSavingPhoneRequest}
+                      className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isSavingPhoneRequest ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4 mr-2" />
+                      )}
+                      Telefonato al Cliente
+                    </button>
+                    <button
+                      onClick={handleCancelPhoneRequest}
+                      disabled={isSavingPhoneRequest}
+                      className="w-full flex items-center justify-center px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      Annulla richiesta
+                    </button>
+                  </div>
+                ) : (
+                  // Nessuna telefonata richiesta
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-600">
+                      Il cliente dev&apos;essere contattato telefonicamente
+                    </p>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Assegna a:
+                      </label>
+                      <select
+                        value={telefonataAssegnataA}
+                        onChange={(e) => setTelefonataAssegnataA(e.target.value)}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
+                      >
+                        <option value="">Seleziona...</option>
+                        {PHONE_ASSIGNEES.map((name) => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      onClick={handleSavePhoneRequest}
+                      disabled={isSavingPhoneRequest || !telefonataAssegnataA}
+                      className="w-full flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isSavingPhoneRequest ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <PhoneCall className="w-4 h-4 mr-2" />
+                      )}
+                      Richiedi Telefonata
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -983,15 +1276,22 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-2">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        comunicazione.tipo_messaggio === 'ordine_pronto'
-                          ? 'bg-green-100 text-green-800'
-                          : comunicazione.tipo_messaggio === 'sollecito_ritiro'
-                            ? 'bg-orange-100 text-orange-800'
-                            : comunicazione.tipo_messaggio === 'nota_comunicazione_cliente'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-gray-100 text-gray-800'
+                        isPhoneCallCommunication(comunicazione)
+                          ? 'bg-red-100 text-red-800'
+                          : comunicazione.tipo_messaggio === 'ordine_pronto'
+                            ? 'bg-green-100 text-green-800'
+                            : comunicazione.tipo_messaggio === 'sollecito_ritiro'
+                              ? 'bg-orange-100 text-orange-800'
+                              : comunicazione.tipo_messaggio === 'nota_comunicazione_cliente'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {comunicazione.tipo_messaggio === 'ordine_pronto' ? (
+                        {isPhoneCallCommunication(comunicazione) ? (
+                          <>
+                            <PhoneCall className="w-3 h-3 mr-1" />
+                            Telefonata
+                          </>
+                        ) : comunicazione.tipo_messaggio === 'ordine_pronto' ? (
                           <>
                             <CheckCircle className="w-3 h-3 mr-1" />
                             Ordine Pronto
@@ -1029,18 +1329,31 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                         Inviato il {new Date(comunicazione.data_invio).toLocaleDateString('it-IT')} alle {new Date(comunicazione.data_invio).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                       <span className={`text-xs px-2 py-1 rounded-full ${
-                        comunicazione.tipo_messaggio === 'nota_comunicazione_cliente'
-                          ? 'bg-gray-100 text-gray-700'
-                          : comunicazione.canale_invio === 'whatsapp'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-gray-100 text-gray-700'
+                        isPhoneCallCommunication(comunicazione)
+                          ? 'bg-red-100 text-red-700'
+                          : comunicazione.tipo_messaggio === 'nota_comunicazione_cliente'
+                            ? 'bg-gray-100 text-gray-700'
+                            : 'bg-green-100 text-green-700'
                       }`}>
-                        {comunicazione.tipo_messaggio === 'nota_comunicazione_cliente'
-                          ? 'Nota Interna'
-                          : comunicazione.canale_invio?.toUpperCase() || 'WHATSAPP'}
+                        {isPhoneCallCommunication(comunicazione)
+                          ? 'Telefono'
+                          : comunicazione.tipo_messaggio === 'nota_comunicazione_cliente'
+                            ? 'Nota Interna'
+                            : comunicazione.canale_invio?.toUpperCase() || 'SMS'}
                       </span>
                     </div>
                   </div>
+                  {canEdit && comunicazione.tipo_messaggio === 'nota_comunicazione_cliente' && !isPhoneCallCommunication(comunicazione) && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCommunication(comunicazione)}
+                      className="ml-3 inline-flex items-center px-2 py-1 text-xs text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100 transition-colors"
+                      title="Elimina nota interna"
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Elimina
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

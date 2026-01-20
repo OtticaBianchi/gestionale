@@ -124,6 +124,22 @@ type EventType =
   | 'prodotto_errato'
   | 'altro';
 
+type NuovoOrdineForm = {
+  categoria_prodotto: '' | 'lenti' | 'lac' | 'montature' | 'sport' | 'accessori' | 'lab.esterno' | 'assistenza' | 'ricambi';
+  tipo_prodotto_assistenza: '' | 'lenti' | 'lac' | 'montature' | 'sport' | 'accessori';
+  tipo_prodotto_ricambi: '' | 'montature' | 'sport' | 'accessori';
+  fornitore_id: string;
+  tipo_lenti: string;
+  tipo_ordine_id: string;
+  descrizione_prodotto: string;
+  data_ordine: string;
+  giorni_consegna_custom: string;
+  note: string;
+  primo_acquisto_lac: boolean;
+  ordine_gia_effettuato: boolean;
+  data_consegna_effettiva: string;
+};
+
 const ACTION_REQUIRED_OPTIONS: Array<{ value: ActionRequiredValue; label: string }> = [
   { value: 'none', label: 'Nessuna' },
   { value: 'CALL_CLIENT', label: 'Contattare cliente' },
@@ -233,6 +249,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     formatDateForInput(busta.data_apertura) || new Date().toISOString().split('T')[0];
 
   const { user, profile } = useUser();
+  const canEditOrder = !isReadOnly && profile?.role === 'admin';
   const currentUserLabel = useMemo(() => {
     if (profile?.full_name) return profile.full_name;
     if (user?.email) return user.email.split('@')[0] || 'Utente';
@@ -255,6 +272,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const [fornitoriRicambi, setFornitoriRicambi] = useState<Fornitore[]>([]); // ✅ NUOVO: Ricambi (filtered list)
   
   const [showNuovoOrdineForm, setShowNuovoOrdineForm] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [isLoadingOrdini, setIsLoadingOrdini] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [workflowStatus, setWorkflowStatus] = useState<WorkflowState>(resolveWorkflowState(busta.stato_attuale));
@@ -356,10 +374,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const canEdit = !isReadOnly;
 
   // Nuovo ordine form con categorie
-  const [nuovoOrdineForm, setNuovoOrdineForm] = useState({
-    categoria_prodotto: '' as 'lenti' | 'lac' | 'montature' | 'lab.esterno' | 'sport' | 'accessori' | 'assistenza' | 'ricambi' | '', // ✅ AGGIUNTO: accessori, assistenza, ricambi
-    tipo_prodotto_assistenza: '' as 'lenti' | 'lac' | 'montature' | 'sport' | 'accessori' | '', // ✅ NUOVO: Sottocategoria per Assistenza
-    tipo_prodotto_ricambi: '' as 'montature' | 'sport' | 'accessori' | '', // ✅ NUOVO: Sottocategoria per Ricambi
+  const [nuovoOrdineForm, setNuovoOrdineForm] = useState<NuovoOrdineForm>({
+    categoria_prodotto: '', // ✅ AGGIUNTO: accessori, assistenza, ricambi
+    tipo_prodotto_assistenza: '', // ✅ NUOVO: Sottocategoria per Assistenza
+    tipo_prodotto_ricambi: '', // ✅ NUOVO: Sottocategoria per Ricambi
     fornitore_id: '',
     tipo_lenti: '',
     tipo_ordine_id: '',
@@ -1373,6 +1391,67 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       data_consegna_effettiva: ''
     });
     setShowNuovoOrdineForm(false);
+    setEditingOrderId(null);
+  };
+
+  const openNewOrderForm = () => {
+    setNuovoOrdineForm({
+      categoria_prodotto: '',
+      tipo_prodotto_assistenza: '',
+      tipo_prodotto_ricambi: '',
+      fornitore_id: '',
+      tipo_lenti: '',
+      tipo_ordine_id: '',
+      descrizione_prodotto: '',
+      data_ordine: getDefaultOrderDate(),
+      giorni_consegna_custom: '',
+      note: '',
+      primo_acquisto_lac: false,
+      ordine_gia_effettuato: false,
+      data_consegna_effettiva: ''
+    });
+    setEditingOrderId(null);
+    setShowNuovoOrdineForm(true);
+  };
+
+  const resolveOrderCategory = (ordine: OrdineMateriale): Pick<NuovoOrdineForm, 'categoria_prodotto' | 'tipo_prodotto_assistenza' | 'tipo_prodotto_ricambi' | 'fornitore_id'> => {
+    const categoriaRaw = (ordine.categoria_fornitore || '').toLowerCase();
+    const supplierCandidates = [
+      { value: ordine.fornitore_lenti_id, categoria: 'lenti', tipoAssistenza: 'lenti', tipoRicambi: null },
+      { value: ordine.fornitore_lac_id, categoria: 'lac', tipoAssistenza: 'lac', tipoRicambi: null },
+      { value: ordine.fornitore_montature_id, categoria: 'montature', tipoAssistenza: 'montature', tipoRicambi: 'montature' },
+      { value: ordine.fornitore_lab_esterno_id, categoria: 'lab.esterno', tipoAssistenza: null, tipoRicambi: null },
+      { value: ordine.fornitore_sport_id, categoria: 'sport', tipoAssistenza: 'sport', tipoRicambi: 'sport' },
+      { value: ordine.fornitore_accessori_id, categoria: 'accessori', tipoAssistenza: 'accessori', tipoRicambi: 'accessori' }
+    ];
+
+    const match = supplierCandidates.find(item => item.value);
+    const fornitoreId = match?.value || ordine.fornitore_id || '';
+
+    if (categoriaRaw.includes('assistenza')) {
+      return {
+        categoria_prodotto: 'assistenza',
+        tipo_prodotto_assistenza: (match?.tipoAssistenza as NuovoOrdineForm['tipo_prodotto_assistenza']) || '',
+        tipo_prodotto_ricambi: '',
+        fornitore_id: fornitoreId
+      };
+    }
+
+    if (categoriaRaw.includes('ricambi')) {
+      return {
+        categoria_prodotto: 'ricambi',
+        tipo_prodotto_assistenza: '',
+        tipo_prodotto_ricambi: (match?.tipoRicambi as NuovoOrdineForm['tipo_prodotto_ricambi']) || '',
+        fornitore_id: fornitoreId
+      };
+    }
+
+    return {
+      categoria_prodotto: (match?.categoria as NuovoOrdineForm['categoria_prodotto']) || '',
+      tipo_prodotto_assistenza: '',
+      tipo_prodotto_ricambi: '',
+      fornitore_id: fornitoreId
+    };
   };
 
   // ===== MAIN ORDER SAVE FUNCTION =====
@@ -1412,6 +1491,155 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     } catch (error: any) {
       console.error('❌ Error creating ordine:', error);
       alert(`Errore nella creazione: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const buildEditOrderPayload = () => {
+    const fornitoreTableField = getSupplierField();
+    const tipoSelezionato = tipiOrdine.find(t => t.id === Number(nuovoOrdineForm.tipo_ordine_id));
+    const isNegozio = tipoSelezionato?.nome?.toLowerCase() === 'negozio';
+
+    const ordineGiaEffettuato = nuovoOrdineForm.ordine_gia_effettuato;
+    const dataConsegnaEffettiva = ordineGiaEffettuato
+      ? (nuovoOrdineForm.data_consegna_effettiva || null)
+      : null;
+    const dataOrdine = ordineGiaEffettuato ? (nuovoOrdineForm.data_ordine || null) : null;
+    const dataConsegnaPrevista = ordineGiaEffettuato
+      ? (calcolaDataConsegnaPrevista() || null)
+      : null;
+
+    const giorniConsegna = nuovoOrdineForm.giorni_consegna_custom
+      ? Number.parseInt(nuovoOrdineForm.giorni_consegna_custom)
+      : getTempiConsegnaByCategoria(nuovoOrdineForm.categoria_prodotto, nuovoOrdineForm.tipo_lenti);
+
+    const cleanedNote = (nuovoOrdineForm.note ?? '').trim();
+
+    const supplierReset = {
+      fornitore_lenti_id: null,
+      fornitore_lac_id: null,
+      fornitore_montature_id: null,
+      fornitore_lab_esterno_id: null,
+      fornitore_sport_id: null,
+      fornitore_accessori_id: null
+    };
+
+    const categoriaFornitore = nuovoOrdineForm.categoria_prodotto || null;
+
+    if (isNegozio) {
+      return {
+        ...supplierReset,
+        ...fornitoreTableField,
+        categoria_fornitore: categoriaFornitore,
+        tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
+        tipo_ordine_id: Number.parseInt(nuovoOrdineForm.tipo_ordine_id),
+        descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
+        data_ordine: null,
+        data_consegna_prevista: null,
+        data_consegna_effettiva: null,
+        giorni_consegna_medi: null,
+        note: cleanedNote || null
+      };
+    }
+
+    return {
+      ...supplierReset,
+      ...fornitoreTableField,
+      categoria_fornitore: categoriaFornitore,
+      tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
+      tipo_ordine_id: nuovoOrdineForm.tipo_ordine_id ? Number.parseInt(nuovoOrdineForm.tipo_ordine_id) : null,
+      descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
+      data_ordine: dataOrdine,
+      data_consegna_prevista: dataConsegnaPrevista,
+      data_consegna_effettiva: dataConsegnaEffettiva,
+      giorni_consegna_medi: giorniConsegna,
+      note: cleanedNote || null
+    };
+  };
+
+  const handleStartEditingOrder = (ordine: OrdineMateriale) => {
+    if (!canEditOrder) return;
+
+    const categoriaInfo = resolveOrderCategory(ordine);
+    const ordineGiaEffettuato = Boolean(ordine.data_ordine || ordine.data_consegna_effettiva);
+    const categoria = categoriaInfo.categoria_prodotto;
+
+    setNuovoOrdineForm({
+      ...categoriaInfo,
+      tipo_lenti: categoria === 'lenti' ? (ordine.tipo_lenti_id || '') : '',
+      tipo_ordine_id: ordine.tipo_ordine_id ? String(ordine.tipo_ordine_id) : '',
+      descrizione_prodotto: ordine.descrizione_prodotto || '',
+      data_ordine: formatDateForInput(ordine.data_ordine) || (ordineGiaEffettuato ? getDefaultOrderDate() : ''),
+      giorni_consegna_custom: ordine.giorni_consegna_medi ? String(ordine.giorni_consegna_medi) : '',
+      note: ordine.note || '',
+      primo_acquisto_lac: false,
+      ordine_gia_effettuato: ordineGiaEffettuato,
+      data_consegna_effettiva: formatDateForInput(ordine.data_consegna_effettiva) || ''
+    });
+
+    setEditingOrderId(ordine.id);
+    setShowNuovoOrdineForm(false);
+  };
+
+  const handleSaveEditedOrder = async () => {
+    if (!editingOrderId || !canEditOrder) return;
+
+    setIsSaving(true);
+    try {
+      validateOrderForm();
+
+      const updates = buildEditOrderPayload();
+      const updated = await patchOrdine(editingOrderId, updates);
+
+      setOrdiniMateriali(prev =>
+        prev.map(ordine => {
+          if (ordine.id !== editingOrderId) return ordine;
+
+          const next = {
+            ...ordine,
+            ...updates,
+            updated_at: updated?.updated_at ?? ordine.updated_at,
+            updated_by: updated?.updated_by ?? ordine.updated_by,
+            fornitori_lenti: updates.fornitore_lenti_id
+              ? { nome: fornitoriLenti.find(f => f.id === updates.fornitore_lenti_id)?.nome || '' }
+              : null,
+            fornitori_lac: updates.fornitore_lac_id
+              ? { nome: fornitoriLac.find(f => f.id === updates.fornitore_lac_id)?.nome || '' }
+              : null,
+            fornitori_montature: updates.fornitore_montature_id
+              ? { nome: fornitoriMontature.find(f => f.id === updates.fornitore_montature_id)?.nome || '' }
+              : null,
+            fornitori_lab_esterno: updates.fornitore_lab_esterno_id
+              ? { nome: fornitoriLabEsterno.find(f => f.id === updates.fornitore_lab_esterno_id)?.nome || '' }
+              : null,
+            fornitori_sport: updates.fornitore_sport_id
+              ? { nome: fornitoriSport.find(f => f.id === updates.fornitore_sport_id)?.nome || '' }
+              : null,
+            tipi_lenti: updates.tipo_lenti_id
+              ? {
+                  nome: tipiLenti.find(t => t.id === updates.tipo_lenti_id)?.nome || '',
+                  giorni_consegna_stimati: tipiLenti.find(t => t.id === updates.tipo_lenti_id)?.giorni_consegna_stimati || null
+                }
+              : null,
+            tipi_ordine: updates.tipo_ordine_id
+              ? { nome: tipiOrdine.find(t => t.id === updates.tipo_ordine_id)?.nome || '' }
+              : null
+          };
+
+          return next;
+        })
+      );
+
+      await mutate('/api/buste');
+      if (updates.note !== undefined) {
+        notifyNotesUpdated();
+      }
+
+      resetOrderForm();
+    } catch (error: any) {
+      console.error('❌ Error updating ordine:', error);
+      alert(`Errore aggiornamento: ${error.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -2233,6 +2461,427 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     }
   };
 
+  const renderOrderForm = (title: string, onClose: () => void, onSave: () => void) => (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-gray-600"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* ===== STEP 1: CATEGORIA PRODOTTO ===== */}
+        <div className="lg:col-span-3">
+          <fieldset>
+            <legend className="block text-sm font-medium text-gray-700 mb-2">
+              1. Categoria Prodotto *
+            </legend>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
+            {[
+              { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti da vista/sole' },
+              { value: 'lac', label: '👁️ LAC', desc: 'Lenti a Contatto' },
+              { value: 'montature', label: '👓 Montature', desc: 'Occhiali/Sole' },
+              { value: 'lab.esterno', label: '🏭 Lab.Esterno', desc: 'Lavorazioni Esterne' },
+              { value: 'sport', label: '🏃 Sport', desc: 'Articoli Sportivi' },
+              { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Custodie, cordini, liquidi, panni, etc.' },
+              { value: 'assistenza', label: '🔧 Assistenza', desc: 'Riparazioni e servizi' },
+              { value: 'ricambi', label: '🔩 Ricambi', desc: 'Pezzi di ricambio' }
+            ].map(categoria => (
+              <button
+                key={categoria.value}
+                onClick={() => setNuovoOrdineForm(prev => ({
+                  ...prev,
+                  categoria_prodotto: categoria.value as any,
+                  tipo_prodotto_assistenza: '',
+                  tipo_prodotto_ricambi: '',
+                  fornitore_id: '',
+                  tipo_lenti: '',
+                  primo_acquisto_lac: false
+                }))}
+                className={`p-3 rounded-lg border text-center transition-colors ${
+                  nuovoOrdineForm.categoria_prodotto === categoria.value
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="font-medium text-sm">{categoria.label}</div>
+                <div className="text-xs text-gray-500 mt-1">{categoria.desc}</div>
+              </button>
+            ))}
+            </div>
+          </fieldset>
+        </div>
+
+        {/* ===== STEP 1.5: TIPO PRODOTTO ASSISTENZA ===== */}
+        {nuovoOrdineForm.categoria_prodotto === 'assistenza' && (
+          <div className="lg:col-span-3">
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700 mb-2">
+                2. Tipo Prodotto *
+              </legend>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {[
+                  { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti oftalmiche' },
+                  { value: 'montature', label: '👓 Montature', desc: 'Occhiali' },
+                  { value: 'lac', label: '👁️ LAC', desc: 'Lenti a contatto' },
+                  { value: 'sport', label: '🏃 Sport', desc: 'Articoli sportivi' },
+                  { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Accessori e liquidi' }
+                ].map(tipo => (
+                  <button
+                    key={tipo.value}
+                    onClick={() => setNuovoOrdineForm(prev => ({
+                      ...prev,
+                      tipo_prodotto_assistenza: tipo.value as any,
+                      fornitore_id: ''
+                    }))}
+                    className={`p-3 rounded-lg border text-center transition-colors ${
+                      nuovoOrdineForm.tipo_prodotto_assistenza === tipo.value
+                        ? 'border-green-500 bg-green-50 text-green-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm">{tipo.label}</div>
+                    <div className="text-xs text-gray-500 mt-1">{tipo.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          </div>
+        )}
+
+        {/* ===== STEP 1.5: TIPO PRODOTTO RICAMBI ===== */}
+        {nuovoOrdineForm.categoria_prodotto === 'ricambi' && (
+          <div className="lg:col-span-3">
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700 mb-2">
+                2. Tipo Prodotto *
+              </legend>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  { value: 'montature', label: '👓 Montature', desc: 'Ricambi per occhiali' },
+                  { value: 'sport', label: '🏃 Sport', desc: 'Ricambi articoli sportivi' },
+                  { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Ricambi accessori e liquidi' }
+                ].map(tipo => (
+                  <button
+                    key={tipo.value}
+                    onClick={() => setNuovoOrdineForm(prev => ({
+                      ...prev,
+                      tipo_prodotto_ricambi: tipo.value as any,
+                      fornitore_id: ''
+                    }))}
+                    className={`p-3 rounded-lg border text-center transition-colors ${
+                      nuovoOrdineForm.tipo_prodotto_ricambi === tipo.value
+                        ? 'border-purple-500 bg-purple-50 text-purple-700'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm">{tipo.label}</div>
+                    <div className="text-xs text-gray-500 mt-1">{tipo.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          </div>
+        )}
+
+        {/* ===== STEP 2: TIPO LENTI ===== */}
+        {nuovoOrdineForm.categoria_prodotto === 'lenti' && (
+          <div>
+            <label htmlFor="tipo-lenti" className="block text-sm font-medium text-gray-700 mb-1">
+              2. Tipo Lenti *
+            </label>
+            <select
+              id="tipo-lenti"
+              value={nuovoOrdineForm.tipo_lenti}
+              onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, tipo_lenti: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">-- Seleziona tipo --</option>
+              {tipiLenti.map(tipo => (
+                <option key={tipo.id} value={tipo.id}>
+                  {tipo.nome} ({tipo.giorni_consegna_stimati || 5} giorni)
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* ===== STEP 3: FORNITORE SPECIFICO ===== */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {nuovoOrdineForm.categoria_prodotto === 'lenti'
+              ? '3. Fornitore'
+              : nuovoOrdineForm.categoria_prodotto === 'assistenza'
+              ? '3. Fornitore'
+              : '2. Fornitore'}
+          </label>
+          <select
+            value={nuovoOrdineForm.fornitore_id}
+            onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, fornitore_id: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            disabled={
+              !nuovoOrdineForm.categoria_prodotto ||
+              (nuovoOrdineForm.categoria_prodotto === 'assistenza' && !nuovoOrdineForm.tipo_prodotto_assistenza) ||
+              (nuovoOrdineForm.categoria_prodotto === 'ricambi' && !nuovoOrdineForm.tipo_prodotto_ricambi)
+            }
+          >
+            <option value="">
+              {((nuovoOrdineForm.categoria_prodotto === 'assistenza' && !nuovoOrdineForm.tipo_prodotto_assistenza) ||
+                (nuovoOrdineForm.categoria_prodotto === 'ricambi' && !nuovoOrdineForm.tipo_prodotto_ricambi))
+                ? '-- Prima seleziona il tipo prodotto --'
+                : '-- Seleziona fornitore --'}
+            </option>
+            {getFornitoriDisponibili().map(f => (
+              <option key={f.id} value={f.id}>
+                {f.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* ===== CHECKBOX PRIMO ACQUISTO LAC ===== */}
+        {nuovoOrdineForm.categoria_prodotto === 'lac' && (
+          <div className="lg:col-span-3">
+            <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <input
+                type="checkbox"
+                id="primo_acquisto_lac"
+                checked={nuovoOrdineForm.primo_acquisto_lac}
+                onChange={(e) => setNuovoOrdineForm(prev => ({
+                  ...prev,
+                  primo_acquisto_lac: e.target.checked
+                }))}
+                className="w-4 h-4 text-blue-600 bg-white border-blue-300 rounded focus:ring-blue-500 focus:ring-2"
+              />
+              <label htmlFor="primo_acquisto_lac" className="text-sm font-medium text-blue-900">
+                🌟 Primo acquisto di lenti a contatto per questo cliente
+              </label>
+            </div>
+            <p className="text-xs text-blue-600 mt-2">
+              ✓ Seleziona se è la prima volta che questo cliente acquista LAC - influenzerà la priorità delle chiamate di follow-up
+            </p>
+          </div>
+        )}
+
+        {/* ===== MODALITÀ ORDINE ===== */}
+        <div>
+          <label htmlFor="modalita-ordine" className="block text-sm font-medium text-gray-700 mb-1">
+            Modalità Ordine
+          </label>
+          <select
+            id="modalita-ordine"
+            value={nuovoOrdineForm.tipo_ordine_id}
+            onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, tipo_ordine_id: e.target.value }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">-- Seleziona modalità --</option>
+            {tipiOrdine.map(t => (
+              <option key={t.id} value={t.id}>{t.nome}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* ===== ALERT SE "NEGOZIO" SELEZIONATO ===== */}
+        {(() => {
+          const tipoSelezionato = tipiOrdine.find(t => t.id === Number(nuovoOrdineForm.tipo_ordine_id));
+          const isNegozio = tipoSelezionato?.nome?.toLowerCase() === 'negozio';
+          return isNegozio ? (
+            <div className="lg:col-span-3 bg-green-50 border border-green-200 p-3 rounded-lg">
+              <p className="text-sm text-green-800 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                <strong>Prodotto già disponibile in negozio</strong> - pronto per il montaggio
+              </p>
+              <p className="text-xs text-green-600 mt-1">
+                ℹ️ Non è necessario inserire date di ordine o consegna (il fornitore indica da chi è stato acquistato in origine)
+              </p>
+            </div>
+          ) : null;
+        })()}
+
+        {/* ===== DESCRIZIONE PRODOTTO OBBLIGATORIA ===== */}
+        <div className="lg:col-span-2">
+          <label htmlFor="descrizione-prodotto" className="block text-sm font-medium text-gray-700 mb-1">
+            Descrizione Prodotto * <span className="text-red-500">(Obbligatorio)</span>
+          </label>
+          <textarea
+            id="descrizione-prodotto"
+            value={nuovoOrdineForm.descrizione_prodotto}
+            onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, descrizione_prodotto: e.target.value }))}
+            rows={2}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Usa parole chiave: progressive, office, monofocali, antiriflesso, polarizzazione, fotocromatico, potere..."
+            required
+          />
+          <p className="text-xs text-gray-600 mt-1">
+            📝 <strong>Esempio:</strong> "Progressive 1.67 antiriflesso + fotocromatico | OD: +2.00 -1.25×180° ADD +2.50 | OS: +1.75 -1.00×10° ADD +2.50"
+          </p>
+        </div>
+
+        {/* ===== GESTIONE DATE E TEMPI ===== */}
+        {(() => {
+          const tipoSelezionato = tipiOrdine.find(t => t.id === Number(nuovoOrdineForm.tipo_ordine_id));
+          const isNegozio = tipoSelezionato?.nome?.toLowerCase() === 'negozio';
+          return !isNegozio ? (
+            <>
+              <div className="lg:col-span-3">
+                <label className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <input
+                    type="checkbox"
+                    checked={nuovoOrdineForm.ordine_gia_effettuato}
+                    onChange={(e) =>
+                      setNuovoOrdineForm(prev => ({
+                        ...prev,
+                        ordine_gia_effettuato: e.target.checked,
+                        data_consegna_effettiva: e.target.checked ? prev.data_consegna_effettiva : '',
+                        data_ordine: e.target.checked
+                          ? (prev.data_ordine && prev.data_ordine !== new Date().toISOString().split('T')[0]
+                              ? prev.data_ordine
+                              : getDefaultOrderDate())
+                          : prev.data_ordine
+                      }))
+                    }
+                    className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-sm font-semibold text-blue-900">
+                      Ordine già effettuato (inserimento storico)
+                    </span>
+                    <p className="text-xs text-blue-700 mt-1">
+                      Seleziona quando l&apos;ordine è stato già fatto in passato. Useremo la data ordine inserita
+                      e potrai indicare la data di arrivo se già consegnato.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div>
+                <label htmlFor="data-ordine" className="block text-sm font-medium text-gray-700 mb-1">
+                  Data Ordine {nuovoOrdineForm.ordine_gia_effettuato ? '(effettiva)' : '(stimata)'}
+                </label>
+                <input
+                  id="data-ordine"
+                  type="date"
+                  value={nuovoOrdineForm.data_ordine}
+                  onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, data_ordine: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="giorni-consegna-custom" className="block text-sm font-medium text-gray-700 mb-1">
+                  Giorni Consegna Custom
+                  <span className="text-xs text-gray-500 block">
+                    (sovrascrivi automatico)
+                  </span>
+                </label>
+                <input
+                  id="giorni-consegna-custom"
+                  type="number"
+                  value={nuovoOrdineForm.giorni_consegna_custom}
+                  onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, giorni_consegna_custom: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="es. 7"
+                  min="1"
+                  max="30"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="data-consegna-prevista" className="block text-sm font-medium text-gray-700 mb-1">
+                  Data Consegna Prevista
+                </label>
+                <input
+                  id="data-consegna-prevista"
+                  type="date"
+                  value={calcolaDataConsegnaPrevista()}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Calcolata su giorni lavorativi (Lun-Sab)
+                </p>
+              </div>
+
+              {nuovoOrdineForm.ordine_gia_effettuato && (
+                <div>
+                  <label htmlFor="data-consegna-effettiva" className="block text-sm font-medium text-gray-700 mb-1">
+                    Data Arrivo Effettiva (se già consegnato)
+                  </label>
+                  <input
+                    id="data-consegna-effettiva"
+                    type="date"
+                    value={nuovoOrdineForm.data_consegna_effettiva}
+                    onChange={(e) =>
+                      setNuovoOrdineForm(prev => ({ ...prev, data_consegna_effettiva: e.target.value }))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              )}
+            </>
+          ) : null;
+        })()}
+
+        {/* ===== NOTE RICERCABILI ===== */}
+        <div className="lg:col-span-3">
+          <label htmlFor="note-aggiuntive" className="block text-sm font-medium text-gray-700 mb-1">
+            Note Aggiuntive <span className="text-blue-600 text-xs">(ricercabili)</span>
+          </label>
+          <textarea
+            id="note-aggiuntive"
+            value={nuovoOrdineForm.note}
+            onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, note: e.target.value }))}
+            rows={2}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Note interne, solleciti, comunicazioni con fornitore..."
+          />
+        </div>
+      </div>
+
+      {/* ===== PULSANTI AZIONE ===== */}
+      <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
+        <div className="text-sm text-gray-600">
+          <span className="font-medium">Riepilogo:</span>
+          {nuovoOrdineForm.categoria_prodotto && (
+            <span className="ml-2">
+              {nuovoOrdineForm.categoria_prodotto.toUpperCase()}
+              {nuovoOrdineForm.tipo_lenti && ` - ${tipiLenti.find(t => t.id === nuovoOrdineForm.tipo_lenti)?.nome}`}
+              {nuovoOrdineForm.fornitore_id && ` | ${getFornitoriDisponibili().find(f => f.id === nuovoOrdineForm.fornitore_id)?.nome}`}
+            </span>
+          )}
+        </div>
+
+        <div className="flex space-x-3">
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50"
+          >
+            Annulla
+          </button>
+          <button
+            onClick={onSave}
+            disabled={!nuovoOrdineForm.descrizione_prodotto.trim() || !nuovoOrdineForm.categoria_prodotto || isSaving}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Salvando...</span>
+              </>
+            ) : (
+              <span>{editingOrderId ? 'Salva Modifiche' : 'Salva Ordine'}</span>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   // ===== RENDER =====
   return (
     <div className="space-y-6">
@@ -2357,7 +3006,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           {/* ✅ MODIFICA: PULSANTE NUOVO ORDINE - NASCOSTO PER OPERATORI */}
           {canEdit && (
             <button
-              onClick={() => setShowNuovoOrdineForm(true)}
+              onClick={openNewOrderForm}
               className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
             >
               <Plus className="w-4 h-4" />
@@ -2368,427 +3017,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       </div>
 
       {/* ✅ MODIFICA: Form Nuovo Ordine - NASCOSTO PER OPERATORI */}
-      {canEdit && showNuovoOrdineForm && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          {/* ... tutto il form esistente rimane uguale ... */}
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Nuovo Ordine Materiale</h3>
-            <button
-              onClick={() => setShowNuovoOrdineForm(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-      
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            
-            {/* ===== STEP 1: CATEGORIA PRODOTTO ===== */}
-            <div className="lg:col-span-3">
-              <fieldset>
-                <legend className="block text-sm font-medium text-gray-700 mb-2">
-                  1. Categoria Prodotto *
-                </legend>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
-                {[
-                  { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti da vista/sole' },
-                  { value: 'lac', label: '👁️ LAC', desc: 'Lenti a Contatto' },
-                  { value: 'montature', label: '👓 Montature', desc: 'Occhiali/Sole' },
-                  { value: 'lab.esterno', label: '🏭 Lab.Esterno', desc: 'Lavorazioni Esterne' },
-                  { value: 'sport', label: '🏃 Sport', desc: 'Articoli Sportivi' },
-                  { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Custodie, cordini, liquidi, panni, etc.' },
-                  { value: 'assistenza', label: '🔧 Assistenza', desc: 'Riparazioni e servizi' }, // ✅ NUOVO
-                  { value: 'ricambi', label: '🔩 Ricambi', desc: 'Pezzi di ricambio' } // ✅ NUOVO
-                ].map(categoria => (
-                  <button
-                    key={categoria.value}
-                    onClick={() => setNuovoOrdineForm(prev => ({
-                      ...prev,
-                      categoria_prodotto: categoria.value as any,
-                      tipo_prodotto_assistenza: '', // ✅ NUOVO: Reset when changing category
-                      tipo_prodotto_ricambi: '', // ✅ NUOVO: Reset when changing category
-                      fornitore_id: '',
-                      tipo_lenti: '',
-                      primo_acquisto_lac: false // Reset when changing category
-                    }))}
-                    className={`p-3 rounded-lg border text-center transition-colors ${
-                      nuovoOrdineForm.categoria_prodotto === categoria.value
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="font-medium text-sm">{categoria.label}</div>
-                    <div className="text-xs text-gray-500 mt-1">{categoria.desc}</div>
-                  </button>
-                ))}
-                </div>
-              </fieldset>
-            </div>
-
-            {/* ✅ NUOVO: STEP 1.5: TIPO PRODOTTO ASSISTENZA (Solo per categoria 'assistenza') ===== */}
-            {nuovoOrdineForm.categoria_prodotto === 'assistenza' && (
-              <div className="lg:col-span-3">
-                <fieldset>
-                  <legend className="block text-sm font-medium text-gray-700 mb-2">
-                    2. Tipo Prodotto *
-                  </legend>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                    {[
-                      { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti oftalmiche' },
-                      { value: 'montature', label: '👓 Montature', desc: 'Occhiali' },
-                      { value: 'lac', label: '👁️ LAC', desc: 'Lenti a contatto' },
-                      { value: 'sport', label: '🏃 Sport', desc: 'Articoli sportivi' },
-                      { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Accessori e liquidi' }
-                    ].map(tipo => (
-                      <button
-                        key={tipo.value}
-                        onClick={() => setNuovoOrdineForm(prev => ({
-                          ...prev,
-                          tipo_prodotto_assistenza: tipo.value as any,
-                          fornitore_id: '' // Reset fornitore when changing tipo
-                        }))}
-                        className={`p-3 rounded-lg border text-center transition-colors ${
-                          nuovoOrdineForm.tipo_prodotto_assistenza === tipo.value
-                            ? 'border-green-500 bg-green-50 text-green-700'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="font-semibold text-sm">{tipo.label}</div>
-                        <div className="text-xs text-gray-500 mt-1">{tipo.desc}</div>
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-              </div>
-            )}
-
-            {/* ✅ NUOVO: STEP 1.5: TIPO PRODOTTO RICAMBI (Solo per categoria 'ricambi') ===== */}
-            {nuovoOrdineForm.categoria_prodotto === 'ricambi' && (
-              <div className="lg:col-span-3">
-                <fieldset>
-                  <legend className="block text-sm font-medium text-gray-700 mb-2">
-                    2. Tipo Prodotto *
-                  </legend>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {[
-                      { value: 'montature', label: '👓 Montature', desc: 'Ricambi per occhiali' },
-                      { value: 'sport', label: '🏃 Sport', desc: 'Ricambi articoli sportivi' },
-                      { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Ricambi accessori e liquidi' }
-                    ].map(tipo => (
-                      <button
-                        key={tipo.value}
-                        onClick={() => setNuovoOrdineForm(prev => ({
-                          ...prev,
-                          tipo_prodotto_ricambi: tipo.value as any,
-                          fornitore_id: '' // Reset fornitore when changing tipo
-                        }))}
-                        className={`p-3 rounded-lg border text-center transition-colors ${
-                          nuovoOrdineForm.tipo_prodotto_ricambi === tipo.value
-                            ? 'border-purple-500 bg-purple-50 text-purple-700'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                      >
-                        <div className="font-semibold text-sm">{tipo.label}</div>
-                        <div className="text-xs text-gray-500 mt-1">{tipo.desc}</div>
-                      </button>
-                    ))}
-                  </div>
-                </fieldset>
-              </div>
-            )}
-
-            {/* ===== STEP 2: TIPO LENTI (Solo per categoria 'lenti') ===== */}
-            {nuovoOrdineForm.categoria_prodotto === 'lenti' && (
-              <div>
-                <label htmlFor="tipo-lenti" className="block text-sm font-medium text-gray-700 mb-1">
-                  2. Tipo Lenti *
-                </label>
-                <select
-                  id="tipo-lenti"
-                  value={nuovoOrdineForm.tipo_lenti}
-                  onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, tipo_lenti: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">-- Seleziona tipo --</option>
-                  {tipiLenti.map(tipo => (
-                    <option key={tipo.id} value={tipo.id}>
-                      {tipo.nome} ({tipo.giorni_consegna_stimati || 5} giorni)
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-      
-            {/* ===== STEP 3: FORNITORE SPECIFICO ===== */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {nuovoOrdineForm.categoria_prodotto === 'lenti'
-                  ? '3. Fornitore'
-                  : nuovoOrdineForm.categoria_prodotto === 'assistenza'
-                  ? '3. Fornitore'
-                  : '2. Fornitore'}
-              </label>
-              <select
-                value={nuovoOrdineForm.fornitore_id}
-                onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, fornitore_id: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                disabled={
-                  !nuovoOrdineForm.categoria_prodotto ||
-                  (nuovoOrdineForm.categoria_prodotto === 'assistenza' && !nuovoOrdineForm.tipo_prodotto_assistenza) ||
-                  (nuovoOrdineForm.categoria_prodotto === 'ricambi' && !nuovoOrdineForm.tipo_prodotto_ricambi)
-                }
-              >
-                <option value="">
-                  {((nuovoOrdineForm.categoria_prodotto === 'assistenza' && !nuovoOrdineForm.tipo_prodotto_assistenza) ||
-                    (nuovoOrdineForm.categoria_prodotto === 'ricambi' && !nuovoOrdineForm.tipo_prodotto_ricambi))
-                    ? '-- Prima seleziona il tipo prodotto --'
-                    : '-- Seleziona fornitore --'}
-                </option>
-                {getFornitoriDisponibili().map(f => (
-                  <option key={f.id} value={f.id}>
-                    {f.nome}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* ===== CHECKBOX PRIMO ACQUISTO LAC (Solo per categoria 'lac') ===== */}
-            {nuovoOrdineForm.categoria_prodotto === 'lac' && (
-              <div className="lg:col-span-3">
-                <div className="flex items-center space-x-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <input
-                    type="checkbox"
-                    id="primo_acquisto_lac"
-                    checked={nuovoOrdineForm.primo_acquisto_lac}
-                    onChange={(e) => setNuovoOrdineForm(prev => ({
-                      ...prev,
-                      primo_acquisto_lac: e.target.checked
-                    }))}
-                    className="w-4 h-4 text-blue-600 bg-white border-blue-300 rounded focus:ring-blue-500 focus:ring-2"
-                  />
-                  <label htmlFor="primo_acquisto_lac" className="text-sm font-medium text-blue-900">
-                    🌟 Primo acquisto di lenti a contatto per questo cliente
-                  </label>
-                </div>
-                <p className="text-xs text-blue-600 mt-2">
-                  ✓ Seleziona se è la prima volta che questo cliente acquista LAC - influenzerà la priorità delle chiamate di follow-up
-                </p>
-              </div>
-            )}
-
-            {/* ===== MODALITÀ ORDINE ===== */}
-            <div>
-              <label htmlFor="modalita-ordine" className="block text-sm font-medium text-gray-700 mb-1">
-                Modalità Ordine
-              </label>
-              <select
-                id="modalita-ordine"
-                value={nuovoOrdineForm.tipo_ordine_id}
-                onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, tipo_ordine_id: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">-- Seleziona modalità --</option>
-                {tipiOrdine.map(t => (
-                  <option key={t.id} value={t.id}>{t.nome}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* ===== ALERT SE "NEGOZIO" SELEZIONATO ===== */}
-            {(() => {
-              const tipoSelezionato = tipiOrdine.find(t => t.id === Number(nuovoOrdineForm.tipo_ordine_id));
-              const isNegozio = tipoSelezionato?.nome?.toLowerCase() === 'negozio';
-              return isNegozio ? (
-                <div className="lg:col-span-3 bg-green-50 border border-green-200 p-3 rounded-lg">
-                  <p className="text-sm text-green-800 flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4" />
-                    <strong>Prodotto già disponibile in negozio</strong> - pronto per il montaggio
-                  </p>
-                  <p className="text-xs text-green-600 mt-1">
-                    ℹ️ Non è necessario inserire date di ordine o consegna (il fornitore indica da chi è stato acquistato in origine)
-                  </p>
-                </div>
-              ) : null;
-            })()}
-
-            {/* ===== DESCRIZIONE PRODOTTO OBBLIGATORIA ===== */}
-            <div className="lg:col-span-2">
-              <label htmlFor="descrizione-prodotto" className="block text-sm font-medium text-gray-700 mb-1">
-                Descrizione Prodotto * <span className="text-red-500">(Obbligatorio)</span>
-              </label>
-              <textarea
-                id="descrizione-prodotto"
-                value={nuovoOrdineForm.descrizione_prodotto}
-                onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, descrizione_prodotto: e.target.value }))}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Usa parole chiave: progressive, office, monofocali, antiriflesso, polarizzazione, fotocromatico, potere..."
-                required
-              />
-              <p className="text-xs text-gray-600 mt-1">
-                📝 <strong>Esempio:</strong> "Progressive 1.67 antiriflesso + fotocromatico | OD: +2.00 -1.25×180° ADD +2.50 | OS: +1.75 -1.00×10° ADD +2.50"
-              </p>
-            </div>
-
-            {/* ===== GESTIONE DATE E TEMPI - NASCOSTE SE "NEGOZIO" ===== */}
-            {(() => {
-              const tipoSelezionato = tipiOrdine.find(t => t.id === Number(nuovoOrdineForm.tipo_ordine_id));
-              const isNegozio = tipoSelezionato?.nome?.toLowerCase() === 'negozio';
-              return !isNegozio ? (
-                <>
-                  <div className="lg:col-span-3">
-                    <label className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <input
-                        type="checkbox"
-                        checked={nuovoOrdineForm.ordine_gia_effettuato}
-                        onChange={(e) =>
-                          setNuovoOrdineForm(prev => ({
-                            ...prev,
-                            ordine_gia_effettuato: e.target.checked,
-                            data_consegna_effettiva: e.target.checked ? prev.data_consegna_effettiva : '',
-                            data_ordine: e.target.checked
-                              ? (prev.data_ordine && prev.data_ordine !== new Date().toISOString().split('T')[0]
-                                  ? prev.data_ordine
-                                  : getDefaultOrderDate())
-                              : prev.data_ordine
-                          }))
-                        }
-                        className="mt-1 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <div>
-                        <span className="text-sm font-semibold text-blue-900">
-                          Ordine già effettuato (inserimento storico)
-                        </span>
-                        <p className="text-xs text-blue-700 mt-1">
-                          Seleziona quando l&apos;ordine è stato già fatto in passato. Useremo la data ordine inserita
-                          e potrai indicare la data di arrivo se già consegnato.
-                        </p>
-                      </div>
-                    </label>
-                  </div>
-
-                  <div>
-                    <label htmlFor="data-ordine" className="block text-sm font-medium text-gray-700 mb-1">
-                      Data Ordine {nuovoOrdineForm.ordine_gia_effettuato ? '(effettiva)' : '(stimata)'}
-                    </label>
-                    <input
-                      id="data-ordine"
-                      type="date"
-                      value={nuovoOrdineForm.data_ordine}
-                      onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, data_ordine: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="giorni-consegna-custom" className="block text-sm font-medium text-gray-700 mb-1">
-                      Giorni Consegna Custom
-                      <span className="text-xs text-gray-500 block">
-                        (sovrascrivi automatico)
-                      </span>
-                    </label>
-                    <input
-                      id="giorni-consegna-custom"
-                      type="number"
-                      value={nuovoOrdineForm.giorni_consegna_custom}
-                      onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, giorni_consegna_custom: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="es. 7"
-                      min="1"
-                      max="30"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="data-consegna-prevista" className="block text-sm font-medium text-gray-700 mb-1">
-                      Data Consegna Prevista
-                    </label>
-                    <input
-                      id="data-consegna-prevista"
-                      type="date"
-                      value={calcolaDataConsegnaPrevista()}
-                      disabled
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Calcolata su giorni lavorativi (Lun-Sab)
-                    </p>
-                  </div>
-
-                  {nuovoOrdineForm.ordine_gia_effettuato && (
-                    <div>
-                      <label htmlFor="data-consegna-effettiva" className="block text-sm font-medium text-gray-700 mb-1">
-                        Data Arrivo Effettiva (se già consegnato)
-                      </label>
-                      <input
-                        id="data-consegna-effettiva"
-                        type="date"
-                        value={nuovoOrdineForm.data_consegna_effettiva}
-                        onChange={(e) =>
-                          setNuovoOrdineForm(prev => ({ ...prev, data_consegna_effettiva: e.target.value }))
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                  )}
-                </>
-              ) : null;
-            })()}
-      
-            {/* ===== NOTE RICERCABILI ===== */}
-            <div className="lg:col-span-3">
-              <label htmlFor="note-aggiuntive" className="block text-sm font-medium text-gray-700 mb-1">
-                Note Aggiuntive <span className="text-blue-600 text-xs">(ricercabili)</span>
-              </label>
-              <textarea
-                id="note-aggiuntive"
-                value={nuovoOrdineForm.note}
-                onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, note: e.target.value }))}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Note interne, solleciti, comunicazioni con fornitore..."
-              />
-            </div>
-          </div>
-      
-          {/* ===== PULSANTI AZIONE ===== */}
-          <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
-            <div className="text-sm text-gray-600">
-              <span className="font-medium">Riepilogo:</span> 
-              {nuovoOrdineForm.categoria_prodotto && (
-                <span className="ml-2">
-                  {nuovoOrdineForm.categoria_prodotto.toUpperCase()}
-                  {nuovoOrdineForm.tipo_lenti && ` - ${tipiLenti.find(t => t.id === nuovoOrdineForm.tipo_lenti)?.nome}`}
-                  {nuovoOrdineForm.fornitore_id && ` | ${getFornitoriDisponibili().find(f => f.id === nuovoOrdineForm.fornitore_id)?.nome}`}
-                </span>
-              )}
-            </div>
-            
-            <div className="flex space-x-3">
-              <button
-                onClick={() => setShowNuovoOrdineForm(false)}
-                disabled={isSaving}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={handleSalvaNuovoOrdine}
-                disabled={!nuovoOrdineForm.descrizione_prodotto.trim() || !nuovoOrdineForm.categoria_prodotto || isSaving}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Salvando...</span>
-                  </>
-                ) : (
-                  <span>Salva Ordine</span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+      {canEdit && showNuovoOrdineForm && !editingOrderId && (
+        renderOrderForm('Nuovo Ordine Materiale', resetOrderForm, handleSalvaNuovoOrdine)
       )}
 
       {/* Lista Ordini */}
@@ -2841,7 +3071,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
             {/* ✅ MODIFICA: PULSANTE SOLO SE canEdit */}
             {canEdit && (
               <button
-                onClick={() => setShowNuovoOrdineForm(true)}
+                onClick={openNewOrderForm}
                 className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
               >
                 <Plus className="w-4 h-4" />
@@ -3238,6 +3468,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                           </p>
                         </div>
                       )}
+
+                      {canEditOrder && editingOrderId === ordine.id && (
+                        <div className="mt-6">
+                          {renderOrderForm('Modifica Ordine Materiale', resetOrderForm, handleSaveEditedOrder)}
+                        </div>
+                      )}
                     </div>
 
                     {/* ✅ MODIFICA: AZIONI - NASCOSTE PER OPERATORI */}
@@ -3355,12 +3591,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             </button>
                             {actionsMenuId === ordine.id && (
                               <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-10">
-                                {!isAnnullato && (
+                                {canEditOrder && !isAnnullato && (
                                   <button
                                     type="button"
                                     onClick={() => {
                                       setActionsMenuId(null);
-                                      handleStartEditingDescription(ordine.id, ordine.descrizione_prodotto);
+                                      handleStartEditingOrder(ordine);
                                     }}
                                     className="w-full text-left px-3 py-2 text-xs hover:bg-gray-50"
                                   >

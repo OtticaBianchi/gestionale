@@ -14,6 +14,7 @@ const FORBIDDEN_FIELDS = [
   'fornitore_montature_id',
   'fornitore_lab_esterno_id',
   'fornitore_sport_id',
+  'fornitore_accessori_id',
   'tipo_lenti_id',
   'tipo_ordine_id',
   'descrizione_prodotto',
@@ -22,7 +23,7 @@ const FORBIDDEN_FIELDS = [
   'creato_da',
 ] as const
 
-const FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
+const BASE_FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
   stato: (value) => value,
   da_ordinare: (value) => Boolean(value),
   data_consegna_prevista: (value) => value,
@@ -36,6 +37,20 @@ const FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
   needs_action_done: (value) => Boolean(value),
   needs_action_due_date: (value) => value,
   cancel_reason: (value) => value,
+}
+
+const ADMIN_FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
+  categoria_fornitore: (value) => (typeof value === 'string' ? value.trim() || null : value ?? null),
+  fornitore_lenti_id: (value) => value || null,
+  fornitore_lac_id: (value) => value || null,
+  fornitore_montature_id: (value) => value || null,
+  fornitore_lab_esterno_id: (value) => value || null,
+  fornitore_sport_id: (value) => value || null,
+  fornitore_accessori_id: (value) => value || null,
+  tipo_lenti_id: (value) => value || null,
+  tipo_ordine_id: (value) => (value === null || value === '' ? null : Number(value)),
+  descrizione_prodotto: (value) => (typeof value === 'string' ? value.trim() : value),
+  giorni_consegna_medi: (value) => (value === null || value === '' ? null : Number(value)),
 }
 
 type AllowedPayload = Record<string, unknown>
@@ -72,18 +87,22 @@ function parseJsonBody(request: NextRequest) {
     .catch(() => ({ parseError: NextResponse.json({ error: 'JSON non valido' }, { status: 400 }) }))
 }
 
-function buildAllowedFields(body: Record<string, unknown>): {
+function buildAllowedFields(
+  body: Record<string, unknown>,
+  fieldMappers: Record<string, (value: unknown) => unknown>,
+  forbiddenFields: readonly string[]
+): {
   allowed: AllowedPayload
   forbiddenKey?: string
 } {
-  const allowedEntries = Object.entries(FIELD_MAPPERS)
+  const allowedEntries = Object.entries(fieldMappers)
     .filter(([key]) => Object.prototype.hasOwnProperty.call(body, key))
     .map(([key, mapper]) => [key, mapper(body[key])])
 
   const allowed = Object.fromEntries(allowedEntries)
 
   const forbiddenKey = Object.keys(body).find(
-    (key) => !FIELD_MAPPERS[key] && FORBIDDEN_FIELDS.includes(key as typeof FORBIDDEN_FIELDS[number])
+    (key) => !fieldMappers[key] && forbiddenFields.includes(key)
   )
 
   return { allowed, forbiddenKey }
@@ -110,7 +129,13 @@ export async function PATCH(
     }
 
     const body = payload as Record<string, unknown>
-    const { allowed, forbiddenKey } = buildAllowedFields(body)
+    const fieldMappers = role === 'admin'
+      ? { ...BASE_FIELD_MAPPERS, ...ADMIN_FIELD_MAPPERS }
+      : BASE_FIELD_MAPPERS
+    const forbiddenFields = role === 'admin'
+      ? FORBIDDEN_FIELDS.filter((field) => !(field in ADMIN_FIELD_MAPPERS))
+      : FORBIDDEN_FIELDS
+    const { allowed, forbiddenKey } = buildAllowedFields(body, fieldMappers, forbiddenFields)
 
     if (forbiddenKey) {
       return NextResponse.json({ error: `Campo non modificabile: ${forbiddenKey}` }, { status: 400 })
@@ -118,6 +143,16 @@ export async function PATCH(
 
     if (Object.keys(allowed).length === 0) {
       return NextResponse.json({ error: 'Nessun campo aggiornabile fornito' }, { status: 400 })
+    }
+
+    if (Object.prototype.hasOwnProperty.call(allowed, 'descrizione_prodotto')) {
+      const value = typeof allowed.descrizione_prodotto === 'string'
+        ? allowed.descrizione_prodotto.trim()
+        : ''
+      if (!value) {
+        return NextResponse.json({ error: 'La descrizione del prodotto è obbligatoria' }, { status: 400 })
+      }
+      allowed.descrizione_prodotto = value
     }
 
     // Write with service role after server-side check

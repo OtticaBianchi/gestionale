@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { logInsert } from '@/lib/audit/auditLog'
+import { logDelete, logInsert } from '@/lib/audit/auditLog'
 
 type RequestPayload = {
   bustaId?: string
@@ -73,11 +73,13 @@ export async function POST(request: NextRequest) {
       destinatario_nome: body.destinatarioNome ?? '',
       destinatario_contatto: body.destinatarioContatto ?? '',
       destinatario_tipo: body.destinatarioTipo ?? 'cliente',
-      canale_invio: body.canaleInvio ?? 'whatsapp',
+      canale_invio: body.canaleInvio ?? 'sms',
       stato_invio: body.statoInvio ?? 'inviato',
       inviato_da: user.id,
       nome_operatore: profile.full_name ?? 'Operatore',
       data_invio: new Date().toISOString(),
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
     }
 
     const { data, error } = await admin
@@ -88,7 +90,15 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Comunicazioni insert error:', error)
-      return NextResponse.json({ error: 'Errore durante il salvataggio della comunicazione' }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: error.message || 'Errore durante il salvataggio della comunicazione',
+          code: error.code,
+          details: error.details,
+          hint: error.hint
+        },
+        { status: 500 }
+      )
     }
 
     const audit = await logInsert(
@@ -119,6 +129,94 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ comunicazione: data })
   } catch (error) {
     console.error('Comunicazioni POST error:', error)
+    return NextResponse.json({ error: 'Errore interno del server' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return NextResponse.json({ error: 'Utente non autenticato' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, role')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Profilo utente non trovato' }, { status: 403 })
+    }
+
+    if (profile.role === 'operatore') {
+      return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 })
+    }
+
+    const body = (await request.json()) as { id?: string; bustaId?: string }
+
+    if (!body.id) {
+      return NextResponse.json({ error: 'ID comunicazione obbligatorio' }, { status: 400 })
+    }
+
+    const { createClient } = await import('@supabase/supabase-js')
+    const admin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const { data: existing, error: fetchError } = await admin
+      .from('comunicazioni')
+      .select('id, busta_id, tipo_messaggio, canale_invio, testo_messaggio, destinatario_nome, destinatario_tipo, destinatario_contatto, stato_invio, inviato_da, nome_operatore, data_invio')
+      .eq('id', body.id)
+      .maybeSingle()
+
+    if (fetchError) {
+      console.error('Comunicazioni fetch error:', fetchError)
+      return NextResponse.json({ error: 'Errore durante il recupero della comunicazione' }, { status: 500 })
+    }
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Comunicazione non trovata' }, { status: 404 })
+    }
+
+    if (body.bustaId && existing.busta_id !== body.bustaId) {
+      return NextResponse.json({ error: 'Comunicazione non associata alla busta' }, { status: 403 })
+    }
+
+    const { error: deleteError } = await admin
+      .from('comunicazioni')
+      .delete()
+      .eq('id', body.id)
+
+    if (deleteError) {
+      console.error('Comunicazioni delete error:', deleteError)
+      return NextResponse.json({ error: 'Errore durante l\'eliminazione della comunicazione' }, { status: 500 })
+    }
+
+    const audit = await logDelete(
+      'comunicazioni',
+      existing.id,
+      user.id,
+      existing,
+      'Eliminazione comunicazione cliente',
+      {
+        source: 'api/comunicazioni',
+        bustaId: existing.busta_id
+      },
+      profile.role
+    )
+
+    if (!audit.success) {
+      console.error('AUDIT_DELETE_COMUNICAZIONI_FAILED', audit.error)
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Comunicazioni DELETE error:', error)
     return NextResponse.json({ error: 'Errore interno del server' }, { status: 500 })
   }
 }

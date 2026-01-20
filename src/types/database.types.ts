@@ -316,6 +316,11 @@ export type Database = {
           tipo_montaggio_id: number | null
           updated_at: string | null
           updated_by: string | null
+          richiede_telefonata: boolean | null
+          telefonata_assegnata_a: string | null
+          telefonata_completata: boolean | null
+          telefonata_completata_data: string | null
+          telefonata_completata_da: string | null
         }
         Insert: {
           cliente_id?: string | null
@@ -353,6 +358,11 @@ export type Database = {
           tipo_montaggio_id?: number | null
           updated_at?: string | null
           updated_by?: string | null
+          richiede_telefonata?: boolean | null
+          telefonata_assegnata_a?: string | null
+          telefonata_completata?: boolean | null
+          telefonata_completata_data?: string | null
+          telefonata_completata_da?: string | null
         }
         Update: {
           cliente_id?: string | null
@@ -390,6 +400,11 @@ export type Database = {
           tipo_montaggio_id?: number | null
           updated_at?: string | null
           updated_by?: string | null
+          richiede_telefonata?: boolean | null
+          telefonata_assegnata_a?: string | null
+          telefonata_completata?: boolean | null
+          telefonata_completata_data?: string | null
+          telefonata_completata_da?: string | null
         }
         Relationships: [
           {

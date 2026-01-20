@@ -1,7 +1,7 @@
 // app/dashboard/_components/BustaCard.tsx
 
 import type { ReactNode } from 'react';
-import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins, Receipt, Bell } from 'lucide-react';
+import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins, Receipt, Bell, Phone } from 'lucide-react';
 import Link from 'next/link';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
 
@@ -530,6 +530,16 @@ export default function BustaCard({ busta }: BustaCardProps) {
             >
               <Bell className="h-3.5 w-3.5" />
               {hasOpenActions && <span>!{openActionCount}</span>}
+            </span>
+          )}
+          {/* Red phone icon when call is pending */}
+          {busta.richiede_telefonata && !busta.telefonata_completata && (
+            <span
+              className="text-xs font-semibold text-red-700 bg-red-100 px-2 py-1 rounded-full border border-red-300 inline-flex items-center gap-1"
+              title={`Da chiamare - Assegnato a: ${busta.telefonata_assegnata_a || 'N/A'}`}
+            >
+              <Phone className="h-3.5 w-3.5" />
+              <span>Da chiamare</span>
             </span>
           )}
           {installmentAlert && (
