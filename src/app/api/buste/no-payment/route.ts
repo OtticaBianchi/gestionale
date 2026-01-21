@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -16,6 +17,12 @@ const adminClient = createClient(url, serviceRoleKey, {
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+    }
+
     const { bustaId } = await request.json();
 
     if (!bustaId || typeof bustaId !== 'string') {
@@ -36,6 +43,7 @@ export async function POST(request: Request) {
         is_saldato: true,
         data_saldo: now,
         updated_at: now,
+        updated_by: user.id,
       }, { onConflict: 'busta_id' });
 
     if (error) {
@@ -52,6 +60,12 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const supabase = await createServerSupabaseClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const bustaId = searchParams.get('bustaId');
 
@@ -69,6 +83,7 @@ export async function DELETE(request: Request) {
         is_saldato: false,
         data_saldo: null,
         updated_at: new Date().toISOString(),
+        updated_by: user.id,
       })
       .eq('busta_id', bustaId);
 

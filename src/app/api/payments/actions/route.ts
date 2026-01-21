@@ -551,13 +551,16 @@ async function upsertInfoPagamenti(
     .from('info_pagamenti')
     .upsert({
       ...payload,
+      modalita_saldo: payload.modalita_saldo ?? existing?.modalita_saldo ?? 'saldo_unico',
+      updated_by: userId,
       updated_at: new Date().toISOString()
     }, { onConflict: 'busta_id' })
     .select('*')
     .single()
 
   if (error || !upserted) {
-    throw new Error('Errore aggiornamento info_pagamenti')
+    console.error('❌ upsertInfoPagamenti error:', error, 'payload:', payload)
+    throw new Error(`Errore aggiornamento info_pagamenti: ${error?.message || 'unknown'}`)
   }
 
   if (existing) {

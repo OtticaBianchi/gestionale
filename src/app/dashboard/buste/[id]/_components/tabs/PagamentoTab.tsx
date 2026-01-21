@@ -332,7 +332,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
 
   const saveTotalAmount = async () => {
     const validAmount = validateTotalAmount(totalDraft);
-    if (!validAmount) return;
+    if (validAmount === null) return;
 
     setIsSavingTotal(true);
     try {
