@@ -68,6 +68,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.1.1', date: '21/01/2026', description: 'Fix pagamenti (constraint DB), segnalazione errori diretta da sidebar, sync procedure ottimizzato, eliminazione fornitori admin-only, categoria Lenti in RICAMBI.' },
     { version: '4.1.0', date: '15/01/2026', description: 'Nuova gestione procedure con quiz e priorità, inserimento buste a posteriori con date ordine/consegna, dashboard admin per lettura procedure e superamento quiz.' },
     { version: '4.0.2', date: '10/12/2025', description: 'Import clienti manuale (1-9 alla volta), capitalizzazione intelligente nomi multi-parte (es. Di Maria), opzione P.Giuridica per genere cliente.' },
     { version: '3.4.0', date: '27/10/2025', description: 'Import clienti da CSV con validazioni, ricerca avanzata fase 1, riepiloghi workflow e modifica descrizione materiali.' },

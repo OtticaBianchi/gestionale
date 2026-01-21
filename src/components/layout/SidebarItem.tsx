@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { LucideIcon } from 'lucide-react';
 
 interface SidebarItemProps {
-  href: string;
+  href?: string;
   icon: LucideIcon;
   label: string;
   isCollapsed: boolean;
@@ -14,6 +14,7 @@ interface SidebarItemProps {
   badge?: string;
   className?: string;
   badgeVariant?: 'red' | 'blue' | 'amber' | 'gray';
+  onClick?: () => void; // Optional click handler - renders as button when provided
 }
 
 export default function SidebarItem({
@@ -25,15 +26,16 @@ export default function SidebarItem({
   disabledTooltip,
   badge,
   className = '',
-  badgeVariant = 'red'
+  badgeVariant = 'red',
+  onClick
 }: SidebarItemProps) {
   const pathname = usePathname();
   // For /dashboard, only match exactly. For others, match if pathname starts with href
-  const isActive = href === '#'
-    ? false
-    : href === '/dashboard'
+  const isActive = href && href !== '#'
+    ? href === '/dashboard'
       ? pathname === '/dashboard'
-      : pathname.startsWith(href);
+      : pathname.startsWith(href)
+    : false;
 
   const baseClasses = `
     relative flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-all duration-200
@@ -89,9 +91,23 @@ export default function SidebarItem({
     );
   }
 
+  // Render as button when onClick is provided
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${className} ${baseClasses} ${stateClasses} w-full`}
+        title={isCollapsed ? label : undefined}
+      >
+        {itemContent}
+      </button>
+    );
+  }
+
   return (
     <Link
-      href={href}
+      href={href || '#'}
       className={`${className} ${baseClasses} ${stateClasses}`}
       style={isActive ? {
         backgroundColor: '#2563eb',

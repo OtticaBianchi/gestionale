@@ -352,26 +352,31 @@ function extractMetadata(content) {
   }
 }
 
-async function loadExistingSlugs() {
+async function loadExistingProcedures() {
   const { data, error } = await supabase
     .from('procedures')
-    .select('slug')
+    .select('id, slug, content')
 
   if (error) {
     throw new Error(`Failed to load existing procedures: ${error.message}`)
   }
 
-  return new Set(data.map((row) => row.slug))
+  const map = new Map()
+  data.forEach((row) => {
+    map.set(row.slug, { id: row.id, content: row.content })
+  })
+  return map
 }
 
 async function main() {
   const procedureDir = path.join(rootDir, 'procedure_personale')
   const files = await fs.readdir(procedureDir)
 
-  const existingSlugs = await loadExistingSlugs()
+  const existingProcedures = await loadExistingProcedures()
   const records = []
   const quizValidationIssues = []
   const quizKeyBySlug = new Map()
+  const skippedUnchanged = []
 
   for (const fileName of files) {
     if (!fileName.endsWith('.md')) continue
@@ -393,7 +398,15 @@ async function main() {
 
     const title = titleLine.replace(/^#\s*/, '').trim()
     const slug = slugOverrides[fileName] || slugify(title)
-    const isExisting = existingSlugs.has(slug)
+    const existing = existingProcedures.get(slug)
+
+    // Skip if content hasn't changed
+    if (existing && existing.content === content) {
+      skippedUnchanged.push(slug)
+      continue
+    }
+
+    const isExisting = !!existing
     console.log(`${isExisting ? 'Aggiornamento' : 'Import'}: ${slug}`)
 
     const tags = extractTags(content)
@@ -451,8 +464,12 @@ async function main() {
     process.exit(1)
   }
 
+  if (skippedUnchanged.length > 0) {
+    console.log(`Skipped ${skippedUnchanged.length} unchanged procedures`)
+  }
+
   if (records.length === 0) {
-    console.log('No new procedures to import.')
+    console.log('No procedures to import or update.')
     return
   }
 

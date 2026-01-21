@@ -37,6 +37,7 @@ import {
 import AccordionSection from './AccordionSection';
 import SidebarItem from './SidebarItem';
 import { useSidebar } from './SidebarContext';
+import QuickAddErrorForm from '@/components/error-tracking/QuickAddErrorForm';
 
 interface NewSidebarProps {
   className?: string;
@@ -53,6 +54,7 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
   const [quizReviewsCount, setQuizReviewsCount] = useState(0);
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [nestedSections, setNestedSections] = useState<Record<string, boolean>>({});
+  const [isErrorFormOpen, setIsErrorFormOpen] = useState(false);
   const isMountedRef = useRef(true);
   const voiceNotesFetchLock = useRef(false);
   const errorDraftFetchLock = useRef(false);
@@ -478,11 +480,10 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
               isCollapsed={isCollapsed}
             />
             <SidebarItem
-              href="/errori"
               icon={AlertTriangle}
               label="Segnala Errore"
               isCollapsed={isCollapsed}
-              badge={userRole === 'admin' && errorDraftCount > 0 ? (errorDraftCount > 99 ? '99+' : errorDraftCount.toString()) : undefined}
+              onClick={() => setIsErrorFormOpen(true)}
             />
           </AccordionSection>
 
@@ -665,6 +666,17 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
       >
         <LayoutDashboard className="h-5 w-5" />
       </button>
+
+      {/* Error Form Modal */}
+      <QuickAddErrorForm
+        isOpen={isErrorFormOpen}
+        onClose={() => setIsErrorFormOpen(false)}
+        onSuccess={() => {
+          setIsErrorFormOpen(false);
+          // Trigger refresh of error draft count
+          window.dispatchEvent(new CustomEvent('errorDrafts:update'));
+        }}
+      />
     </>
   );
 }
