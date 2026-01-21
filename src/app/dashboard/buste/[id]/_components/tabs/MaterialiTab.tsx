@@ -127,7 +127,7 @@ type EventType =
 type NuovoOrdineForm = {
   categoria_prodotto: '' | 'lenti' | 'lac' | 'montature' | 'sport' | 'accessori' | 'lab.esterno' | 'assistenza' | 'ricambi';
   tipo_prodotto_assistenza: '' | 'lenti' | 'lac' | 'montature' | 'sport' | 'accessori';
-  tipo_prodotto_ricambi: '' | 'montature' | 'sport' | 'accessori';
+  tipo_prodotto_ricambi: '' | 'montature' | 'sport' | 'accessori' | 'lenti';
   fornitore_id: string;
   tipo_lenti: string;
   tipo_ordine_id: string;
@@ -756,6 +756,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     if (nuovoOrdineForm.categoria_prodotto === 'ricambi') {
       switch (nuovoOrdineForm.tipo_prodotto_ricambi) {
         case 'montature': return fornitoriMontature;
+        case 'lenti': return fornitoriMontature; // Same suppliers as Montature
         case 'sport': return fornitoriSport;
         case 'accessori': return fornitoriAccessori;
         default: return []; // No suppliers until tipo_prodotto_ricambi is selected
@@ -1213,6 +1214,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
       const ricambiSupplierMap = {
         'montature': { fornitore_montature_id: supplierId },
+        'lenti': { fornitore_montature_id: supplierId }, // Same as Montature
         'sport': { fornitore_sport_id: supplierId },
         'accessori': { fornitore_accessori_id: supplierId } // Accessori uses dedicated table
       };
@@ -2482,14 +2484,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
             </legend>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3">
             {[
-              { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti da vista/sole' },
+              { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti da vista/sole graduate' },
               { value: 'lac', label: '👁️ LAC', desc: 'Lenti a Contatto' },
               { value: 'montature', label: '👓 Montature', desc: 'Occhiali/Sole' },
               { value: 'lab.esterno', label: '🏭 Lab.Esterno', desc: 'Lavorazioni Esterne' },
               { value: 'sport', label: '🏃 Sport', desc: 'Articoli Sportivi' },
               { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Custodie, cordini, liquidi, panni, etc.' },
               { value: 'assistenza', label: '🔧 Assistenza', desc: 'Riparazioni e servizi' },
-              { value: 'ricambi', label: '🔩 Ricambi', desc: 'Pezzi di ricambio' }
+              { value: 'ricambi', label: '🔩 RICAMBI', desc: 'Aste, minuterie e lenti da sole neutre' }
             ].map(categoria => (
               <button
                 key={categoria.value}
@@ -2560,11 +2562,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               <legend className="block text-sm font-medium text-gray-700 mb-2">
                 2. Tipo Prodotto *
               </legend>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {[
                   { value: 'montature', label: '👓 Montature', desc: 'Ricambi per occhiali' },
                   { value: 'sport', label: '🏃 Sport', desc: 'Ricambi articoli sportivi' },
-                  { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Ricambi accessori e liquidi' }
+                  { value: 'accessori', label: '📎 Accessori e Liquidi', desc: 'Ricambi accessori e liquidi' },
+                  { value: 'lenti', label: '🔍 Lenti', desc: 'Lenti da sole neutre' }
                 ].map(tipo => (
                   <button
                     key={tipo.value}
