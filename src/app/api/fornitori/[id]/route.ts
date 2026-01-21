@@ -58,3 +58,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: 'Errore interno server' }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    const { searchParams } = new URL(request.url)
+    const tipo = searchParams.get('tipo') || ''
+
+    // Auth + role (admin only for delete)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    if (!profile || profile.role !== 'admin') {
+      return NextResponse.json({ error: 'Solo gli admin possono eliminare fornitori' }, { status: 403 })
+    }
+
+    const table = TABLES[tipo]
+    if (!table) return NextResponse.json({ error: 'Parametro tipo non valido' }, { status: 400 })
+
+    const { createClient } = await import('@supabase/supabase-js')
+    const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+
+    const { id } = await params
+    const { error } = await admin.from(table).delete().eq('id', id)
+    if (error) throw error
+    return NextResponse.json({ success: true })
+  } catch (e: any) {
+    console.error('Fornitori DELETE error:', e)
+    return NextResponse.json({ error: 'Errore interno server' }, { status: 500 })
+  }
+}

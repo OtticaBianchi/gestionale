@@ -14,7 +14,9 @@ import {
   Loader2,
   ArrowLeft,
   CheckCircle2,
+  Trash2,
 } from "lucide-react";
+import { useUser } from "@/context/UserContext";
 
 type Categoria = "lenti" | "montature" | "lac" | "sport" | "lab_esterno" | "accessori";
 
@@ -39,9 +41,13 @@ const CATEGORIE: { key: Categoria; label: string }[] = [
 ];
 
 export default function FornitoriManagerPage() {
+  const { profile } = useUser();
+  const isAdmin = profile?.role === "admin";
+
   const [active, setActive] = useState<Categoria>("lenti");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Supplier | null>(null);
@@ -121,6 +127,26 @@ export default function FornitoriManagerPage() {
       alert(e.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const onDelete = async (supplier: Supplier) => {
+    if (!supplier.id) return;
+    if (!confirm(`Sei sicuro di voler eliminare il fornitore "${supplier.nome}"? Questa azione è irreversibile.`)) {
+      return;
+    }
+    setDeleting(supplier.id);
+    try {
+      const res = await fetch(`/api/fornitori/${supplier.id}?tipo=${active}`, {
+        method: "DELETE",
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Errore eliminazione fornitore");
+      setSuppliers((prev) => prev.filter((s) => s.id !== supplier.id));
+    } catch (e: any) {
+      alert(e.message);
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -386,12 +412,28 @@ export default function FornitoriManagerPage() {
                         </div>
                         {s.note && <div className="text-sm text-gray-500">Note: {s.note}</div>}
                       </div>
-                      <button
-                        onClick={() => onEdit(s)}
-                        className="px-3 py-2 border rounded hover:bg-gray-50"
-                      >
-                        Modifica
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => onEdit(s)}
+                          className="px-3 py-2 border rounded hover:bg-gray-50"
+                        >
+                          Modifica
+                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => onDelete(s)}
+                            disabled={deleting === s.id}
+                            className="px-3 py-2 border border-red-200 text-red-600 rounded hover:bg-red-50 disabled:opacity-50"
+                            title="Elimina fornitore"
+                          >
+                            {deleting === s.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
