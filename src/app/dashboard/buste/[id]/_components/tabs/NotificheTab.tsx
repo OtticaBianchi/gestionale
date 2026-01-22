@@ -118,8 +118,9 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
   const [telefonataCompletata, setTelefonataCompletata] = useState<boolean>(busta.telefonata_completata || false);
   const [telefonataCompletataData, setTelefonataCompletataData] = useState<string | null>(busta.telefonata_completata_data || null);
   const [isSavingPhoneRequest, setIsSavingPhoneRequest] = useState(false);
+  const [showingCallOutcome, setShowingCallOutcome] = useState(false);
 
-  const PHONE_ASSIGNEES = ['Enrico', 'Valentina', 'Marco', 'Roberta', 'Cecilia', 'Anna', 'Monica', 'Noemi'];
+  const PHONE_ASSIGNEES = ['Chiunque', 'Enrico', 'Valentina', 'Marco', 'Roberta', 'Cecilia', 'Anna', 'Monica', 'Noemi'];
 
   const router = useRouter();
   const supabase = createBrowserClient<Database>(
@@ -526,20 +527,51 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
 
       setTelefonataCompletata(true);
       setTelefonataCompletataData(completedAt);
+      setShowingCallOutcome(false);
       try {
-        const assignedTo = telefonataAssegnataA ? `Assegnata a: ${telefonataAssegnataA}.` : 'Assegnazione non indicata.';
+        const callerName = currentUser?.full_name || 'Operatore';
         const nuovaComunicazione = await createCommunicationRecord(
           'nota_comunicazione_cliente',
-          `Telefonata al cliente completata. ${assignedTo}`
+          `Telefonata al cliente: andata a buon fine. Effettuata da: ${callerName}.`
         );
         setComunicazioni(prev => [...prev, nuovaComunicazione]);
       } catch (communicationError) {
         console.error('Errore salvataggio comunicazione telefonata:', communicationError);
       }
       router.refresh();
-      alert('Telefonata registrata!');
+      alert('Telefonata completata con successo!');
     } catch (error: any) {
       console.error('Errore registrazione telefonata:', error);
+      alert(`Errore: ${error.message}`);
+    } finally {
+      setIsSavingPhoneRequest(false);
+    }
+  };
+
+  const handleMarkPhoneCallNoAnswer = async () => {
+    setIsSavingPhoneRequest(true);
+    try {
+      const attemptAt = new Date();
+      const formattedDate = attemptAt.toLocaleDateString('it-IT');
+      const formattedTime = attemptAt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+      const callerName = currentUser?.full_name || 'Operatore';
+
+      // Record the attempt in communications but DON'T mark as completed
+      try {
+        const nuovaComunicazione = await createCommunicationRecord(
+          'nota_comunicazione_cliente',
+          `Telefonata al cliente: nessuna risposta - richiamare. Tentativo effettuato da ${callerName} il ${formattedDate} alle ${formattedTime}.`
+        );
+        setComunicazioni(prev => [...prev, nuovaComunicazione]);
+      } catch (communicationError) {
+        console.error('Errore salvataggio comunicazione telefonata:', communicationError);
+      }
+
+      setShowingCallOutcome(false);
+      router.refresh();
+      alert('Tentativo registrato. Il cliente dovrà essere richiamato.');
+    } catch (error: any) {
+      console.error('Errore registrazione tentativo:', error);
       alert(`Errore: ${error.message}`);
     } finally {
       setIsSavingPhoneRequest(false);
@@ -848,18 +880,59 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                     <p className="text-xs text-gray-700">
                       Assegnata a: <strong>{telefonataAssegnataA || 'Non assegnata'}</strong>
                     </p>
-                    <button
-                      onClick={handleMarkPhoneCallDone}
-                      disabled={isSavingPhoneRequest}
-                      className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {isSavingPhoneRequest ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Check className="w-4 h-4 mr-2" />
-                      )}
-                      Telefonato al Cliente
-                    </button>
+
+                    {showingCallOutcome ? (
+                      // Mostra le due opzioni di esito
+                      <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <p className="text-xs font-medium text-gray-700 mb-2">Esito della chiamata:</p>
+                        <button
+                          onClick={handleMarkPhoneCallDone}
+                          disabled={isSavingPhoneRequest}
+                          className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {isSavingPhoneRequest ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Check className="w-4 h-4 mr-2" />
+                          )}
+                          Telefonata andata a buon fine
+                        </button>
+                        <button
+                          onClick={handleMarkPhoneCallNoAnswer}
+                          disabled={isSavingPhoneRequest}
+                          className="w-full flex items-center justify-center px-4 py-2 bg-orange-500 text-white text-sm rounded-md hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {isSavingPhoneRequest ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          ) : (
+                            <Phone className="w-4 h-4 mr-2" />
+                          )}
+                          Nessuna risposta - richiamare
+                        </button>
+                        <button
+                          onClick={() => setShowingCallOutcome(false)}
+                          disabled={isSavingPhoneRequest}
+                          className="w-full flex items-center justify-center px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                        >
+                          Annulla
+                        </button>
+                      </div>
+                    ) : (
+                      // Mostra il pulsante principale
+                      <button
+                        onClick={() => setShowingCallOutcome(true)}
+                        disabled={isSavingPhoneRequest}
+                        className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isSavingPhoneRequest ? (
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4 mr-2" />
+                        )}
+                        Telefonato al Cliente
+                      </button>
+                    )}
+
                     <button
                       onClick={handleCancelPhoneRequest}
                       disabled={isSavingPhoneRequest}
