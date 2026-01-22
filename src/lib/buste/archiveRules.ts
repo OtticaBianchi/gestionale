@@ -41,8 +41,8 @@ export const shouldArchiveBusta = (
 
   const now = options?.now ?? new Date()
   const updatedAt = new Date(busta.updated_at)
-  const sevenDaysAgo = new Date(now)
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+  const oneDayAgo = new Date(now)
+  oneDayAgo.setDate(oneDayAgo.getDate() - 1)
 
-  return updatedAt < sevenDaysAgo
+  return updatedAt < oneDayAgo
 }

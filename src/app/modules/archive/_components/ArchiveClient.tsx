@@ -38,9 +38,9 @@ export default function ArchiveClient() {
       setLoading(true);
       const supabase = createClient();
       
-      // Archived definition: consegnato_pagato with updated_at older than 7 days
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      // Archived definition: consegnato_pagato with updated_at older than 24 hours
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
       const { data, error } = await supabase
         .from('buste')
@@ -53,7 +53,7 @@ export default function ArchiveClient() {
           archived_mode,
           clienti:cliente_id (id, nome, cognome, telefono)
         `)
-        .or(`and(stato_attuale.eq.consegnato_pagato,updated_at.lt.${sevenDaysAgo.toISOString()}),archived_mode.eq.ANNULLATA`)
+        .or(`and(stato_attuale.eq.consegnato_pagato,updated_at.lt.${oneDayAgo.toISOString()}),archived_mode.eq.ANNULLATA`)
         .order('updated_at', { ascending: false });
 
       if (error) {
