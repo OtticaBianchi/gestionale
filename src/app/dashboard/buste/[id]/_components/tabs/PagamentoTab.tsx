@@ -184,6 +184,21 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   const [isSavingTotal, setIsSavingTotal] = useState(false);
   const [ongoingAction, setOngoingAction] = useState<string | null>(null);
 
+  // Partial payment restructure state
+  const [restructureModal, setRestructureModal] = useState<{
+    isOpen: boolean;
+    installment: PaymentInstallmentRecord | null;
+    paidAmount: number;
+    remainingAmount: number;
+    newInstallmentsCount: number;
+  }>({
+    isOpen: false,
+    installment: null,
+    paidAmount: 0,
+    remainingAmount: 0,
+    newInstallmentsCount: 2
+  });
+
   const financeSnapshot = useMemo(
     () => computeFinanceSnapshot(paymentPlan, installments, infoPagamento),
     [paymentPlan, installments, infoPagamento]
@@ -443,6 +458,22 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     const paymentAmount = promptForPaymentAmount(installment);
     if (!paymentAmount) return;
 
+    const expectedAmount = installment.expected_amount || 0;
+
+    // Check if this is a partial payment
+    if (paymentAmount < expectedAmount - 0.01) {
+      // Show restructure modal
+      setRestructureModal({
+        isOpen: true,
+        installment,
+        paidAmount: paymentAmount,
+        remainingAmount: expectedAmount - paymentAmount,
+        newInstallmentsCount: 2
+      });
+      return;
+    }
+
+    // Full payment - proceed normally
     setOngoingAction(`pay-${installment.id}`);
     try {
       await updateInstallmentPayment(installment.id, paymentAmount, true);
@@ -454,6 +485,47 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     } finally {
       setOngoingAction(null);
     }
+  };
+
+  const handleConfirmRestructure = async () => {
+    if (!restructureModal.installment || !paymentPlan) return;
+
+    setOngoingAction(`restructure-${restructureModal.installment.id}`);
+    try {
+      await callPaymentsAction('restructure_installments', {
+        installmentId: restructureModal.installment.id,
+        paidAmount: restructureModal.paidAmount,
+        newInstallmentsCount: restructureModal.newInstallmentsCount,
+        paymentPlanId: paymentPlan.id
+      });
+
+      setRestructureModal({
+        isOpen: false,
+        installment: null,
+        paidAmount: 0,
+        remainingAmount: 0,
+        newInstallmentsCount: 2
+      });
+
+      await loadPaymentContext();
+      await mutate('/api/buste');
+      alert('Piano rate aggiornato con successo!');
+    } catch (error: any) {
+      console.error('❌ Error restructuring installments:', error);
+      alert(`Errore nella ristrutturazione: ${error.message}`);
+    } finally {
+      setOngoingAction(null);
+    }
+  };
+
+  const handleCancelRestructure = () => {
+    setRestructureModal({
+      isOpen: false,
+      installment: null,
+      paidAmount: 0,
+      remainingAmount: 0,
+      newInstallmentsCount: 2
+    });
   };
 
   const handleUndoInstallmentPayment = async (installment: PaymentInstallmentRecord) => {
@@ -548,6 +620,85 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
           onComplete={handlePlanCreated}
           onCancel={() => setIsSetupOpen(false)}
         />
+      )}
+
+      {/* Partial Payment Restructure Modal */}
+      {restructureModal.isOpen && restructureModal.installment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-5">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <AlertTriangle className="w-5 h-5 mr-2 text-orange-500" />
+                Pagamento Parziale
+              </h3>
+              <p className="text-sm text-gray-600 mt-2">
+                L&apos;importo incassato è inferiore alla rata prevista. Come vuoi gestire il residuo?
+              </p>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Rata prevista:</span>
+                <span className="font-medium">{formatCurrency(restructureModal.installment.expected_amount)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Importo incassato:</span>
+                <span className="font-medium text-green-700">{formatCurrency(restructureModal.paidAmount)}</span>
+              </div>
+              <div className="flex justify-between text-sm border-t pt-2">
+                <span className="text-gray-600">Residuo da questa rata:</span>
+                <span className="font-semibold text-orange-700">{formatCurrency(restructureModal.remainingAmount)}</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                In quante rate vuole pagare il residuo?
+              </label>
+              <select
+                value={restructureModal.newInstallmentsCount}
+                onChange={(e) => setRestructureModal(prev => ({
+                  ...prev,
+                  newInstallmentsCount: parseInt(e.target.value, 10)
+                }))}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+              >
+                {[1, 2, 3, 4, 5, 6].map(n => (
+                  <option key={n} value={n}>
+                    {n} {n === 1 ? 'rata' : 'rate'} - {formatCurrency(restructureModal.remainingAmount / n)} {n === 1 ? '' : 'ciascuna'}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-2">
+                Le nuove rate saranno programmate a distanza di un mese l&apos;una dall&apos;altra, a partire da oggi.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                onClick={handleCancelRestructure}
+                disabled={ongoingAction?.startsWith('restructure-')}
+                className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleConfirmRestructure}
+                disabled={ongoingAction?.startsWith('restructure-')}
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {ongoingAction?.startsWith('restructure-') ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin inline" />
+                    Salvataggio...
+                  </>
+                ) : (
+                  'Conferma e crea nuove rate'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">

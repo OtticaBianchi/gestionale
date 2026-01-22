@@ -71,6 +71,9 @@ export async function POST(request: NextRequest) {
       case 'sync_plan_acconto':
         result = await handleSyncPlanAcconto(body.payload, user.id, userRole)
         break
+      case 'restructure_installments':
+        result = await handleRestructureInstallments(body.payload, user.id, userRole)
+        break
       default:
         return NextResponse.json({ error: 'Azione non supportata' }, { status: 400 })
     }
@@ -533,6 +536,171 @@ async function handleSyncPlanAcconto(payload: any, userId: string, userRole: str
   )
 
   return { plan: updatedPlan }
+}
+
+async function handleRestructureInstallments(payload: any, userId: string, userRole: string | null) {
+  const { installmentId, paidAmount, newInstallmentsCount, paymentPlanId } = payload || {}
+
+  if (!installmentId || typeof paidAmount !== 'number' || paidAmount < 0) {
+    throw new Error('Parametri pagamento parziale mancanti')
+  }
+
+  if (!newInstallmentsCount || newInstallmentsCount < 1 || newInstallmentsCount > 12) {
+    throw new Error('Numero rate non valido (min 1, max 12)')
+  }
+
+  // Get the current installment
+  const { data: installment, error: instError } = await admin
+    .from('payment_installments')
+    .select('*, payment_plans(*)')
+    .eq('id', installmentId)
+    .single()
+
+  if (instError || !installment) {
+    throw new Error('Rata non trovata')
+  }
+
+  const planId = paymentPlanId || installment.payment_plan_id
+  const expectedAmount = installment.expected_amount || 0
+  const remainingFromInstallment = expectedAmount - paidAmount
+
+  if (remainingFromInstallment <= 0) {
+    throw new Error('Il pagamento copre già l\'intera rata. Usa la registrazione normale.')
+  }
+
+  // Get all unpaid installments after this one to calculate total remaining
+  const { data: allInstallments } = await admin
+    .from('payment_installments')
+    .select('*')
+    .eq('payment_plan_id', planId)
+    .order('due_date', { ascending: true })
+
+  const currentInstallmentIndex = allInstallments?.findIndex(i => i.id === installmentId) ?? -1
+
+  // Calculate total remaining: unpaid from current installment + all future unpaid installments
+  let totalRemaining = remainingFromInstallment
+  if (allInstallments) {
+    for (let i = currentInstallmentIndex + 1; i < allInstallments.length; i++) {
+      const futureInst = allInstallments[i]
+      if (!futureInst.is_completed) {
+        totalRemaining += (futureInst.expected_amount || 0) - (futureInst.paid_amount || 0)
+      }
+    }
+  }
+
+  const now = new Date()
+  const nowIso = now.toISOString()
+
+  // 1. Mark current installment as paid with partial amount
+  const { data: updatedInstallment, error: updateError } = await admin
+    .from('payment_installments')
+    .update({
+      paid_amount: paidAmount,
+      is_completed: true,
+      updated_at: nowIso
+    })
+    .eq('id', installmentId)
+    .select('*')
+    .single()
+
+  if (updateError || !updatedInstallment) {
+    throw new Error('Errore aggiornamento rata corrente')
+  }
+
+  await logUpdate(
+    'payment_installments',
+    installmentId,
+    userId,
+    installment,
+    updatedInstallment,
+    'Pagamento parziale rata - ristrutturazione',
+    { paymentPlanId: planId },
+    userRole
+  )
+
+  // 2. Delete any future unpaid installments (they'll be replaced by new ones)
+  const futureInstallmentsToDelete = allInstallments?.filter((inst, idx) =>
+    idx > currentInstallmentIndex && !inst.is_completed
+  ) ?? []
+
+  for (const futureInst of futureInstallmentsToDelete) {
+    await admin
+      .from('payment_installments')
+      .delete()
+      .eq('id', futureInst.id)
+
+    await logDelete(
+      'payment_installments',
+      futureInst.id,
+      userId,
+      futureInst,
+      'Eliminazione rata per ristrutturazione piano',
+      { paymentPlanId: planId },
+      userRole
+    )
+  }
+
+  // 3. Create new installments for remaining balance
+  const amountPerInstallment = Math.round((totalRemaining / newInstallmentsCount) * 100) / 100
+  const lastInstallmentAdjustment = totalRemaining - (amountPerInstallment * (newInstallmentsCount - 1))
+
+  // Get highest installment number
+  const highestNumber = allInstallments?.reduce((max, inst) => Math.max(max, inst.installment_number || 0), 0) ?? 0
+
+  const newInstallments = []
+  for (let i = 0; i < newInstallmentsCount; i++) {
+    const dueDate = new Date(now)
+    dueDate.setMonth(dueDate.getMonth() + i + 1) // Start one month from now
+
+    const amount = i === newInstallmentsCount - 1 ? lastInstallmentAdjustment : amountPerInstallment
+
+    newInstallments.push({
+      payment_plan_id: planId,
+      installment_number: highestNumber + i + 1,
+      due_date: dueDate.toISOString().split('T')[0],
+      expected_amount: Math.round(amount * 100) / 100,
+      paid_amount: 0,
+      is_completed: false,
+      reminder_3_days_sent: false,
+      reminder_10_days_sent: false,
+      created_at: nowIso,
+      updated_at: nowIso
+    })
+  }
+
+  const { data: createdInstallments, error: createError } = await admin
+    .from('payment_installments')
+    .insert(newInstallments)
+    .select('*')
+
+  if (createError) {
+    console.error('Errore creazione nuove rate:', createError)
+    throw new Error('Errore creazione nuove rate')
+  }
+
+  for (const newInst of createdInstallments ?? []) {
+    await logInsert(
+      'payment_installments',
+      newInst.id,
+      userId,
+      {
+        expected_amount: newInst.expected_amount,
+        due_date: newInst.due_date,
+        payment_plan_id: newInst.payment_plan_id
+      },
+      'Creazione rata da ristrutturazione piano',
+      { paymentPlanId: planId },
+      userRole
+    )
+  }
+
+  return {
+    message: 'Piano ristrutturato con successo',
+    paidInstallment: updatedInstallment,
+    newInstallments: createdInstallments,
+    totalRemaining,
+    deletedCount: futureInstallmentsToDelete.length
+  }
 }
 
 async function upsertInfoPagamenti(
