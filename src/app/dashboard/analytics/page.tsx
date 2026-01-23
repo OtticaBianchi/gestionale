@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, PieChart, Pie, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { Activity, TrendingUp, Package, AlertCircle, Euro, Calendar, Tag, Eye, Users, ArrowUp } from 'lucide-react';
+import { Activity, TrendingUp, Package, AlertCircle, Euro, Calendar, Tag, Eye, Users, ArrowUp, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 
 interface AnalyticsData {
   tipo_lavorazione: { stats: Record<string, number>; total: number };
@@ -104,6 +105,14 @@ export default function AnalyticsPage() {
         <div className="max-w-[1600px] mx-auto px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
+              <Link
+                href="/dashboard"
+                className="flex items-center space-x-2 text-slate-600 hover:text-slate-900 transition-colors"
+              >
+                <ArrowLeft className="h-5 w-5" />
+                <span>Torna alla Dashboard</span>
+              </Link>
+              <div className="h-6 w-px bg-slate-200"></div>
               <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-3 rounded-2xl shadow-lg">
                 <Activity className="w-7 h-7 text-white" />
               </div>

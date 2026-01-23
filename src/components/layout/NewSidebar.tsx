@@ -33,7 +33,8 @@ import {
   Eye,
   GraduationCap,
   ClipboardPen,
-  Trash2
+  Trash2,
+  ListChecks
 } from 'lucide-react';
 import AccordionSection from './AccordionSection';
 import SidebarItem from './SidebarItem';
@@ -569,6 +570,12 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
                 href="/dashboard/admin/import-clienti"
                 icon={FileSpreadsheet}
                 label="Import Clienti"
+                isCollapsed={isCollapsed}
+              />
+              <SidebarItem
+                href="/dashboard/admin/dedup-clienti"
+                icon={ListChecks}
+                label="Duplicati Clienti"
                 isCollapsed={isCollapsed}
               />
               <AccordionSection
