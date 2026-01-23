@@ -314,6 +314,8 @@ export type Database = {
           tipo_lavorazione: Database["public"]["Enums"]["work_type"] | null
           tipo_lavorazione_codice: string | null
           tipo_montaggio_id: number | null
+          deleted_at: string | null
+          deleted_by: string | null
           updated_at: string | null
           updated_by: string | null
           richiede_telefonata: boolean | null
@@ -356,6 +358,8 @@ export type Database = {
           tipo_lavorazione?: Database["public"]["Enums"]["work_type"] | null
           tipo_lavorazione_codice?: string | null
           tipo_montaggio_id?: number | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
           richiede_telefonata?: boolean | null
@@ -398,6 +402,8 @@ export type Database = {
           tipo_lavorazione?: Database["public"]["Enums"]["work_type"] | null
           tipo_lavorazione_codice?: string | null
           tipo_montaggio_id?: number | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
           richiede_telefonata?: boolean | null
@@ -484,6 +490,20 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "buste_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "employee_error_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buste_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       clienti: {
@@ -499,6 +519,8 @@ export type Database = {
           nome: string
           note_cliente: string | null
           telefono: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           updated_at: string | null
           updated_by: string | null
         }
@@ -514,6 +536,8 @@ export type Database = {
           nome: string
           note_cliente?: string | null
           telefono?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -529,6 +553,8 @@ export type Database = {
           nome?: string
           note_cliente?: string | null
           telefono?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -543,6 +569,20 @@ export type Database = {
           {
             foreignKeyName: "clienti_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clienti_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "employee_error_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clienti_deleted_by_fkey"
+            columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1185,6 +1225,8 @@ export type Database = {
           modalita_saldo: string
           note_pagamento: string | null
           prezzo_finale: number | null
+          deleted_at: string | null
+          deleted_by: string | null
           updated_at: string | null
           updated_by: string | null
         }
@@ -1200,6 +1242,8 @@ export type Database = {
           modalita_saldo?: string
           note_pagamento?: string | null
           prezzo_finale?: number | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -1215,6 +1259,8 @@ export type Database = {
           modalita_saldo?: string
           note_pagamento?: string | null
           prezzo_finale?: number | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -1236,6 +1282,20 @@ export type Database = {
           {
             foreignKeyName: "info_pagamenti_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "info_pagamenti_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "employee_error_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "info_pagamenti_deleted_by_fkey"
+            columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1310,6 +1370,8 @@ export type Database = {
           stato: string
           tentativo: number
           tipo_montaggio_id: number
+          deleted_at: string | null
+          deleted_by: string | null
           updated_at: string
           updated_by: string | null
         }
@@ -1325,6 +1387,8 @@ export type Database = {
           stato?: string
           tentativo?: number
           tipo_montaggio_id: number
+          deleted_at?: string | null
+          deleted_by?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -1340,6 +1404,8 @@ export type Database = {
           stato?: string
           tentativo?: number
           tipo_montaggio_id?: number
+          deleted_at?: string | null
+          deleted_by?: string | null
           updated_at?: string
           updated_by?: string | null
         }
@@ -1368,6 +1434,20 @@ export type Database = {
           {
             foreignKeyName: "lavorazioni_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lavorazioni_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "employee_error_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lavorazioni_deleted_by_fkey"
+            columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1558,6 +1638,8 @@ export type Database = {
           stato_disponibilita: string
           tipo_lenti_id: string | null
           tipo_ordine_id: number | null
+          deleted_at: string | null
+          deleted_by: string | null
           updated_at: string | null
           updated_by: string | null
         }
@@ -1595,6 +1677,8 @@ export type Database = {
           stato_disponibilita?: string
           tipo_lenti_id?: string | null
           tipo_ordine_id?: number | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -1632,6 +1716,8 @@ export type Database = {
           stato_disponibilita?: string
           tipo_lenti_id?: string | null
           tipo_ordine_id?: number | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -1709,6 +1795,20 @@ export type Database = {
           {
             foreignKeyName: "ordini_materiali_updated_by_fkey"
             columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "employee_error_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_deleted_by_fkey"
+            columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2930,6 +3030,21 @@ export type Database = {
         }
         Relationships: []
       }
+      cestino_items: {
+        Row: {
+          cliente_id: string | null
+          cliente_nome: string | null
+          days_remaining: number | null
+          deleted_at: string | null
+          deleted_by: string | null
+          deleted_by_name: string | null
+          id: string | null
+          is_expiring_soon: boolean | null
+          label: string | null
+          table_name: string | null
+        }
+        Relationships: []
+      }
       employee_error_summary: {
         Row: {
           critical_errors: number | null
@@ -3115,6 +3230,17 @@ export type Database = {
       prune_audit_log_partitions: {
         Args: { p_retain_months?: number }
         Returns: number
+      }
+      purge_expired_cestino_items: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          table_name: string
+          deleted_count: number
+        }[]
+      }
+      recover_cestino_item: {
+        Args: { p_table_name: string; p_record_id: string; p_user_id: string }
+        Returns: Json
       }
       run_audit_log_maintenance: {
         Args: { p_future_months?: number; p_retain_months?: number }

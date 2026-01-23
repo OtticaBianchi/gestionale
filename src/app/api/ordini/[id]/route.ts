@@ -217,6 +217,7 @@ export async function PATCH(
   }
 }
 
+// DELETE - Soft-delete order (moves to cestino for 60 days)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -240,6 +241,7 @@ export async function DELETE(
       .from('ordini_materiali')
       .select('*')
       .eq('id', id)
+      .is('deleted_at', null) // Only fetch non-deleted
       .single()
 
     if (fetchError || !existing) {
@@ -247,13 +249,19 @@ export async function DELETE(
       return NextResponse.json({ error: 'Ordine non trovato' }, { status: 404 })
     }
 
+    // Soft-delete: set deleted_at and deleted_by instead of hard delete
     const { error: deleteError } = await admin
       .from('ordini_materiali')
-      .delete()
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: userId,
+        updated_at: new Date().toISOString(),
+        updated_by: userId
+      })
       .eq('id', id)
 
     if (deleteError) {
-      console.error('Ordine delete error:', deleteError)
+      console.error('Ordine soft-delete error:', deleteError)
       return NextResponse.json({ error: 'Errore eliminazione ordine' }, { status: 500 })
     }
 
@@ -262,8 +270,8 @@ export async function DELETE(
       id,
       userId,
       existing,
-      'Eliminazione ordine',
-      { bustaId: existing.busta_id },
+      'Ordine spostato nel cestino',
+      { bustaId: existing.busta_id, soft_delete: true },
       role
     )
 
@@ -271,7 +279,10 @@ export async function DELETE(
       console.error('AUDIT_DELETE_ORDINE_FAILED', audit.error)
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      message: 'Ordine spostato nel cestino. Verrà eliminato definitivamente tra 60 giorni.'
+    })
 
   } catch (e) {
     console.error('Ordine DELETE error:', e)

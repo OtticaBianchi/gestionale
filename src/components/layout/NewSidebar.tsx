@@ -32,7 +32,8 @@ import {
   Filter,
   Eye,
   GraduationCap,
-  ClipboardPen
+  ClipboardPen,
+  Trash2
 } from 'lucide-react';
 import AccordionSection from './AccordionSection';
 import SidebarItem from './SidebarItem';
@@ -538,6 +539,12 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
                 href="/dashboard/audit"
                 icon={FileSpreadsheet}
                 label="Audit"
+                isCollapsed={isCollapsed}
+              />
+              <SidebarItem
+                href="/dashboard/cestino"
+                icon={Trash2}
+                label="Cestino"
                 isCollapsed={isCollapsed}
               />
               <SidebarItem

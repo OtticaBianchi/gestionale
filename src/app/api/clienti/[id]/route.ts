@@ -117,7 +117,8 @@ export async function PATCH(
   }
 }
 
-// DELETE - Delete client (admin only)
+// DELETE - Soft-delete client (admin only)
+// Moves client to cestino for 60 days before permanent deletion
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -148,11 +149,12 @@ export async function DELETE(
       auth: { persistSession: false }
     });
 
-    // Check if client has associated buste
+    // Check if client has active (non-deleted) buste
     const { data: buste, error: busteError } = await admin
       .from('buste')
       .select('id')
       .eq('cliente_id', id)
+      .is('deleted_at', null)
       .limit(1);
 
     if (busteError) {
@@ -161,20 +163,30 @@ export async function DELETE(
 
     if (buste && buste.length > 0) {
       return NextResponse.json({
-        error: 'Impossibile eliminare: il cliente ha buste associate. Elimina prima le buste.'
+        error: 'Impossibile eliminare: il cliente ha buste attive. Elimina prima le buste.'
       }, { status: 400 });
     }
 
+    // Soft-delete: set deleted_at and deleted_by instead of hard delete
     const { error } = await admin
       .from('clienti')
-      .delete()
-      .eq('id', id);
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: user.id,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id
+      })
+      .eq('id', id)
+      .is('deleted_at', null); // Only soft-delete if not already deleted
 
     if (error) {
       return NextResponse.json({ error: error.message || 'Errore durante l\'eliminazione' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: 'Cliente eliminato con successo' });
+    return NextResponse.json({
+      success: true,
+      message: 'Cliente spostato nel cestino. Verrà eliminato definitivamente tra 60 giorni.'
+    });
   } catch (error: any) {
     console.error('DELETE /api/clienti/[id] error:', error);
     return NextResponse.json({ error: error?.message || 'Errore interno server' }, { status: 500 });

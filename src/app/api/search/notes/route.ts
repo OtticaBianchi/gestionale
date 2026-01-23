@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
           cognome
         )
       `)
+      .is('deleted_at', null)
       .ilike('note_generali', searchPattern)
       .not('note_generali', 'is', null);
 
@@ -97,6 +98,7 @@ export async function GET(request: NextRequest) {
           cognome
         )
       `)
+      .is('deleted_at', null)
       .ilike('note_spedizione', searchPattern)
       .not('note_spedizione', 'is', null);
 
@@ -150,6 +152,8 @@ export async function GET(request: NextRequest) {
           )
         )
       `)
+      .is('deleted_at', null)
+      .is('buste.deleted_at', null)
       .ilike('note', searchPattern)
       .not('note', 'is', null);
 
@@ -204,6 +208,8 @@ export async function GET(request: NextRequest) {
           )
         )
       `)
+      .is('deleted_at', null)
+      .is('buste.deleted_at', null)
       .ilike('note', searchPattern)
       .not('note', 'is', null);
 

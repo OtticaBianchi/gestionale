@@ -27,25 +27,74 @@ const CATEGORY_MAP: Record<string, string[]> = {
   sport: ['SPORT'],
 }
 
+const normalizeSearchValue = (value: string) => value.normalize('NFKD').replace(/\s+/g, ' ').trim()
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const matchesWordStart = (value: string | null | undefined, term: string) => {
+  if (!value || !term) return false
+  const normalizedValue = normalizeSearchValue(value)
+  const normalizedTerm = normalizeSearchValue(term)
+  if (!normalizedValue || !normalizedTerm) return false
+  const regex = new RegExp(`(^|[\\s\\-'/,\\.])${escapeRegex(normalizedTerm)}`, 'i')
+  return regex.test(normalizedValue)
+}
+
 async function searchClients(ctx: SearchContext, forceIncludeEmpty = false): Promise<SearchResult[]> {
   const { supabase, searchTerm, includeArchived, isBustaArchived } = ctx
-  const { data: clienti, error } = await supabase
-    .from('clienti')
-    .select(`
-      id, nome, cognome, telefono, email, genere, note_cliente,
-      buste (
-        id, readable_id, stato_attuale, data_apertura, updated_at,
-        tipo_lavorazione, priorita, note_generali
-      )
-    `)
-    .or(`cognome.ilike.%${searchTerm}%,nome.ilike.%${searchTerm}%`)
-    .order('cognome')
-    .limit(20)
+  const normalizedTerm = searchTerm.trim()
+  const selectFields = `
+    id, nome, cognome, telefono, email, genere, note_cliente,
+    buste (
+      id, readable_id, stato_attuale, data_apertura, updated_at, deleted_at,
+      tipo_lavorazione, priorita, note_generali
+    )
+  `
+  const [cognomeRes, nomeRes] = await Promise.all([
+    supabase
+      .from('clienti')
+      .select(selectFields)
+      .is('deleted_at', null)
+      .ilike('cognome', `%${normalizedTerm}%`)
+      .order('cognome')
+      .limit(200),
+    supabase
+      .from('clienti')
+      .select(selectFields)
+      .is('deleted_at', null)
+      .ilike('nome', `%${normalizedTerm}%`)
+      .order('cognome')
+      .limit(200),
+  ])
 
-  if (error || !clienti) return []
+  if (cognomeRes.error || nomeRes.error) return []
+  const combinedClienti = [...(cognomeRes.data || []), ...(nomeRes.data || [])]
+  const uniqueClienti = Array.from(
+    combinedClienti.reduce((acc, cliente: any) => {
+      acc.set(cliente.id, cliente)
+      return acc
+    }, new Map<string, any>()).values()
+  )
+  const filteredClienti = uniqueClienti
+    .map((cliente: any) => {
+      const cognomeMatch = matchesWordStart(cliente.cognome, normalizedTerm)
+      const nomeMatch = matchesWordStart(cliente.nome, normalizedTerm)
+      return { cliente, cognomeMatch, nomeMatch }
+    })
+    .filter(({ cognomeMatch, nomeMatch }) => cognomeMatch || nomeMatch)
+    .sort((a: any, b: any) => {
+      if (a.cognomeMatch !== b.cognomeMatch) return a.cognomeMatch ? -1 : 1
+      const cognomeA = (a.cliente.cognome || '').toLowerCase()
+      const cognomeB = (b.cliente.cognome || '').toLowerCase()
+      if (cognomeA !== cognomeB) return cognomeA.localeCompare(cognomeB)
+      return (a.cliente.nome || '').toLowerCase().localeCompare((b.cliente.nome || '').toLowerCase())
+    })
+    .slice(0, 20)
+    .map(({ cliente }) => cliente)
 
-  return clienti.reduce<SearchResult[]>((acc, cliente) => {
+  return filteredClienti.reduce<SearchResult[]>((acc, cliente) => {
     const buste = cliente.buste?.filter((busta: any) => {
+      if (busta.deleted_at) return false
       const archived = isBustaArchived(busta)
       return includeArchived || !archived
     }) || []
@@ -83,18 +132,20 @@ async function searchCategoryOrders(ctx: SearchContext, categoria: string): Prom
     .from('ordini_materiali')
     .select(`
       id, descrizione_prodotto, stato, note,
-      buste (
-        id, readable_id, stato_attuale, updated_at, data_apertura,
+      buste!inner (
+        id, readable_id, stato_attuale, updated_at, data_apertura, deleted_at,
         clienti (id, nome, cognome)
       )
     `)
+    .is('deleted_at', null)
+    .is('buste.deleted_at', null)
     .not(campoFornitore, 'is', null)
     .limit(30)
 
   if (error || !data) return []
 
   return data.reduce<SearchResult[]>((acc, ordine) => {
-    if (!ordine.buste) return acc
+    if (!ordine.buste || ordine.buste.deleted_at) return acc
     const archived = isBustaArchived(ordine.buste)
     if (!includeArchived && archived) return acc
 
@@ -130,18 +181,19 @@ async function searchProducts(ctx: SearchContext): Promise<SearchResult[]> {
     .from('materiali')
     .select(`
       id, tipo, codice_prodotto, fornitore, stato, note,
-      buste (
-        id, readable_id, stato_attuale, updated_at, data_apertura,
+      buste!inner (
+        id, readable_id, stato_attuale, updated_at, data_apertura, deleted_at,
         clienti (id, nome, cognome)
       )
     `)
+    .is('buste.deleted_at', null)
     .or(`tipo.ilike.%${searchTerm}%,codice_prodotto.ilike.%${searchTerm}%,note.ilike.%${searchTerm}%`)
     .limit(30)
 
   const materialResults = (error || !materiali)
     ? []
     : materiali.reduce<SearchResult[]>((acc, materiale) => {
-        if (!materiale.buste) return acc
+        if (!materiale.buste || materiale.buste.deleted_at) return acc
         const archived = isBustaArchived(materiale.buste)
         if (!includeArchived && archived) return acc
 
@@ -195,11 +247,13 @@ async function searchSuppliers(ctx: SearchContext): Promise<SearchResult[]> {
       .from('ordini_materiali')
       .select(
         `id, descrizione_prodotto, stato, note, ${key},
-        buste (
-          id, readable_id, stato_attuale, updated_at, data_apertura,
+        buste!inner (
+          id, readable_id, stato_attuale, updated_at, data_apertura, deleted_at,
           clienti (id, nome, cognome)
         )`
       )
+      .is('deleted_at', null)
+      .is('buste.deleted_at', null)
       .in(key, supplierIds)
       .limit(50)
 
@@ -212,7 +266,7 @@ async function searchSuppliers(ctx: SearchContext): Promise<SearchResult[]> {
       if (!supplierId) return acc
 
       const supplier = suppliersById.get(supplierId)
-      if (!supplier || !ordine.buste) return acc
+      if (!supplier || !ordine.buste || ordine.buste.deleted_at) return acc
 
       const archived = isBustaArchived(ordine.buste)
       if (!includeArchived && archived) return acc
@@ -292,14 +346,16 @@ export async function GET(request: NextRequest) {
         .select(`
           id, nome, cognome, telefono, email, genere,
           buste (
-            id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at
+            id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at, deleted_at
           )
         `)
+        .is('deleted_at', null)
         .ilike('telefono', `%${telefono}%`)
         .limit(20)
 
       const phoneResults = (clienti || []).flatMap((cliente: any) => {
         const buste = (cliente.buste || [])
+          .filter((busta: any) => !busta.deleted_at)
           .filter((busta: any) => includeArchived || !shouldArchiveBusta(busta, { now }))
           .map((busta: any) => ({
             ...busta,
@@ -327,6 +383,7 @@ export async function GET(request: NextRequest) {
           id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at,
           clienti (id, nome, cognome, telefono)
         `)
+        .is('deleted_at', null)
         .ilike('readable_id', `%${bustaId}%`)
         .limit(20)
 
@@ -366,10 +423,11 @@ export async function GET(request: NextRequest) {
             busta_id,
             categoria_fornitore,
             buste!inner (
-              id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at,
+              id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at, deleted_at,
               clienti (id, nome, cognome, telefono)
             )
           `)
+        ordiniQuery = ordiniQuery.is('deleted_at', null).is('buste.deleted_at', null)
 
         // Apply categoria filter
         if (categoria) {
@@ -408,7 +466,7 @@ export async function GET(request: NextRequest) {
 
         const busteMap = new Map()
         ordini?.forEach((ordine: any) => {
-          if (ordine.buste && !busteMap.has(ordine.buste.id)) {
+          if (ordine.buste && !ordine.buste.deleted_at && !busteMap.has(ordine.buste.id)) {
             busteMap.set(ordine.buste.id, ordine.buste)
           }
         })
@@ -436,10 +494,11 @@ export async function GET(request: NextRequest) {
           .select(`
             id, importo_totale, totale_pagato, importo_acconto,
             buste!inner (
-              id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at,
+              id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at, deleted_at,
               clienti (id, nome, cognome, telefono)
             )
           `)
+        pagamentiQuery = pagamentiQuery.is('deleted_at', null).is('buste.deleted_at', null)
 
         // Apply other busta-level filters
         if (priorita) pagamentiQuery = pagamentiQuery.eq('buste.priorita', priorita as any)
@@ -496,6 +555,7 @@ export async function GET(request: NextRequest) {
           id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at, note_generali,
           clienti (id, nome, cognome, telefono)
         `)
+      query = query.is('deleted_at', null)
 
       if (priorita) query = query.eq('priorita', priorita as any)
       if (tipoLavorazione) query = query.eq('tipo_lavorazione', tipoLavorazione as any)
@@ -536,7 +596,8 @@ export async function GET(request: NextRequest) {
     const tasks: Promise<SearchResult[]>[] = []
 
     if (type === 'all') {
-      tasks.push(searchClients(ctx, false), searchProducts(ctx), searchSuppliers(ctx))
+      // Include clients even when they have no non-archived buste so surname-only matches aren't dropped.
+      tasks.push(searchClients(ctx, true), searchProducts(ctx), searchSuppliers(ctx))
     } else {
       const handler = HANDLERS[type]
       if (handler) {

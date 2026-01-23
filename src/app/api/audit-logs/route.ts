@@ -114,8 +114,27 @@ export async function GET(request: NextRequest) {
     if (recordId) {
       const recordSearch = recordId.trim();
       if (recordSearch) {
-        const filters: string[] = [`record_id.eq.${recordSearch}`];
-        filters.push(`metadata->>bustaReadableId.eq.${recordSearch}`);
+        const filters: string[] = [
+          `record_id.eq.${recordSearch}`,
+          `metadata->>bustaReadableId.ilike.*${recordSearch}*`,
+          `metadata->>cliente.ilike.*${recordSearch}*`,
+          `metadata->>cliente_nome.ilike.*${recordSearch}*`,
+          `changed_fields::text.ilike.*${recordSearch}*`
+        ];
+
+        // Also search for clients by name and include their UUIDs
+        const { data: matchingClients } = await serviceClient
+          .from('clienti')
+          .select('id')
+          .or(`nome.ilike.%${recordSearch}%,cognome.ilike.%${recordSearch}%`)
+          .limit(50);
+
+        if (matchingClients && matchingClients.length > 0) {
+          for (const client of matchingClients) {
+            filters.push(`changed_fields::text.ilike.*${client.id}*`);
+          }
+        }
+
         query = query.or(filters.join(','));
       }
     }
@@ -140,9 +159,32 @@ export async function GET(request: NextRequest) {
       const sanitized = search.replace(/,/g, ' ').trim();
       if (sanitized) {
         const likePattern = `*${sanitized.replace(/\s+/g, '%').replace(/\*/g, '').toLowerCase()}*`;
-        query = query.or(
-          `record_id.ilike.${likePattern},reason.ilike.${likePattern},user_role.ilike.${likePattern},metadata->>cliente.ilike.${likePattern},metadata->>recordLabel.ilike.${likePattern},metadata->>bustaReadableId.ilike.${likePattern}`
-        );
+
+        // Build base search filters
+        const searchFilters = [
+          `record_id.ilike.${likePattern}`,
+          `reason.ilike.${likePattern}`,
+          `user_role.ilike.${likePattern}`,
+          `metadata->>cliente.ilike.${likePattern}`,
+          `metadata->>recordLabel.ilike.${likePattern}`,
+          `metadata->>bustaReadableId.ilike.${likePattern}`,
+          `changed_fields::text.ilike.${likePattern}`
+        ];
+
+        // Also search for clients by name and include their UUIDs
+        const { data: matchingClients } = await serviceClient
+          .from('clienti')
+          .select('id')
+          .or(`nome.ilike.%${sanitized}%,cognome.ilike.%${sanitized}%`)
+          .limit(50);
+
+        if (matchingClients && matchingClients.length > 0) {
+          for (const client of matchingClients) {
+            searchFilters.push(`changed_fields::text.ilike.*${client.id}*`);
+          }
+        }
+
+        query = query.or(searchFilters.join(','));
       }
     }
 

@@ -104,6 +104,7 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
         updated_at
       )
     `)
+    .is('deleted_at', null)
     .order('data_apertura', { ascending: false })
     .order('updated_at', { ascending: false });
 
