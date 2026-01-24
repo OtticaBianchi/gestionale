@@ -12,11 +12,16 @@ import {
   Plus,
   Clock,
   X,
+  Check,
   CheckCircle,
+  CheckSquare,
   Calendar,
   Truck,
+  AlertCircle,
   Loader2,
   Settings,
+  Phone,
+  PhoneCall,
   Eye,
   Trash2,
   Package
@@ -55,12 +60,125 @@ type Lavorazione = {
   note?: string | null;
   created_at: string;
   updated_at: string;
+  scheduled_pickup?: string | null;
+  scheduled_return?: string | null;
+  actual_pickup?: string | null;
+  actual_return?: string | null;
   // Joined data
   tipi_montaggio?: { nome: string } | null;
   profiles?: { full_name: string } | null;
+  checklist_items?: LavorazioneChecklistItem[] | null;
 };
 
 type TipoMontaggio = Database['public']['Tables']['tipi_montaggio']['Row'];
+type LavorazioneChecklistItem = Database['public']['Tables']['lavorazioni_checklist_items']['Row'];
+type Comunicazione = Database['public']['Tables']['comunicazioni']['Row'];
+type ComunicazioneTipo = 'nota_comunicazione_cliente';
+type ActivityKey =
+  | 'sagomatura_montaggio'
+  | 'lab_esterno'
+  | 'controllo_qualita_pre_consegna'
+  | 'richiamo_verifica_tecnica'
+  | 'verifica_non_adattamento'
+  | 'gestione_assistenza_garanzia'
+  | 'riparazione_minuteria'
+  | 'pit_stop_occhiale'
+  | 'training_applicazione_lac';
+
+const normalizeLabel = (value?: string | null) =>
+  (value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const getActivityKeyFromLabel = (label?: string | null): ActivityKey | null => {
+  const normalized = normalizeLabel(label);
+  if (!normalized) return null;
+  if (
+    normalized.includes('lab esterno') ||
+    normalized.includes('laboratorio esterno') ||
+    normalized.startsWith('lab est') ||
+    normalized.includes(' lab est ')
+  ) {
+    return 'lab_esterno';
+  }
+  if (normalized.includes('lab interno') || normalized.startsWith('lab int') || normalized.includes(' lab int ')) {
+    return 'sagomatura_montaggio';
+  }
+  if (normalized.includes('controllo qualita') && normalized.includes('pre consegna')) {
+    return 'controllo_qualita_pre_consegna';
+  }
+  if (normalized.includes('controllo qualita')) return 'controllo_qualita_pre_consegna';
+  if (normalized.includes('pit stop')) return 'pit_stop_occhiale';
+  if (normalized.includes('training') && normalized.includes('lac')) return 'training_applicazione_lac';
+  if (normalized.includes('applicazione') && normalized.includes('lac')) return 'training_applicazione_lac';
+  if (normalized.includes('sagomatura') || normalized.includes('sagom') || normalized.includes('montaggio')) {
+    return 'sagomatura_montaggio';
+  }
+  if (normalized.includes('riparazione') || normalized.includes('minuteria')) return 'riparazione_minuteria';
+  if (normalized.includes('richiamo') && normalized.includes('verifica')) return 'richiamo_verifica_tecnica';
+  if (normalized.includes('non adattamento')) return 'verifica_non_adattamento';
+  if (normalized.includes('assistenza') || normalized.includes('garanzia')) return 'gestione_assistenza_garanzia';
+  return null;
+};
+
+// Matrice attività consentite per categoria busta (per chiave)
+const ACTIVITY_MATRIX: Record<string, ActivityKey[]> = {
+  VISTA: [
+    'sagomatura_montaggio',
+    'lab_esterno',
+    'controllo_qualita_pre_consegna',
+    'richiamo_verifica_tecnica',
+    'verifica_non_adattamento',
+    'gestione_assistenza_garanzia',
+    'riparazione_minuteria',
+    'pit_stop_occhiale'
+  ],
+  SOLE: [
+    'controllo_qualita_pre_consegna',
+    'riparazione_minuteria',
+    'gestione_assistenza_garanzia',
+    'pit_stop_occhiale',
+    'lab_esterno'
+  ],
+  LAC: ['training_applicazione_lac', 'richiamo_verifica_tecnica', 'gestione_assistenza_garanzia'],
+  RIPARAZIONE: ['riparazione_minuteria', 'lab_esterno', 'controllo_qualita_pre_consegna']
+};
+
+const CHECKLISTS: Partial<Record<ActivityKey, string[]>> = {
+  controllo_qualita_pre_consegna: [
+    'Pulizia lenti (no aloni)',
+    'Assetto aste (in piano)',
+    'Serraggio viti/chiusura cerchi',
+    'Verifica corrispondenza lenti/ordine',
+    'Dotazione (Astuccio + Microfibra)'
+  ],
+  pit_stop_occhiale: [
+    'Lavaggio ultrasuoni',
+    'Sostituzione naselli (se nec.)',
+    'Serraggio viteria completa',
+    'Riadattamento assetto'
+  ],
+  training_applicazione_lac: [
+    'Igiene mani verificata',
+    'Applicazione OD riuscita',
+    'Applicazione OS riuscita',
+    'Rimozione OD riuscita',
+    'Rimozione OS riuscita',
+    'Istruzioni manutenzione fornite'
+  ]
+};
+
+const getCategoryForBusta = (tipoLavorazione?: string | null): string => {
+  if (!tipoLavorazione) return 'VISTA';
+  if (['OCV', 'OV', 'LV'].includes(tipoLavorazione)) return 'VISTA';
+  if (['OS', 'LS', 'ACC', 'BR'].includes(tipoLavorazione)) return 'SOLE';
+  if (['LAC'].includes(tipoLavorazione)) return 'LAC';
+  if (['RIP', 'RIC', 'SA', 'SG'].includes(tipoLavorazione)) return 'RIPARAZIONE';
+  return 'VISTA';
+};
 
 interface LavorazioneTabProps {
   busta: BustaDettagliata;
@@ -89,6 +207,19 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
   const [isMovingToReady, setIsMovingToReady] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [showCheckboxSection, setShowCheckboxSection] = useState(false);
+  const [labEsternoForm, setLabEsternoForm] = useState({
+    scheduled_pickup: '',
+    scheduled_return: ''
+  });
+  const [currentUser, setCurrentUser] = useState<{ id: string; full_name: string } | null>(null);
+  const [richiedeTelefonata, setRichiedeTelefonata] = useState<boolean>(busta.richiede_telefonata || false);
+  const [telefonataAssegnataA, setTelefonataAssegnataA] = useState<string>(busta.telefonata_assegnata_a || '');
+  const [telefonataCompletata, setTelefonataCompletata] = useState<boolean>(busta.telefonata_completata || false);
+  const [telefonataCompletataData, setTelefonataCompletataData] = useState<string | null>(busta.telefonata_completata_data || null);
+  const [isSavingPhoneRequest, setIsSavingPhoneRequest] = useState(false);
+  const [showingCallOutcome, setShowingCallOutcome] = useState(false);
+
+  const PHONE_ASSIGNEES = ['Chiunque', 'Enrico', 'Valentina', 'Marco', 'Roberta', 'Cecilia', 'Anna', 'Monica', 'Noemi'];
 
   // User context for role checking
   const { profile } = useUser();
@@ -101,12 +232,41 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          setCurrentUser(null);
+          return;
+        }
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+        setCurrentUser({ id: user.id, full_name: profileData?.full_name || 'Operatore' });
+      } catch (error) {
+        setCurrentUser(null);
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
+
   // Initialize checkbox state from database
   useEffect(() => {
     if (busta.controllo_completato) {
       setControlloCompletato(true);
     }
   }, [busta.controllo_completato]);
+
+  useEffect(() => {
+    setRichiedeTelefonata(busta.richiede_telefonata || false);
+    setTelefonataAssegnataA(busta.telefonata_assegnata_a || '');
+    setTelefonataCompletata(busta.telefonata_completata || false);
+    setTelefonataCompletataData(busta.telefonata_completata_data || null);
+  }, [busta.richiede_telefonata, busta.telefonata_assegnata_a, busta.telefonata_completata, busta.telefonata_completata_data, busta.id]);
 
   // Update showCheckboxSection based on busta status and lavorazioni
   useEffect(() => {
@@ -126,10 +286,53 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
     data_inizio: new Date().toISOString().split('T')[0]
   });
 
+  useEffect(() => {
+    if (!nuovaLavorazioneForm.tipo_montaggio_id || nuovaLavorazioneForm.tipo_montaggio_id === 'nessuna_lavorazione') {
+      setLabEsternoForm({ scheduled_pickup: '', scheduled_return: '' });
+      return;
+    }
+
+    const selectedTipo = tipiMontaggio.find(
+      tipo => tipo.id.toString() === nuovaLavorazioneForm.tipo_montaggio_id
+    );
+    const selectedKey = getActivityKeyFromLabel(selectedTipo?.nome);
+    const hasChecklist = selectedKey ? CHECKLISTS[selectedKey] : null;
+    const isLabEsterno = selectedKey === 'lab_esterno';
+
+    if (!isLabEsterno) {
+      setLabEsternoForm({ scheduled_pickup: '', scheduled_return: '' });
+    }
+  }, [nuovaLavorazioneForm.tipo_montaggio_id, tipiMontaggio]);
+
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  const updateBustaState = (updates: Partial<BustaDettagliata>) => {
+    if (onBustaUpdate) {
+      onBustaUpdate({ ...busta, ...updates });
+    }
+  };
+
+  const categoriaBusta = getCategoryForBusta(busta.tipo_lavorazione);
+  const allowedActivities = ACTIVITY_MATRIX[categoriaBusta] ?? [];
+  const filteredTipiMontaggio = allowedActivities.length > 0
+    ? tipiMontaggio.filter((tipo) => {
+        if (tipo.nome === 'Nessuna Lavorazione') return false;
+        const key = getActivityKeyFromLabel(tipo.nome);
+        return key ? allowedActivities.includes(key) : false;
+      })
+    : tipiMontaggio.filter(tipo => tipo.nome !== 'Nessuna Lavorazione');
+  const visibleTipiMontaggio = filteredTipiMontaggio.length > 0
+    ? filteredTipiMontaggio
+    : tipiMontaggio.filter(tipo => tipo.nome !== 'Nessuna Lavorazione');
+  const selectedTipoMontaggio = nuovaLavorazioneForm.tipo_montaggio_id &&
+    nuovaLavorazioneForm.tipo_montaggio_id !== 'nessuna_lavorazione'
+    ? tipiMontaggio.find(tipo => tipo.id.toString() === nuovaLavorazioneForm.tipo_montaggio_id)
+    : null;
+  const selectedTipoKey = getActivityKeyFromLabel(selectedTipoMontaggio?.nome);
+  const isLabEsternoSelected = selectedTipoKey === 'lab_esterno';
 
   // ===== EFFECTS =====
   useEffect(() => {
@@ -168,7 +371,11 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
           tentativo,
           note,
           created_at,
-          updated_at
+          updated_at,
+          scheduled_pickup,
+          scheduled_return,
+          actual_pickup,
+          actual_return
         `)
         .eq('busta_id', busta.id)
         .order('created_at', { ascending: false });
@@ -176,6 +383,27 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
       if (lavorazioniError) {
         console.error('❌ Errore caricamento lavorazioni:', lavorazioniError);
         throw lavorazioniError;
+      }
+
+      const checklistItemsByLavorazione = new Map<string, LavorazioneChecklistItem[]>();
+      const lavorazioniIds = (lavorazioniData || []).map(lavorazione => lavorazione.id);
+
+      if (lavorazioniIds.length > 0) {
+        const { data: checklistData, error: checklistError } = await supabase
+          .from('lavorazioni_checklist_items')
+          .select('id, lavorazione_id, item_label, is_checked, created_at, updated_at')
+          .in('lavorazione_id', lavorazioniIds)
+          .order('created_at', { ascending: true });
+
+        if (checklistError) {
+          console.error('❌ Errore caricamento checklist lavorazioni:', checklistError);
+        } else {
+          (checklistData || []).forEach((item) => {
+            const existing = checklistItemsByLavorazione.get(item.lavorazione_id) || [];
+            existing.push(item);
+            checklistItemsByLavorazione.set(item.lavorazione_id, existing);
+          });
+        }
       }
 
       // Arricchisci i dati con le informazioni mancanti
@@ -201,7 +429,8 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
           return {
             ...lavorazione,
             tipi_montaggio: tipoMontaggio ? { nome: tipoMontaggio.nome } : null,
-            profiles: { full_name: responsabileNome }
+            profiles: { full_name: responsabileNome },
+            checklist_items: checklistItemsByLavorazione.get(lavorazione.id) || []
           } as Lavorazione;
         })
       );
@@ -290,7 +519,11 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
             tentativo,
             note,
             created_at,
-            updated_at
+            updated_at,
+            scheduled_pickup,
+            scheduled_return,
+            actual_pickup,
+            actual_return
           `)
           .single();
 
@@ -314,7 +547,8 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
         const lavorazioneArricchita: Lavorazione = {
           ...lavorazioneCreata,
           tipi_montaggio: { nome: 'Nessuna Lavorazione' },
-          profiles: { full_name: responsabileNome }
+          profiles: { full_name: responsabileNome },
+          checklist_items: []
         };
 
         setLavorazioni(prev => [lavorazioneArricchita, ...prev]);
@@ -324,6 +558,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
           note: '',
           data_inizio: new Date().toISOString().split('T')[0]
         });
+        setLabEsternoForm({ scheduled_pickup: '', scheduled_return: '' });
 
         setShowNuovaLavorazioneForm(false);
         alert('✅ "Nessuna Lavorazione" registrata. Ora completa il controllo per procedere.');
@@ -333,6 +568,12 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
       const tentativiEsistenti = lavorazioni.filter(l =>
         l.tipo_montaggio_id?.toString() === nuovaLavorazioneForm.tipo_montaggio_id
       ).length;
+      const selectedTipo = tipiMontaggio.find(
+        tm => tm.id.toString() === nuovaLavorazioneForm.tipo_montaggio_id
+      );
+      const selectedKey = getActivityKeyFromLabel(selectedTipo?.nome);
+      const isLabEsterno = selectedKey === 'lab_esterno';
+      const checklist = selectedKey ? CHECKLISTS[selectedKey] : null;
 
       const { data: lavorazioneCreata, error } = await supabase
         .from('lavorazioni')
@@ -343,7 +584,11 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
           data_inizio: nuovaLavorazioneForm.data_inizio,
           responsabile_id: user.id,
           tentativo: tentativiEsistenti + 1,
-          note: nuovaLavorazioneForm.note.trim() || null
+          note: nuovaLavorazioneForm.note.trim() || null,
+          scheduled_pickup: isLabEsterno ? labEsternoForm.scheduled_pickup || null : null,
+          scheduled_return: isLabEsterno ? labEsternoForm.scheduled_return || null : null,
+          actual_pickup: null,
+          actual_return: null
         })
         .select(`
           id,
@@ -357,13 +602,38 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
           tentativo,
           note,
           created_at,
-          updated_at
+          updated_at,
+          scheduled_pickup,
+          scheduled_return,
+          actual_pickup,
+          actual_return
         `)
         .single();
 
       if (error) throw error;
 
-      const tipoMontaggioNome = tipiMontaggio.find(tm => tm.id === Number.parseInt(nuovaLavorazioneForm.tipo_montaggio_id))?.nome || 'Sconosciuto';
+      const tipoMontaggioNome = selectedTipo?.nome || 'Sconosciuto';
+      let checklistItemsForState: LavorazioneChecklistItem[] | null = null;
+
+      if (checklist) {
+        const checklistPayload = checklist.map(item => ({
+          lavorazione_id: lavorazioneCreata.id,
+          item_label: item,
+          is_checked: false
+        }));
+
+        const { data: checklistData, error: checklistError } = await supabase
+          .from('lavorazioni_checklist_items')
+          .insert(checklistPayload)
+          .select('id, lavorazione_id, item_label, is_checked, created_at, updated_at');
+
+        if (checklistError) {
+          console.error('❌ Errore salvataggio checklist:', checklistError);
+          alert('Lavorazione salvata, ma checklist non registrata.');
+        } else {
+          checklistItemsForState = checklistData || [];
+        }
+      }
       
       let responsabileNome = 'Tu';
       try {
@@ -383,7 +653,8 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
       const lavorazioneArricchita: Lavorazione = {
         ...lavorazioneCreata,
         tipi_montaggio: { nome: tipoMontaggioNome },
-        profiles: { full_name: responsabileNome }
+        profiles: { full_name: responsabileNome },
+        checklist_items: checklistItemsForState || []
       };
 
       setLavorazioni(prev => [lavorazioneArricchita, ...prev]);
@@ -393,6 +664,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
         note: '',
         data_inizio: new Date().toISOString().split('T')[0]
       });
+      setLabEsternoForm({ scheduled_pickup: '', scheduled_return: '' });
       setShowNuovaLavorazioneForm(false);
 
     } catch (error: any) {
@@ -451,6 +723,225 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
     } catch (error: any) {
       console.error('❌ Error updating lavorazione:', error);
       alert(`Errore aggiornamento: ${error.message}`);
+    }
+  };
+
+  const handleToggleChecklistItem = async (lavorazioneId: string, itemId: string, checked: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('lavorazioni_checklist_items')
+        .update({ is_checked: checked })
+        .eq('id', itemId);
+
+      if (error) throw error;
+
+      setLavorazioni(prev => prev.map((lav) => {
+        if (lav.id !== lavorazioneId) return lav;
+        const updatedItems = (lav.checklist_items || []).map(item =>
+          item.id === itemId ? { ...item, is_checked: checked, updated_at: new Date().toISOString() } : item
+        );
+        return { ...lav, checklist_items: updatedItems };
+      }));
+    } catch (error: any) {
+      console.error('❌ Error updating checklist item:', error);
+      alert(`Errore aggiornamento checklist: ${error.message}`);
+    }
+  };
+
+  const createCommunicationRecord = async (tipo: ComunicazioneTipo, testoFinale: string) => {
+    const response = await fetch('/api/comunicazioni', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        bustaId: busta.id,
+        tipoMessaggio: tipo,
+        testoMessaggio: testoFinale,
+        destinatarioTipo: 'cliente',
+        destinatarioNome: busta.clienti ? `${busta.clienti.cognome} ${busta.clienti.nome}` : '',
+        destinatarioContatto: busta.clienti?.telefono ?? '',
+        canaleInvio: 'telefono',
+        statoInvio: 'inviato'
+      })
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Errore durante la registrazione della comunicazione.');
+    }
+
+    return payload?.comunicazione as Comunicazione;
+  };
+
+  const handleSavePhoneRequest = async () => {
+    if (!telefonataAssegnataA) {
+      alert('Seleziona a chi assegnare la telefonata');
+      return;
+    }
+
+    setIsSavingPhoneRequest(true);
+    try {
+      const { error } = await supabase
+        .from('buste')
+        .update({
+          richiede_telefonata: true,
+          telefonata_assegnata_a: telefonataAssegnataA,
+          telefonata_completata: false,
+          telefonata_completata_data: null,
+          telefonata_completata_da: null
+        })
+        .eq('id', busta.id);
+
+      if (error) throw error;
+
+      setRichiedeTelefonata(true);
+      setTelefonataCompletata(false);
+      setTelefonataCompletataData(null);
+      updateBustaState({
+        richiede_telefonata: true,
+        telefonata_assegnata_a: telefonataAssegnataA,
+        telefonata_completata: false,
+        telefonata_completata_data: null,
+        telefonata_completata_da: null
+      });
+      alert('Richiesta telefonata salvata!');
+    } catch (error: any) {
+      console.error('Errore salvataggio richiesta telefonata:', error);
+      alert(`Errore: ${error.message}`);
+    } finally {
+      setIsSavingPhoneRequest(false);
+    }
+  };
+
+  const handleMarkPhoneCallDone = async () => {
+    setIsSavingPhoneRequest(true);
+    try {
+      const completedAt = new Date().toISOString();
+      const { error } = await supabase
+        .from('buste')
+        .update({
+          telefonata_completata: true,
+          telefonata_completata_data: completedAt,
+          telefonata_completata_da: currentUser?.id || null
+        })
+        .eq('id', busta.id);
+
+      if (error) throw error;
+
+      setTelefonataCompletata(true);
+      setTelefonataCompletataData(completedAt);
+      setShowingCallOutcome(false);
+      updateBustaState({
+        telefonata_completata: true,
+        telefonata_completata_data: completedAt,
+        telefonata_completata_da: currentUser?.id || null
+      });
+
+      try {
+        const callerName = currentUser?.full_name || 'Operatore';
+        await createCommunicationRecord(
+          'nota_comunicazione_cliente',
+          `Telefonata al cliente: andata a buon fine. Effettuata da: ${callerName}.`
+        );
+      } catch (communicationError) {
+        console.error('Errore salvataggio comunicazione telefonata:', communicationError);
+      }
+
+      alert('Telefonata completata con successo!');
+    } catch (error: any) {
+      console.error('Errore registrazione telefonata:', error);
+      alert(`Errore: ${error.message}`);
+    } finally {
+      setIsSavingPhoneRequest(false);
+    }
+  };
+
+  const handleMarkPhoneCallNoAnswer = async () => {
+    setIsSavingPhoneRequest(true);
+    try {
+      const attemptAt = new Date();
+      const formattedDate = attemptAt.toLocaleDateString('it-IT');
+      const formattedTime = attemptAt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+      const callerName = currentUser?.full_name || 'Operatore';
+
+      try {
+        await createCommunicationRecord(
+          'nota_comunicazione_cliente',
+          `Telefonata al cliente: nessuna risposta - richiamare. Tentativo effettuato da ${callerName} il ${formattedDate} alle ${formattedTime}.`
+        );
+      } catch (communicationError) {
+        console.error('Errore salvataggio comunicazione telefonata:', communicationError);
+      }
+
+      setShowingCallOutcome(false);
+      alert('Tentativo registrato. Il cliente dovrà essere richiamato.');
+    } catch (error: any) {
+      console.error('Errore registrazione tentativo:', error);
+      alert(`Errore: ${error.message}`);
+    } finally {
+      setIsSavingPhoneRequest(false);
+    }
+  };
+
+  const handleCancelPhoneRequest = async () => {
+    setIsSavingPhoneRequest(true);
+    try {
+      const { error } = await supabase
+        .from('buste')
+        .update({
+          richiede_telefonata: false,
+          telefonata_assegnata_a: null,
+          telefonata_completata: false,
+          telefonata_completata_data: null,
+          telefonata_completata_da: null
+        })
+        .eq('id', busta.id);
+
+      if (error) throw error;
+
+      setRichiedeTelefonata(false);
+      setTelefonataAssegnataA('');
+      setTelefonataCompletata(false);
+      setTelefonataCompletataData(null);
+      updateBustaState({
+        richiede_telefonata: false,
+        telefonata_assegnata_a: null,
+        telefonata_completata: false,
+        telefonata_completata_data: null,
+        telefonata_completata_da: null
+      });
+      alert('Richiesta telefonata annullata!');
+    } catch (error: any) {
+      console.error('Errore annullamento richiesta:', error);
+      alert(`Errore: ${error.message}`);
+    } finally {
+      setIsSavingPhoneRequest(false);
+    }
+  };
+
+  const handleUpdateLabDates = async (
+    lavorazioneId: string,
+    field: 'actual_pickup' | 'actual_return',
+    value: string
+  ) => {
+    try {
+      const { error } = await supabase
+        .from('lavorazioni')
+        .update({ [field]: value || null })
+        .eq('id', lavorazioneId);
+
+      if (error) throw error;
+
+      setLavorazioni(prev => prev.map(lav =>
+        lav.id === lavorazioneId
+          ? { ...lav, [field]: value || null, updated_at: new Date().toISOString() }
+          : lav
+      ));
+    } catch (error: any) {
+      console.error('❌ Error updating lab dates:', error);
+      alert(`Errore aggiornamento date lab: ${error.message}`);
     }
   };
 
@@ -640,7 +1131,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
                 required
               >
                 <option value="">-- Seleziona tipo montaggio --</option>
-                {tipiMontaggio.map(tipo => (
+                {visibleTipiMontaggio.map(tipo => (
                   <option key={tipo.id} value={tipo.id}>
                     {tipo.nome}
                   </option>
@@ -677,6 +1168,37 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
                 placeholder="Dettagli sulla lavorazione, materiali utilizzati, difficoltà riscontrate..."
               />
             </div>
+
+            {isLabEsternoSelected && (
+              <div className="md:col-span-2 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-blue-800 font-semibold text-sm mb-3">
+                  <Truck className="w-4 h-4" /> Pianificazione Spedizione Lab Esterno
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-blue-900 mb-1">Data Ritiro Prevista</label>
+                    <input
+                      type="date"
+                      className="w-full p-2 border border-blue-200 rounded bg-white"
+                      value={labEsternoForm.scheduled_pickup}
+                      onChange={(e) => setLabEsternoForm(prev => ({ ...prev, scheduled_pickup: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-blue-900 mb-1">Data Riconsegna Prevista</label>
+                    <input
+                      type="date"
+                      className="w-full p-2 border border-blue-200 rounded bg-white"
+                      value={labEsternoForm.scheduled_return}
+                      onChange={(e) => setLabEsternoForm(prev => ({ ...prev, scheduled_return: e.target.value }))}
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-blue-600 mt-2 italic">
+                  Le date effettive verranno inserite dopo, dalla scheda dell'attività.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
@@ -750,6 +1272,9 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
             {lavorazioni.map((lavorazione) => {
               // ✅ NUOVO: Check if this is "Nessuna Lavorazione"
               const isNessunaLavorazione = lavorazione.tipi_montaggio?.nome === 'Nessuna Lavorazione';
+              const checklistItems = lavorazione.checklist_items || [];
+              const checklistComplete = checklistItems.length === 0 || checklistItems.every(item => item.is_checked);
+              const canFillChecklist = canEdit && lavorazione.stato === 'in_corso' && (telefonataCompletata || !richiedeTelefonata);
 
               return (
               <div key={lavorazione.id} className={`p-6 transition-colors ${
@@ -818,6 +1343,281 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
                         </p>
                       </div>
                     )}
+
+                    {lavorazione.checklist_items && lavorazione.checklist_items.length > 0 && (
+                      <div className="mt-3 p-3 bg-emerald-50 border border-emerald-200 rounded-md">
+                        <div className="flex items-center gap-2 text-emerald-800 text-sm font-semibold mb-2">
+                          <CheckSquare className="w-4 h-4" />
+                          Checklist
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {checklistItems.map((item) => (
+                            <label key={item.id} className="flex items-center gap-2 text-sm">
+                              {canFillChecklist ? (
+                                <input
+                                  type="checkbox"
+                                  checked={item.is_checked}
+                                  onChange={(e) => handleToggleChecklistItem(lavorazione.id, item.id, e.target.checked)}
+                                  className="w-4 h-4 text-emerald-600 rounded"
+                                />
+                              ) : (
+                                <span className={item.is_checked ? 'text-emerald-600' : 'text-gray-400'}>
+                                  {item.is_checked ? '✅' : '⬜'}
+                                </span>
+                              )}
+                              <span className={item.is_checked ? 'text-gray-800' : 'text-gray-500'}>
+                                {item.item_label}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        {!canFillChecklist && checklistItems.length > 0 && (
+                          <p className="mt-2 text-xs text-gray-600">
+                            La checklist è compilabile dopo il contatto cliente o quando non è richiesta la telefonata.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {getActivityKeyFromLabel(lavorazione.tipi_montaggio?.nome) === 'lab_esterno' && (() => {
+                      const pickupDelayed = Boolean(
+                        lavorazione.actual_pickup &&
+                        lavorazione.scheduled_pickup &&
+                        new Date(lavorazione.actual_pickup) > new Date(lavorazione.scheduled_pickup)
+                      );
+                      const returnDelayed = Boolean(
+                        lavorazione.actual_return &&
+                        lavorazione.scheduled_return &&
+                        new Date(lavorazione.actual_return) > new Date(lavorazione.scheduled_return)
+                      );
+
+                      return (
+                        <div className="mt-4 bg-blue-50 border border-blue-100 rounded-lg p-4">
+                          <div className="text-sm font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                            <Truck className="w-4 h-4" /> Tracking Spedizione
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="block text-xs text-gray-500">Ritiro Previsto</span>
+                              <span className="font-medium">
+                                {lavorazione.scheduled_pickup
+                                  ? new Date(lavorazione.scheduled_pickup).toLocaleDateString('it-IT')
+                                  : '-'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="block text-xs text-gray-500">Ritiro Effettivo</span>
+                              {canEdit && lavorazione.stato === 'in_corso' ? (
+                                <input
+                                  type="date"
+                                  className="w-full p-1 border rounded text-sm"
+                                  value={lavorazione.actual_pickup || ''}
+                                  onChange={(e) => handleUpdateLabDates(lavorazione.id, 'actual_pickup', e.target.value)}
+                                />
+                              ) : (
+                                <span className="font-medium">
+                                  {lavorazione.actual_pickup
+                                    ? new Date(lavorazione.actual_pickup).toLocaleDateString('it-IT')
+                                    : '-'}
+                                </span>
+                              )}
+                            </div>
+                            <div>
+                              <span className="block text-xs text-gray-500">Rientro Previsto</span>
+                              <span className="font-medium">
+                                {lavorazione.scheduled_return
+                                  ? new Date(lavorazione.scheduled_return).toLocaleDateString('it-IT')
+                                  : '-'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="block text-xs text-gray-500">Rientro Effettivo</span>
+                              {canEdit && lavorazione.stato === 'in_corso' ? (
+                                <input
+                                  type="date"
+                                  className="w-full p-1 border rounded text-sm"
+                                  value={lavorazione.actual_return || ''}
+                                  onChange={(e) => handleUpdateLabDates(lavorazione.id, 'actual_return', e.target.value)}
+                                />
+                              ) : (
+                                <span className="font-medium">
+                                  {lavorazione.actual_return
+                                    ? new Date(lavorazione.actual_return).toLocaleDateString('it-IT')
+                                    : '-'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {(pickupDelayed || returnDelayed) && (
+                            <div className="mt-3 flex items-center gap-2 text-xs text-red-600 bg-red-50 p-2 rounded">
+                              <AlertCircle className="w-4 h-4" /> Attenzione: Ritardo registrato rispetto alla pianificazione.
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    {(() => {
+                      const activityKey = getActivityKeyFromLabel(lavorazione.tipi_montaggio?.nome);
+                      if (!['richiamo_verifica_tecnica', 'training_applicazione_lac'].includes(activityKey || '')) {
+                        return null;
+                      }
+                      const panelTitle = activityKey === 'training_applicazione_lac'
+                        ? 'Contatto Cliente (Training Applicazione LAC)'
+                        : 'Richiamo Cliente (Verifica Tecnica)';
+                      return (
+                      <div className={`mt-4 border rounded-lg p-4 ${
+                        richiedeTelefonata && !telefonataCompletata
+                          ? 'border-red-300 bg-red-50'
+                          : telefonataCompletata
+                            ? 'border-green-300 bg-green-50'
+                            : 'border-gray-200'
+                      }`}>
+                        <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                          <PhoneCall className={`w-4 h-4 mr-2 ${
+                            richiedeTelefonata && !telefonataCompletata
+                              ? 'text-red-600'
+                              : 'text-purple-600'
+                          }`} />
+                          {panelTitle}
+                        </h4>
+
+                        {telefonataCompletata ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-green-700">
+                              <Check className="w-4 h-4" />
+                              <span className="text-sm font-medium">Telefonata effettuata</span>
+                            </div>
+                            <p className="text-xs text-gray-600">
+                              Assegnata a: <strong>{telefonataAssegnataA || 'Non assegnata'}</strong>
+                            </p>
+                            {telefonataCompletataData && (
+                              <p className="text-xs text-gray-500">
+                                Completata il {new Date(telefonataCompletataData).toLocaleDateString('it-IT')}
+                              </p>
+                            )}
+                            {canEdit && (
+                              <button
+                                onClick={handleCancelPhoneRequest}
+                                disabled={isSavingPhoneRequest}
+                                className="w-full mt-2 flex items-center justify-center px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                              >
+                                Resetta
+                              </button>
+                            )}
+                          </div>
+                        ) : richiedeTelefonata ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-red-700">
+                              <Phone className="w-4 h-4 animate-pulse" />
+                              <span className="text-sm font-medium">Da contattare</span>
+                            </div>
+                            <p className="text-xs text-gray-700">
+                              Assegnata a: <strong>{telefonataAssegnataA || 'Non assegnata'}</strong>
+                            </p>
+
+                            {canEdit && (showingCallOutcome ? (
+                              <div className="space-y-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                <p className="text-xs font-medium text-gray-700 mb-2">Esito della chiamata:</p>
+                                <button
+                                  onClick={handleMarkPhoneCallDone}
+                                  disabled={isSavingPhoneRequest}
+                                  className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  {isSavingPhoneRequest ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Check className="w-4 h-4 mr-2" />
+                                  )}
+                                  Telefonata andata a buon fine
+                                </button>
+                                <button
+                                  onClick={handleMarkPhoneCallNoAnswer}
+                                  disabled={isSavingPhoneRequest}
+                                  className="w-full flex items-center justify-center px-4 py-2 bg-orange-500 text-white text-sm rounded-md hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  {isSavingPhoneRequest ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Phone className="w-4 h-4 mr-2" />
+                                  )}
+                                  Nessuna risposta - richiamare
+                                </button>
+                                <button
+                                  onClick={() => setShowingCallOutcome(false)}
+                                  disabled={isSavingPhoneRequest}
+                                  className="w-full flex items-center justify-center px-3 py-1.5 text-xs text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                                >
+                                  Annulla
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setShowingCallOutcome(true)}
+                                disabled={isSavingPhoneRequest}
+                                className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {isSavingPhoneRequest ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Check className="w-4 h-4 mr-2" />
+                                )}
+                                Telefonato al Cliente
+                              </button>
+                            ))}
+
+                            {canEdit && (
+                              <button
+                                onClick={handleCancelPhoneRequest}
+                                disabled={isSavingPhoneRequest}
+                                className="w-full flex items-center justify-center px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                              >
+                                <X className="w-3 h-3 mr-1" />
+                                Annulla richiesta
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <p className="text-sm text-gray-600">
+                              Il cliente dev&apos;essere contattato telefonicamente
+                            </p>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Assegna a:
+                              </label>
+                              <select
+                                value={telefonataAssegnataA}
+                                onChange={(e) => setTelefonataAssegnataA(e.target.value)}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
+                                disabled={!canEdit}
+                              >
+                                <option value="">Seleziona...</option>
+                                {PHONE_ASSIGNEES.map((name) => (
+                                  <option key={name} value={name}>{name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            {canEdit && (
+                              <button
+                                onClick={handleSavePhoneRequest}
+                                disabled={isSavingPhoneRequest || !telefonataAssegnataA}
+                                className="w-full flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {isSavingPhoneRequest ? (
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                  <PhoneCall className="w-4 h-4 mr-2" />
+                                )}
+                                Richiedi Telefonata
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                    })()}
                   </div>
 
                   {/* ✅ MODIFICA: Azioni solo per chi può editare */}
@@ -827,6 +1627,14 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
                         <>
                           <button
                             onClick={() => {
+                              if (!checklistComplete) {
+                                alert('Completa la checklist prima di chiudere la lavorazione.');
+                                return;
+                              }
+                              if (checklistItems.length > 0 && !canFillChecklist) {
+                                alert('Completa prima il contatto cliente per chiudere la lavorazione.');
+                                return;
+                              }
                               const note = prompt('Note sulla lavorazione completata:');
                               if (note !== null) {
                                 handleAggiornaStatoLavorazione(lavorazione.id, 'completato', note);

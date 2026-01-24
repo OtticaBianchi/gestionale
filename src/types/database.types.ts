@@ -1366,6 +1366,10 @@ export type Database = {
           data_inizio: string
           id: string
           note: string | null
+          scheduled_pickup: string | null
+          scheduled_return: string | null
+          actual_pickup: string | null
+          actual_return: string | null
           responsabile_id: string
           stato: string
           tentativo: number
@@ -1383,6 +1387,10 @@ export type Database = {
           data_inizio?: string
           id?: string
           note?: string | null
+          scheduled_pickup?: string | null
+          scheduled_return?: string | null
+          actual_pickup?: string | null
+          actual_return?: string | null
           responsabile_id: string
           stato?: string
           tentativo?: number
@@ -1400,6 +1408,10 @@ export type Database = {
           data_inizio?: string
           id?: string
           note?: string | null
+          scheduled_pickup?: string | null
+          scheduled_return?: string | null
+          actual_pickup?: string | null
+          actual_return?: string | null
           responsabile_id?: string
           stato?: string
           tentativo?: number
@@ -1450,6 +1462,41 @@ export type Database = {
             columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lavorazioni_checklist_items: {
+        Row: {
+          created_at: string
+          id: string
+          is_checked: boolean
+          item_label: string
+          lavorazione_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_checked?: boolean
+          item_label: string
+          lavorazione_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_checked?: boolean
+          item_label?: string
+          lavorazione_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lavorazioni_checklist_items_lavorazione_id_fkey"
+            columns: ["lavorazione_id"]
+            isOneToOne: false
+            referencedRelation: "lavorazioni"
             referencedColumns: ["id"]
           },
         ]
