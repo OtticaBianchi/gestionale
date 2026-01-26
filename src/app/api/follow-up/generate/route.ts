@@ -11,21 +11,24 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Query per generare lista follow-up - cerca buste che sono state consegnate 11-18 giorni fa
+    // Query per generare lista follow-up - cerca buste consegnate da almeno 11 giorni
     // Evita i primi 11 giorni per dare tempo di risolvere eventuali problemi immediati
     console.log('🔍 DEBUG: Starting follow-up generation...')
 
-    const eighteenDaysAgo = new Date(Date.now() - 18 * 24 * 60 * 60 * 1000).toISOString()
     const elevenDaysAgo = new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString()
-    console.log('📅 DEBUG: Looking for buste delivered between:', eighteenDaysAgo, 'and', elevenDaysAgo)
+    console.log('📅 DEBUG: Looking for buste delivered on or before:', elevenDaysAgo)
 
-    const { data: fallbackData, error: fallbackError } = await supabase
+    let fallbackData: any[] | null = null
+    let fallbackError: { message?: string } | null = null
+
+    const { data: initialData, error: initialError } = await supabase
       .from('buste')
       .select(`
         id,
         cliente_id,
         tipo_lavorazione,
         readable_id,
+        data_completamento_consegna,
         updated_at,
         clienti (
           nome,
@@ -44,24 +47,66 @@ export async function POST() {
         )
       `)
       .eq('stato_attuale', 'consegnato_pagato')
-      .gte('updated_at', eighteenDaysAgo)
-      .lte('updated_at', elevenDaysAgo)
+      .lte('data_completamento_consegna', elevenDaysAgo)
+      .not('data_completamento_consegna', 'is', null)
       .not('clienti.telefono', 'is', null)
       .neq('clienti.telefono', '')
+
+    if (initialError) {
+      console.error('❌ ERROR: Primary query failed, fallback to updated_at:', initialError)
+      const { data: retryData, error: retryError } = await supabase
+        .from('buste')
+        .select(`
+          id,
+          cliente_id,
+          tipo_lavorazione,
+          readable_id,
+          data_completamento_consegna,
+          updated_at,
+          clienti (
+            nome,
+            cognome,
+            telefono
+          ),
+          materiali (
+            tipo,
+            primo_acquisto_lac
+          ),
+          info_pagamenti (
+            prezzo_finale
+          ),
+          ordini_materiali (
+            descrizione_prodotto
+          )
+        `)
+        .eq('stato_attuale', 'consegnato_pagato')
+        .lte('updated_at', elevenDaysAgo)
+        .not('clienti.telefono', 'is', null)
+        .neq('clienti.telefono', '')
+
+      fallbackData = retryData
+      fallbackError = retryError
+    } else {
+      fallbackData = initialData
+      fallbackError = initialError
+    }
 
     console.log('📊 DEBUG: Query completed. Error:', fallbackError)
     console.log('📊 DEBUG: Raw query results count:', fallbackData?.length || 0)
 
     if (fallbackError) {
       console.error('❌ ERROR: Query failed:', fallbackError)
-      throw fallbackError
+      return NextResponse.json(
+        { success: false, error: fallbackError.message || 'Query failed' },
+        { status: 200 }
+      )
     }
 
     if (!fallbackData || fallbackData.length === 0) {
       console.log('⚠️ DEBUG: No buste found matching criteria')
       console.log('🔍 DEBUG: Search criteria:')
       console.log('  - stato_attuale: consegnato_pagato')
-      console.log('  - updated_at between ', eighteenDaysAgo, 'and', elevenDaysAgo)
+      console.log('  - data_completamento_consegna on or before ', elevenDaysAgo)
       console.log('  - clienti.telefono is not null and not empty')
     } else {
       console.log('✅ DEBUG: Found', fallbackData.length, 'potential buste')
@@ -80,25 +125,33 @@ export async function POST() {
     console.log('🚫 DEBUG: Found', existingBusteIds.size, 'buste with final/completed states to exclude')
 
     // Processa i dati manualmente
-    const processedData = fallbackData
-      ?.filter(busta => {
+    const safeData = Array.isArray(fallbackData) ? fallbackData : []
+    const processedData = safeData
+      .filter(busta => {
         // Esclude buste già presenti con stati: da_chiamare, chiamato_completato, non_vuole_essere_contattato, numero_sbagliato
         // Le buste con stati temporanei (non_risponde, richiamami) continuano ad apparire perché il cliente potrebbe rispondere successivamente
         if (existingBusteIds.has(busta.id)) {
           return false
         }
 
-        // Verifica che sia nel range 11-18 giorni (già filtrato nella query, ma ricontrolliamo)
-        const dataConsegna = new Date(busta.updated_at || Date.now())
+        // Verifica che sia almeno 11 giorni fa (già filtrato nella query, ma ricontrolliamo)
+        const dataConsegna = new Date(busta.data_completamento_consegna || busta.updated_at || Date.now())
         const giorniTrascorsi = Math.floor((Date.now() - dataConsegna.getTime()) / (1000 * 60 * 60 * 24))
 
-        return giorniTrascorsi >= 11 && giorniTrascorsi <= 18 // Range 11-18 giorni
+        return giorniTrascorsi >= 11 // Almeno 11 giorni fa
       })
       .map(busta => {
         const cliente = Array.isArray(busta.clienti) ? busta.clienti[0] : busta.clienti
-        const materiali = Array.isArray(busta.materiali) ? busta.materiali : [busta.materiali]
+        const materiali = (Array.isArray(busta.materiali) ? busta.materiali : [busta.materiali]) as Array<{
+          tipo?: string | null
+          primo_acquisto_lac?: boolean | null
+        }>
         const infoPagamenti = Array.isArray(busta.info_pagamenti) ? busta.info_pagamenti[0] : busta.info_pagamenti
-        const ordiniMateriali = Array.isArray(busta.ordini_materiali) ? busta.ordini_materiali : (busta.ordini_materiali ? [busta.ordini_materiali] : [])
+        const ordiniMateriali = (Array.isArray(busta.ordini_materiali)
+          ? busta.ordini_materiali
+          : (busta.ordini_materiali ? [busta.ordini_materiali] : [])) as Array<{
+          descrizione_prodotto?: string | null
+        }>
 
         const hasPrimoAcquistoLAC = materiali?.some(m =>
           m?.tipo === 'LAC' && m?.primo_acquisto_lac === true
@@ -117,10 +170,7 @@ export async function POST() {
           busta.tipo_lavorazione,
           hasPrimoAcquistoLAC
         )
-
-        if (!priorita) return null
-
-        const dataConsegna = new Date(busta.updated_at || Date.now())
+        const dataConsegna = new Date(busta.data_completamento_consegna || busta.updated_at || Date.now())
         const giorniTrascorsi = Math.floor((Date.now() - dataConsegna.getTime()) / (1000 * 60 * 60 * 24))
 
         return {
@@ -139,9 +189,8 @@ export async function POST() {
           priorita
         }
       })
-      .filter((item): item is NonNullable<typeof item> => Boolean(item))
       .sort((a, b) => {
-        // PRIORITÀ 1: Giorni trascorsi (più vecchi prima - 14 giorni prima di 7 giorni)
+        // PRIORITÀ 1: Giorni trascorsi (più vecchi prima)
         if (a.giorni_trascorsi !== b.giorni_trascorsi) {
           return b.giorni_trascorsi - a.giorni_trascorsi // Più vecchi per primi
         }
@@ -180,8 +229,8 @@ export async function POST() {
         rawQueryCount: fallbackData?.length || 0,
         excludedCount: existingBusteIds.size,
         finalCount: processedData.length,
-        searchDateRange: `${eighteenDaysAgo} to ${elevenDaysAgo}`,
-        dayRange: '11-18 days ago'
+        searchDateRange: `<= ${elevenDaysAgo}`,
+        dayRange: '11+ days ago'
       }
     })
 
@@ -199,8 +248,8 @@ function calcolaPriorità(
   prezzoFinale: number,
   tipoLavorazione: string | null,
   haPrimoAcquistoLAC: boolean
-): 'alta' | 'normale' | 'bassa' | null {
-  if (!tipoLavorazione) return null
+): 'alta' | 'normale' | 'bassa' {
+  if (!tipoLavorazione) return 'bassa'
 
   // PRIORITÀ ALTA: Lenti + Occhiali sopra 400€
   if (prezzoFinale >= 400 && ['OCV', 'OV'].includes(tipoLavorazione)) {
@@ -220,7 +269,7 @@ function calcolaPriorità(
     return 'bassa'
   }
 
-  return null
+  return 'bassa'
 }
 
 function getTipoAcquisto(tipoLavorazione: string | null): string {

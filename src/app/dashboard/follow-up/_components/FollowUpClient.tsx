@@ -16,6 +16,7 @@ export function FollowUpClient() {
     callList,
     statistics,
     isLoading,
+    hasGeneratedOnce,
     generateList,
     updateCall,
     cleanupCompletedCalls
@@ -53,6 +54,7 @@ export function FollowUpClient() {
           <CallList
             calls={callList}
             isLoading={isLoading}
+            showArchiveEmptyMessage={hasGeneratedOnce}
             onUpdateCall={updateCall}
           />
         ) : activeTab === 'statistics' ? (

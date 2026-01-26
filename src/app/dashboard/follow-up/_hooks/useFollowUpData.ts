@@ -18,6 +18,7 @@ export function useFollowUpData() {
   }})
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasGeneratedOnce, setHasGeneratedOnce] = useState(false)
 
   // Carica lista chiamate esistenti all'avvio
   useEffect(() => {
@@ -87,6 +88,7 @@ export function useFollowUpData() {
       if (result.success) {
         // Ricarica la lista aggiornata
         await loadCallList()
+        setHasGeneratedOnce(true)
         setError(null)
       } else {
         throw new Error(result.error || 'Errore generazione lista')
@@ -162,6 +164,7 @@ export function useFollowUpData() {
     statistics,
     isLoading,
     error,
+    hasGeneratedOnce,
     generateList,
     updateCall,
     archiveCall,

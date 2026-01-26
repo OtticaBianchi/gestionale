@@ -7,10 +7,11 @@ import { CategoriaBreakdown } from './CategoriaBreakdown'
 interface CallListProps {
   calls: FollowUpCall[]
   isLoading: boolean
+  showArchiveEmptyMessage?: boolean
   onUpdateCall: (callId: string, updateData: CallUpdateData) => Promise<void>
 }
 
-export function CallList({ calls, isLoading, onUpdateCall }: CallListProps) {
+export function CallList({ calls, isLoading, showArchiveEmptyMessage, onUpdateCall }: CallListProps) {
   if (isLoading) {
     return (
       <div className="p-8 text-center">
@@ -30,6 +31,11 @@ export function CallList({ calls, isLoading, onUpdateCall }: CallListProps) {
         <p className="text-gray-500">
           Clicca su "Genera Lista Follow-up" per creare una nuova lista di chiamate
         </p>
+        {showArchiveEmptyMessage ? (
+          <p className="text-gray-500 mt-2">
+            Nessuna busta archiviata da più di 11 giorni
+          </p>
+        ) : null}
       </div>
     )
   }
