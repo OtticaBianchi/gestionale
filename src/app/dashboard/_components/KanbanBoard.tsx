@@ -905,6 +905,7 @@ function StatusDrawer({
   // Group buste by priority
   const groupedByPriority = useMemo(() => {
     const groups = {
+      sospese: [] as BustaWithCliente[],
       critica: [] as BustaWithCliente[],
       urgente: [] as BustaWithCliente[],
       in_ritardo: [] as BustaWithCliente[],
@@ -912,6 +913,10 @@ function StatusDrawer({
     };
 
     buste.forEach(busta => {
+      if (status === 'nuove' && busta.is_suspended) {
+        groups.sospese.push(busta);
+        return;
+      }
       if (busta.priorita === 'critica') {
         groups.critica.push(busta);
       } else if (busta.priorita === 'urgente') {
@@ -958,11 +963,16 @@ function StatusDrawer({
   const listTitle = getColumnName(status);
 
   const priorityLabels = {
+    sospese: { label: '🟡 SOSPESE', className: 'text-yellow-800 bg-yellow-50 border-yellow-200' },
     critica: { label: '🔴 CRITICA', className: 'text-red-700 bg-red-50 border-red-200' },
     urgente: { label: '🟠 URGENTE', className: 'text-orange-600 bg-orange-50 border-orange-200' },
     in_ritardo: { label: '⚠️ IN RITARDO', className: 'text-amber-600 bg-amber-50 border-amber-200' },
     normale: { label: '⚪ NORMALE', className: 'text-gray-600 bg-gray-50 border-gray-200' }
   };
+
+  const priorityOrder = status === 'nuove'
+    ? (['sospese', 'critica', 'urgente', 'in_ritardo', 'normale'] as const)
+    : (['critica', 'urgente', 'in_ritardo', 'normale'] as const);
 
   return createPortal(
     <>
@@ -990,7 +1000,7 @@ function StatusDrawer({
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
-              {(['critica', 'urgente', 'in_ritardo', 'normale'] as const).map(priorityKey => {
+              {priorityOrder.map(priorityKey => {
                 const groupBuste = groupedByPriority[priorityKey];
                 if (groupBuste.length === 0) return null;
 

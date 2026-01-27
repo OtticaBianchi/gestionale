@@ -596,6 +596,35 @@ export const QUIZ_DATA = {
       ]
     }
   ],
+  'prevenzione-diffusione-influenza': [
+    {
+      number: 1,
+      text: 'Secondo la procedura, dove bisogna tossire o starnutire?',
+      options: [
+        { text: 'Nel gomito', correct: true },
+        { text: 'Nella mano, poi ci si lava', correct: false },
+        { text: 'Nel palmo coprendo la bocca', correct: false }
+      ]
+    },
+    {
+      number: 2,
+      text: 'Dopo aver gettato un fazzoletto usato, cosa va fatto subito?',
+      options: [
+        { text: 'Lavare o disinfettare le mani', correct: true },
+        { text: 'Chiudere il cestino e tornare al lavoro', correct: false },
+        { text: 'Aspettare la pausa per lavarsi', correct: false }
+      ]
+    },
+    {
+      number: 3,
+      text: 'Hai tosse leggera e devi lavorare a distanza ravvicinata con i clienti. Qual è il comportamento corretto?',
+      options: [
+        { text: 'Avvisi il responsabile, applichi l\'igiene scrupolosa e indossi la mascherina', correct: true },
+        { text: 'Lavori normalmente senza dirlo, per non creare allarmismi', correct: false },
+        { text: 'Resti a casa anche senza febbre perché è sempre obbligatorio', correct: false }
+      ]
+    }
+  ],
   'introduttiva': [
     {
       number: 1,
