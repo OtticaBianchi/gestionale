@@ -5,6 +5,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { logUpdate } from '@/lib/audit/auditLog'
+import {
+  PLACEHOLDER_PHONE,
+  normalizePhone,
+  isShopPhone,
+  isOtticaBianchiName
+} from '@/lib/clients/phoneRules'
 
 interface ClientePayload {
   id?: string
@@ -166,11 +172,16 @@ export async function PATCH(
     let updatedCliente = null
     if (clienteBody && clienteId) {
       const clienteUpdates: Record<string, any> = {}
-      const normalizedPhone = clienteBody.telefono?.replace(/[\s\-\.]/g, '') || null
+      const normalizedPhone = normalizePhone(clienteBody.telefono)
       if (clienteBody.nome !== undefined) clienteUpdates.nome = capitalizeNameProperly(clienteBody.nome)
       if (clienteBody.cognome !== undefined) clienteUpdates.cognome = capitalizeNameProperly(clienteBody.cognome)
       if (clienteBody.genere !== undefined) clienteUpdates.genere = clienteBody.genere
-      if (clienteBody.telefono !== undefined) clienteUpdates.telefono = normalizedPhone
+      if (clienteBody.telefono !== undefined) {
+        if (!normalizedPhone) {
+          return NextResponse.json({ error: `Telefono obbligatorio (usa ${PLACEHOLDER_PHONE} se non disponibile)` }, { status: 400 })
+        }
+        clienteUpdates.telefono = normalizedPhone
+      }
       if (clienteBody.email !== undefined) clienteUpdates.email = clienteBody.email?.trim() || null
       if (clienteBody.note_cliente !== undefined) clienteUpdates.note_cliente = clienteBody.note_cliente?.trim() || null
 
@@ -184,6 +195,16 @@ export async function PATCH(
         if (fetchClienteError || !existingCliente) {
           console.error('Errore recupero cliente:', fetchClienteError)
           return NextResponse.json({ error: 'Cliente non trovato' }, { status: 404 })
+        }
+
+        const nextNome = clienteUpdates.nome ?? existingCliente.nome
+        const nextCognome = clienteUpdates.cognome ?? existingCliente.cognome
+        const nextTelefono = clienteUpdates.telefono ?? existingCliente.telefono
+        const usesShopPhone = isShopPhone(nextTelefono)
+        const isOtticaBianchi = isOtticaBianchiName(nextNome, nextCognome)
+
+        if (usesShopPhone && !isOtticaBianchi) {
+          return NextResponse.json({ error: 'Numero negozio consentito solo per Ottica Bianchi' }, { status: 400 })
         }
 
         const { data: clienteData, error: updateClienteError } = await admin

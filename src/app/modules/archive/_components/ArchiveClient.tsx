@@ -5,14 +5,41 @@ import Link from 'next/link';
 import { Copy, ChevronDown, Eye, Search, X, ArrowLeft } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
+import { shouldArchiveBusta } from '@/lib/buste/archiveRules';
+import { Database } from '@/types/database.types';
 
 interface ArchivedBusta {
   id: string;
   readable_id: string | null;
-  stato_attuale: string;
+  stato_attuale: Database['public']['Enums']['job_status'];
   updated_at: string | null;
   data_apertura: string;
   archived_mode: string | null;
+  ordini_materiali?: { stato: Database['public']['Enums']['ordine_status'] | null }[] | null;
+  info_pagamenti?: {
+    is_saldato: boolean | null;
+    modalita_saldo: string | null;
+    note_pagamento: string | null;
+    prezzo_finale: number | null;
+    importo_acconto: number | null;
+    data_saldo: string | null;
+    updated_at: string | null;
+  } | null;
+  payment_plan?: {
+    id: string;
+    total_amount: number | null;
+    acconto: number | null;
+    payment_type: string;
+    is_completed: boolean | null;
+    created_at: string | null;
+    updated_at: string | null;
+    payment_installments?: {
+      id: string;
+      paid_amount: number | null;
+      is_completed: boolean | null;
+      updated_at: string | null;
+    }[] | null;
+  } | null;
   clienti: {
     id: string;
     nome: string;
@@ -33,14 +60,23 @@ export default function ArchiveClient() {
     fetchArchivedBuste();
   }, []);
 
+  const normalizeRelations = (busta: any): ArchivedBusta => {
+    const rawPlan = busta.payment_plan;
+    const normalizedPlan = Array.isArray(rawPlan) ? (rawPlan[0] ?? null) : (rawPlan ?? null);
+    const rawInfo = busta.info_pagamenti;
+    const normalizedInfo = Array.isArray(rawInfo) ? (rawInfo[0] ?? null) : (rawInfo ?? null);
+
+    return {
+      ...busta,
+      payment_plan: normalizedPlan,
+      info_pagamenti: normalizedInfo
+    };
+  };
+
   const fetchArchivedBuste = async () => {
     try {
       setLoading(true);
       const supabase = createClient();
-      
-      // Archived definition: consegnato_pagato with updated_at older than 24 hours
-      const oneDayAgo = new Date();
-      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
       const { data, error } = await supabase
         .from('buste')
@@ -51,9 +87,34 @@ export default function ArchiveClient() {
           updated_at,
           data_apertura,
           archived_mode,
+          ordini_materiali (stato),
+          info_pagamenti (
+            is_saldato,
+            modalita_saldo,
+            note_pagamento,
+            prezzo_finale,
+            importo_acconto,
+            data_saldo,
+            updated_at
+          ),
+          payment_plan:payment_plans (
+            id,
+            total_amount,
+            acconto,
+            payment_type,
+            is_completed,
+            created_at,
+            updated_at,
+            payment_installments (
+              id,
+              paid_amount,
+              is_completed,
+              updated_at
+            )
+          ),
           clienti:cliente_id (id, nome, cognome, telefono)
         `)
-        .or(`and(stato_attuale.eq.consegnato_pagato,updated_at.lt.${oneDayAgo.toISOString()}),archived_mode.eq.ANNULLATA`)
+        .or('stato_attuale.eq.consegnato_pagato,archived_mode.eq.ANNULLATA')
         .order('updated_at', { ascending: false });
 
       if (error) {
@@ -62,8 +123,15 @@ export default function ArchiveClient() {
         return;
       }
 
-      setBuste(data || []);
-      setFilteredBuste(data || []);
+      const now = new Date();
+      const normalized = (data || []).map(normalizeRelations);
+      const filtered = normalized.filter((busta) => {
+        if (busta.archived_mode === 'ANNULLATA') return true;
+        return shouldArchiveBusta(busta, { now });
+      });
+
+      setBuste(filtered);
+      setFilteredBuste(filtered);
     } catch (error) {
       console.error('Archive fetch error:', error);
       setError('Errore nel caricamento dell\'archivio');
@@ -174,7 +242,7 @@ export default function ArchiveClient() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Archivio Buste</h1>
             <p className="text-sm text-gray-600">
-              Buste consegnate e pagate (archiviate dopo 7 giorni) o annullate • {buste.length} buste totali
+              Buste consegnate e pagate (archiviate 24h dopo il pagamento finale) o annullate • {buste.length} buste totali
               {searchTerm && ` • ${filteredBuste.length} risultati`}
             </p>
           </div>

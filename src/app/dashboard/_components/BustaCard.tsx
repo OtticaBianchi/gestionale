@@ -1,9 +1,10 @@
 // app/dashboard/_components/BustaCard.tsx
 
 import type { ReactNode } from 'react';
-import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins, Receipt, Bell, Phone } from 'lucide-react';
+import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins, Receipt, Bell, Phone, PhoneOff } from 'lucide-react';
 import Link from 'next/link';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
+import { isRealCustomerPhone } from '@/lib/clients/phoneRules';
 
 interface BustaCardProps {
   busta: BustaWithCliente;
@@ -385,6 +386,7 @@ export default function BustaCard({ busta }: BustaCardProps) {
   const displayOrders = activeOrders.length > 0 ? activeOrders : rawOrders;
   const ordiniOrdinati = sortOrdersByPriority(displayOrders);
   const delayLevel = getDelayLevel(displayOrders);
+  const hasMissingPhone = cliente ? !isRealCustomerPhone(cliente.telefono) : false;
 
   // Calcola le statistiche dei materiali per le icone
   const materialsStats = getMaterialsStats(displayOrders);
@@ -466,12 +468,12 @@ export default function BustaCard({ busta }: BustaCardProps) {
     ? 'bg-yellow-50 border border-yellow-200'
     : 'bg-white';
 
-  const showReminder = hasOpenActions || busta.is_suspended;
-  const reminderTooltip = hasOpenActions && busta.is_suspended
-    ? 'Busta sospesa + azioni richieste aperte'
-    : busta.is_suspended
-      ? 'Busta sospesa: follow-up richiesto'
-      : 'Azione richiesta: promemoria aperto';
+  const showBellReminder = hasOpenActions || busta.is_suspended;
+  const bellReminderReasons: string[] = [];
+  if (busta.is_suspended) bellReminderReasons.push('Busta sospesa: follow-up richiesto');
+  if (hasOpenActions) bellReminderReasons.push('Azione richiesta: promemoria aperto');
+  const bellReminderTooltip = bellReminderReasons.join(' • ');
+  const missingPhoneTooltip = 'Telefono cliente mancante';
 
   return (
     <Link href={`/dashboard/buste/${busta.id}`}>
@@ -523,13 +525,22 @@ export default function BustaCard({ busta }: BustaCardProps) {
               SOSPESA
             </span>
           )}
-          {showReminder && (
+          {showBellReminder && (
             <span
               className="text-xs font-semibold text-red-700 bg-red-50 px-2 py-1 rounded-full border border-red-200 inline-flex items-center gap-1"
-              title={reminderTooltip}
+              title={bellReminderTooltip}
             >
               <Bell className="h-3.5 w-3.5" />
               {hasOpenActions && <span>!{openActionCount}</span>}
+            </span>
+          )}
+          {hasMissingPhone && (
+            <span
+              className="text-xs font-semibold text-amber-800 bg-amber-50 px-2 py-1 rounded-full border border-amber-200 inline-flex items-center gap-1"
+              title={missingPhoneTooltip}
+            >
+              <PhoneOff className="h-3.5 w-3.5" />
+              <span>No Tel</span>
             </span>
           )}
           {/* Red phone icon when call is pending */}

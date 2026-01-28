@@ -83,6 +83,8 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
         auto_reminders_enabled,
         reminder_preference,
         is_completed,
+        created_at,
+        updated_at,
         payment_installments (
           id,
           installment_number,
@@ -90,6 +92,7 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
           expected_amount,
           paid_amount,
           is_completed,
+          updated_at,
           reminder_3_days_sent,
           reminder_10_days_sent
         )
@@ -97,6 +100,7 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
       info_pagamenti (
         is_saldato,
         modalita_saldo,
+        note_pagamento,
         importo_acconto,
         ha_acconto,
         prezzo_finale,

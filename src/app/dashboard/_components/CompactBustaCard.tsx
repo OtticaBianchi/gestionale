@@ -1,7 +1,8 @@
 // app/dashboard/_components/CompactBustaCard.tsx
 
-import { Clock, Bell, Phone } from 'lucide-react';
+import { Clock, Bell, Phone, PhoneOff } from 'lucide-react';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
+import { isRealCustomerPhone } from '@/lib/clients/phoneRules';
 
 interface CompactBustaCardProps {
   busta: BustaWithCliente;
@@ -102,12 +103,13 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
     ordine => ordine.needs_action && !ordine.needs_action_done
   ).length;
   const hasOpenActions = openActionCount > 0;
-  const showReminder = hasOpenActions || busta.is_suspended;
-  const reminderTooltip = hasOpenActions && busta.is_suspended
-    ? 'Busta sospesa + azioni richieste aperte'
-    : busta.is_suspended
-      ? 'Busta sospesa: follow-up richiesto'
-      : 'Azione richiesta: promemoria aperto';
+  const hasMissingPhone = cliente ? !isRealCustomerPhone(cliente.telefono) : false;
+  const showBellReminder = hasOpenActions || busta.is_suspended;
+  const bellReminderReasons: string[] = [];
+  if (busta.is_suspended) bellReminderReasons.push('Busta sospesa: follow-up richiesto');
+  if (hasOpenActions) bellReminderReasons.push('Azione richiesta: promemoria aperto');
+  const bellReminderTooltip = bellReminderReasons.join(' • ');
+  const missingPhoneTooltip = 'Telefono cliente mancante';
 
   const materialsStats = getMaterialsStats(busta.ordini_materiali || []);
   const hasPaymentPlan = busta.payment_plan && busta.payment_plan.payment_installments && busta.payment_plan.payment_installments.length > 0;
@@ -180,13 +182,22 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
               <Phone className="h-3 w-3 text-red-600" />
             </span>
           )}
-          {showReminder && (
+          {showBellReminder && (
             <span
               className="text-[10px] font-semibold text-red-700 bg-red-50 px-1.5 py-0.5 rounded border border-red-200 flex items-center gap-1"
-              title={reminderTooltip}
+              title={bellReminderTooltip}
             >
               <Bell className="h-3 w-3" />
               {hasOpenActions && <span>!{openActionCount}</span>}
+            </span>
+          )}
+          {hasMissingPhone && (
+            <span
+              className="text-[10px] font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 flex items-center gap-1"
+              title={missingPhoneTooltip}
+            >
+              <PhoneOff className="h-3 w-3" />
+              <span>No Tel</span>
             </span>
           )}
           {busta.is_suspended && (

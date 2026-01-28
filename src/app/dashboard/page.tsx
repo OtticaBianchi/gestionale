@@ -87,6 +87,8 @@ export default async function DashboardPage() {
         auto_reminders_enabled,
         reminder_preference,
         is_completed,
+        created_at,
+        updated_at,
         payment_installments (
           id,
           installment_number,
@@ -94,6 +96,7 @@ export default async function DashboardPage() {
           expected_amount,
           paid_amount,
           is_completed,
+          updated_at,
           reminder_3_days_sent,
           reminder_10_days_sent
         )
@@ -101,6 +104,7 @@ export default async function DashboardPage() {
       info_pagamenti (
         is_saldato,
         modalita_saldo,
+        note_pagamento,
         importo_acconto,
         ha_acconto,
         prezzo_finale,

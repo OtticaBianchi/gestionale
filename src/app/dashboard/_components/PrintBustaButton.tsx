@@ -1,11 +1,16 @@
+'use client';
+
 // ===== FILE: _components/PrintBustaButton.tsx =====
 
-import React from 'react';
-import { Printer } from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Printer, X } from 'lucide-react';
+import { createBrowserClient } from '@supabase/ssr';
+import { Database } from '@/types/database.types';
 
 // ===== TYPES =====
 interface PrintBustaButtonProps {
   bustaData: {
+    id?: string | null;
     readable_id?: string | null;
     cliente_nome: string;
     cliente_cognome: string;
@@ -16,6 +21,30 @@ interface PrintBustaButtonProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
+
+type NoteSource = 'ordini' | 'lavorazioni' | 'spedizione' | 'generali';
+
+type NoteItem = {
+  source: NoteSource;
+  sourceLabel: string;
+  note: string;
+  metadata?: string;
+  timestamp?: string;
+};
+
+const NOTE_SOURCES: Array<{ key: NoteSource; label: string }> = [
+  { key: 'generali', label: 'Note Generali' },
+  { key: 'spedizione', label: 'Spedizione' },
+  { key: 'ordini', label: 'Ordini Materiali' },
+  { key: 'lavorazioni', label: 'Lavorazioni' }
+];
+
+const DEFAULT_SELECTED_SOURCES: Record<NoteSource, boolean> = {
+  generali: true,
+  spedizione: true,
+  ordini: true,
+  lavorazioni: true
+};
 
 // ===== UTILITY FUNCTION =====
 const getTipoLavorazioneFull = (tipo: string | null): string => {
@@ -42,39 +71,196 @@ const getTipoLavorazioneFull = (tipo: string | null): string => {
     'VFT': 'VERIFICA FATTIBILITA TECNICA'
 };
   
-return tipiLavorazione[tipo] || tipo.toUpperCase();
+  return tipiLavorazione[tipo] || tipo.toUpperCase();
 };
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const formatNoteText = (value: string): string => escapeHtml(value).replace(/\n/g, '<br />');
 
 // ===== MAIN COMPONENT =====
 const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({ 
-bustaData, 
-disabled = false, 
-size = 'md',
-className = ''
+  bustaData, 
+  disabled = false, 
+  size = 'md',
+  className = ''
 }) => {
 
-// ===== STAMPA DIRETTA SENZA POPUP - MOLTO MEGLIO! =====
-const handlePrint = () => {
-  // Validazione base
-  if (!bustaData.cliente_nome || !bustaData.cliente_cognome) {
-    alert('Nome e cognome sono obbligatori per la stampa');
-    return;
-  }
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [notes, setNotes] = useState<NoteItem[]>([]);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(false);
+  const [notesError, setNotesError] = useState<string | null>(null);
+  const [selectedSources, setSelectedSources] = useState<Record<NoteSource, boolean>>(DEFAULT_SELECTED_SOURCES);
+  const [includeMetadata, setIncludeMetadata] = useState(true);
+  const [includeDates, setIncludeDates] = useState(false);
 
-  try {
-    // ✅ CREA ELEMENTO IFRAME NASCOSTO PER STAMPA DIRETTA
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'absolute';
-    printFrame.style.left = '-10000px';
-    printFrame.style.top = '-10000px';
-    printFrame.style.width = '0px';
-    printFrame.style.height = '0px';
-    printFrame.style.border = 'none';
-    
-    document.body.appendChild(printFrame);
+  const supabase = useMemo(
+    () =>
+      createBrowserClient<Database>(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      ),
+    []
+  );
 
-    // ✅ CONTENUTO HTML PULITO E SICURO
-    const printContent = `<!DOCTYPE html>
+  const notesBySource = useMemo(() => {
+    return notes.reduce<Record<NoteSource, NoteItem[]>>((acc, note) => {
+      acc[note.source] = acc[note.source] ? [...acc[note.source], note] : [note];
+      return acc;
+    }, { generali: [], spedizione: [], ordini: [], lavorazioni: [] });
+  }, [notes]);
+
+  const fetchNotes = useCallback(async () => {
+    if (!bustaData.id) {
+      setNotes([]);
+      return;
+    }
+
+    setIsLoadingNotes(true);
+    setNotesError(null);
+    const allNotes: NoteItem[] = [];
+
+    try {
+      const { data: bustaRow, error: bustaError } = await supabase
+        .from('buste')
+        .select('note_generali, note_spedizione, data_apertura')
+        .eq('id', bustaData.id)
+        .single();
+
+      if (bustaError) throw bustaError;
+
+      if (bustaRow?.note_generali) {
+        allNotes.push({
+          source: 'generali',
+          sourceLabel: 'Note Generali',
+          note: bustaRow.note_generali,
+          timestamp: bustaRow.data_apertura
+        });
+      }
+
+      if (bustaRow?.note_spedizione) {
+        allNotes.push({
+          source: 'spedizione',
+          sourceLabel: 'Spedizione',
+          note: bustaRow.note_spedizione,
+          timestamp: bustaRow.data_apertura
+        });
+      }
+
+      const { data: ordiniData, error: ordiniError } = await supabase
+        .from('ordini_materiali')
+        .select('note, descrizione_prodotto, created_at')
+        .eq('busta_id', bustaData.id)
+        .not('note', 'is', null);
+
+      if (ordiniError) throw ordiniError;
+
+      ordiniData?.forEach((ordine) => {
+        if (ordine.note) {
+          allNotes.push({
+            source: 'ordini',
+            sourceLabel: 'Ordini Materiali',
+            note: ordine.note,
+            metadata: ordine.descrizione_prodotto,
+            timestamp: ordine.created_at || undefined
+          });
+        }
+      });
+
+      const { data: lavorazioniData, error: lavorazioniError } = await supabase
+        .from('lavorazioni')
+        .select('note, tentativo, created_at')
+        .eq('busta_id', bustaData.id)
+        .not('note', 'is', null);
+
+      if (lavorazioniError) throw lavorazioniError;
+
+      lavorazioniData?.forEach((lav) => {
+        if (lav.note) {
+          allNotes.push({
+            source: 'lavorazioni',
+            sourceLabel: 'Lavorazioni',
+            note: lav.note,
+            metadata: `Tentativo #${lav.tentativo}`,
+            timestamp: lav.created_at
+          });
+        }
+      });
+
+      allNotes.sort((a, b) => {
+        if (!a.timestamp) return 1;
+        if (!b.timestamp) return -1;
+        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      });
+
+      setNotes(allNotes);
+    } catch (err: any) {
+      console.error('Error fetching notes:', err);
+      setNotesError(err.message || 'Errore durante il caricamento delle note');
+      setNotes([]);
+    } finally {
+      setIsLoadingNotes(false);
+    }
+  }, [bustaData.id, supabase]);
+
+  const buildNotesHtml = useCallback(() => {
+    const selectedNotes = notes.filter((note) => selectedSources[note.source]);
+
+    const noteLines = selectedNotes.map((note) => {
+      const metaParts: string[] = [];
+      if (includeMetadata && note.metadata) {
+        metaParts.push(escapeHtml(note.metadata));
+      }
+      if (includeDates && note.timestamp) {
+        metaParts.push(new Date(note.timestamp).toLocaleDateString('it-IT'));
+      }
+
+      const metaSuffix = metaParts.length ? ` (${metaParts.join(' • ')})` : '';
+      const noteLabel = `${note.sourceLabel}${metaSuffix}: `;
+
+      return `
+        <div class="note-line">
+          <span class="note-label">${escapeHtml(noteLabel)}</span>
+          <span class="note-text">${formatNoteText(note.note)}</span>
+        </div>
+      `;
+    });
+
+    const blankLines = Array.from({ length: Math.max(12 - noteLines.length, 0) }, () => '<div class="note-line"></div>');
+
+    return [...noteLines, ...blankLines].join('');
+  }, [includeDates, includeMetadata, notes, selectedSources]);
+
+  // ===== STAMPA DIRETTA SENZA POPUP - MOLTO MEGLIO! =====
+  const handlePrint = (notesHtml: string) => {
+    // Validazione base
+    if (!bustaData.cliente_nome || !bustaData.cliente_cognome) {
+      alert('Nome e cognome sono obbligatori per la stampa');
+      return;
+    }
+
+    try {
+      // ✅ CREA ELEMENTO IFRAME NASCOSTO PER STAMPA DIRETTA
+      const printFrame = document.createElement('iframe');
+      printFrame.style.position = 'absolute';
+      printFrame.style.left = '-10000px';
+      printFrame.style.top = '-10000px';
+      printFrame.style.width = '0px';
+      printFrame.style.height = '0px';
+      printFrame.style.border = 'none';
+      
+      document.body.appendChild(printFrame);
+
+      const noteSectionHtml = notesHtml || Array.from({ length: 12 }, () => '<div class="note-line"></div>').join('');
+
+      // ✅ CONTENUTO HTML PULITO E SICURO
+      const printContent = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -137,8 +323,16 @@ padding-bottom: 4px;
 }
 .note-line {
 border-bottom: 1px solid #ccc;
-height: 18px;
+min-height: 18px;
 margin-bottom: 4px;
+padding-bottom: 2px;
+}
+.note-label {
+font-weight: bold;
+color: #333;
+}
+.note-text {
+white-space: pre-wrap;
 }
 .checklist-item {
 display: flex;
@@ -181,7 +375,7 @@ body { print-color-adjust: exact; }
 <div class="content-grid">
 <div class="note-section">
   <h3>NOTE E APPUNTI</h3>
-  ${Array.from({ length: 12 }, () => '<div class="note-line"></div>').join('')}
+  ${noteSectionHtml}
 </div>
 <div class="checklist">
   <h3>CHECKLIST</h3>
@@ -201,78 +395,196 @@ body { print-color-adjust: exact; }
 </body>
 </html>`;
 
-    // ✅ SCRIVE CONTENUTO NELL'IFRAME
-    const frameDoc = printFrame.contentWindow?.document;
-    if (frameDoc) {
-      frameDoc.open();
-      frameDoc.write(printContent);
-      frameDoc.close();
+      // ✅ SCRIVE CONTENUTO NELL'IFRAME
+      const frameDoc = printFrame.contentWindow?.document;
+      if (frameDoc) {
+        frameDoc.open();
+        frameDoc.write(printContent);
+        frameDoc.close();
 
-      // ✅ STAMPA DIRETTA APPENA IL CONTENUTO È CARICATO
-      setTimeout(() => {
-        try {
-          printFrame.contentWindow?.focus();
-          printFrame.contentWindow?.print();
-          
-          // ✅ RIMUOVE L'IFRAME DOPO LA STAMPA
-          setTimeout(() => {
+        // ✅ STAMPA DIRETTA APPENA IL CONTENUTO È CARICATO
+        setTimeout(() => {
+          try {
+            printFrame.contentWindow?.focus();
+            printFrame.contentWindow?.print();
+            
+            // ✅ RIMUOVE L'IFRAME DOPO LA STAMPA
+            setTimeout(() => {
+              if (printFrame.parentNode) {
+                document.body.removeChild(printFrame);
+              }
+            }, 1000);
+            
+          } catch (printError) {
+            console.warn('Errore durante la stampa:', printError);
+            // Rimuovi iframe anche in caso di errore
             if (printFrame.parentNode) {
               document.body.removeChild(printFrame);
             }
-          }, 1000);
-          
-        } catch (printError) {
-          console.warn('Errore durante la stampa:', printError);
-          // Rimuovi iframe anche in caso di errore
-          if (printFrame.parentNode) {
-            document.body.removeChild(printFrame);
           }
-        }
-      }, 500);
-    }
-
-  } catch (error) {
-    console.error('❌ Errore stampa:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto';
-    alert('Errore durante la stampa: ' + errorMessage);
-  }
-};
-
-// ===== BUTTON STYLES =====
-const getSizeClasses = () => {
-  switch (size) {
-    case 'sm':
-      return 'px-2 py-1 text-xs';
-    case 'lg':
-      return 'px-4 py-2 text-base';
-    default:
-      return 'px-3 py-1.5 text-sm';
-  }
-};
-
-const canPrint = bustaData.cliente_nome && bustaData.cliente_cognome;
-const isDisabled = disabled || !canPrint;
-
-return (
-  <button
-    onClick={handlePrint}
-    disabled={isDisabled}
-    className={`
-      flex items-center space-x-2 
-      ${getSizeClasses()}
-      ${isDisabled 
-        ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-        : 'bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700'
+        }, 500);
       }
-      rounded-md transition-colors font-medium
-      ${className}
-    `}
-    title={!canPrint ? 'Inserisci nome e cognome per abilitare la stampa' : 'Stampa template busta'}
-  >
-    <Printer className={`${size === 'sm' ? 'h-3 w-3' : size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'}`} />
-    <span>Stampa</span>
-  </button>
-);
+
+    } catch (error) {
+      console.error('❌ Errore stampa:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Errore sconosciuto';
+      alert('Errore durante la stampa: ' + errorMessage);
+    }
+  };
+
+  const handleOpenDialog = () => {
+    setIsDialogOpen(true);
+    void fetchNotes();
+  };
+
+  const handleConfirmPrint = () => {
+    const notesHtml = buildNotesHtml();
+    setIsDialogOpen(false);
+    handlePrint(notesHtml);
+  };
+
+  // ===== BUTTON STYLES =====
+  const getSizeClasses = () => {
+    switch (size) {
+      case 'sm':
+        return 'px-2 py-1 text-xs';
+      case 'lg':
+        return 'px-4 py-2 text-base';
+      default:
+        return 'px-3 py-1.5 text-sm';
+    }
+  };
+
+  const canPrint = bustaData.cliente_nome && bustaData.cliente_cognome;
+  const isDisabled = disabled || !canPrint;
+
+  return (
+    <>
+      <button
+        onClick={handleOpenDialog}
+        disabled={isDisabled}
+        className={`
+          flex items-center space-x-2 
+          ${getSizeClasses()}
+          ${isDisabled 
+            ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+            : 'bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700'
+          }
+          rounded-md transition-colors font-medium
+          ${className}
+        `}
+        title={!canPrint ? 'Inserisci nome e cognome per abilitare la stampa' : 'Stampa template busta'}
+      >
+        <Printer className={`${size === 'sm' ? 'h-3 w-3' : size === 'lg' ? 'h-5 w-5' : 'h-4 w-4'}`} />
+        <span>Stampa</span>
+      </button>
+
+      {isDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+          <div className="w-full max-w-lg rounded-lg bg-white shadow-xl border border-gray-200">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Stampa busta</h3>
+                <p className="text-xs text-gray-500">Scegli quali note consolidate inserire nella stampa.</p>
+              </div>
+              <button
+                onClick={() => setIsDialogOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+                aria-label="Chiudi"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="px-4 py-3 space-y-3">
+              <div className="space-y-2">
+                {NOTE_SOURCES.map((source) => {
+                  const count = notesBySource[source.key]?.length ?? 0;
+                  return (
+                    <label key={source.key} className="flex items-center justify-between text-sm text-gray-700">
+                      <span className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          checked={selectedSources[source.key]}
+                          onChange={(event) =>
+                            setSelectedSources((prev) => ({
+                              ...prev,
+                              [source.key]: event.target.checked
+                            }))
+                          }
+                        />
+                        {source.label}
+                      </span>
+                      <span className="text-xs text-gray-400">{count}</span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={includeMetadata}
+                    onChange={(event) => setIncludeMetadata(event.target.checked)}
+                  />
+                  Includi dettagli (prodotto/tentativo)
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={includeDates}
+                    onChange={(event) => setIncludeDates(event.target.checked)}
+                  />
+                  Includi data
+                </label>
+              </div>
+
+              <div className="text-xs text-gray-500">
+                {isLoadingNotes && 'Caricamento note consolidate in corso...'}
+                {!isLoadingNotes && notesError && `Errore: ${notesError}`}
+                {!isLoadingNotes && !notesError && notes.length === 0 && 'Nessuna nota consolidata trovata per questa busta.'}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3">
+              <button
+                type="button"
+                onClick={fetchNotes}
+                className="text-xs text-blue-600 hover:text-blue-700"
+              >
+                Aggiorna note
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsDialogOpen(false)}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-700"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPrint}
+                  disabled={isLoadingNotes}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md ${
+                    isLoadingNotes
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  Stampa
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 };
 
 export default PrintBustaButton;

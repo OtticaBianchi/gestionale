@@ -321,6 +321,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
             {busta.clienti && (
               <PrintBustaButton
                 bustaData={{
+                  id: busta.id,
                   readable_id: busta.readable_id,
                   cliente_nome: busta.clienti.nome,
                   cliente_cognome: busta.clienti.cognome,

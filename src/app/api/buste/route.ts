@@ -6,6 +6,12 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
 import { logInsert } from '@/lib/audit/auditLog'
+import {
+  PLACEHOLDER_PHONE,
+  normalizePhone,
+  isShopPhone,
+  isOtticaBianchiName
+} from '@/lib/clients/phoneRules'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -82,9 +88,19 @@ export async function POST(request: NextRequest) {
       ? (tipoLavorazioneRaw as Database['public']['Enums']['work_type'])
       : null
 
-    const normalizedPhone = clienteInput.telefono?.replace(/[\s\-\.]/g, '') || null
+    const normalizedPhone = normalizePhone(clienteInput.telefono)
+    if (!normalizedPhone) {
+      return NextResponse.json({ error: `Telefono obbligatorio (usa ${PLACEHOLDER_PHONE} se non disponibile)` }, { status: 400 })
+    }
 
     let clienteId: string | null = clienteInput.id || null
+
+    const isShopPhoneNumber = isShopPhone(normalizedPhone)
+    const isOtticaBianchi = isOtticaBianchiName(clienteInput.nome, clienteInput.cognome)
+
+    if (isShopPhoneNumber && !isOtticaBianchi && !clienteId) {
+      return NextResponse.json({ error: 'Numero negozio consentito solo per Ottica Bianchi' }, { status: 400 })
+    }
 
     if (!clienteId) {
       // ✅ NEW LOGIC: Only auto-match when BOTH phone AND name match
@@ -128,6 +144,9 @@ export async function POST(request: NextRequest) {
     let clienteRecord = null
 
     if (!clienteId) {
+      if (isShopPhoneNumber && isOtticaBianchi) {
+        return NextResponse.json({ error: 'Cliente Ottica Bianchi già presente: selezionalo dalla ricerca' }, { status: 400 })
+      }
       const { data: insertedClient, error: insertClienteError } = await admin
         .from('clienti')
         .insert({
@@ -176,6 +195,12 @@ export async function POST(request: NextRequest) {
         .maybeSingle()
 
       clienteRecord = existing
+      if (existing) {
+        const existingIsOtticaBianchi = isOtticaBianchiName(existing.nome, existing.cognome)
+        if (isShopPhoneNumber && !existingIsOtticaBianchi) {
+          return NextResponse.json({ error: 'Numero negozio consentito solo per Ottica Bianchi' }, { status: 400 })
+        }
+      }
 
       if (existing) {
         const updates: Record<string, any> = {}

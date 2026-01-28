@@ -7,6 +7,13 @@ import { useRouter } from 'next/navigation';
 import { Database } from '@/types/database.types';
 import { formatPhoneDisplay } from '@/utils/formatPhone'; // ✅ IMPORT PHONE FORMATTER
 import {
+  PLACEHOLDER_PHONE,
+  normalizePhone,
+  isPlaceholderPhone,
+  isShopPhone,
+  isOtticaBianchiName
+} from '@/lib/clients/phoneRules';
+import {
   User,
   Package,
   AlertTriangle,
@@ -80,6 +87,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     anno_precedente: false  // ✅ AGGIUNTO per gestire buste anno precedente
   });
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [noPhone, setNoPhone] = useState(false);
 
   // ✅ CLIENT SEARCH STATE
   const [searchType, setSearchType] = useState<'cognome' | 'telefono'>('cognome');
@@ -106,6 +114,10 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
   // Validation function
   const validateForm = () => {
     const newErrors: {[key: string]: string} = {};
+    const normalizedPhone = normalizePhone(formData.cliente_telefono);
+    const hasPlaceholderPhone = isPlaceholderPhone(formData.cliente_telefono);
+    const usesShopPhone = isShopPhone(formData.cliente_telefono);
+    const isOtticaBianchi = isOtticaBianchiName(formData.cliente_nome, formData.cliente_cognome);
 
     if (!formData.cliente_cognome.trim() || formData.cliente_cognome.length < 2) {
       newErrors.cliente_cognome = 'Cognome obbligatorio (min 2 caratteri)';
@@ -116,8 +128,18 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     if (!formData.cliente_genere) {
       newErrors.cliente_genere = 'Genere obbligatorio';
     }
-    if (!formData.cliente_telefono || formData.cliente_telefono.replace(/\D/g, '').length < 9) {
+    if (noPhone) {
+      if (!hasPlaceholderPhone) {
+        newErrors.cliente_telefono = `Telefono non disponibile: usa ${PLACEHOLDER_PHONE}`;
+      }
+    } else if (!normalizedPhone || normalizedPhone.length < 9) {
       newErrors.cliente_telefono = 'Telefono obbligatorio (min 9 cifre)';
+    }
+    if (usesShopPhone && !isOtticaBianchi) {
+      newErrors.cliente_telefono = 'Numero negozio consentito solo per Ottica Bianchi';
+    }
+    if (!formData.cliente_id && usesShopPhone && isOtticaBianchi) {
+      newErrors.cliente_telefono = 'Cliente Ottica Bianchi già presente: selezionalo dalla ricerca';
     }
     if (formData.cliente_email && !isValidEmail(formData.cliente_email)) {
       newErrors.cliente_email = 'Email non valida';
@@ -132,6 +154,15 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  const handlePhoneChange = (value: string) => {
+    handleInputChange('cliente_telefono', value);
+    if (isPlaceholderPhone(value)) {
+      setNoPhone(true);
+    } else if (noPhone) {
+      setNoPhone(false);
     }
   };
 
@@ -188,6 +219,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
       cliente_email: client.email || '',
       cliente_note: client.note_cliente || '',
     });
+    setNoPhone(isPlaceholderPhone(client.telefono));
 
     // Clear search
     setShowResults(false);
@@ -223,6 +255,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     });
     setErrors({});
     setFormError(null);
+    setNoPhone(false);
     // Clear phone conflicts
     setPhoneConflicts([]);
     setShowPhoneConflict(false);
@@ -231,7 +264,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
 
   // ✅ CHECK FOR PHONE CONFLICTS
   const checkPhoneConflicts = async (phone: string, currentName: string, currentSurname: string) => {
-    if (!phone || phone.replace(/\D/g, '').length < 9) {
+    if (!phone || phone.replace(/\D/g, '').length < 9 || isPlaceholderPhone(phone) || isShopPhone(phone)) {
       setPhoneConflicts([]);
       setShowPhoneConflict(false);
       return false;
@@ -254,7 +287,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     setIsCheckingPhone(true);
 
     try {
-      const cleanPhone = phone.replace(/[\s\-\.]/g, '');
+      const cleanPhone = normalizePhone(phone) || '';
 
       const { data, error } = await supabase
         .from('clienti')
@@ -310,6 +343,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
       cliente_nome: client.nome || '',
       cliente_telefono: client.telefono || '',
     });
+    setNoPhone(isPlaceholderPhone(client.telefono));
     setSelectedConflictResolution('existing');
     setShowPhoneConflict(false);
     setPhoneConflicts([]);
@@ -334,7 +368,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     // Only if we're creating a new client (no cliente_id)
     if (!formData.cliente_id) {
       const hasConflict = await checkPhoneConflicts(
-        formData.cliente_telefono,
+        noPhone ? PLACEHOLDER_PHONE : formData.cliente_telefono,
         formData.cliente_nome,
         formData.cliente_cognome
       );
@@ -381,7 +415,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
             cognome: formData.cliente_cognome.trim(),
             nome: formData.cliente_nome.trim(),
             genere: formData.cliente_genere || null,
-            telefono: formData.cliente_telefono.trim(),
+            telefono: (noPhone ? PLACEHOLDER_PHONE : formData.cliente_telefono.trim()),
             email: formData.cliente_email?.trim() || null,
             note_cliente: formData.cliente_note?.trim() || null
           },
@@ -435,6 +469,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
       note_generali: '',
       anno_precedente: false
     });
+    setNoPhone(false);
     setErrors({});
     setFormError(null);
   };
@@ -713,21 +748,43 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   id="cliente-telefono"
                   type="tel"
                   value={formData.cliente_telefono}
-                  onChange={(e) => handleInputChange('cliente_telefono', e.target.value)}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
                   onBlur={(e) => {
+                    if (noPhone) return;
                     // ✅ Format phone on blur (when user leaves field)
                     const formatted = formatPhoneDisplay(e.target.value);
                     if (formatted && formatted !== e.target.value) {
-                      handleInputChange('cliente_telefono', formatted);
+                      handlePhoneChange(formatted);
                     }
                     // ✅ Check for phone conflicts
                     checkPhoneConflicts(e.target.value, formData.cliente_nome, formData.cliente_cognome);
                   }}
+                  disabled={noPhone}
                   className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                     errors.cliente_telefono ? 'border-red-300 bg-red-50' : 'border-gray-300'
                   }`}
                   placeholder="347 7282793"
                 />
+                <label className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={noPhone}
+                    onChange={(e) => {
+                      const nextValue = e.target.checked;
+                      setNoPhone(nextValue);
+                      if (nextValue) {
+                        handleInputChange('cliente_telefono', PLACEHOLDER_PHONE);
+                        setErrors(prev => ({ ...prev, cliente_telefono: '' }));
+                        setPhoneConflicts([]);
+                        setShowPhoneConflict(false);
+                        setSelectedConflictResolution(null);
+                      } else if (isPlaceholderPhone(formData.cliente_telefono)) {
+                        handleInputChange('cliente_telefono', '');
+                      }
+                    }}
+                  />
+                  Telefono non disponibile (usa {PLACEHOLDER_PHONE})
+                </label>
                 {errors.cliente_telefono && (
                   <p className="text-red-600 text-xs mt-1">{errors.cliente_telefono}</p>
                 )}

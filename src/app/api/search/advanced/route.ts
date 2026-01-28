@@ -40,14 +40,43 @@ const matchesWordStart = (value: string | null | undefined, term: string) => {
   return regex.test(normalizedValue)
 }
 
+const BUSTA_ARCHIVE_FIELDS = `
+  id, readable_id, stato_attuale, data_apertura, updated_at, deleted_at,
+  tipo_lavorazione, priorita, note_generali,
+  info_pagamenti (
+    is_saldato,
+    modalita_saldo,
+    note_pagamento,
+    prezzo_finale,
+    importo_acconto,
+    data_saldo,
+    updated_at
+  ),
+  payment_plan:payment_plans (
+    id,
+    total_amount,
+    acconto,
+    payment_type,
+    is_completed,
+    created_at,
+    updated_at,
+    payment_installments (
+      id,
+      paid_amount,
+      is_completed,
+      updated_at
+    )
+  ),
+  clienti (id, nome, cognome, telefono)
+`
+
 async function searchClients(ctx: SearchContext, forceIncludeEmpty = false): Promise<SearchResult[]> {
   const { supabase, searchTerm, includeArchived, isBustaArchived } = ctx
   const normalizedTerm = searchTerm.trim()
   const selectFields = `
     id, nome, cognome, telefono, email, genere, note_cliente,
     buste (
-      id, readable_id, stato_attuale, data_apertura, updated_at, deleted_at,
-      tipo_lavorazione, priorita, note_generali
+      ${BUSTA_ARCHIVE_FIELDS}
     )
   `
   const [cognomeRes, nomeRes] = await Promise.all([
@@ -133,8 +162,7 @@ async function searchCategoryOrders(ctx: SearchContext, categoria: string): Prom
     .select(`
       id, descrizione_prodotto, stato, note,
       buste!inner (
-        id, readable_id, stato_attuale, updated_at, data_apertura, deleted_at,
-        clienti (id, nome, cognome)
+        ${BUSTA_ARCHIVE_FIELDS}
       )
     `)
     .is('deleted_at', null)
@@ -182,8 +210,7 @@ async function searchProducts(ctx: SearchContext): Promise<SearchResult[]> {
     .select(`
       id, tipo, codice_prodotto, fornitore, stato, note,
       buste!inner (
-        id, readable_id, stato_attuale, updated_at, data_apertura, deleted_at,
-        clienti (id, nome, cognome)
+        ${BUSTA_ARCHIVE_FIELDS}
       )
     `)
     .is('buste.deleted_at', null)
@@ -248,8 +275,7 @@ async function searchSuppliers(ctx: SearchContext): Promise<SearchResult[]> {
       .select(
         `id, descrizione_prodotto, stato, note, ${key},
         buste!inner (
-          id, readable_id, stato_attuale, updated_at, data_apertura, deleted_at,
-          clienti (id, nome, cognome)
+          ${BUSTA_ARCHIVE_FIELDS}
         )`
       )
       .is('deleted_at', null)
@@ -346,7 +372,7 @@ export async function GET(request: NextRequest) {
         .select(`
           id, nome, cognome, telefono, email, genere,
           buste (
-            id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at, deleted_at
+            ${BUSTA_ARCHIVE_FIELDS}
           )
         `)
         .is('deleted_at', null)
@@ -380,8 +406,7 @@ export async function GET(request: NextRequest) {
       const { data: buste } = await supabase
         .from('buste')
         .select(`
-          id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at,
-          clienti (id, nome, cognome, telefono)
+          ${BUSTA_ARCHIVE_FIELDS}
         `)
         .is('deleted_at', null)
         .ilike('readable_id', `%${bustaId}%`)
@@ -423,8 +448,7 @@ export async function GET(request: NextRequest) {
             busta_id,
             categoria_fornitore,
             buste!inner (
-              id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at, deleted_at,
-              clienti (id, nome, cognome, telefono)
+              ${BUSTA_ARCHIVE_FIELDS}
             )
           `)
         ordiniQuery = ordiniQuery.is('deleted_at', null).is('buste.deleted_at', null)
@@ -494,8 +518,7 @@ export async function GET(request: NextRequest) {
           .select(`
             id, importo_totale, totale_pagato, importo_acconto,
             buste!inner (
-              id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at, deleted_at,
-              clienti (id, nome, cognome, telefono)
+              ${BUSTA_ARCHIVE_FIELDS}
             )
           `)
         pagamentiQuery = pagamentiQuery.is('deleted_at', null).is('buste.deleted_at', null)
@@ -552,8 +575,7 @@ export async function GET(request: NextRequest) {
       let query = supabase
         .from('buste')
         .select(`
-          id, readable_id, stato_attuale, data_apertura, tipo_lavorazione, priorita, updated_at, note_generali,
-          clienti (id, nome, cognome, telefono)
+          ${BUSTA_ARCHIVE_FIELDS}
         `)
       query = query.is('deleted_at', null)
 

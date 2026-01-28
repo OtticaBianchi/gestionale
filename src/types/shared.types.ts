@@ -22,6 +22,8 @@ export type BustaWithCliente = Database['public']['Tables']['buste']['Row'] & {
     importo_acconto?: number | null;
     ha_acconto?: boolean | null;
     prezzo_finale?: number | null;
+    data_saldo?: string | null;
+    updated_at?: string | null;
   } | null;
   payment_plan?: {
     id: string;
@@ -31,6 +33,8 @@ export type BustaWithCliente = Database['public']['Tables']['buste']['Row'] & {
     auto_reminders_enabled: boolean | null;
     reminder_preference: string | null;
     is_completed: boolean | null;
+    created_at?: string | null;
+    updated_at?: string | null;
     payment_installments?: Array<{
       id: string;
       installment_number: number;
@@ -38,6 +42,7 @@ export type BustaWithCliente = Database['public']['Tables']['buste']['Row'] & {
       expected_amount: number | null;
       paid_amount: number | null;
       is_completed: boolean | null;
+      updated_at?: string | null;
       reminder_3_days_sent: boolean | null;
       reminder_10_days_sent: boolean | null;
     }>;
