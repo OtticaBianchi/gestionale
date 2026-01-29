@@ -87,8 +87,8 @@ export default function WelcomePage() {
   return (
     <div className="min-h-screen w-full bg-gray-900 text-white relative overflow-hidden">
       {/* Sfondo con effetto gradiente e blur */}
-      <div className="absolute top-0 left-0 w-full h-full bg-cover bg-center" style={{backgroundImage: "url('/kiasma-hero.png')"}}></div>
-      <div className="absolute top-0 left-0 w-full h-full bg-black/50 backdrop-blur-sm"></div>
+      <div className="absolute top-0 left-0 w-full h-full bg-contain bg-center bg-no-repeat" style={{backgroundImage: "url('/Kiasma-hero.png')"}}></div>
+      <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-black/25 via-black/25 to-black/45"></div>
 
       <div className="relative z-10 flex flex-col justify-between min-h-screen p-4 sm:p-8">
         {/* Header con data e ora */}
@@ -97,20 +97,20 @@ export default function WelcomePage() {
         </header>
 
         {/* Contenuto Centrale */}
-        <main className="flex-grow flex items-center justify-center">
+        <main className="flex-grow flex items-end justify-start">
           <div 
-            className="w-full max-w-lg p-8 space-y-6 rounded-2xl
+            className="w-full max-w-md p-6 space-y-5 rounded-2xl
                        bg-white/10 backdrop-blur-md border border-white/20 shadow-lg"
           >
             <div className="text-center">
-              <h1 className="text-3xl sm:text-4xl font-bold">Gestionale Ottica Bianchi</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold">Gestionale Ottica Bianchi</h1>
               <p className="mt-2 text-gray-300">La tua piattaforma per la gestione operativa.</p>
             </div>
             
             <div className="flex flex-col sm:flex-row gap-4">
               <button 
                 onClick={() => router.push('/login')}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 font-semibold 
+                className="w-full flex items-center justify-center gap-2 px-5 py-2.5 font-semibold 
                            bg-blue-600 hover:bg-blue-500 rounded-lg transition-all"
               >
                 <span>Accedi</span>
@@ -118,7 +118,7 @@ export default function WelcomePage() {
               </button>
               <button 
                 onClick={() => router.push('/signup')}
-                className="w-full px-6 py-3 font-semibold bg-white/20 hover:bg-white/30 rounded-lg transition-all"
+                className="w-full px-5 py-2.5 font-semibold bg-white/20 hover:bg-white/30 rounded-lg transition-all"
               >
                 Registrati
               </button>

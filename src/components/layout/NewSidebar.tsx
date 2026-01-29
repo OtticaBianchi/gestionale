@@ -671,6 +671,26 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
             </AccordionSection>
           )}
         </div>
+
+        {/* Sidebar Footer Logo */}
+        <div className="border-t border-gray-200 p-4 flex items-center justify-center flex-shrink-0">
+          {isCollapsed ? (
+            <img
+              src="/kiasma-logo-tondo.png"
+              alt="Kiasma"
+              className="h-8 w-8 rounded-full object-cover"
+            />
+          ) : (
+            <div className="flex items-center gap-2">
+              <img
+                src="/kiasma-logo-tondo.png"
+                alt="Kiasma"
+                className="h-8 w-8 rounded-full object-cover"
+              />
+              <span className="text-sm font-semibold text-gray-900">Kiasma</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Mobile Toggle Button */}
