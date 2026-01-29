@@ -202,9 +202,9 @@ export default function UserProfileHeader() {
       <div className="bg-white border-b border-gray-200 px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
+            <h1 className="text-lg font-bold text-gray-900">Kiasma</h1>
             <span className="text-sm text-gray-500">Dashboard</span>
-            <span className="text-sm text-gray-400">v4.1.1</span>
+            <span className="text-sm text-gray-400">v4.3.0</span>
           </div>
 
           <div className="flex items-center space-x-2 text-gray-500">
@@ -222,9 +222,9 @@ export default function UserProfileHeader() {
       <div className="bg-white border-b border-gray-200 px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
+            <h1 className="text-lg font-bold text-gray-900">Kiasma</h1>
             <span className="text-sm text-gray-500">Dashboard</span>
-            <span className="text-sm text-gray-400">v4.1.1</span>
+            <span className="text-sm text-gray-400">v4.3.0</span>
           </div>
 
           <div className="flex items-center space-x-3">
@@ -261,9 +261,9 @@ export default function UserProfileHeader() {
       <div className="flex items-center justify-between">
         {/* Logo e Titolo */}
         <div className="flex items-center space-x-3">
-          <h1 className="text-lg font-bold text-gray-900">OB Moduli</h1>
+          <h1 className="text-lg font-bold text-gray-900">Kiasma</h1>
           <span className="text-sm text-gray-500">Dashboard</span>
-          <span className="text-sm text-gray-400">v4.1.1</span>
+          <span className="text-sm text-gray-400">v4.3.0</span>
         </div>
 
         {/* Profilo Utente */}

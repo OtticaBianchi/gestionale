@@ -20,6 +20,15 @@ export async function GET(
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
 
+    // Get user profile for role check
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const isAdmin = profile?.role === 'admin'
+
     const { slug } = await params
 
     // Use service role for query
@@ -57,6 +66,14 @@ export async function GET(
 
     if (error || !procedure) {
       return NextResponse.json({ error: 'Procedura non trovata' }, { status: 404 })
+    }
+
+    // Check if non-admin user is trying to access a pending procedure
+    if (!isAdmin && procedure.approval_status === 'pending') {
+      return NextResponse.json({
+        error: 'Procedura in attesa di approvazione',
+        code: 'PENDING_APPROVAL'
+      }, { status: 403 })
     }
 
     // Check if user has favorited this procedure

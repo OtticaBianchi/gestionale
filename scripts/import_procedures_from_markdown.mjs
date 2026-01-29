@@ -433,6 +433,10 @@ async function main() {
       quizKeyBySlug.set(slug, fileKey)
     }
 
+    // Note: approval_status is NOT included here intentionally.
+    // - For NEW procedures: Database default 'pending' is used
+    // - For EXISTING procedures: approval_status is not touched (preserves current status)
+    // This ensures new imports require admin approval before being visible to operators.
     records.push({
       title,
       slug,

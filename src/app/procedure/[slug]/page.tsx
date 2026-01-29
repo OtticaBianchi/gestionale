@@ -64,6 +64,7 @@ type Procedure = {
   last_reviewed_by_profile: { full_name: string }
   related_procedures: any[]
   dependent_procedures: any[]
+  approval_status?: string | null
 }
 
 const stripQuizPreview = (content: string) => {
@@ -109,6 +110,8 @@ export default function ProcedurePage() {
   const [isUnread, setIsUnread] = useState(false)
   const [quizPassed, setQuizPassed] = useState<boolean | null>(null)
   const [hasQuiz, setHasQuiz] = useState<boolean | null>(null)
+  const [isApproving, setIsApproving] = useState(false)
+  const [isPendingApproval, setIsPendingApproval] = useState(false)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const contentMetadata = useMemo(() => {
     if (!procedure?.content) return { author: null, reviewer: null }
@@ -216,6 +219,9 @@ export default function ProcedurePage() {
 
       if (result.success) {
         setProcedure(result.data)
+        setIsPendingApproval(false)
+      } else if (result.code === 'PENDING_APPROVAL') {
+        setIsPendingApproval(true)
       } else {
         router.push('/procedure')
       }
@@ -379,11 +385,56 @@ export default function ProcedurePage() {
     }
   }
 
+  const handleApprove = async () => {
+    if (!procedure || isApproving) return
+
+    setIsApproving(true)
+    try {
+      const response = await fetch(`/api/procedures/${slug}/approve`, {
+        method: 'POST'
+      })
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Errore durante l\'approvazione')
+      }
+
+      setProcedure(prev => prev ? { ...prev, approval_status: 'approved' } : prev)
+      toast.success('Procedura approvata e pubblicata con successo')
+    } catch (error: any) {
+      console.error('Error approving procedure:', error)
+      toast.error(error?.message || 'Errore durante l\'approvazione')
+    } finally {
+      setIsApproving(false)
+    }
+  }
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    )
+  }
+
+  if (isPendingApproval) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center max-w-md px-4">
+          <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-8 h-8 text-amber-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Procedura in attesa di approvazione</h2>
+          <p className="text-gray-600 mb-6">
+            Questa procedura è in fase di revisione e non è ancora disponibile. Sarà visibile una volta approvata dall'amministratore.
+          </p>
+          <button
+            onClick={() => router.push('/procedure')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Torna al manuale procedure
+          </button>
+        </div>
       </div>
     )
   }
@@ -478,6 +529,17 @@ export default function ProcedurePage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-8">
+        {/* Pending Approval Banner */}
+        {userRole === 'admin' && procedure.approval_status === 'pending' && (
+          <div className="bg-amber-50 border border-amber-300 rounded-lg p-4 mb-6 flex items-center gap-3">
+            <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-amber-900">Procedura in via di approvazione</h3>
+              <p className="text-sm text-amber-700">Questa procedura non è ancora visibile agli operatori. Revisiona il contenuto e pubblica quando pronta.</p>
+            </div>
+          </div>
+        )}
+
         {/* Procedure Header */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-8">
           <div className="flex items-start gap-6">
@@ -779,6 +841,30 @@ export default function ProcedurePage() {
                 handleMarkAsRead(true)
               }}
             />
+          </div>
+        )}
+
+        {/* Approval Button - Admin only for pending procedures */}
+        {userRole === 'admin' && procedure.approval_status === 'pending' && (
+          <div className="bg-green-50 border border-green-300 rounded-lg p-6 mb-8">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="h-6 w-6 text-green-600 flex-shrink-0" />
+                <div>
+                  <h3 className="text-lg font-semibold text-green-900">Pubblica la procedura</h3>
+                  <p className="text-sm text-green-700">
+                    Hai revisionato il contenuto? Clicca per rendere la procedura visibile a tutti gli operatori.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleApprove}
+                disabled={isApproving}
+                className="px-6 py-3 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+              >
+                {isApproving ? 'Pubblicazione...' : 'Conferma e Pubblica'}
+              </button>
+            </div>
           </div>
         )}
 

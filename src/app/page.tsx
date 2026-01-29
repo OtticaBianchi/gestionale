@@ -68,6 +68,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.3.0', date: '29/01/2026', description: 'Stampa busta con note consolidate, follow-up da 11 giorni, Lavorazioni con date Lab Esterno + checklist, cestino con recupero e dedup clienti, workflow approvazione procedure.' },
     { version: '4.1.1', date: '21/01/2026', description: 'Fix pagamenti (constraint DB), segnalazione errori diretta da sidebar, sync procedure ottimizzato, eliminazione fornitori admin-only, categoria Lenti in RICAMBI.' },
     { version: '4.1.0', date: '15/01/2026', description: 'Nuova gestione procedure con quiz e priorità, inserimento buste a posteriori con date ordine/consegna, dashboard admin per lettura procedure e superamento quiz.' },
     { version: '4.0.2', date: '10/12/2025', description: 'Import clienti manuale (1-9 alla volta), capitalizzazione intelligente nomi multi-parte (es. Di Maria), opzione P.Giuridica per genere cliente.' },
@@ -86,7 +87,7 @@ export default function WelcomePage() {
   return (
     <div className="min-h-screen w-full bg-gray-900 text-white relative overflow-hidden">
       {/* Sfondo con effetto gradiente e blur */}
-      <div className="absolute top-0 left-0 w-full h-full bg-cover bg-center" style={{backgroundImage: "url('/OB-Team for Gestionale.jpg')"}}></div>
+      <div className="absolute top-0 left-0 w-full h-full bg-cover bg-center" style={{backgroundImage: "url('/kiasma-hero.png')"}}></div>
       <div className="absolute top-0 left-0 w-full h-full bg-black/50 backdrop-blur-sm"></div>
 
       <div className="relative z-10 flex flex-col justify-between min-h-screen p-4 sm:p-8">
@@ -134,13 +135,28 @@ export default function WelcomePage() {
               <h3 className="font-semibold">Ultimi Aggiornamenti</h3>
             </div>
             <ul className="text-sm space-y-1 text-gray-300">
-              {changelog.map(item => (
+              {changelog.slice(0, 2).map(item => (
                 <li key={item.version}>
                   <span className="font-mono bg-gray-700 px-1.5 py-0.5 rounded text-xs mr-2">{item.version}</span>
                   {item.description}
                 </li>
               ))}
             </ul>
+            {changelog.length > 2 && (
+              <details className="mt-3 text-sm text-gray-300">
+                <summary className="cursor-pointer text-gray-200 hover:text-white font-medium">
+                  Storico completo
+                </summary>
+                <ul className="mt-2 space-y-1 text-gray-300">
+                  {changelog.slice(2).map(item => (
+                    <li key={item.version}>
+                      <span className="font-mono bg-gray-700 px-1.5 py-0.5 rounded text-xs mr-2">{item.version}</span>
+                      {item.description}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
         </footer>
       </div>

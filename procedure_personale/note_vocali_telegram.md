@@ -52,15 +52,15 @@ Questa procedura si applica ogni volta che:
 ### **Fase 3 – Invio**
 
 - [ ] Dopo la registrazione, ri-ascoltare il messaggio per assicurarsi che sia chiaro e completo. Nel caso non lo fosse, inviarne un secondo.
-- [ ] Il BOT inoltra automaticamente la nota al gestionale OB Moduli.
+- [ ] Il BOT inoltra automaticamente la nota al gestionale Kiasma.
 
 ---
 
-## Nuovo Gestionale OB Moduli (da quando sarà operativo il nuovo gestionale OB Moduli)
+## Nuovo Gestionale Kiasma (da quando sarà operativo il nuovo gestionale Kiasma)
 -->
 ### **Fase 4 – Gestione e archiviazione**
 
-- [ ] Alla pagina **Note Telegram**, raggiungibile dal menu di sinistra in OB Moduli, troverete la trascrizione del vocale e potrete riascoltare il vocale stesso.
+- [ ] Alla pagina **Note Telegram**, raggiungibile dal menu di sinistra in Kiasma, troverete la trascrizione del vocale e potrete riascoltare il vocale stesso.
 - [ ] Il responsabile, o chi di dovere, verifica che l’informazione sia stata collegata al cliente e/o alla busta appropriata cliccando sull'icona a forma di **lente di ingrandimento** (🔎), inserendo il cognome e nome del cliente nella ricerca, individuando la busta giusta ed aggiornandola.
 - [ ] A quel punto il responsabile smarca la nota come **completata** cliccando sull'icona con la spunta verde e la nota verrà automaticamente cancellata dal sistema entro 7 giorni (se lo desidera può anche cancellarla immediatamente cliccando sull'icona (🗑️)).
 
@@ -68,7 +68,7 @@ Questa procedura si applica ogni volta che:
 -->
 ### **Fase 4**
 
-- [ ] Il responsabile ascolta la nota nel nuovo gestionale OB Moduli, alla pagina **Note Telegram**, raggiungibile dal menu di sinistra, e ricorda all’operatore che l’ha registrata di inserirla come di consueto nel foglio moduli aziendale.
+- [ ] Il responsabile ascolta la nota nel nuovo gestionale Kiasma, alla pagina **Note Telegram**, raggiungibile dal menu di sinistra, e ricorda all’operatore che l’ha registrata di inserirla come di consueto nel foglio moduli aziendale.
 
 ---
 
@@ -76,7 +76,7 @@ Questa procedura si applica ogni volta che:
 
 - ❌ Usare WhatsApp o altri canali per messaggi operativi.  
 - ❌ Inviare note senza identificare se stessi ed il cliente coinvolto.
-- ❌ Inviare note a chat private, colleghi o gruppi non autorizzati: NON comparirebbero nel gestionale OB Moduli.
+- ❌ Inviare note a chat private, colleghi o gruppi non autorizzati: NON comparirebbero nel gestionale Kiasma.
 - ❌ Superare 60 secondi o divagare.  
 - ❌ Registrare in ambienti rumorosi o con più persone che parlano (Privacy e comprensibilità messaggio).  
 - ❌ Usare le note per comunicazioni personali o non lavorative.
@@ -97,9 +97,9 @@ Questa procedura si applica ogni volta che:
 
 ## 7. Note pratiche
 
-- La nota vocale serve **solo come supporto operativo**: ogni decisione o attività va comunque registrata nel gestionale OB Moduli quando sarà operativo o il **vecchio foglio Moduli**.
+- La nota vocale serve **solo come supporto operativo**: ogni decisione o attività va comunque registrata nel gestionale Kiasma quando sarà operativo o il **vecchio foglio Moduli**.
 
-**Per i primi mesi di utilizzo del nuovo gestionale OB Moduli:**
+**Per i primi mesi di utilizzo del nuovo gestionale Kiasma:**
 
 - Evitare l’invio di messaggi vocali in orari non lavorativi, salvo urgenze concordate.
 - Comunicare sempre al responsabile di turno di aver lasciato una nota vocale così che possa essere subito controllata e, nel caso di problemi imprevisti, si possa subito porre rimedio.  

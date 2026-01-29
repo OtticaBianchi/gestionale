@@ -53,6 +53,7 @@ type Procedure = {
   user_acknowledged_at?: string | null
   user_acknowledged_updated_at?: string | null
   user_acknowledged_version?: number | null
+  approval_status?: string | null
 }
 
 export default function ProceduresPage() {
@@ -235,12 +236,13 @@ export default function ProceduresPage() {
     }
   }
 
-  const ProcedureCard = ({ procedure }: { procedure: Procedure }) => {
+  const ProcedureCard = ({ procedure, isAdmin }: { procedure: Procedure; isAdmin: boolean }) => {
     const categoryInfo = categories[procedure.context_category as keyof typeof categories]
     const typeInfo = procedureTypes[procedure.procedure_type as keyof typeof procedureTypes]
     const isUnread = procedure.is_unread !== false
     const isNew = procedure.is_new === true
     const isUpdated = !isNew && procedure.is_updated === true
+    const isPending = procedure.approval_status === 'pending'
     const acknowledgedAt = procedure.user_acknowledged_at
       ? new Date(procedure.user_acknowledged_at).toLocaleDateString('it-IT')
       : null
@@ -254,7 +256,7 @@ export default function ProceduresPage() {
     return (
       <div
         className={`bg-white rounded-lg shadow-sm border transition-shadow ${priorityBorder} ${
-          isUnread ? 'bg-blue-50/40 hover:shadow-lg' : 'hover:shadow-md'
+          isPending ? 'opacity-60 border-amber-300 bg-amber-50/30' : isUnread ? 'bg-blue-50/40 hover:shadow-lg' : 'hover:shadow-md'
         }`}
       >
         <div className="p-5">
@@ -271,12 +273,17 @@ export default function ProceduresPage() {
                 <span>{typeInfo?.label || procedure.procedure_type}</span>
               </div>
               <div className="flex items-center flex-wrap gap-2 mt-2">
-                {isNew && (
+                {isPending && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold">
+                    In via di approvazione
+                  </span>
+                )}
+                {!isPending && isNew && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium">
                     Nuova
                   </span>
                 )}
-                {isUpdated && (
+                {!isPending && isUpdated && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
                     Aggiornata
                   </span>
@@ -356,12 +363,21 @@ export default function ProceduresPage() {
                 </span>
               </div>
             </div>
-            <button
-              onClick={() => router.push(`/procedure/${procedure.slug}`)}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Leggi
-            </button>
+            {isPending && !isAdmin ? (
+              <span
+                className="px-4 py-2 bg-gray-300 text-gray-500 text-sm rounded-lg cursor-not-allowed"
+                title="In attesa di approvazione"
+              >
+                Leggi
+              </span>
+            ) : (
+              <button
+                onClick={() => router.push(`/procedure/${procedure.slug}`)}
+                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Leggi
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -532,7 +548,7 @@ export default function ProceduresPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {procedures.map((procedure) => (
-              <ProcedureCard key={procedure.id} procedure={procedure} />
+              <ProcedureCard key={procedure.id} procedure={procedure} isAdmin={userRole === 'admin'} />
             ))}
           </div>
         )}

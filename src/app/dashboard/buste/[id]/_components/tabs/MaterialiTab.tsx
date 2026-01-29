@@ -3789,7 +3789,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  Se scegli un'azione, Prisma crea un promemoria.
+                  Se scegli un'azione, Kiasma crea un promemoria.
                 </p>
               </div>
 

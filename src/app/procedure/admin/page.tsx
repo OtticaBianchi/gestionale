@@ -10,8 +10,10 @@ import {
   Trash2,
   Download,
   Eye,
-  Search
+  Search,
+  CheckCircle
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Database } from '@/types/database.types'
 
 type Procedure = {
@@ -26,6 +28,7 @@ type Procedure = {
   last_reviewed_at: string
   created_at: string
   updated_at: string
+  approval_status?: string | null
 }
 
 export default function ProceduresAdminPage() {
@@ -179,6 +182,25 @@ export default function ProceduresAdminPage() {
     }
   }
 
+  const approveProcedure = async (slug: string, title: string) => {
+    try {
+      const response = await fetch(`/api/procedures/${slug}/approve`, {
+        method: 'POST'
+      })
+
+      if (response.ok) {
+        toast.success(`Procedura "${title}" approvata e pubblicata`)
+        fetchProcedures()
+      } else {
+        const result = await response.json()
+        toast.error(result.error || 'Errore durante l\'approvazione')
+      }
+    } catch (error) {
+      console.error('Error approving procedure:', error)
+      toast.error('Errore durante l\'approvazione della procedura')
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -280,6 +302,7 @@ export default function ProceduresAdminPage() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="text-left px-6 py-4 font-medium text-gray-900">Procedura</th>
+                    <th className="text-left px-6 py-4 font-medium text-gray-900">Stato</th>
                     <th className="text-left px-6 py-4 font-medium text-gray-900">Categoria</th>
                     <th className="text-left px-6 py-4 font-medium text-gray-900">Tipo</th>
                     <th className="text-left px-6 py-4 font-medium text-gray-900">Ruoli</th>
@@ -295,6 +318,17 @@ export default function ProceduresAdminPage() {
                         <div className="font-medium text-gray-900">{procedure.title}</div>
                         {procedure.description && (
                           <div className="text-sm text-gray-500 line-clamp-1">{procedure.description}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {procedure.approval_status === 'pending' ? (
+                          <span className="inline-flex items-center px-2 py-1 bg-amber-100 text-amber-800 border border-amber-300 text-xs font-semibold rounded-full">
+                            In approvazione
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
+                            Pubblicata
+                          </span>
                         )}
                       </td>
                       <td className="px-6 py-4">
@@ -335,6 +369,15 @@ export default function ProceduresAdminPage() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
+                          {procedure.approval_status === 'pending' && (
+                            <button
+                              onClick={() => approveProcedure(procedure.slug, procedure.title)}
+                              className="p-2 text-amber-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="Approva e Pubblica"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => router.push(`/procedure/${procedure.slug}`)}
                             className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

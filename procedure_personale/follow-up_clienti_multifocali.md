@@ -16,7 +16,7 @@ Optometrista + Manager.
 
 ## 4. Checklist operativa
 
-- [ ] Accedi a OB Moduli  
+- [ ] Accedi a Kiasma  
 - [ ] Nel menu di sinistra, sotto Comunicazioni clicca su Follow-up Chiamate 
 - [ ] Individuare cliente da contattare.
 - [ ] Accedi a Focus

@@ -177,13 +177,19 @@ function LoginForm() {
 
         <div className="mt-6 pt-6 border-t border-gray-200">
           <div className="text-xs text-center text-gray-400 mb-2">
-            Versione 4.1.1
+            Versione 4.3.0
           </div>
-          <details className="text-xs text-gray-500">
-            <summary className="cursor-pointer text-center hover:text-gray-700 font-medium">
-              Novità e aggiornamenti
-            </summary>
+          <div className="text-xs text-gray-500">
+            <div className="text-center font-medium text-gray-600">Ultimi aggiornamenti</div>
             <div className="mt-3 space-y-2 text-left bg-gray-50 p-3 rounded">
+              <div className="font-semibold text-gray-700">v4.3.0 - Gennaio 2026</div>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>Stampa busta con note consolidate (metadati e date)</li>
+                <li>Follow-up da 11 giorni con filtri consegna corretti</li>
+                <li>Lavorazioni: date Lab Esterno + checklist DB con gating</li>
+                <li>Cestino: soft delete, recupero e svuota cestino (admin)</li>
+                <li>Dedup clienti (admin) + approvazione procedure</li>
+              </ul>
               <div className="font-semibold text-gray-700">v4.1.1 - Gennaio 2026</div>
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li>Fix pagamenti: risolti vincoli DB per salvataggio importi</li>
@@ -192,54 +198,61 @@ function LoginForm() {
                 <li>Eliminazione fornitori riservata admin</li>
                 <li>Nuova categoria Lenti in RICAMBI</li>
               </ul>
-              <div className="font-semibold text-gray-700">v4.1.0 - Gennaio 2026</div>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>Nuova gestione procedure con quiz e livelli di priorità</li>
-                <li>Inserimento buste a posteriori con date ordine/consegna</li>
-                <li>Dashboard admin per lettura procedure e superamento quiz</li>
-              </ul>
-              <div className="font-semibold text-gray-700">v4.0.2 - Dicembre 2025</div>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>Import clienti manuale con form dinamico (1-9 clienti alla volta)</li>
-                <li>Capitalizzazione intelligente per nomi multi-parte (es. Di Maria, Van Der Berg)</li>
-                <li>Opzione P.Giuridica aggiunta al campo genere cliente</li>
-                <li>Sistema di validazione granulare con feedback per cliente</li>
-              </ul>
-              <div className="font-semibold text-gray-700 mt-3">v3.4.0 - Ottobre 2025</div>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>Import clienti da CSV con validazioni e report finale</li>
-                <li>Ricerca avanzata fase 1 con filtri combinati e ID busta</li>
-                <li>Modifica rapida della descrizione in MaterialiTab</li>
-                <li>Riepiloghi stati workflow e anagrafica senza data nascita</li>
-              </ul>
-              <div className="font-semibold text-gray-700 mt-3">v3.3.0 - Ottobre 2025</div>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>Tipo lavorazione VFT e migrazione dedicata</li>
-                <li>Spedizioni: tracking, note e date aggiornate</li>
-                <li>Ricerca note globale e categoria Ricambi guidata</li>
-                <li>Opzione "Nessuna lavorazione" rapida nel tab</li>
-              </ul>
-              <div className="font-semibold text-gray-700 mt-3">v3.1.1 - Ottobre 2025</div>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>Nuova categoria Assistenza in MaterialiTab</li>
-                <li>Workflow migliorato con selezione tipo prodotto</li>
-                <li>Filtro fornitori intelligente per assistenza</li>
-              </ul>
-              <div className="font-semibold text-gray-700 mt-3">v3.1.0 - Ottobre 2025</div>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>Workflow automatizzato: avanzamento automatico buste</li>
-                <li>Ordini "da negozio" per prodotti già in stock</li>
-                <li>Stato "annullato" per ordini cancellati</li>
-                <li>Workflow semplificato a 6 stati</li>
-              </ul>
-              <div className="font-semibold text-gray-700 mt-3">v3.0.1 - Ottobre 2025</div>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>Nuova pagina Analytics con dashboard Business Intelligence</li>
-                <li>Statistiche dettagliate su lavorazioni, fornitori e fatturato</li>
-                <li>Grafici interattivi e trend mensili</li>
-              </ul>
             </div>
-          </details>
+            <details className="mt-3">
+              <summary className="mx-auto w-fit cursor-pointer text-center font-medium text-gray-600 hover:text-gray-800 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm">
+                Storico completo
+              </summary>
+              <div className="mt-3 space-y-2 text-left bg-gray-50 p-3 rounded">
+                <div className="font-semibold text-gray-700">v4.1.0 - Gennaio 2026</div>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Nuova gestione procedure con quiz e livelli di priorità</li>
+                  <li>Inserimento buste a posteriori con date ordine/consegna</li>
+                  <li>Dashboard admin per lettura procedure e superamento quiz</li>
+                </ul>
+                <div className="font-semibold text-gray-700">v4.0.2 - Dicembre 2025</div>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Import clienti manuale con form dinamico (1-9 clienti alla volta)</li>
+                  <li>Capitalizzazione intelligente per nomi multi-parte (es. Di Maria, Van Der Berg)</li>
+                  <li>Opzione P.Giuridica aggiunta al campo genere cliente</li>
+                  <li>Sistema di validazione granulare con feedback per cliente</li>
+                </ul>
+                <div className="font-semibold text-gray-700 mt-3">v3.4.0 - Ottobre 2025</div>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Import clienti da CSV con validazioni e report finale</li>
+                  <li>Ricerca avanzata fase 1 con filtri combinati e ID busta</li>
+                  <li>Modifica rapida della descrizione in MaterialiTab</li>
+                  <li>Riepiloghi stati workflow e anagrafica senza data nascita</li>
+                </ul>
+                <div className="font-semibold text-gray-700 mt-3">v3.3.0 - Ottobre 2025</div>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Tipo lavorazione VFT e migrazione dedicata</li>
+                  <li>Spedizioni: tracking, note e date aggiornate</li>
+                  <li>Ricerca note globale e categoria Ricambi guidata</li>
+                  <li>Opzione "Nessuna lavorazione" rapida nel tab</li>
+                </ul>
+                <div className="font-semibold text-gray-700 mt-3">v3.1.1 - Ottobre 2025</div>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Nuova categoria Assistenza in MaterialiTab</li>
+                  <li>Workflow migliorato con selezione tipo prodotto</li>
+                  <li>Filtro fornitori intelligente per assistenza</li>
+                </ul>
+                <div className="font-semibold text-gray-700 mt-3">v3.1.0 - Ottobre 2025</div>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Workflow automatizzato: avanzamento automatico buste</li>
+                  <li>Ordini "da negozio" per prodotti già in stock</li>
+                  <li>Stato "annullato" per ordini cancellati</li>
+                  <li>Workflow semplificato a 6 stati</li>
+                </ul>
+                <div className="font-semibold text-gray-700 mt-3">v3.0.1 - Ottobre 2025</div>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Nuova pagina Analytics con dashboard Business Intelligence</li>
+                  <li>Statistiche dettagliate su lavorazioni, fornitori e fatturato</li>
+                  <li>Grafici interattivi e trend mensili</li>
+                </ul>
+              </div>
+            </details>
+          </div>
         </div>
       </div>
     </div>

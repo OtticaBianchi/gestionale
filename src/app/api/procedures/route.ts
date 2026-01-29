@@ -74,6 +74,8 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    const isAdmin = profile.role === 'admin'
+
     // Base query
     let query = adminClient
       .from('procedures')
@@ -94,7 +96,8 @@ export async function GET(request: NextRequest) {
         last_reviewed_at,
         created_at,
         updated_at,
-        version${user_favorites ? `,
+        version,
+        approval_status${user_favorites ? `,
         favorites:procedure_favorites!inner(
           user_id
         )` : ''}
@@ -102,6 +105,8 @@ export async function GET(request: NextRequest) {
       .eq('is_active', true)
       .order('last_reviewed_at', { ascending: false, nullsFirst: false })
       .order('updated_at', { ascending: false })
+
+    // Note: All users now see pending procedures (but frontend disables click for non-admins)
 
     // Apply filters
     if (context_category) {
@@ -191,6 +196,12 @@ export async function GET(request: NextRequest) {
     const sortedProcedures = enrichedProcedures
       .slice()
       .sort((a, b) => {
+        // Admin sees pending procedures first
+        if (isAdmin) {
+          const aPending = a.approval_status === 'pending' ? 0 : 1
+          const bPending = b.approval_status === 'pending' ? 0 : 1
+          if (aPending !== bPending) return aPending - bPending
+        }
         const rankA = getPriorityRank(a)
         const rankB = getPriorityRank(b)
         if (rankA !== rankB) return rankA - rankB
@@ -299,7 +310,8 @@ export async function POST(request: NextRequest) {
         created_by: user.id,
         updated_by: user.id,
         last_reviewed_at: new Date().toISOString().split('T')[0],
-        last_reviewed_by: user.id
+        last_reviewed_by: user.id,
+        approval_status: 'pending'
       })
       .select()
       .single()

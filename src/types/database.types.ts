@@ -2285,6 +2285,7 @@ export type Database = {
       }
       procedures: {
         Row: {
+          approval_status: string | null
           content: string
           context_category: string | null
           created_at: string | null
@@ -2309,6 +2310,7 @@ export type Database = {
           view_count: number | null
         }
         Insert: {
+          approval_status?: string | null
           content: string
           context_category?: string | null
           created_at?: string | null
@@ -2333,6 +2335,7 @@ export type Database = {
           view_count?: number | null
         }
         Update: {
+          approval_status?: string | null
           content?: string
           context_category?: string | null
           created_at?: string | null
