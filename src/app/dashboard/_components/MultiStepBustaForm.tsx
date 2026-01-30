@@ -957,7 +957,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   <option value="LAC">👁️ LAC - Lenti contatto</option>
                   <option value="ACC">🔧 ACC - Accessori</option>
                   <option value="RIC">🔄 RIC - Ricambio</option>
-                  <option value="RIP">🔨 RIP - Riparazione</option>
+                  <option value="LAB">🧪 LAB - Laboratorio</option>
                   <option value="SA">📐 SA - Sostituzione anticipata</option>
                   <option value="SG">🧵 SG - Sostituzione in garanzia</option>
                   <option value="CT">👁️ CT - Controllo tecnico</option>

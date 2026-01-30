@@ -59,7 +59,7 @@ const getTipoLavorazioneFull = (tipo: string | null): string => {
     'LAC': 'LENTI A CONTATTO',
     'ACC': 'ACCESSORI',
     'RIC': 'RICAMBIO',
-    'RIP': 'RIPARAZIONE',
+    'LAB': 'LABORATORIO',
     'SA': 'SAGOMATURA',
     'SG': 'STRINGATURA',
     'CT': 'CONTROLLO VISTA',

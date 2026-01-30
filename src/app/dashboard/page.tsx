@@ -77,7 +77,8 @@ export default async function DashboardPage() {
         note,
         needs_action,
         needs_action_done,
-        needs_action_type
+        needs_action_type,
+        deleted_at
       ),
       payment_plan:payment_plans (
         id,
@@ -119,7 +120,16 @@ export default async function DashboardPage() {
     return renderError(error);
   }
 
-  const normalizedBuste = (buste || []).map(normalizePaymentPlanRelation) as BustaWithCliente[];
+  // ✅ FIX: Filter out soft-deleted orders from ordini_materiali
+  const normalizedBuste = (buste || []).map(busta => {
+    const normalized = normalizePaymentPlanRelation(busta);
+    return {
+      ...normalized,
+      ordini_materiali: (normalized.ordini_materiali || []).filter(
+        (ordine: { deleted_at?: string | null }) => !ordine.deleted_at
+      )
+    };
+  }) as BustaWithCliente[];
   const activeBuste = normalizedBuste.filter(busta => !shouldArchiveBusta(busta) && !busta.is_suspended);
   const suspendedBuste = normalizedBuste.filter(busta => busta.is_suspended && !shouldArchiveBusta(busta));
 

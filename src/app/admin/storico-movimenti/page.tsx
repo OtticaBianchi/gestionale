@@ -26,7 +26,6 @@ type LogRecord = {
 const STATUS_LABELS: Record<string, string> = {
   nuove: 'Nuove',
   materiali_ordinati: 'Materiali ordinati',
-  materiali_parzialmente_arrivati: 'Mat. parziali',
   materiali_arrivati: 'Mat. arrivati',
   in_lavorazione: 'In lavorazione',
   pronto_ritiro: 'Pronto ritiro',

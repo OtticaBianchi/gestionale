@@ -49,7 +49,6 @@ export default function BustaInfoSidebar({ busta }: BustaInfoSidebarProps) {
     const colors: { [key: string]: string } = {
       'nuove': 'bg-blue-500',
       'materiali_ordinati': 'bg-orange-500',
-      'materiali_parzialmente_arrivati': 'bg-yellow-500',
       'materiali_arrivati': 'bg-lime-500',
       'in_lavorazione': 'bg-purple-500',
       'pronto_ritiro': 'bg-green-500',

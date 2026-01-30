@@ -298,14 +298,17 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     description: '',
     actionRequired: 'none' as ActionRequiredValue,
     dueDate: '',
-    actionDoneNow: false
+    actionDoneNow: false,
+    // ✅ Campo colpa per prodotto_errato
+    colpaErrore: '' as '' | 'errore_interno' | 'errore_cliente' | 'errore_fornitore'
   });
-  const [eventErrors, setEventErrors] = useState<{ type?: string; description?: string }>({});
+  const [eventErrors, setEventErrors] = useState<{ type?: string; description?: string; colpa?: string }>({});
   const [availabilityPrompt, setAvailabilityPrompt] = useState<{ ordineId: string; stato: 'riassortimento' | 'esaurito' } | null>(null);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNote, setCancelNote] = useState('');
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
+
   const [showSospesaFollowupModal, setShowSospesaFollowupModal] = useState(false);
   const [sospesaFollowupReason, setSospesaFollowupReason] = useState('');
   const [sospesaFollowupNote, setSospesaFollowupNote] = useState('');
@@ -369,6 +372,18 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     disponibilitaStats.counts.esaurito;
   const showDisponibilitaBadge = disponibilitaTotali > 0 && disponibilitaStats.worstStatus !== 'disponibile';
 
+  // ✅ Calcola se annullare l'ordine corrente causerà archiviazione
+  const cancelWillArchive = useMemo(() => {
+    if (!cancelOrderId) return false;
+
+    // Conta ordini NON annullati (escludendo quello che stiamo per annullare)
+    const activeOrdersExcludingCurrent = ordiniMateriali.filter(o =>
+      o.id !== cancelOrderId && (o.stato || '').toLowerCase() !== 'annullato'
+    );
+
+    // Se dopo l'annullamento non ci sono più ordini attivi → archiviazione
+    return activeOrdersExcludingCurrent.length === 0;
+  }, [cancelOrderId, ordiniMateriali]);
 
   // ✅ AGGIUNTO: Helper per controlli
   const canEdit = !isReadOnly;
@@ -638,6 +653,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           tipi_ordine:tipi_ordine(nome)
         `)
         .eq('busta_id', busta.id)
+        .is('deleted_at', null) // ✅ FIX: Exclude soft-deleted orders
         .order('created_at', { ascending: false });
 
       if (ordiniError) {
@@ -1768,17 +1784,18 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       let shouldCreateDraft = false;
 
       if (nuovoStato === 'sbagliato') {
-        const confermaErrore = window.confirm('Confermi che il prodotto consegnato non corrisponde a quanto richiesto?');
-        if (!confermaErrore) {
-          return;
-        }
-
-        const confermaResponsabilita = window.confirm('Confermi che si tratta di un errore di ordinazione interno (non del fornitore)?');
-        if (!confermaResponsabilita) {
-          return;
-        }
-
-        shouldCreateDraft = true;
+        // ✅ Reindirizza al form EVENTO con tipo "prodotto_errato" preselezionato
+        setEventOrderId(ordineId);
+        setEventForm({
+          type: 'prodotto_errato',
+          description: '',
+          actionRequired: 'none',
+          dueDate: '',
+          actionDoneNow: false,
+          colpaErrore: ''
+        });
+        setEventErrors({});
+        return;
       }
       
       const updateData: any = {
@@ -1963,15 +1980,21 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
       console.log('✅ Ordine eliminato dal database');
 
-      // Rimuovi dalla lista locale
-      const ordiniAggiornati = ordiniMateriali.filter(ordine => ordine.id !== ordineId);
-      setOrdiniMateriali(ordiniAggiornati);
+      // ✅ FIX: Use functional update to avoid stale closure issue
+      // when deleting multiple orders in quick succession
+      setOrdiniMateriali(prev => {
+        const ordiniAggiornati = prev.filter(ordine => ordine.id !== ordineId);
+
+        // Sync workflow with remaining orders (async, after state update)
+        if (ordiniAggiornati.length > 0) {
+          syncBustaWorkflowWithOrdini(ordiniAggiornati, 'eliminazione ordine');
+        }
+
+        return ordiniAggiornati;
+      });
 
       // ✅ SWR: Invalidate cache after order deletion
       await mutate('/api/buste');
-      if (ordiniAggiornati.length > 0) {
-        await syncBustaWorkflowWithOrdini(ordiniAggiornati, 'eliminazione ordine');
-      }
 
     } catch (error: any) {
       console.error('❌ Error deleting ordine:', error);
@@ -2122,7 +2145,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       description: '',
       actionRequired: 'none',
       dueDate: '',
-      actionDoneNow: false
+      actionDoneNow: false,
+      colpaErrore: ''
     });
     setEventErrors({});
   };
@@ -2130,6 +2154,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const closeEventModal = () => {
     setEventOrderId(null);
     setEventErrors({});
+    setEventForm(prev => ({ ...prev, colpaErrore: '' }));
   };
 
   const handleEventTypeChange = (value: EventType | '') => {
@@ -2152,24 +2177,47 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     const tipoEvento = eventForm.type;
     const descrizione = normalizeNoteMessage(eventForm.description);
 
-    const errors: { type?: string; description?: string } = {};
+    // ✅ Validazione con campo colpa per prodotto_errato
+    const errors: { type?: string; description?: string; colpa?: string } = {};
     if (!tipoEvento) errors.type = 'Seleziona un tipo di evento.';
     if (!descrizione) errors.description = 'Scrivi una descrizione breve.';
+    if (tipoEvento === 'prodotto_errato' && !eventForm.colpaErrore) {
+      errors.colpa = 'Specifica di chi è la colpa.';
+    }
     setEventErrors(errors);
 
     if (!tipoEvento || !descrizione) return;
+    if (tipoEvento === 'prodotto_errato' && !eventForm.colpaErrore) return;
 
     const enforcedAction: ActionRequiredValue =
       tipoEvento === 'serve_cliente' ? 'MID_PROCESS' : eventForm.actionRequired;
     const actionOption = ACTION_REQUIRED_OPTIONS.find(option => option.value === enforcedAction);
     const actionLabel = actionOption?.label ?? 'Nessuna';
 
+    // ✅ Costruisci messaggio nota con info colpa se prodotto_errato
     const eventLabel = EVENT_LABELS[tipoEvento];
-    const noteMessage = `EVENTO — ${eventLabel}. ${descrizione}. Azione: ${actionLabel}.`;
+    let noteMessage = `EVENTO — ${eventLabel}. ${descrizione}.`;
+
+    if (tipoEvento === 'prodotto_errato' && eventForm.colpaErrore) {
+      const colpaLabels: Record<string, string> = {
+        'errore_interno': 'Errore interno (nostro)',
+        'errore_cliente': 'Errore cliente',
+        'errore_fornitore': 'Errore fornitore'
+      };
+      noteMessage = `EVENTO — ${eventLabel}. Colpa: ${colpaLabels[eventForm.colpaErrore]}. ${descrizione}.`;
+    }
+
+    noteMessage += ` Azione: ${actionLabel}.`;
     let updatedNote = appendNoteLine(ordine.note, buildNoteLine(noteMessage, currentUserLabel));
 
     const updates: Record<string, any> = { note: updatedNote };
     const actionRequired = enforcedAction !== 'none';
+
+    // ✅ Se prodotto_errato, cambia anche lo stato a "sbagliato"
+    if (tipoEvento === 'prodotto_errato') {
+      updates.stato = 'sbagliato';
+      updates.data_consegna_effettiva = null;
+    }
 
     if (actionRequired) {
       const hasOpenAction = Boolean(ordine.needs_action && !ordine.needs_action_done);
@@ -2204,19 +2252,26 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     try {
       await patchOrdine(eventOrderId, updates);
 
-      setOrdiniMateriali(prev =>
-        prev.map(item =>
+      let ordiniAggiornati: OrdineMateriale[] = [];
+      setOrdiniMateriali(prev => {
+        const next = prev.map(item =>
           item.id === eventOrderId
-            ? {
-                ...item,
-                ...updates
-              }
+            ? { ...item, ...updates }
             : item
-        )
-      );
+        );
+        ordiniAggiornati = next;
+        return next;
+      });
 
       await mutate('/api/buste');
       notifyNotesUpdated();
+
+      // ✅ Se prodotto_errato, sincronizza workflow e crea bozza ET2.0
+      if (tipoEvento === 'prodotto_errato') {
+        await syncBustaWorkflowWithOrdini(ordiniAggiornati, 'evento prodotto_errato');
+        await createAutoErrorDraft(ordine);
+      }
+
       closeEventModal();
     } catch (error: any) {
       console.error('❌ Error saving event:', error);
@@ -3756,6 +3811,34 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 )}
               </div>
 
+              {/* ✅ Campo colpa - visibile solo per prodotto_errato */}
+              {eventForm.type === 'prodotto_errato' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <label className="block text-sm font-medium text-amber-800 mb-2">
+                    ⚠️ Di chi è la colpa? (obbligatorio)
+                  </label>
+                  <select
+                    value={eventForm.colpaErrore}
+                    onChange={(e) => setEventForm(prev => ({
+                      ...prev,
+                      colpaErrore: e.target.value as '' | 'errore_interno' | 'errore_cliente' | 'errore_fornitore'
+                    }))}
+                    className="w-full px-3 py-2 border border-amber-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                  >
+                    <option value="">Seleziona...</option>
+                    <option value="errore_interno">🏪 Errore interno (nostro) - Abbiamo ordinato sbagliato</option>
+                    <option value="errore_cliente">👤 Errore cliente - Il cliente ha comunicato dati errati</option>
+                    <option value="errore_fornitore">🏭 Errore fornitore - Hanno inviato prodotto diverso</option>
+                  </select>
+                  {eventErrors.colpa && (
+                    <p className="text-xs text-red-600 mt-1">{eventErrors.colpa}</p>
+                  )}
+                  <p className="text-xs text-amber-700 mt-2">
+                    L'ordine verrà marcato come SBAGLIATO e rimarrà come storico.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Cosa è successo? (obbligatorio)
@@ -3871,12 +3954,27 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
           <div className="w-full max-w-md rounded-lg bg-white shadow-xl border border-gray-200">
             <div className="border-b border-gray-100 px-6 py-4">
-              <h3 className="text-lg font-semibold text-gray-900">Annulla ordine</h3>
+              <h3 className="text-lg font-semibold text-gray-900">🗑️ Annulla ordine</h3>
               <p className="text-sm text-gray-600 mt-1">
                 L'ordine verrà impostato come ANNULLATO e non verrà eliminato.
               </p>
             </div>
             <div className="px-6 py-4 space-y-4">
+              {/* ⚠️ Warning archiviazione */}
+              {cancelWillArchive && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <p className="text-sm text-red-800 font-medium">
+                    ⚠️ ATTENZIONE: Questo è l'unico ordine attivo.
+                  </p>
+                  <p className="text-sm text-red-700 mt-1">
+                    Annullandolo, la busta verrà <strong>archiviata automaticamente</strong>.
+                  </p>
+                  <p className="text-xs text-red-600 mt-2">
+                    Se devi rifare l'ordine, inserisci prima il nuovo ordine e poi annulla questo.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Motivo annullo (obbligatorio)
@@ -3888,12 +3986,22 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 >
                   <option value="">Seleziona...</option>
                   <option value="Cliente rinuncia">Cliente rinuncia</option>
-                  <option value="Ordine errato / da rifare">Ordine errato / da rifare</option>
                   <option value="Fornitore non disponibile">Fornitore non disponibile</option>
                   <option value="Sostituito con alternativa">Sostituito con alternativa</option>
                   <option value="Altro">Altro</option>
                 </select>
               </div>
+
+              {/* 💡 Suggerimento se seleziona motivo che suggerisce "sbagliato" */}
+              {cancelReason === 'Sostituito con alternativa' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-sm text-amber-800">
+                    <strong>💡 Suggerimento:</strong> Se il prodotto è arrivato ma era sbagliato,
+                    considera di usare lo stato "Sbagliato" invece di annullare.
+                    Così l'ordine rimane come storico e puoi tracciare l'errore.
+                  </p>
+                </div>
+              )}
 
               {cancelReason === 'Altro' && (
                 <div>
@@ -3907,6 +4015,17 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                     className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Scrivi cosa è successo..."
                   />
+                </div>
+              )}
+
+              {/* 💡 Suggerimento workflow se busta in lavorazione/pronto */}
+              {(workflowStatus === 'in_lavorazione' || workflowStatus === 'pronto_ritiro') && !cancelWillArchive && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-800">
+                    <strong>💡 Nota:</strong> Dopo l'annullamento, ricorda che puoi
+                    trascinare la busta nella colonna "Mat. Ordinati" dalla dashboard
+                    Kanban se devi riordinare.
+                  </p>
                 </div>
               )}
             </div>

@@ -195,7 +195,6 @@ export default function RicercaAvanzataPage() {
     switch (stato) {
       case 'nuove': return 'Nuova';
       case 'materiali_ordinati': return 'Materiali Ordinati';
-      case 'materiali_parzialmente_arrivati': return 'Materiali Parziali';
       case 'materiali_arrivati': return 'Materiali Arrivati';
       case 'in_lavorazione': return 'In Lavorazione';
       case 'pronto_ritiro': return 'Pronto Ritiro';
@@ -210,7 +209,6 @@ export default function RicercaAvanzataPage() {
     switch (stato) {
       case 'nuove': return 'bg-blue-100 text-blue-800';
       case 'materiali_ordinati': return 'bg-yellow-100 text-yellow-800';
-      case 'materiali_parzialmente_arrivati': return 'bg-orange-100 text-orange-800';
       case 'materiali_arrivati': return 'bg-purple-100 text-purple-800';
       case 'in_lavorazione': return 'bg-indigo-100 text-indigo-800';
       case 'pronto_ritiro': return 'bg-green-100 text-green-800';
@@ -411,7 +409,7 @@ export default function RicercaAvanzataPage() {
                     <option value="LAC">LAC</option>
                     <option value="ACC">ACC</option>
                     <option value="RIC">RIC</option>
-                    <option value="RIP">RIP</option>
+                    <option value="LAB">LAB</option>
                     <option value="SA">SA</option>
                     <option value="SG">SG</option>
                     <option value="CT">CT</option>

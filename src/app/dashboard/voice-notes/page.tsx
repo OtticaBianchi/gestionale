@@ -663,7 +663,6 @@ export default function VoiceNotesPage() {
     switch (stato) {
       case 'nuove': return 'Nuova';
       case 'materiali_ordinati': return 'Materiali Ordinati';
-      case 'materiali_parzialmente_arrivati': return 'Materiali Parziali';
       case 'materiali_arrivati': return 'Materiali Arrivati';
       case 'in_lavorazione': return 'In Lavorazione';
       case 'pronto_ritiro': return 'Pronto Ritiro';

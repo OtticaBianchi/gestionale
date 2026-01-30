@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins, Receipt, Bell, Phone, PhoneOff } from 'lucide-react';
 import Link from 'next/link';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
-import { isRealCustomerPhone } from '@/lib/clients/phoneRules';
+import { isOtticaBianchiName, isRealCustomerPhone, isShopPhone } from '@/lib/clients/phoneRules';
 
 interface BustaCardProps {
   busta: BustaWithCliente;
@@ -386,7 +386,11 @@ export default function BustaCard({ busta }: BustaCardProps) {
   const displayOrders = activeOrders.length > 0 ? activeOrders : rawOrders;
   const ordiniOrdinati = sortOrdersByPriority(displayOrders);
   const delayLevel = getDelayLevel(displayOrders);
-  const hasMissingPhone = cliente ? !isRealCustomerPhone(cliente.telefono) : false;
+  const isOtticaBianchi = cliente ? isOtticaBianchiName(cliente.nome, cliente.cognome) : false;
+  const isShopPhoneValue = cliente ? isShopPhone(cliente.telefono) : false;
+  const hasMissingPhone = cliente
+    ? (!isRealCustomerPhone(cliente.telefono) && !(isOtticaBianchi && isShopPhoneValue))
+    : false;
 
   // Calcola le statistiche dei materiali per le icone
   const materialsStats = getMaterialsStats(displayOrders);

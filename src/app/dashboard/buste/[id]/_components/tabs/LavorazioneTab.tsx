@@ -144,7 +144,15 @@ const ACTIVITY_MATRIX: Record<string, ActivityKey[]> = {
     'lab_esterno'
   ],
   LAC: ['training_applicazione_lac', 'richiamo_verifica_tecnica', 'gestione_assistenza_garanzia'],
-  RIPARAZIONE: ['riparazione_minuteria', 'lab_esterno', 'controllo_qualita_pre_consegna']
+  RIPARAZIONE: ['riparazione_minuteria', 'lab_esterno', 'controllo_qualita_pre_consegna'],
+  LABORATORIO: [
+    'sagomatura_montaggio',
+    'lab_esterno',
+    'controllo_qualita_pre_consegna',
+    'richiamo_verifica_tecnica',
+    'riparazione_minuteria',
+    'pit_stop_occhiale'
+  ]
 };
 
 const CHECKLISTS: Partial<Record<ActivityKey, string[]>> = {
@@ -176,7 +184,8 @@ const getCategoryForBusta = (tipoLavorazione?: string | null): string => {
   if (['OCV', 'OV', 'LV'].includes(tipoLavorazione)) return 'VISTA';
   if (['OS', 'LS', 'ACC', 'BR'].includes(tipoLavorazione)) return 'SOLE';
   if (['LAC'].includes(tipoLavorazione)) return 'LAC';
-  if (['RIP', 'RIC', 'SA', 'SG'].includes(tipoLavorazione)) return 'RIPARAZIONE';
+  if (['LAB'].includes(tipoLavorazione)) return 'LABORATORIO';
+  if (['RIC', 'SA', 'SG'].includes(tipoLavorazione)) return 'RIPARAZIONE';
   return 'VISTA';
 };
 

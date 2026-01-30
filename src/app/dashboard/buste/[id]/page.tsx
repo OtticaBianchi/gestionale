@@ -103,7 +103,8 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
         note,
         needs_action,
         needs_action_done,
-        needs_action_type
+        needs_action_type,
+        deleted_at
       )
     `)
     .eq('id', (await params).id)
@@ -119,7 +120,13 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
   }
 
   const normalizedBusta = normalizePaymentPlanRelation(busta);
-  const bustaDettagliata: BustaDettagliata = normalizedBusta as BustaDettagliata;
+  // ✅ FIX: Filter out soft-deleted orders from ordini_materiali
+  const bustaDettagliata: BustaDettagliata = {
+    ...normalizedBusta,
+    ordini_materiali: (normalizedBusta.ordini_materiali || []).filter(
+      (ordine: { deleted_at?: string | null }) => !ordine.deleted_at
+    )
+  } as BustaDettagliata;
 
   return (
     <div className="min-h-screen bg-gray-50">

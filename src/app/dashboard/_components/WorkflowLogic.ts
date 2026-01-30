@@ -14,7 +14,7 @@ export type WorkflowState =
 export const SPECIAL_WORK_TYPES = {
   'FT': 'fattura',           // Emissione fattura
   'REL': 'relazione',        // Relazione tecnica
-  'RIP': 'riparazione'       // Riparazione esterna
+  'LAB': 'laboratorio'       // Lavorazione laboratorio
 } as const;
 
 // Matrice delle transizioni permesse
@@ -25,7 +25,7 @@ export const ALLOWED_TRANSITIONS: Record<WorkflowState, WorkflowState[]> = {
     'materiali_ordinati',      // Workflow normale
     'materiali_arrivati',      // Cliente porta tutto
     'in_lavorazione',          // Solo montaggio/aggiustamento
-    'pronto_ritiro',           // Riparazione immediata
+    'pronto_ritiro',           // Laboratorio immediato
     'consegnato_pagato'        // WORKFLOW SPECIALI: Fattura, Relazione
   ],
 
@@ -34,7 +34,7 @@ export const ALLOWED_TRANSITIONS: Record<WorkflowState, WorkflowState[]> = {
     'nuove',                   // Errore: ordine sbagliato, torna a nuove
     'materiali_arrivati',      // Ordine arrivato
     'materiali_ordinati',      // Ri-ordine per problemi/errori
-    'pronto_ritiro'            // Riparazione esterna completata
+    'pronto_ritiro'            // Laboratorio completato
   ],
 
   // MATERIALI_ARRIVATI: Pronti per lavorazione o problemi
@@ -42,7 +42,7 @@ export const ALLOWED_TRANSITIONS: Record<WorkflowState, WorkflowState[]> = {
     'nuove',                   // Errore: annulla tutto
     'materiali_ordinati',      // Materiali danneggiati/sbagliati
     'in_lavorazione',          // Workflow normale
-    'pronto_ritiro'            // Lavorazione esterna già fatta
+    'pronto_ritiro'            // Laboratorio già completato
   ],
 
   // IN_LAVORAZIONE: Avanza o torna per problemi tecnici
@@ -69,18 +69,18 @@ export const TRANSITION_REASONS: Record<string, string> = {
   'nuove->materiali_ordinati': 'Ordina materiali necessari',
   'nuove->materiali_arrivati': 'Cliente porta i materiali',
   'nuove->in_lavorazione': 'Solo montaggio/aggiustamento',
-  'nuove->pronto_ritiro': 'Riparazione immediata',
+  'nuove->pronto_ritiro': 'Laboratorio immediato',
   'nuove->consegnato_pagato': 'Workflow speciale: Fattura/Relazione/Servizio immediato',
 
   'materiali_ordinati->nuove': 'Errore: ordine sbagliato, ricomincia da capo',
   'materiali_ordinati->materiali_arrivati': 'Ordine arrivato',
   'materiali_ordinati->materiali_ordinati': 'Ri-ordine per errore/problema',
-  'materiali_ordinati->pronto_ritiro': 'Riparazione esterna completata',
+  'materiali_ordinati->pronto_ritiro': 'Laboratorio completato',
 
   'materiali_arrivati->nuove': 'Errore: annulla tutto e ricomincia',
   'materiali_arrivati->materiali_ordinati': 'Materiali danneggiati/sbagliati',
   'materiali_arrivati->in_lavorazione': 'Inizia lavorazione',
-  'materiali_arrivati->pronto_ritiro': 'Lavorazione esterna già completata',
+  'materiali_arrivati->pronto_ritiro': 'Laboratorio già completato',
 
   'in_lavorazione->nuove': 'Errore critico: annulla tutto e ricomincia',
   'in_lavorazione->materiali_ordinati': 'Errore grave: serve ri-ordinare',

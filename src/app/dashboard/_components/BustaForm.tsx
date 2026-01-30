@@ -81,7 +81,7 @@ const tipoLavorazioneOptions = [
   { value: 'LAC', label: 'LAC - Lenti a contatto', icon: '👁️' },
   { value: 'ACC', label: 'ACC - Accessori', icon: '🔧' },
   { value: 'RIC', label: 'RIC - Ricambio', icon: '⚙️' },
-  { value: 'RIP', label: 'RIP - Riparazione', icon: '🔨' },
+  { value: 'LAB', label: 'LAB - Laboratorio', icon: '🧪' },
   { value: 'SA', label: 'SA - Sagomatura', icon: '✂️' },
   { value: 'SG', label: 'SG - Stringatura', icon: '🔩' },
   { value: 'CT', label: 'CT - Controllo vista', icon: '👁️‍🗨️' },

@@ -2,7 +2,7 @@
 
 import { Clock, Bell, Phone, PhoneOff } from 'lucide-react';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
-import { isRealCustomerPhone } from '@/lib/clients/phoneRules';
+import { isOtticaBianchiName, isRealCustomerPhone, isShopPhone } from '@/lib/clients/phoneRules';
 
 interface CompactBustaCardProps {
   busta: BustaWithCliente;
@@ -31,7 +31,7 @@ const getTipoLavorazioneSigla = (tipo: string | null) => {
     LAC: 'LAC',
     ACC: 'ACC',
     RIC: 'RIC',
-    RIP: 'RIP',
+    LAB: 'LAB',
     SA: 'SA',
     SG: 'SG',
     CT: 'CT',
@@ -103,7 +103,11 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
     ordine => ordine.needs_action && !ordine.needs_action_done
   ).length;
   const hasOpenActions = openActionCount > 0;
-  const hasMissingPhone = cliente ? !isRealCustomerPhone(cliente.telefono) : false;
+  const isOtticaBianchi = cliente ? isOtticaBianchiName(cliente.nome, cliente.cognome) : false;
+  const isShopPhoneValue = cliente ? isShopPhone(cliente.telefono) : false;
+  const hasMissingPhone = cliente
+    ? (!isRealCustomerPhone(cliente.telefono) && !(isOtticaBianchi && isShopPhoneValue))
+    : false;
   const showBellReminder = hasOpenActions || busta.is_suspended;
   const bellReminderReasons: string[] = [];
   if (busta.is_suspended) bellReminderReasons.push('Busta sospesa: follow-up richiesto');
