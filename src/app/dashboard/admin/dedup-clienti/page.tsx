@@ -77,6 +77,8 @@ const reasonLabel = (reason: string) => {
       return 'Record vuoto';
     case 'nome_coincidente':
       return 'Nome/Cognome coincidenti';
+    case 'nome_incompleto':
+      return 'Nome/Cognome incompleti';
     default:
       return reason;
   }

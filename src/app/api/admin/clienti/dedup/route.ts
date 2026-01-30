@@ -8,6 +8,7 @@ import type { Database } from '@/types/database.types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const CHUNK_SIZE = 1000;
 
 type ClientRecord = {
   id: string;
@@ -23,8 +24,41 @@ type ClientRecord = {
   deleted_at: string | null;
 };
 
-const normalizeText = (value: string | null | undefined) =>
+const stripZeroWidth = (value: string) => value.replace(/[\u200B-\u200D\uFEFF]/g, '');
+
+const stripDiacritics = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+const normalizeName = (value: string | null | undefined) => {
+  const cleaned = stripDiacritics(stripZeroWidth(value ?? ''));
+  return cleaned.replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+};
+
+const normalizeEmail = (value: string | null | undefined) =>
   (value ?? '').trim().toLowerCase();
+
+async function fetchAll<T>(
+  fetchPage: (from: number, to: number) => Promise<{ data: T[] | null; error: any }>
+): Promise<T[]> {
+  const collected: T[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await fetchPage(from, from + CHUNK_SIZE - 1);
+    if (error) {
+      throw error;
+    }
+    if (!data || data.length === 0) {
+      break;
+    }
+    collected.push(...data);
+    if (data.length < CHUNK_SIZE) {
+      break;
+    }
+    from += CHUNK_SIZE;
+  }
+
+  return collected;
+}
 
 const normalizePhoneDigits = (value: string | null | undefined) =>
   (value ?? '').replace(/[^\d]/g, '');
@@ -73,44 +107,40 @@ export async function GET(request: NextRequest) {
       auth: { persistSession: false }
     });
 
-    const { data: clienti, error: clientiError } = await admin
-      .from('clienti')
-      .select(
-        'id, nome, cognome, telefono, email, genere, data_nascita, note_cliente, created_at, updated_at, deleted_at'
-      )
-      .is('deleted_at', null);
+    const clienti = await fetchAll<ClientRecord>((from, to) =>
+      admin
+        .from('clienti')
+        .select(
+          'id, nome, cognome, telefono, email, genere, data_nascita, note_cliente, created_at, updated_at, deleted_at'
+        )
+        .is('deleted_at', null)
+        .range(from, to)
+    );
 
-    if (clientiError) {
-      return NextResponse.json({ error: 'Errore durante il caricamento clienti' }, { status: 500 });
-    }
+    const buste = await fetchAll<{ cliente_id: string | null }>((from, to) =>
+      admin
+        .from('buste')
+        .select('cliente_id')
+        .is('deleted_at', null)
+        .not('cliente_id', 'is', null)
+        .range(from, to)
+    );
 
-    const { data: buste, error: busteError } = await admin
-      .from('buste')
-      .select('cliente_id')
-      .is('deleted_at', null)
-      .not('cliente_id', 'is', null);
+    const errorTracking = await fetchAll<{ cliente_id: string | null }>((from, to) =>
+      admin
+        .from('error_tracking')
+        .select('cliente_id')
+        .not('cliente_id', 'is', null)
+        .range(from, to)
+    );
 
-    if (busteError) {
-      return NextResponse.json({ error: 'Errore durante il caricamento buste' }, { status: 500 });
-    }
-
-    const { data: errorTracking, error: errorTrackingError } = await admin
-      .from('error_tracking')
-      .select('cliente_id')
-      .not('cliente_id', 'is', null);
-
-    if (errorTrackingError) {
-      return NextResponse.json({ error: 'Errore durante il caricamento errori' }, { status: 500 });
-    }
-
-    const { data: voiceNotes, error: voiceNotesError } = await admin
-      .from('voice_notes')
-      .select('cliente_id')
-      .not('cliente_id', 'is', null);
-
-    if (voiceNotesError) {
-      return NextResponse.json({ error: 'Errore durante il caricamento voice notes' }, { status: 500 });
-    }
+    const voiceNotes = await fetchAll<{ cliente_id: string | null }>((from, to) =>
+      admin
+        .from('voice_notes')
+        .select('cliente_id')
+        .not('cliente_id', 'is', null)
+        .range(from, to)
+    );
 
     const busteCounts = new Map<string, number>();
     buste?.forEach((row) => {
@@ -139,10 +169,10 @@ export async function GET(request: NextRequest) {
 
     const grouped = new Map<string, ClientRecord[]>();
     (clienti ?? []).forEach((client) => {
-      const cognome = normalizeText(client.cognome);
-      const nome = normalizeText(client.nome);
-      if (!cognome || !nome) return;
-      const key = `${cognome}::${nome}`;
+      const fullName = normalizeName([client.cognome, client.nome].filter(Boolean).join(' '));
+      if (!fullName) return;
+      const tokens = fullName.split(' ').filter(Boolean).sort();
+      const key = tokens.join(' ');
       const group = grouped.get(key) ?? [];
       group.push(client as ClientRecord);
       grouped.set(key, group);
@@ -159,7 +189,7 @@ export async function GET(request: NextRequest) {
 
       group.forEach((client) => {
         const phone = normalizePhoneDigits(client.telefono);
-        const email = normalizeText(client.email);
+        const email = normalizeEmail(client.email);
         if (phone) {
           phoneCounts.set(phone, (phoneCounts.get(phone) ?? 0) + 1);
         }
@@ -172,6 +202,9 @@ export async function GET(request: NextRequest) {
         Array.from(phoneCounts.values()).some((count) => count > 1) ||
         Array.from(emailCounts.values()).some((count) => count > 1);
       const hasEmpty = group.some((client) => isEmptyRecord(client as ClientRecord));
+      const hasIncompleteName = group.some(
+        (client) => isEmptyValue(client.nome) || isEmptyValue(client.cognome)
+      );
 
       if (!hasContactMatch && !hasEmpty && !includeNameOnly) {
         continue;
@@ -230,6 +263,7 @@ export async function GET(request: NextRequest) {
       const reasons = [];
       if (hasContactMatch) reasons.push('contatto_coincidente');
       if (hasEmpty) reasons.push('record_vuoto');
+      if (hasIncompleteName) reasons.push('nome_incompleto');
       if (!hasContactMatch && !hasEmpty) reasons.push('nome_coincidente');
 
       groups.push({
