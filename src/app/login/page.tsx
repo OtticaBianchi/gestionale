@@ -205,11 +205,16 @@ function LoginForm() {
 
         <div className="mt-6 border-t border-slate-200 pt-6">
           <div className="mb-2 text-center text-xs text-slate-400">
-            Versione 4.3.1
+            Versione 4.3.2
           </div>
           <div className="text-xs text-slate-500">
             <div className="text-center font-medium text-slate-600">Ultimi aggiornamenti</div>
             <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+              <div className="font-semibold text-slate-700">v4.3.2 - Gennaio 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>Lavorazioni: menu LS/LV/OCV esteso con Sagom./Lab.Int., Richiamo Verifica Tecnica e Verifica Non Adattamento</li>
+                <li>Allineamento filtri lavorazioni per lenti graduate e occhiali completi</li>
+              </ul>
               <div className="font-semibold text-slate-700">v4.3.1 - Gennaio 2026</div>
               <ul className="ml-2 list-disc list-inside space-y-1">
                 <li>Dedup clienti: scansione completa con paginazione e normalizzazione avanzata</li>
