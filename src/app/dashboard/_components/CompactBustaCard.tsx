@@ -126,27 +126,27 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
 
   const suspendedClasses = busta.is_suspended
     ? 'bg-yellow-50 border border-yellow-200'
-    : 'bg-white';
+    : 'bg-white/90 border border-slate-200/80';
 
   return (
     <div
       onClick={onClick}
       data-busta-id={busta.id}
       className={`
-        ${suspendedClasses} rounded-md shadow-sm p-2.5 mb-2 border-l-4
-        hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer
+        ${suspendedClasses} rounded-lg shadow-[0_12px_28px_-24px_rgba(15,23,42,0.6)] p-2.5 mb-2 border-l-4
+        hover:shadow-[0_18px_36px_-26px_rgba(15,23,42,0.7)] hover:-translate-y-0.5 transition-all cursor-pointer
         ${priorityStyles[busta.priorita]}
       `}
     >
       {/* Row 1: ID + Nome abbreviato + Tipo Lavorazione */}
       <div className="flex justify-between items-center mb-1.5">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-xs font-bold text-gray-600">{busta.readable_id}</span>
-          <span className="text-xs text-gray-900 truncate">
+          <span className="text-xs font-bold text-slate-600">{busta.readable_id}</span>
+          <span className="text-xs text-slate-900 truncate">
             {displayName}
           </span>
         </div>
-        <span className="text-xs text-gray-700 font-semibold ml-2 flex-shrink-0">
+        <span className="text-xs text-slate-700 font-semibold ml-2 flex-shrink-0">
           {getTipoLavorazioneSigla(busta.tipo_lavorazione)}
         </span>
       </div>
@@ -155,22 +155,22 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
       <div className="flex justify-between items-center mb-2">
         <div className="flex items-center gap-2 text-xs">
           {materialsStats.da_ordinare > 0 && (
-            <span className="flex items-center gap-0.5 text-orange-700">
+            <span className="flex items-center gap-0.5 text-orange-700 rounded-full px-1.5 py-0.5 ring-1 ring-black/5 bg-orange-50">
               🛒 x{materialsStats.da_ordinare}
             </span>
           )}
           {materialsStats.in_ritardo > 0 && (
-            <span className="flex items-center gap-0.5 text-red-700">
+            <span className="flex items-center gap-0.5 text-red-700 rounded-full px-1.5 py-0.5 ring-1 ring-black/5 bg-red-50">
               ⚠️ x{materialsStats.in_ritardo}
             </span>
           )}
           {materialsStats.in_arrivo > 0 && (
-            <span className="flex items-center gap-0.5 text-cyan-700">
+            <span className="flex items-center gap-0.5 text-cyan-700 rounded-full px-1.5 py-0.5 ring-1 ring-black/5 bg-cyan-50">
               🚚 x{materialsStats.in_arrivo}
             </span>
           )}
           {materialsStats.ordinati > 0 && (
-            <span className="flex items-center gap-0.5 text-blue-700">
+            <span className="flex items-center gap-0.5 text-blue-700 rounded-full px-1.5 py-0.5 ring-1 ring-black/5 bg-blue-50">
               📦 x{materialsStats.ordinati}
             </span>
           )}
@@ -218,7 +218,7 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
       </div>
 
       {/* Row 3: Giorni apertura */}
-      <div className="flex items-center gap-1 text-[11px] text-gray-500">
+      <div className="flex items-center gap-1 text-[11px] text-slate-500">
         <Clock className="h-3 w-3" />
         <span>{daysOpen} giorni</span>
       </div>

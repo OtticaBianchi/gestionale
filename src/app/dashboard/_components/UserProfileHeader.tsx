@@ -199,20 +199,20 @@ export default function UserProfileHeader() {
   // ✅ EXISTING LOGIC: Loading state
   if (isLoading) {
     return (
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
+      <div className="border-b border-slate-200/70 bg-white/80 px-6 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <img
               src="/kiasma-logo-tondo.png"
               alt="Kiasma"
-              className="h-7 w-7 rounded-full object-cover"
+              className="h-7 w-7 rounded-full object-cover shadow-sm"
             />
-            <h1 className="text-lg font-bold text-gray-900">Kiasma</h1>
-            <span className="text-sm text-gray-500">Dashboard</span>
-            <span className="text-sm text-gray-400">v4.3.0</span>
+            <h1 className="kiasma-hero text-lg text-[var(--ink)]">Kiasma</h1>
+            <span className="text-sm text-slate-500">Dashboard</span>
+            <span className="text-sm text-slate-400">v4.3.1</span>
           </div>
 
-          <div className="flex items-center space-x-2 text-gray-500">
+          <div className="flex items-center space-x-2 text-slate-500">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span className="text-sm">Caricamento profilo...</span>
           </div>
@@ -224,23 +224,23 @@ export default function UserProfileHeader() {
   // ✅ IMPROVED: Better error/logout state messaging
   if (error || !user) {
     return (
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
+      <div className="border-b border-slate-200/70 bg-white/80 px-6 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <img
               src="/kiasma-logo-tondo.png"
               alt="Kiasma"
-              className="h-7 w-7 rounded-full object-cover"
+              className="h-7 w-7 rounded-full object-cover shadow-sm"
             />
-            <h1 className="text-lg font-bold text-gray-900">Kiasma</h1>
-            <span className="text-sm text-gray-500">Dashboard</span>
-            <span className="text-sm text-gray-400">v4.3.0</span>
+            <h1 className="kiasma-hero text-lg text-[var(--ink)]">Kiasma</h1>
+            <span className="text-sm text-slate-500">Dashboard</span>
+            <span className="text-sm text-slate-400">v4.3.1</span>
           </div>
 
           <div className="flex items-center space-x-3">
             {error && (
-              <div className="bg-orange-50 border border-orange-200 rounded-lg px-4 py-2">
-                <div className="flex items-center space-x-2 text-orange-700">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2">
+                <div className="flex items-center space-x-2 text-amber-700">
                   <AlertCircle className="h-4 w-4" />
                   <span className="text-sm font-medium">
                     {error}. Riprova o torna al login.
@@ -252,11 +252,11 @@ export default function UserProfileHeader() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => router.refresh()}
-                className="flex items-center space-x-2 px-3 py-2 bg-gray-100 text-gray-800 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                className="flex items-center space-x-2 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-800 transition-colors hover:bg-slate-200"
               >
                 Riprova
               </button>
-              <a href="/login" className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+              <a href="/login" className="rounded-lg bg-[var(--ink)] px-3 py-2 text-sm text-[var(--paper)] hover:bg-black">
                 Accedi di nuovo
               </a>
             </div>
@@ -267,25 +267,25 @@ export default function UserProfileHeader() {
   }
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-3">
+    <div className="border-b border-slate-200/70 bg-white/80 px-6 py-3 backdrop-blur">
       <div className="flex items-center justify-between">
         {/* Logo e Titolo */}
         <div className="flex items-center space-x-3">
           <img
             src="/kiasma-logo-tondo.png"
             alt="Kiasma"
-            className="h-7 w-7 rounded-full object-cover"
+            className="h-7 w-7 rounded-full object-cover shadow-sm"
           />
-          <h1 className="text-lg font-bold text-gray-900">Kiasma</h1>
-          <span className="text-sm text-gray-500">Dashboard</span>
-          <span className="text-sm text-gray-400">v4.3.0</span>
+          <h1 className="kiasma-hero text-lg text-[var(--ink)]">Kiasma</h1>
+          <span className="text-sm text-slate-500">Dashboard</span>
+          <span className="text-sm text-slate-400">v4.3.1</span>
         </div>
 
         {/* Profilo Utente */}
         <div className="flex items-center space-x-4">
           {/* Info Utente */}
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200">
               {profile?.avatar_url ? (
                 <img 
                   src={profile.avatar_url} 
@@ -299,15 +299,15 @@ export default function UserProfileHeader() {
                   }}
                 />
               ) : (
-                <User className="h-4 w-4 text-blue-600" />
+                <User className="h-4 w-4 text-[var(--teal)]" />
               )}
             </div>
             
             <div className="text-right">
-              <p className="text-sm font-medium text-gray-900">
+              <p className="text-sm font-medium text-slate-900">
                 {profile?.full_name || user.email?.split('@')[0] || 'Utente'}
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-slate-500">
                 {user.email}
               </p>
             </div>
@@ -319,7 +319,7 @@ export default function UserProfileHeader() {
               onClick={() => {
                 router.push('/profile');
               }}
-              className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+              className="rounded-lg p-2 text-slate-400 transition-colors hover:text-slate-600"
               title="Profilo Utente"
             >
               <Settings className="h-4 w-4" />
@@ -328,7 +328,7 @@ export default function UserProfileHeader() {
             <button
               onClick={handleSignOut}
               disabled={isSigningOut}
-              className="flex items-center space-x-1 px-3 py-1 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+              className="flex items-center space-x-1 rounded-md px-3 py-1 text-sm text-rose-600 transition-colors hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50"
               title="Logout"
             >
               {isSigningOut ? (

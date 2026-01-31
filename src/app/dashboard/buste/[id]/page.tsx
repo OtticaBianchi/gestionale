@@ -129,25 +129,28 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
   } as BustaDettagliata;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-[var(--paper)] text-slate-900 kiasma-body overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(15,106,110,0.16),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(178,115,75,0.16),transparent_45%),radial-gradient(circle_at_60%_80%,rgba(15,106,110,0.1),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(120deg,rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(0deg,rgba(0,0,0,0.04)_1px,transparent_1px)] [background-size:40px_40px]" />
+
       {/* Header */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="relative z-10 bg-white/80 border-b border-slate-200/70 backdrop-blur">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
               <Link
                 href="/dashboard"
-                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+                className="flex items-center space-x-2 text-slate-600 hover:text-slate-900 transition-colors"
               >
                 <ArrowLeft className="h-5 w-5" />
                 <span>Torna al Dashboard</span>
               </Link>
-              <div className="h-6 w-px bg-gray-300" />
+              <div className="h-6 w-px bg-slate-300" />
               <div>
-                <h1 className="text-xl font-semibold text-gray-900">
+                <h1 className="kiasma-hero text-xl text-[var(--ink)]">
                   Busta {bustaDettagliata.readable_id}
                 </h1>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-slate-500">
                   {bustaDettagliata.clienti?.cognome} {bustaDettagliata.clienti?.nome}
                 </p>
               </div>
@@ -157,10 +160,10 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
               {/* Status Badge */}
               <span className={`
                 inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
-                ${bustaDettagliata.stato_attuale === 'nuove' ? 'bg-blue-100 text-blue-800' :
-                  bustaDettagliata.stato_attuale === 'consegnato_pagato' ? 'bg-green-100 text-green-800' :
-                  bustaDettagliata.stato_attuale === 'pronto_ritiro' ? 'bg-purple-100 text-purple-800' :
-                  'bg-yellow-100 text-yellow-800'}
+                ${bustaDettagliata.stato_attuale === 'nuove' ? 'bg-blue-100/70 text-blue-800' :
+                  bustaDettagliata.stato_attuale === 'consegnato_pagato' ? 'bg-green-100/70 text-green-800' :
+                  bustaDettagliata.stato_attuale === 'pronto_ritiro' ? 'bg-purple-100/70 text-purple-800' :
+                  'bg-yellow-100/70 text-yellow-800'}
               `}>
                 {bustaDettagliata.stato_attuale.replace(/_/g, ' ').toUpperCase()}
               </span>
@@ -169,7 +172,7 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
               {bustaDettagliata.priorita !== 'normale' && (
                 <span className={`
                   inline-flex items-center px-3 py-1 rounded-full text-xs font-medium
-                  ${bustaDettagliata.priorita === 'critica' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}
+                  ${bustaDettagliata.priorita === 'critica' ? 'bg-red-100/70 text-red-800' : 'bg-orange-100/70 text-orange-800'}
                 `}>
                   {bustaDettagliata.priorita.toUpperCase()}
                 </span>
@@ -177,7 +180,7 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
               
               {/* Suspended Badge */}
               {bustaDettagliata.is_suspended && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-yellow-100/70 text-yellow-800">
                   SOSPESO
                 </span>
               )}
@@ -187,7 +190,7 @@ export default async function BustaDetailPage({ params }: BustaDetailPageProps) 
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <BustaDetailClient busta={bustaDettagliata} />
       </div>
     </div>

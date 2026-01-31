@@ -168,13 +168,13 @@ function DroppableColumn({
   const isFinalColumn = status === 'consegnato_pagato';
   const showSuspendedBadge = status === 'nuove' && suspendedCount > 0;
   const columnShellClasses = isFinalColumn
-    ? 'bg-emerald-50 border border-emerald-100'
-    : 'bg-gray-100';
-  const titleColor = isFinalColumn ? 'text-emerald-700' : 'text-gray-700';
+    ? 'bg-emerald-50 border border-emerald-100/80'
+    : 'bg-white/70 border border-slate-200/80 shadow-[0_12px_32px_-28px_rgba(15,23,42,0.6)]';
+  const titleColor = isFinalColumn ? 'text-emerald-700' : 'text-slate-700';
   const isInteractive = Boolean(onHeaderClick);
   const countBadgeClasses = isHeaderActive
-    ? 'bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full'
-    : 'bg-gray-300 text-gray-700 text-xs font-bold px-2 py-1 rounded-full';
+    ? 'bg-[var(--ink)] text-[var(--paper)] text-xs font-bold px-2 py-1 rounded-full'
+    : 'bg-slate-200 text-slate-700 text-xs font-bold px-2 py-1 rounded-full';
 
   return (
     <div className="flex-shrink-0 w-64">
@@ -183,14 +183,16 @@ function DroppableColumn({
           <button
             type="button"
             onClick={onHeaderClick}
-            className={`w-full flex justify-between items-center mb-4 px-2 py-1 rounded-md text-left transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-0 ${
-              isHeaderActive ? 'bg-white shadow-sm hover:bg-white' : 'hover:bg-white/70'
+            className={`w-full flex justify-between items-center mb-4 px-2 py-1 rounded-md text-left transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[var(--teal)]/40 focus:ring-offset-0 ${
+              isHeaderActive ? 'bg-white/90 shadow-sm' : 'hover:bg-white/80'
             }`}
             aria-expanded={!!isHeaderActive}
             aria-pressed={!!isHeaderActive}
           >
             <div className="flex items-center gap-2">
-              <h2 className={`font-semibold text-xs ${titleColor}`}>{getColumnName(status)}</h2>
+              <h2 className={`font-semibold text-[11px] uppercase tracking-[0.16em] ${titleColor}`}>
+                {getColumnName(status)}
+              </h2>
               {showSuspendedBadge && (
                 <span className="text-[10px] font-semibold text-yellow-800 bg-yellow-100 px-2 py-0.5 rounded-full">
                   SOSPESE {suspendedCount}
@@ -204,7 +206,9 @@ function DroppableColumn({
         ) : (
           <div className="flex justify-between items-center mb-4 px-2">
             <div className="flex items-center gap-2">
-              <h2 className={`font-semibold text-xs ${titleColor}`}>{getColumnName(status)}</h2>
+              <h2 className={`font-semibold text-[11px] uppercase tracking-[0.16em] ${titleColor}`}>
+                {getColumnName(status)}
+              </h2>
               {showSuspendedBadge && (
                 <span className="text-[10px] font-semibold text-yellow-800 bg-yellow-100 px-2 py-0.5 rounded-full">
                   SOSPESE {suspendedCount}
@@ -228,7 +232,7 @@ function DroppableColumn({
             flex-grow overflow-y-auto space-y-2 p-2 rounded transition-all duration-200
             min-h-[400px] max-h-[calc(100vh-200px)]
             ${isOver 
-              ? 'bg-blue-50 border-2 border-blue-300 border-dashed shadow-inner' 
+              ? 'bg-[var(--teal)]/5 border-2 border-[var(--teal)]/40 border-dashed shadow-inner' 
               : isFinalColumn
                 ? 'bg-emerald-50/50'
                 : 'bg-transparent'
@@ -819,7 +823,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 min-w-max h-full pb-6">
+        <div className="flex w-full justify-start items-start gap-4 min-w-max h-full pb-6">
           {columns.map(status => {
             // Only enable drawer for states except consegnato_pagato
             const enableDrawer = status !== 'consegnato_pagato';
@@ -963,11 +967,11 @@ function StatusDrawer({
   const listTitle = getColumnName(status);
 
   const priorityLabels = {
-    sospese: { label: '🟡 SOSPESE', className: 'text-yellow-800 bg-yellow-50 border-yellow-200' },
-    critica: { label: '🔴 CRITICA', className: 'text-red-700 bg-red-50 border-red-200' },
-    urgente: { label: '🟠 URGENTE', className: 'text-orange-600 bg-orange-50 border-orange-200' },
-    in_ritardo: { label: '⚠️ IN RITARDO', className: 'text-amber-600 bg-amber-50 border-amber-200' },
-    normale: { label: '⚪ NORMALE', className: 'text-gray-600 bg-gray-50 border-gray-200' }
+    sospese: { label: 'SOSPESE', className: 'text-yellow-800 bg-yellow-50/80 border-yellow-200' },
+    critica: { label: 'CRITICA', className: 'text-red-700 bg-red-50/80 border-red-200' },
+    urgente: { label: 'URGENTE', className: 'text-orange-600 bg-orange-50/80 border-orange-200' },
+    in_ritardo: { label: 'IN RITARDO', className: 'text-amber-600 bg-amber-50/80 border-amber-200' },
+    normale: { label: 'NORMALE', className: 'text-slate-600 bg-slate-50/80 border-slate-200' }
   };
 
   const priorityOrder = status === 'nuove'
@@ -1015,8 +1019,8 @@ function StatusDrawer({
                       className={`w-full flex items-center justify-between px-5 py-3 border-b transition-colors hover:brightness-95 ${className}`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold">{label}</span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/60">
+                        <span className="text-[11px] font-semibold tracking-[0.18em]">{label}</span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/70 border border-white/60">
                           {groupBuste.length}
                         </span>
                       </div>

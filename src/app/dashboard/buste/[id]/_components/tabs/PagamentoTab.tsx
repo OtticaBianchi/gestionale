@@ -685,7 +685,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
               <button
                 onClick={handleConfirmRestructure}
                 disabled={ongoingAction?.startsWith('restructure-')}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-[var(--ink)] text-[var(--paper)] rounded-md hover:bg-black transition-colors disabled:opacity-50"
               >
                 {ongoingAction?.startsWith('restructure-') ? (
                   <>
@@ -725,7 +725,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                 <button
                   onClick={() => setIsSetupOpen(true)}
                   disabled={noPaymentRequired}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-[var(--ink)] text-[var(--paper)] text-sm rounded-md hover:bg-black transition-colors disabled:opacity-50"
                   title={noPaymentRequired ? 'Ripristina la gestione pagamenti per creare un piano' : undefined}
                 >
                   Configura piano
@@ -767,7 +767,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                   <button
                     onClick={saveTotalAmount}
                     disabled={isSavingTotal || totalDraft === '' || noPaymentRequired}
-                    className="w-full text-sm bg-blue-600 text-white rounded-md py-1.5 hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    className="w-full text-sm bg-[var(--ink)] text-[var(--paper)] rounded-md py-1.5 hover:bg-black transition-colors disabled:opacity-50"
                   >
                     {isSavingTotal ? 'Salvataggio...' : 'Salva totale'}
                   </button>
@@ -1002,7 +1002,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                 <div className="flex flex-col sm:flex-row gap-2 mt-2 justify-center">
                   <button
                     onClick={() => setIsSetupOpen(true)}
-                    className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 transition-colors"
+                    className="inline-flex items-center justify-center px-4 py-2 bg-[var(--ink)] text-[var(--paper)] rounded-md text-sm hover:bg-black transition-colors"
                   >
                     <Sparkles className="w-4 h-4 mr-2" />
                     Crea nuovo piano
@@ -1029,7 +1029,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
           <button
             onClick={handleMarkPlanAsCompleted}
             disabled={ongoingAction === 'complete-plan'}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm bg-[var(--ink)] text-[var(--paper)] rounded-md hover:bg-black transition-colors disabled:opacity-50"
           >
             Completa piano
           </button>

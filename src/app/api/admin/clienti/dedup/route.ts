@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
       auth: { persistSession: false }
     });
 
-    const clienti = await fetchAll<ClientRecord>((from, to) =>
+    const clienti = await fetchAll<ClientRecord>(async (from, to) =>
       admin
         .from('clienti')
         .select(
@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
         .range(from, to)
     );
 
-    const buste = await fetchAll<{ cliente_id: string | null }>((from, to) =>
+    const buste = await fetchAll<{ cliente_id: string | null }>(async (from, to) =>
       admin
         .from('buste')
         .select('cliente_id')
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
         .range(from, to)
     );
 
-    const errorTracking = await fetchAll<{ cliente_id: string | null }>((from, to) =>
+    const errorTracking = await fetchAll<{ cliente_id: string | null }>(async (from, to) =>
       admin
         .from('error_tracking')
         .select('cliente_id')
@@ -134,7 +134,7 @@ export async function GET(request: NextRequest) {
         .range(from, to)
     );
 
-    const voiceNotes = await fetchAll<{ cliente_id: string | null }>((from, to) =>
+    const voiceNotes = await fetchAll<{ cliente_id: string | null }>(async (from, to) =>
       admin
         .from('voice_notes')
         .select('cliente_id')

@@ -186,7 +186,7 @@ function renderDashboard(busteWithCliente: BustaWithCliente[], suspendedBuste: B
         <ButtonsBar />
 
         {/* Contenuto principale - Kanban Board */}
-        <div className="flex-1 p-6 bg-gray-50 overflow-hidden">
+        <div className="flex-1 overflow-hidden py-6 pr-6 pl-0 sm:pr-6 sm:pl-0">
           <KanbanBoard buste={busteWithCliente} />
         </div>
       </div>

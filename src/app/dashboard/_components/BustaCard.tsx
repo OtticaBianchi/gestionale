@@ -470,7 +470,7 @@ export default function BustaCard({ busta }: BustaCardProps) {
 
   const suspendedClasses = busta.is_suspended
     ? 'bg-yellow-50 border border-yellow-200'
-    : 'bg-white';
+    : 'bg-white/90 border border-slate-200/80';
 
   const showBellReminder = hasOpenActions || busta.is_suspended;
   const bellReminderReasons: string[] = [];
@@ -484,20 +484,20 @@ export default function BustaCard({ busta }: BustaCardProps) {
       <div
         data-busta-id={busta.id}
         className={`
-          ${suspendedClasses} rounded-lg shadow-sm p-4 mb-3 border-l-4
-          hover:shadow-lg hover:-translate-y-2 hover:border-blue-400 transition-all cursor-pointer
+          ${suspendedClasses} rounded-xl shadow-[0_14px_32px_-26px_rgba(15,23,42,0.6)] p-4 mb-3 border-l-4
+          hover:shadow-[0_20px_45px_-30px_rgba(15,23,42,0.7)] hover:-translate-y-1 hover:border-[var(--teal)]/60 transition-all cursor-pointer
           ${priorityStyles[busta.priorita]}
         `}
       >
         {/* Row 1: ID + Nome completo + Tipo Lavorazione */}
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <span className="text-sm font-bold text-gray-700">{busta.readable_id}</span>
-            <span className="text-sm font-medium text-gray-900">
+            <span className="text-sm font-bold text-slate-700">{busta.readable_id}</span>
+            <span className="text-sm font-medium text-slate-900">
               {cliente ? `${cliente.cognome} ${cliente.nome}` : 'Cliente sconosciuto'}
             </span>
           </div>
-          <span className="text-sm text-gray-700 font-semibold ml-2 flex-shrink-0">
+          <span className="text-sm text-slate-700 font-semibold ml-2 flex-shrink-0">
             {getTipoLavorazioneSigla(busta.tipo_lavorazione)}
           </span>
         </div>
@@ -505,27 +505,27 @@ export default function BustaCard({ busta }: BustaCardProps) {
         {/* Row 2: Badge stato materiali/sospensione/rate */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           {materialsStats.da_ordinare > 0 && (
-            <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded-full font-medium">
+            <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded-full font-medium ring-1 ring-black/5">
               🛒 {materialsStats.da_ordinare} da ordinare
             </span>
           )}
           {materialsStats.in_ritardo > 0 && (
-            <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium">
+            <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full font-medium ring-1 ring-black/5">
               ⚠️ {materialsStats.in_ritardo} in ritardo
             </span>
           )}
           {materialsStats.in_arrivo > 0 && (
-            <span className="text-xs px-2 py-1 bg-cyan-100 text-cyan-700 rounded-full font-medium">
+            <span className="text-xs px-2 py-1 bg-cyan-100 text-cyan-700 rounded-full font-medium ring-1 ring-black/5">
               🚚 {materialsStats.in_arrivo} in arrivo
             </span>
           )}
           {materialsStats.ordinati > 0 && (
-            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">
+            <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium ring-1 ring-black/5">
               📦 {materialsStats.ordinati} ordinati
             </span>
           )}
           {busta.is_suspended && (
-            <span className="text-xs font-bold text-yellow-700 bg-yellow-100 px-2 py-1 rounded-full">
+            <span className="text-xs font-bold text-yellow-700 bg-yellow-100 px-2 py-1 rounded-full ring-1 ring-black/5">
               SOSPESA
             </span>
           )}
@@ -572,7 +572,7 @@ export default function BustaCard({ busta }: BustaCardProps) {
               <span>{paymentBadge.label}</span>
             </span>
             {paymentBadge.sublabel && (
-              <span className="text-xs text-gray-600 ml-2">{paymentBadge.sublabel}</span>
+              <span className="text-xs text-slate-600 ml-2">{paymentBadge.sublabel}</span>
             )}
           </div>
         )}
@@ -586,11 +586,11 @@ export default function BustaCard({ busta }: BustaCardProps) {
                   {getStatoOrdineEmoji(ordine.stato)}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-800 leading-relaxed">
+                  <p className="text-xs text-slate-800 leading-relaxed">
                     {ordine.descrizione_prodotto}
                   </p>
                   {ordine.note && (
-                    <p className="text-[10px] text-gray-500 italic mt-0.5">
+                    <p className="text-[10px] text-slate-500 italic mt-0.5">
                       Note: {ordine.note}
                     </p>
                   )}
@@ -601,12 +601,12 @@ export default function BustaCard({ busta }: BustaCardProps) {
         )}
 
         {/* Footer: Giorni aperti + Info prodotti */}
-        <div className="flex justify-between items-center mt-3 pt-2 border-t border-gray-200">
-          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+        <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-200">
+          <div className="flex items-center gap-1.5 text-xs text-slate-600">
             <Clock className="h-3.5 w-3.5" />
             <span>{daysOpen} giorni aperti</span>
           </div>
-          <div className="flex items-center gap-3 text-xs text-gray-600">
+          <div className="flex items-center gap-3 text-xs text-slate-600">
             {displayOrders.length > 0 && <span>{displayOrders.length} prodott{displayOrders.length === 1 ? 'o' : 'i'}</span>}
             {normalizedPlanType !== 'none' && paymentData.outstanding > 0.5 && (
               <span className="flex items-center gap-1 text-orange-600 font-semibold">

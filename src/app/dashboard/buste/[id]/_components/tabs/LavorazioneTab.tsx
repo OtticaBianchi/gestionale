@@ -132,16 +132,15 @@ const ACTIVITY_MATRIX: Record<string, ActivityKey[]> = {
     'controllo_qualita_pre_consegna',
     'richiamo_verifica_tecnica',
     'verifica_non_adattamento',
-    'gestione_assistenza_garanzia',
-    'riparazione_minuteria',
-    'pit_stop_occhiale'
+    'gestione_assistenza_garanzia'
   ],
   SOLE: [
+    'sagomatura_montaggio',
     'controllo_qualita_pre_consegna',
-    'riparazione_minuteria',
     'gestione_assistenza_garanzia',
-    'pit_stop_occhiale',
-    'lab_esterno'
+    'lab_esterno',
+    'richiamo_verifica_tecnica',
+    'verifica_non_adattamento'
   ],
   LAC: ['training_applicazione_lac', 'richiamo_verifica_tecnica', 'gestione_assistenza_garanzia'],
   RIPARAZIONE: ['riparazione_minuteria', 'lab_esterno', 'controllo_qualita_pre_consegna'],

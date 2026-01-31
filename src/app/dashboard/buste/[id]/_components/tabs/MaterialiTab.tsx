@@ -3511,7 +3511,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             <button
                               onClick={() => handleSaveNote(ordine.id)}
                               disabled={isSavingNote}
-                              className="px-3 py-1.5 text-xs text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
+                              className="px-3 py-1.5 text-xs text-white bg-[var(--ink)] rounded hover:bg-black disabled:opacity-50"
                             >
                               {isSavingNote ? 'Salvataggio...' : 'Salva nota'}
                             </button>
@@ -3913,7 +3913,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               </button>
               <button
                 onClick={handleSaveEvent}
-                className="px-3 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded"
+                className="px-3 py-2 text-sm text-white bg-[var(--ink)] hover:bg-black rounded"
               >
                 Salva evento
               </button>
@@ -4107,7 +4107,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               <button
                 onClick={handleSaveSospesaFollowup}
                 disabled={isSavingSospesaFollowup}
-                className="px-3 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-60"
+                className="px-3 py-2 text-sm text-white bg-[var(--ink)] hover:bg-black rounded disabled:opacity-60"
               >
                 {isSavingSospesaFollowup ? 'Salvataggio...' : 'Salva esito'}
               </button>

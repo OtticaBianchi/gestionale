@@ -31,21 +31,21 @@ export default function AccordionSection({
       {/* Section Header - Clickable */}
       <button
         onClick={toggleOpen}
-        className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-gray-100 transition-colors group"
+        className="w-full flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-white/80 transition-colors group"
       >
         <div className="flex items-center space-x-2">
-          <Icon className="h-4 w-4 text-gray-500 group-hover:text-gray-700" />
+          <Icon className="h-4 w-4 text-slate-500 group-hover:text-slate-700" />
           {!isCollapsed && (
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider group-hover:text-gray-700">
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-hover:text-slate-700">
               {title}
             </h3>
           )}
         </div>
         {!isCollapsed && (
           isOpen ? (
-            <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-gray-400" />
+            <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
           )
         )}
       </button>

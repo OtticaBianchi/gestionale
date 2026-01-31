@@ -447,43 +447,60 @@ export default function GestioneOrdiniPage() {
 
   if (isLoading || !user || !profile) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="min-h-screen bg-[var(--paper)] flex items-center justify-center kiasma-body">
+        <Loader2 className="w-8 h-8 animate-spin text-[var(--teal)]" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-[var(--paper)] text-slate-900 kiasma-body overflow-hidden">
+      <style jsx global>{`
+        :root {
+          --paper: #f6f1e9;
+          --ink: #1b1f24;
+          --teal: #0f6a6e;
+          --copper: #b2734b;
+        }
+        .kiasma-hero {
+          font-family: "DM Serif Display", "Iowan Old Style", "Times New Roman", serif;
+        }
+        .kiasma-body {
+          font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+        }
+      `}</style>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(15,106,110,0.16),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(178,115,75,0.16),transparent_45%),radial-gradient(circle_at_60%_80%,rgba(15,106,110,0.1),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(120deg,rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(0deg,rgba(0,0,0,0.04)_1px,transparent_1px)] [background-size:40px_40px]" />
+
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="relative z-10 bg-white/80 border-b border-slate-200/70 px-6 py-4 backdrop-blur">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Link
               href="/dashboard"
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+              className="flex items-center space-x-2 text-slate-600 hover:text-slate-900 transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
               <span>Torna alla Dashboard</span>
             </Link>
-            <div className="h-6 w-px bg-gray-300"></div>
+            <div className="h-6 w-px bg-slate-300"></div>
             <div className="flex items-center gap-3">
               <TabIcon className={`w-6 h-6 text-${currentTab.color}-600`} />
-              <h1 className="text-2xl font-bold text-gray-900">Gestione Ordini</h1>
+              <h1 className="kiasma-hero text-2xl text-[var(--ink)]">Gestione Ordini</h1>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <button
               onClick={() => setViewMode(viewMode === 'table' ? 'grouped' : 'table')}
-              className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+              className="px-3 py-2 text-sm border border-slate-200 rounded-md bg-white/80 hover:bg-white"
             >
               {viewMode === 'table' ? '📊 Vista Raggruppata' : '📋 Vista Tabella'}
             </button>
             <button
               onClick={fetchOrdiniEnhanced}
               disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-[var(--ink)] text-[var(--paper)] rounded-md hover:bg-black disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Aggiorna
@@ -492,24 +509,24 @@ export default function GestioneOrdiniPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="relative z-10 max-w-7xl mx-auto p-6">
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-6">
-          <div className={`bg-${currentTab.color}-50 p-4 rounded-lg`}>
-            <div className={`text-2xl font-bold text-${currentTab.color}-700`}>{stats.totalOrders}</div>
-            <div className={`text-sm text-${currentTab.color}-600`}>Ordini {currentTab.label.toLowerCase()}</div>
+          <div className={`bg-${currentTab.color}-50/60 border border-${currentTab.color}-200/60 p-4 rounded-lg`}>
+            <div className={`text-2xl font-bold text-${currentTab.color}-700/90`}>{stats.totalOrders}</div>
+            <div className={`text-sm text-${currentTab.color}-700/70`}>Ordini {currentTab.label.toLowerCase()}</div>
           </div>
-          <div className="bg-red-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-red-700">{stats.urgentOrders}</div>
-            <div className="text-sm text-red-600">Urgenti</div>
+          <div className="bg-red-50/60 border border-red-200/60 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-red-700/90">{stats.urgentOrders}</div>
+            <div className="text-sm text-red-700/70">Urgenti</div>
           </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-purple-700">{stats.totalSuppliers}</div>
-            <div className="text-sm text-purple-600">Fornitori coinvolti</div>
+          <div className="bg-purple-50/60 border border-purple-200/60 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-purple-700/90">{stats.totalSuppliers}</div>
+            <div className="text-sm text-purple-700/70">Fornitori coinvolti</div>
           </div>
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <div className="text-2xl font-bold text-orange-700">{stats.delayedOrders}</div>
-            <div className="text-sm text-orange-600">In ritardo</div>
+          <div className="bg-orange-50/60 border border-orange-200/60 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-orange-700/90">{stats.delayedOrders}</div>
+            <div className="text-sm text-orange-700/70">In ritardo</div>
           </div>
         </div>
 
@@ -523,8 +540,8 @@ export default function GestioneOrdiniPage() {
                 onClick={() => setActiveTab(tab.key)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
                   activeTab === tab.key
-                    ? `bg-${tab.color}-600 text-white border-${tab.color}-600`
-                    : `bg-white text-gray-700 border-gray-200 hover:bg-${tab.color}-50`
+                    ? 'bg-[var(--ink)] text-[var(--paper)] border-[var(--ink)] shadow-sm'
+                    : `bg-${tab.color}-50/50 text-${tab.color}-700/80 border-${tab.color}-200/60 hover:bg-${tab.color}-50/70`
                 }`}
               >
                 <Icon className="w-4 h-4" />
@@ -536,32 +553,32 @@ export default function GestioneOrdiniPage() {
 
         {/* Bulk Actions */}
         {activeTab === 'da_ordinare' && selectedOrders.size > 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="bg-blue-50/60 border border-blue-200/60 rounded-lg p-4 mb-6">
             <div className="flex items-center justify-between">
-              <span className="text-blue-800 font-medium">
+              <span className="text-blue-800/90 font-medium">
                 {selectedOrders.size} ordini selezionati
               </span>
               <div className="flex flex-wrap items-center gap-3">
-                <label className="flex items-center gap-2 text-sm text-blue-700">
+                <label className="flex items-center gap-2 text-sm text-blue-700/80">
                   <span>Data ordine</span>
                   <input
                     type="date"
                     value={bulkOrderDate}
                     onChange={(event) => setBulkOrderDate(event.target.value)}
-                    className="px-2 py-1 text-sm rounded border border-blue-200 bg-white focus:border-blue-500"
+                    className="px-2 py-1 text-sm rounded border border-blue-200/60 bg-white/80 focus:border-blue-400"
                   />
                 </label>
                 <button
                   onClick={markSelectedAsOrdered}
                   disabled={bulkUpdating}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  className="flex items-center space-x-2 px-4 py-2 bg-[var(--ink)] text-[var(--paper)] rounded-lg hover:bg-black disabled:opacity-50"
                 >
                   {bulkUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                   <span>Marca come Ordinati</span>
                 </button>
                 <button
                   onClick={() => setSelectedOrders(new Set())}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                  className="px-4 py-2 text-slate-600 hover:text-slate-800"
                 >
                   Deseleziona tutto
                 </button>
@@ -572,22 +589,22 @@ export default function GestioneOrdiniPage() {
 
         {/* Error Alert */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+          <div className="mb-6 bg-red-50/70 border border-red-200/70 text-red-800 px-4 py-3 rounded-lg">
             {error}
           </div>
         )}
 
         {/* Content */}
         {loading ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-gray-400" />
-            <p className="text-gray-500 mt-4">Caricamento ordini...</p>
+          <div className="bg-white/90 rounded-lg shadow-sm border border-slate-200/70 p-12 text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-400" />
+            <p className="text-slate-500 mt-4">Caricamento ordini...</p>
           </div>
         ) : ordini.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <Package className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-            <h4 className="text-lg font-medium text-gray-900 mb-2">Nessun ordine trovato</h4>
-            <p className="text-gray-500">
+          <div className="bg-white/90 rounded-lg shadow-sm border border-slate-200/70 p-12 text-center">
+            <Package className="w-12 h-12 mx-auto text-slate-300 mb-4" />
+            <h4 className="text-lg font-medium text-slate-900 mb-2">Nessun ordine trovato</h4>
+            <p className="text-slate-500">
               {activeTab === 'da_ordinare'
                 ? 'Tutti gli ordini sono già stati gestiti! 🎉'
                 : `Nessun ordine nello stato "${currentTab.label}"`
@@ -605,24 +622,24 @@ export default function GestioneOrdiniPage() {
                 const ordiniUrgenti = fornitore.ordini.filter(o => o.priorita === 'urgente').length
 
                 return (
-                  <div key={nomeFornitore} className="bg-white rounded-lg shadow-sm border border-gray-200">
+                  <div key={nomeFornitore} className="bg-white/90 rounded-lg shadow-sm border border-slate-200/70">
                     {/* Supplier Header */}
-                    <div className="p-4 border-b border-gray-100">
+                    <div className="p-4 border-b border-slate-200/60">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                           <button
                             onClick={() => toggleSupplier(nomeFornitore)}
-                            className="flex items-center space-x-3 hover:bg-gray-50 p-2 rounded-lg transition-colors"
+                            className="flex items-center space-x-3 hover:bg-white/80 p-2 rounded-lg transition-colors"
                           >
                             {isExpanded ?
-                              <ChevronDown className="w-5 h-5 text-gray-500" /> :
-                              <ChevronRight className="w-5 h-5 text-gray-500" />
+                              <ChevronDown className="w-5 h-5 text-slate-500" /> :
+                              <ChevronRight className="w-5 h-5 text-slate-500" />
                             }
                             <div className="text-left">
-                              <div className="font-semibold text-lg text-gray-900 flex items-center">
+                              <div className="font-semibold text-lg text-slate-900 flex items-center">
                                 {getMethodIcon(fornitore.metodo_ordine)}
                                 <span className="ml-2">{nomeFornitore}</span>
-                                <span className="ml-2 text-sm bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                                <span className="ml-2 text-sm bg-slate-100 text-slate-600 px-2 py-1 rounded">
                                   {fornitore.ordini.length} ordini
                                 </span>
                               </div>
@@ -632,24 +649,24 @@ export default function GestioneOrdiniPage() {
                           {/* Status Badges */}
                           <div className="flex space-x-2">
                             {ordiniUrgenti > 0 && (
-                              <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-medium">
+                              <span className="bg-red-100/70 text-red-700 px-2 py-1 rounded text-xs font-medium">
                                 ⚠️ {ordiniUrgenti} urgenti
                               </span>
                             )}
                             {fornitore.tempi_medi && (
-                              <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+                              <span className="bg-blue-100/70 text-blue-700 px-2 py-1 rounded text-xs font-medium">
                                 📅 {fornitore.tempi_medi}gg medi
                               </span>
                             )}
                           </div>
                         </div>
 
-                        <div className="flex items-center space-x-3">
-                          {ordiniSelezionatiFornitore > 0 && (
-                            <span className="text-sm text-blue-600">
+                          <div className="flex items-center space-x-3">
+                            {ordiniSelezionatiFornitore > 0 && (
+                            <span className="text-sm text-blue-600/80">
                               {ordiniSelezionatiFornitore}/{fornitore.ordini.length} selezionati
                             </span>
-                          )}
+                            )}
 
                           {/* Supplier Actions */}
                           <div className="flex space-x-2">
@@ -658,7 +675,7 @@ export default function GestioneOrdiniPage() {
                                 href={fornitore.web_address}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center space-x-1 px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200 transition-colors"
+                                className="flex items-center space-x-1 px-3 py-1 bg-green-100/70 text-green-700 rounded text-sm hover:bg-green-100 transition-colors"
                               >
                                 <Globe className="w-3 h-3" />
                                 <span>Portale</span>
@@ -671,7 +688,7 @@ export default function GestioneOrdiniPage() {
 
                       {/* Supplier Notes */}
                       {fornitore.note && (
-                        <div className="mt-2 p-2 bg-gray-50 rounded text-sm text-gray-600">
+                        <div className="mt-2 p-2 bg-slate-50/70 rounded text-sm text-slate-600">
                           💡 {fornitore.note}
                         </div>
                       )}
@@ -685,8 +702,8 @@ export default function GestioneOrdiniPage() {
                             key={ordine.id}
                             className={`p-4 border rounded-lg transition-colors ${
                               selectedOrders.has(ordine.id)
-                                ? 'border-blue-300 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300'
+                                ? 'border-blue-300/70 bg-blue-50/60'
+                                : 'border-slate-200/70 hover:border-slate-300'
                             }`}
                           >
                             <div className="flex items-center justify-between">
@@ -701,23 +718,23 @@ export default function GestioneOrdiniPage() {
                                 )}
 
                                 <div className="flex-1">
-                                  <div className="flex items-center space-x-3 mb-1">
-                                    <Link
-                                      href={`/dashboard/buste/${ordine.buste.id}`}
-                                      className="font-medium text-blue-600 hover:text-blue-800"
-                                    >
-                                      Busta {ordine.buste.readable_id}
-                                    </Link>
-                                    <span className={`px-2 py-1 rounded text-xs border ${getPriorityStyle(ordine.priorita, ordine.giorni_aperti)}`}>
-                                      {ordine.priorita === 'urgente' ? '⚠️ URGENTE' :
+                                <div className="flex items-center space-x-3 mb-1">
+                                  <Link
+                                    href={`/dashboard/buste/${ordine.buste.id}`}
+                                    className="font-medium text-blue-700/80 hover:text-blue-800"
+                                  >
+                                    Busta {ordine.buste.readable_id}
+                                  </Link>
+                                  <span className={`px-2 py-1 rounded text-xs border ${getPriorityStyle(ordine.priorita, ordine.giorni_aperti)}`}>
+                                    {ordine.priorita === 'urgente' ? '⚠️ URGENTE' :
                                        ordine.giorni_aperti > 5 ? '⏰ RITARDO' : '📋 Normale'}
-                                    </span>
-                                    <span className="text-sm text-gray-500">
-                                      {ordine.giorni_aperti} giorni fa
-                                    </span>
-                                  </div>
+                                  </span>
+                                  <span className="text-sm text-slate-500">
+                                    {ordine.giorni_aperti} giorni fa
+                                  </span>
+                                </div>
 
-                                  <div className="text-sm text-gray-600 flex items-center space-x-4 mb-2">
+                                  <div className="text-sm text-slate-600 flex items-center space-x-4 mb-2">
                                     <span className="flex items-center">
                                       <User className="w-3 h-3 mr-1" />
                                       {ordine.buste.clienti?.cognome} {ordine.buste.clienti?.nome}
@@ -730,12 +747,12 @@ export default function GestioneOrdiniPage() {
                                     )}
                                   </div>
 
-                                  <div className="font-medium text-gray-900 mb-1">
+                                  <div className="font-medium text-slate-900 mb-1">
                                     {ordine.descrizione_prodotto}
                                   </div>
 
                                   {ordine.note && (
-                                    <div className="text-sm text-gray-500 italic">
+                                    <div className="text-sm text-slate-500 italic">
                                       Note: {ordine.note}
                                     </div>
                                   )}
@@ -747,7 +764,7 @@ export default function GestioneOrdiniPage() {
                                 {ordine.stato === 'da_ordinare' && (
                                   <button
                                     onClick={() => openSupplierPortal(ordine)}
-                                    className="text-xs px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                                    className="text-xs px-3 py-1 rounded bg-[var(--ink)] text-[var(--paper)] hover:bg-black"
                                     title={ordine.fornitore_web_address ?
                                       `Apri portale ${ordine.fornitore_nome}` :
                                       'Apri portale mock (URL reale non disponibile)'
@@ -759,7 +776,7 @@ export default function GestioneOrdiniPage() {
                                 {(ordine.stato === 'ordinato' || ordine.stato === 'in_arrivo') && (
                                   <button
                                     onClick={() => markArrivato(ordine)}
-                                    className="text-xs px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700"
+                                    className="text-xs px-3 py-1 rounded bg-green-600/90 text-white hover:bg-green-700"
                                   >
                                     Arrivato
                                   </button>
@@ -776,9 +793,9 @@ export default function GestioneOrdiniPage() {
             </div>
           ) : (
             /* Table View */
-            <div className="overflow-x-auto bg-white border border-gray-200 rounded-lg">
+            <div className="overflow-x-auto bg-white/90 border border-slate-200/70 rounded-lg">
               <table className="min-w-full text-sm">
-                <thead className="bg-gray-100 text-gray-700">
+                <thead className="bg-slate-100/70 text-slate-700">
                   <tr>
                     {activeTab === 'da_ordinare' && <th className="text-left px-4 py-3">Sel.</th>}
                     <th className="text-left px-4 py-3">Busta</th>
@@ -792,7 +809,7 @@ export default function GestioneOrdiniPage() {
                 </thead>
                 <tbody>
                   {ordini.map((ordine) => (
-                    <tr key={ordine.id} className="border-t hover:bg-gray-50">
+                    <tr key={ordine.id} className="border-t border-slate-200/60 hover:bg-slate-50/60">
                       {activeTab === 'da_ordinare' && (
                         <td className="px-4 py-3">
                           <input
@@ -806,18 +823,18 @@ export default function GestioneOrdiniPage() {
                       <td className="px-4 py-3">
                         <Link
                           href={`/dashboard/buste/${ordine.buste.id}`}
-                          className="font-medium text-blue-600 hover:text-blue-800"
+                          className="font-medium text-blue-700/80 hover:text-blue-800"
                         >
                           {ordine.buste.readable_id}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
+                      <td className="px-4 py-3 text-slate-700">
                         {ordine.buste.clienti ? `${ordine.buste.clienti.cognome} ${ordine.buste.clienti.nome}` : '—'}
                       </td>
-                      <td className="px-4 py-3 text-gray-900">{ordine.descrizione_prodotto}</td>
-                      <td className="px-4 py-3 text-gray-700">{ordine.fornitore_nome || '—'}</td>
+                      <td className="px-4 py-3 text-slate-900">{ordine.descrizione_prodotto}</td>
+                      <td className="px-4 py-3 text-slate-700">{ordine.fornitore_nome || '—'}</td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex items-center px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full bg-slate-100/70 text-slate-700 text-xs">
                           {ordine.stato}
                         </span>
                       </td>
@@ -831,7 +848,7 @@ export default function GestioneOrdiniPage() {
                           {ordine.stato === 'da_ordinare' && (
                             <button
                               onClick={() => openSupplierPortal(ordine)}
-                              className="text-xs px-2 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
+                              className="text-xs px-2 py-1 rounded bg-[var(--ink)] text-[var(--paper)] hover:bg-black"
                               title={ordine.fornitore_web_address ?
                                 `Apri portale ${ordine.fornitore_nome}` :
                                 'Apri portale mock (URL reale non disponibile)'
@@ -843,7 +860,7 @@ export default function GestioneOrdiniPage() {
                           {(ordine.stato === 'ordinato' || ordine.stato === 'in_arrivo') && (
                             <button
                               onClick={() => markArrivato(ordine)}
-                              className="text-xs px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700"
+                              className="text-xs px-2 py-1 rounded bg-green-600/90 text-white hover:bg-green-700"
                             >
                               Arrivato
                             </button>

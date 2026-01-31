@@ -48,13 +48,13 @@ export default function ButtonsBar() {
   };
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-3">
-      <div className="flex items-center justify-center gap-2">
+    <div className="border-b border-slate-200/70 bg-white/80 px-6 py-3 backdrop-blur">
+      <div className="flex flex-wrap items-center justify-center gap-2">
         {/* Nuova Busta button - only for non-operators */}
         {userRole !== 'operatore' && (
           <Link
             href="/dashboard/buste/new"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg bg-[var(--ink)] px-3 py-2 text-sm text-[var(--paper)] transition-colors hover:bg-black"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>Nuova Busta</span>
@@ -64,7 +64,7 @@ export default function ButtonsBar() {
         {/* Ordina button */}
         <Link
           href="/modules/operations"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-md hover:bg-gray-200 transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"
         >
           <Package className="h-3.5 w-3.5" />
           <span>Ordini</span>
@@ -73,7 +73,7 @@ export default function ButtonsBar() {
         {/* Ricerca button */}
         <Link
           href="/dashboard/ricerca-avanzata"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-md hover:bg-gray-200 transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"
         >
           <Search className="h-3.5 w-3.5" />
           <span>Ricerca</span>
@@ -82,7 +82,7 @@ export default function ButtonsBar() {
         {/* Note Vocali button */}
         <Link
           href="/dashboard/voice-notes"
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-md hover:bg-gray-200 transition-colors"
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"
         >
           <Mic className="h-3.5 w-3.5" />
           <span>Note Vocali</span>
@@ -92,7 +92,7 @@ export default function ButtonsBar() {
         <button
           onClick={handleRefresh}
           disabled={isLoading}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white disabled:opacity-50"
           title="Aggiorna dati"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />

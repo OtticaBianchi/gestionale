@@ -238,12 +238,12 @@ export default function RicercaAvanzataPage() {
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'cliente': return 'bg-blue-50 border-blue-200';
+      case 'cliente': return 'bg-blue-50/60 border-blue-200/60';
       case 'prodotto':
-      case 'categoria': return 'bg-green-50 border-green-200';
-      case 'fornitore': return 'bg-purple-50 border-purple-200';
-      case 'note': return 'bg-yellow-50 border-yellow-200';
-      default: return 'bg-gray-50 border-gray-200';
+      case 'categoria': return 'bg-green-50/60 border-green-200/60';
+      case 'fornitore': return 'bg-purple-50/60 border-purple-200/60';
+      case 'note': return 'bg-yellow-50/60 border-yellow-200/60';
+      default: return 'bg-slate-50/60 border-slate-200/60';
     }
   };
 
@@ -255,25 +255,42 @@ export default function RicercaAvanzataPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-[var(--paper)] text-slate-900 kiasma-body overflow-hidden">
+      <style jsx global>{`
+        :root {
+          --paper: #f6f1e9;
+          --ink: #1b1f24;
+          --teal: #0f6a6e;
+          --copper: #b2734b;
+        }
+        .kiasma-hero {
+          font-family: "DM Serif Display", "Iowan Old Style", "Times New Roman", serif;
+        }
+        .kiasma-body {
+          font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+        }
+      `}</style>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(15,106,110,0.16),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(178,115,75,0.16),transparent_45%),radial-gradient(circle_at_60%_80%,rgba(15,106,110,0.1),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(120deg,rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(0deg,rgba(0,0,0,0.04)_1px,transparent_1px)] [background-size:40px_40px]" />
+
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="relative z-10 bg-white/80 border-b border-slate-200/70 px-6 py-4 backdrop-blur">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Link
               href="/dashboard"
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+              className="flex items-center space-x-2 text-slate-600 hover:text-slate-900 transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
               <span>Torna alla Dashboard</span>
             </Link>
-            <div className="h-6 w-px bg-gray-300"></div>
+            <div className="h-6 w-px bg-slate-300"></div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
-                <Search className="h-6 w-6 text-blue-600" />
+              <h1 className="kiasma-hero text-2xl text-[var(--ink)] flex items-center space-x-2">
+                <Search className="h-6 w-6 text-[var(--teal)]" />
                 <span>Ricerca Avanzata</span>
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-slate-500 mt-1">
                 Cerca clienti, prodotti, fornitori o note in tutte le buste
               </p>
             </div>
@@ -282,9 +299,9 @@ export default function RicercaAvanzataPage() {
       </div>
 
       {/* Search Section */}
-      <div className="p-6">
-        <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Criteri di Ricerca</h2>
+      <div className="relative z-10 p-6">
+        <div className="bg-white/90 rounded-2xl border border-slate-200/80 p-6 mb-6 shadow-[0_24px_60px_-40px_rgba(0,0,0,0.4)]">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Criteri di Ricerca</h2>
           
           {/* Search Input */}
           <div className="flex gap-4 mb-4">
@@ -295,13 +312,13 @@ export default function RicercaAvanzataPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Inserisci termine di ricerca (min. 2 caratteri)..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--teal)]/30 focus:border-transparent"
               />
             </div>
             <button
               onClick={searchAdvanced}
               disabled={isLoading}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-6 py-2 bg-[var(--ink)] text-[var(--paper)] rounded-md hover:bg-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isLoading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -320,9 +337,9 @@ export default function RicercaAvanzataPage() {
                 id="includeArchived"
                 checked={includeArchived}
                 onChange={(e) => setIncludeArchived(e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                className="w-4 h-4 text-[var(--teal)] border-slate-300 rounded focus:ring-[var(--teal)]/30"
               />
-              <label htmlFor="includeArchived" className="text-sm text-gray-700 flex items-center gap-1">
+              <label htmlFor="includeArchived" className="text-sm text-slate-700 flex items-center gap-1">
                 <Archive className="w-4 h-4" />
                 Includi archiviate
               </label>
@@ -330,10 +347,10 @@ export default function RicercaAvanzataPage() {
           </div>
 
           {/* ===== EXPANDABLE ADVANCED FILTERS ===== */}
-          <div className="mt-4 border-t border-gray-200 pt-4">
+          <div className="mt-4 border-t border-slate-200 pt-4">
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+              className="flex items-center gap-2 text-sm font-medium text-[var(--teal)] hover:text-[var(--ink)]"
             >
               {showFilters ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               {showFilters ? 'Nascondi Filtri Avanzati' : 'Mostra Filtri Avanzati'}

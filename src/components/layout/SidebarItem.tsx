@@ -43,10 +43,10 @@ export default function SidebarItem({
   `;
 
   const stateClasses = disabled
-    ? 'text-gray-400 cursor-not-allowed opacity-50 font-medium'
+    ? 'text-slate-400 cursor-not-allowed opacity-50 font-medium'
     : isActive
-    ? '!bg-blue-600 !text-white !font-bold !shadow-md hover:!bg-blue-700'
-    : 'text-gray-700 font-medium hover:bg-gray-100 hover:text-gray-900';
+    ? '!bg-[var(--ink)] !text-[var(--paper)] !font-semibold !shadow-md hover:!bg-black'
+    : 'text-slate-700 font-medium hover:bg-white/80 hover:text-slate-900';
 
   const badgeClasses: Record<NonNullable<SidebarItemProps['badgeVariant']>, string> = {
     red: 'bg-red-500 text-white',
@@ -110,9 +110,9 @@ export default function SidebarItem({
       href={href || '#'}
       className={`${className} ${baseClasses} ${stateClasses}`}
       style={isActive ? {
-        backgroundColor: '#2563eb',
-        color: 'white',
-        fontWeight: 'bold',
+        backgroundColor: '#1b1f24',
+        color: '#f6f1e9',
+        fontWeight: 600,
         boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
       } : undefined}
       title={isCollapsed ? label : undefined}

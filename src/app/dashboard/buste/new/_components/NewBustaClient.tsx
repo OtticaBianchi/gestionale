@@ -67,13 +67,39 @@ export default function NewBustaClient() {
     router.push('/login');
   };
 
+  const themeShell = (
+    <style jsx global>{`
+      :root {
+        --paper: #f6f1e9;
+        --ink: #1b1f24;
+        --teal: #0f6a6e;
+        --copper: #b2734b;
+      }
+      .kiasma-hero {
+        font-family: "DM Serif Display", "Iowan Old Style", "Times New Roman", serif;
+      }
+      .kiasma-body {
+        font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+      }
+    `}</style>
+  );
+
+  const backgroundLayer = (
+    <>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(15,106,110,0.16),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(178,115,75,0.16),transparent_45%),radial-gradient(circle_at_60%_80%,rgba(15,106,110,0.1),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(120deg,rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(0deg,rgba(0,0,0,0.04)_1px,transparent_1px)] [background-size:40px_40px]" />
+    </>
+  );
+
   // ✅ Loading state
   if (isAuthenticated === null) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Verifica autenticazione...</p>
+      <div className="relative min-h-screen bg-[var(--paper)] text-slate-900 kiasma-body flex items-center justify-center overflow-hidden">
+        {themeShell}
+        {backgroundLayer}
+        <div className="relative z-10 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--teal)] mx-auto mb-4"></div>
+          <p className="text-slate-600">Verifica autenticazione...</p>
         </div>
       </div>
     );
@@ -82,33 +108,35 @@ export default function NewBustaClient() {
   // ✅ Errore di autenticazione
   if (!isAuthenticated || authError) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-md w-full mx-4">
-          <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
+      <div className="relative min-h-screen bg-[var(--paper)] text-slate-900 kiasma-body flex items-center justify-center overflow-hidden">
+        {themeShell}
+        {backgroundLayer}
+        <div className="relative z-10 max-w-md w-full mx-4">
+          <div className="rounded-[24px] border border-slate-200 bg-white/90 p-6 shadow-[0_28px_70px_-40px_rgba(0,0,0,0.45)]">
             <div className="flex items-center space-x-3 mb-4">
-              <div className="bg-orange-100 p-2 rounded-full">
-                <AlertTriangle className="w-6 h-6 text-orange-600" />
+              <div className="bg-amber-100 p-2 rounded-full">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
               </div>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Accesso Richiesto
+              <h2 className="kiasma-hero text-lg text-[var(--ink)]">
+                Accesso richiesto
               </h2>
             </div>
             
-            <div className="space-y-4">
-              <p className="text-gray-600">
+            <div className="space-y-4 text-sm text-slate-600">
+              <p>
                 {authError || 'È necessario effettuare il login per creare una nuova busta.'}
               </p>
               
               <div className="flex space-x-3">
                 <button
                   onClick={handleReLogin}
-                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex-1 rounded-lg bg-[var(--ink)] px-4 py-2 text-[var(--paper)] hover:bg-black transition-colors"
                 >
                   Accedi
                 </button>
                 <button
                   onClick={handleCancel}
-                  className="flex-1 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors"
                 >
                   Annulla
                 </button>
@@ -126,22 +154,24 @@ export default function NewBustaClient() {
       {/* ✅ SessionManager per gestire timeout */}
       <SessionManager />
       
-      <div className="min-h-screen bg-gray-50">
+      <div className="relative min-h-screen bg-[var(--paper)] text-slate-900 kiasma-body overflow-hidden">
+        {themeShell}
+        {backgroundLayer}
         {/* ✅ Header con pulsante torna indietro */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="sticky top-0 z-10 border-b border-slate-200/70 bg-white/80 backdrop-blur">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div className="flex items-center space-x-4">
                 <button
                   onClick={handleCancel}
-                  className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+                  className="flex items-center space-x-2 text-slate-600 hover:text-slate-900 transition-colors"
                   title="Torna alla Dashboard"
                 >
                   <ArrowLeft className="w-5 h-5" />
                   <span>Dashboard</span>
                 </button>
-                <div className="h-6 w-px bg-gray-300"></div>
-                <h1 className="text-xl font-semibold text-gray-900">
+                <div className="h-6 w-px bg-slate-300"></div>
+                <h1 className="kiasma-hero text-xl text-[var(--ink)]">
                   Crea Nuova Busta
                 </h1>
               </div>
@@ -150,9 +180,9 @@ export default function NewBustaClient() {
         </div>
 
         {/* ✅ Contenuto principale */}
-        <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+        <div className="relative z-10 p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
           <div className="mb-6">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-slate-600">
               Inserisci i dettagli della nuova lavorazione. I campi obbligatori sono segnati con *.
             </p>
           </div>

@@ -254,12 +254,12 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
 
   // ===== RENDER =====
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div className="min-h-screen bg-[var(--paper)] p-4 kiasma-body">
       
       {/* ===== DELETE MODAL - SOLO PER ADMIN ===== */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+          <div className="bg-white/90 rounded-lg shadow-xl max-w-md w-full border border-slate-200/70">
             <div className="p-6">
               <div className="flex items-center space-x-3 mb-4">
                 <div className={`p-2 rounded-full ${deleteStep === 1 ? 'bg-orange-100' : 'bg-red-100'}`}>
@@ -269,18 +269,18 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                     <Trash2 className="w-6 h-6 text-red-600" />
                   )}
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">
+                <h3 className="text-lg font-semibold text-slate-900">
                   {deleteStep === 1 ? 'Conferma Cancellazione' : 'ATTENZIONE: Cancellazione Definitiva'}
                 </h3>
               </div>
 
               {deleteStep === 1 ? (
                 <div className="space-y-4">
-                  <p className="text-gray-600">
+                  <p className="text-slate-600">
                     Stai per cancellare la busta <strong>#{busta.readable_id}</strong> di{' '}
                     <strong>{busta.clienti ? `${busta.clienti.cognome} ${busta.clienti.nome}` : 'Cliente sconosciuto'}</strong>.
                   </p>
-                  <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
+                  <div className="bg-orange-50/70 border border-orange-200/70 rounded-md p-3">
                     <p className="text-sm text-orange-800">
                       <strong>Questa azione eliminerà:</strong>
                     </p>
@@ -291,13 +291,13 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                       <li>• I dati della busta</li>
                     </ul>
                   </div>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-slate-500">
                     I dati del cliente rimarranno salvati per future buste.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                  <div className="bg-red-50/70 border border-red-200/70 rounded-md p-4">
                     <p className="text-red-800 font-medium mb-2">
                       ⚠️ ULTIMA CONFERMA RICHIESTA
                     </p>
@@ -307,7 +307,7 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                       saranno persi definitivamente.
                     </p>
                   </div>
-                  <p className="text-gray-600 text-sm">
+                  <p className="text-slate-600 text-sm">
                     Sei sicuro di voler procedere con la cancellazione definitiva?
                   </p>
                 </div>
@@ -317,7 +317,7 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                 <button
                   onClick={handleDeleteCancel}
                   disabled={isDeleting}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 text-slate-700 bg-white/80 border border-slate-200 rounded-md hover:bg-white transition-colors disabled:opacity-50"
                 >
                   Annulla
                 </button>
@@ -327,8 +327,8 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                   className={`
                     px-4 py-2 rounded-md transition-colors flex items-center space-x-2 disabled:opacity-50
                     ${deleteStep === 1 
-                      ? 'bg-orange-600 text-white hover:bg-orange-700' 
-                      : 'bg-red-600 text-white hover:bg-red-700'
+                      ? 'bg-orange-600/90 text-white hover:bg-orange-700' 
+                      : 'bg-red-600/90 text-white hover:bg-red-700'
                     }
                   `}
                 >
@@ -361,27 +361,27 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
 
       {/* Header Busta */}
       <div className="max-w-7xl mx-auto mb-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="bg-white/90 rounded-lg shadow-sm border border-slate-200/70 p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-                <Package className="w-7 h-7 mr-3 text-blue-600" />
+              <h1 className="text-2xl font-bold text-slate-900 flex items-center">
+                <Package className="w-7 h-7 mr-3 text-[var(--teal)]" />
                 Busta #{busta.readable_id}
               </h1>
-              <p className="text-gray-600 mt-1">
+              <p className="text-slate-600 mt-1">
                 {busta.clienti ? `${busta.clienti.cognome} ${busta.clienti.nome}` : 'Cliente non specificato'}
               </p>
             </div>
             <div className="text-right flex items-center space-x-4">
               <div>
                 <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                  busta.priorita === 'critica' ? 'bg-red-100 text-red-800' :
-                  busta.priorita === 'urgente' ? 'bg-orange-100 text-orange-800' :
-                  'bg-gray-100 text-gray-800'
+                  busta.priorita === 'critica' ? 'bg-red-100/70 text-red-800' :
+                  busta.priorita === 'urgente' ? 'bg-orange-100/70 text-orange-800' :
+                  'bg-slate-100/70 text-slate-800'
                 }`}>
                   {busta.priorita.charAt(0).toUpperCase() + busta.priorita.slice(1)}
                 </div>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-slate-500 mt-1">
                   Stato: {busta.stato_attuale.replace(/_/g, ' ')}
                 </p>
               </div>
@@ -391,7 +391,7 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                 {(userRole === 'admin' || userRole === 'manager') && (
                   <button
                     onClick={() => setShowErrorForm(true)}
-                    className="flex items-center space-x-2 px-3 py-2 bg-orange-50 text-orange-600 rounded-md hover:bg-orange-100 transition-colors border border-orange-200 shadow-sm"
+                    className="flex items-center space-x-2 px-3 py-2 bg-orange-50/70 text-orange-700 rounded-md hover:bg-orange-50 transition-colors border border-orange-200/70 shadow-sm"
                     title="Segnala errore su questa busta"
                   >
                     <AlertTriangle className="w-4 h-4" />
@@ -403,7 +403,7 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                 {userRole === 'admin' && (
                   <button
                     onClick={() => setShowDeleteModal(true)}
-                    className="flex items-center space-x-2 px-3 py-2 bg-red-50 text-red-600 rounded-md hover:bg-red-100 transition-colors border border-red-200 shadow-sm"
+                    className="flex items-center space-x-2 px-3 py-2 bg-red-50/70 text-red-700 rounded-md hover:bg-red-50 transition-colors border border-red-200/70 shadow-sm"
                     title="Cancella busta (solo amministratore)"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -418,8 +418,8 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
 
       {/* Tab Navigation */}
       <div className="max-w-7xl mx-auto mb-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="border-b border-gray-200">
+        <div className="bg-white/90 rounded-lg shadow-sm border border-slate-200/70">
+          <div className="border-b border-slate-200/70">
             <nav className="flex space-x-8 px-6" aria-label="Tabs">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -430,8 +430,8 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
                     className={`
                       whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2
                       ${activeTab === tab.id
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                        ? 'border-blue-400/70 text-blue-700/80'
+                        : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
                       }
                     `}
                   >

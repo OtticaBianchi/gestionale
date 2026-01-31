@@ -88,15 +88,43 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold text-center text-gray-900">
-          Accesso Gestionale
-        </h2>
+    <div className="relative min-h-screen w-full overflow-hidden bg-[var(--paper)] text-slate-900">
+      <style jsx global>{`
+        :root {
+          --paper: #f6f1e9;
+          --ink: #1b1f24;
+          --teal: #0f6a6e;
+          --copper: #b2734b;
+        }
+        .kiasma-hero {
+          font-family: "DM Serif Display", "Iowan Old Style", "Times New Roman", serif;
+        }
+        .kiasma-body {
+          font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+        }
+      `}</style>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(15,106,110,0.18),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(178,115,75,0.18),transparent_45%),radial-gradient(circle_at_60%_80%,rgba(15,106,110,0.12),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(120deg,rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(0deg,rgba(0,0,0,0.04)_1px,transparent_1px)] [background-size:40px_40px]" />
+
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 kiasma-body">
+        <div className="w-full max-w-md space-y-6 rounded-[28px] border border-slate-200 bg-white/90 p-8 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.45)]">
+          <div className="flex items-center justify-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-lg">
+              <img
+                src="/kiasma-logo-tondo.png"
+                alt="Kiasma"
+                className="h-11 w-11"
+              />
+            </div>
+            <div className="text-left">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Optical Operating System</p>
+              <h2 className="kiasma-hero text-2xl text-[var(--ink)]">Accesso Kiasma</h2>
+            </div>
+          </div>
 
         {error && (
-          <div className="flex items-center p-4 text-sm text-red-800 rounded-lg bg-red-50" role="alert">
-            <AlertCircle className="flex-shrink-0 inline w-4 h-4 mr-3" />
+          <div className="flex items-center rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+            <AlertCircle className="mr-3 h-4 w-4 flex-shrink-0" />
             <div>{error}</div>
           </div>
         )}
@@ -115,7 +143,7 @@ function LoginForm() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full py-2 pl-10 pr-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                className="w-full rounded-xl border border-slate-200 bg-white/80 py-2.5 pl-10 pr-3 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--teal)]/30"
                 placeholder="Email"
               />
             </div>
@@ -133,7 +161,7 @@ function LoginForm() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full py-2 pl-10 pr-3 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                className="w-full rounded-xl border border-slate-200 bg-white/80 py-2.5 pl-10 pr-3 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--teal)]/30"
                 placeholder="Password"
               />
             </div>
@@ -142,7 +170,7 @@ function LoginForm() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
+            className="w-full rounded-xl bg-[var(--ink)] px-4 py-3 text-sm font-semibold text-[var(--paper)] transition hover:translate-y-[-1px] hover:bg-black disabled:cursor-not-allowed disabled:bg-slate-400"
           >
             {isLoading ? 'Accesso in corso...' : 'Accedi'}
           </button>
@@ -151,47 +179,52 @@ function LoginForm() {
         {/* Link reset password */}
         <div className="flex items-center justify-between text-sm">
           <div></div>
-          <a href="/reset-password" className="text-blue-600 hover:underline">Password dimenticata?</a>
+          <a href="/reset-password" className="text-slate-600 hover:text-slate-800">Password dimenticata?</a>
         </div>
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-300"></div>
+            <div className="w-full border-t border-slate-200"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Oppure</span>
+            <span className="bg-white px-2 text-slate-500">Oppure</span>
           </div>
         </div>
         
         <button
           onClick={handleMagicLink}
           disabled={isLoading || !email}
-          className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-100"
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100"
         >
           Invia link d'accesso rapido
         </button>
 
-        <div className="text-sm text-center text-gray-500">
+        <div className="text-center text-sm text-slate-500">
           La creazione di account è consentita solo su invito
         </div>
 
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <div className="text-xs text-center text-gray-400 mb-2">
-            Versione 4.3.0
+        <div className="mt-6 border-t border-slate-200 pt-6">
+          <div className="mb-2 text-center text-xs text-slate-400">
+            Versione 4.3.1
           </div>
-          <div className="text-xs text-gray-500">
-            <div className="text-center font-medium text-gray-600">Ultimi aggiornamenti</div>
-            <div className="mt-3 space-y-2 text-left bg-gray-50 p-3 rounded">
-              <div className="font-semibold text-gray-700">v4.3.0 - Gennaio 2026</div>
-              <ul className="list-disc list-inside space-y-1 ml-2">
+          <div className="text-xs text-slate-500">
+            <div className="text-center font-medium text-slate-600">Ultimi aggiornamenti</div>
+            <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+              <div className="font-semibold text-slate-700">v4.3.1 - Gennaio 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>Dedup clienti: scansione completa con paginazione e normalizzazione avanzata</li>
+                <li>Migliore riconoscimento duplicati con nomi invertiti o incompleti</li>
+              </ul>
+              <div className="font-semibold text-slate-700">v4.3.0 - Gennaio 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
                 <li>Stampa busta con note consolidate (metadati e date)</li>
                 <li>Follow-up da 11 giorni con filtri consegna corretti</li>
                 <li>Lavorazioni: date Lab Esterno + checklist DB con gating</li>
                 <li>Cestino: soft delete, recupero e svuota cestino (admin)</li>
                 <li>Dedup clienti (admin) + approvazione procedure</li>
               </ul>
-              <div className="font-semibold text-gray-700">v4.1.1 - Gennaio 2026</div>
-              <ul className="list-disc list-inside space-y-1 ml-2">
+              <div className="font-semibold text-slate-700">v4.1.1 - Gennaio 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
                 <li>Fix pagamenti: risolti vincoli DB per salvataggio importi</li>
                 <li>Segnalazione errori diretta da sidebar (apre form modale)</li>
                 <li>Sync procedure ottimizzato (aggiorna solo modificate)</li>
@@ -200,52 +233,52 @@ function LoginForm() {
               </ul>
             </div>
             <details className="mt-3">
-              <summary className="mx-auto w-fit cursor-pointer text-center font-medium text-gray-600 hover:text-gray-800 bg-white border border-gray-200 rounded-full px-3 py-1 shadow-sm">
+              <summary className="mx-auto w-fit cursor-pointer rounded-full border border-slate-200 bg-white px-3 py-1 text-center font-medium text-slate-600 shadow-sm hover:text-slate-800">
                 Storico completo
               </summary>
-              <div className="mt-3 space-y-2 text-left bg-gray-50 p-3 rounded">
-                <div className="font-semibold text-gray-700">v4.1.0 - Gennaio 2026</div>
-                <ul className="list-disc list-inside space-y-1 ml-2">
+              <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+                <div className="font-semibold text-slate-700">v4.1.0 - Gennaio 2026</div>
+                <ul className="ml-2 list-disc list-inside space-y-1">
                   <li>Nuova gestione procedure con quiz e livelli di priorità</li>
                   <li>Inserimento buste a posteriori con date ordine/consegna</li>
                   <li>Dashboard admin per lettura procedure e superamento quiz</li>
                 </ul>
-                <div className="font-semibold text-gray-700">v4.0.2 - Dicembre 2025</div>
-                <ul className="list-disc list-inside space-y-1 ml-2">
+                <div className="font-semibold text-slate-700">v4.0.2 - Dicembre 2025</div>
+                <ul className="ml-2 list-disc list-inside space-y-1">
                   <li>Import clienti manuale con form dinamico (1-9 clienti alla volta)</li>
                   <li>Capitalizzazione intelligente per nomi multi-parte (es. Di Maria, Van Der Berg)</li>
                   <li>Opzione P.Giuridica aggiunta al campo genere cliente</li>
                   <li>Sistema di validazione granulare con feedback per cliente</li>
                 </ul>
-                <div className="font-semibold text-gray-700 mt-3">v3.4.0 - Ottobre 2025</div>
-                <ul className="list-disc list-inside space-y-1 ml-2">
+                <div className="mt-3 font-semibold text-slate-700">v3.4.0 - Ottobre 2025</div>
+                <ul className="ml-2 list-disc list-inside space-y-1">
                   <li>Import clienti da CSV con validazioni e report finale</li>
                   <li>Ricerca avanzata fase 1 con filtri combinati e ID busta</li>
                   <li>Modifica rapida della descrizione in MaterialiTab</li>
                   <li>Riepiloghi stati workflow e anagrafica senza data nascita</li>
                 </ul>
-                <div className="font-semibold text-gray-700 mt-3">v3.3.0 - Ottobre 2025</div>
-                <ul className="list-disc list-inside space-y-1 ml-2">
+                <div className="mt-3 font-semibold text-slate-700">v3.3.0 - Ottobre 2025</div>
+                <ul className="ml-2 list-disc list-inside space-y-1">
                   <li>Tipo lavorazione VFT e migrazione dedicata</li>
                   <li>Spedizioni: tracking, note e date aggiornate</li>
                   <li>Ricerca note globale e categoria Ricambi guidata</li>
                   <li>Opzione "Nessuna lavorazione" rapida nel tab</li>
                 </ul>
-                <div className="font-semibold text-gray-700 mt-3">v3.1.1 - Ottobre 2025</div>
-                <ul className="list-disc list-inside space-y-1 ml-2">
+                <div className="mt-3 font-semibold text-slate-700">v3.1.1 - Ottobre 2025</div>
+                <ul className="ml-2 list-disc list-inside space-y-1">
                   <li>Nuova categoria Assistenza in MaterialiTab</li>
                   <li>Workflow migliorato con selezione tipo prodotto</li>
                   <li>Filtro fornitori intelligente per assistenza</li>
                 </ul>
-                <div className="font-semibold text-gray-700 mt-3">v3.1.0 - Ottobre 2025</div>
-                <ul className="list-disc list-inside space-y-1 ml-2">
+                <div className="mt-3 font-semibold text-slate-700">v3.1.0 - Ottobre 2025</div>
+                <ul className="ml-2 list-disc list-inside space-y-1">
                   <li>Workflow automatizzato: avanzamento automatico buste</li>
                   <li>Ordini "da negozio" per prodotti già in stock</li>
                   <li>Stato "annullato" per ordini cancellati</li>
                   <li>Workflow semplificato a 6 stati</li>
                 </ul>
-                <div className="font-semibold text-gray-700 mt-3">v3.0.1 - Ottobre 2025</div>
-                <ul className="list-disc list-inside space-y-1 ml-2">
+                <div className="mt-3 font-semibold text-slate-700">v3.0.1 - Ottobre 2025</div>
+                <ul className="ml-2 list-disc list-inside space-y-1">
                   <li>Nuova pagina Analytics con dashboard Business Intelligence</li>
                   <li>Statistiche dettagliate su lavorazioni, fornitori e fatturato</li>
                   <li>Grafici interattivi e trend mensili</li>
@@ -253,6 +286,7 @@ function LoginForm() {
               </div>
             </details>
           </div>
+        </div>
         </div>
       </div>
     </div>
@@ -262,9 +296,9 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-          <div className="text-center">Caricamento...</div>
+      <div className="relative flex min-h-screen items-center justify-center bg-[var(--paper)] text-slate-900">
+        <div className="w-full max-w-md rounded-[28px] border border-slate-200 bg-white/90 p-8 text-center shadow-[0_30px_80px_-40px_rgba(0,0,0,0.45)]">
+          Caricamento...
         </div>
       </div>
     }>

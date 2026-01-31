@@ -736,7 +736,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                       className={`px-4 py-2 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
                         editingMessageType === 'ordine_pronto' ? 'bg-green-600 hover:bg-green-700' :
                           editingMessageType === 'sollecito_ritiro' ? 'bg-orange-600 hover:bg-orange-700' :
-                            'bg-blue-600 hover:bg-blue-700'
+                            'bg-[var(--ink)] hover:bg-black'
                       }`}
                     >
                       {isSendingMessage ? (
@@ -823,7 +823,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                 <button
                   onClick={avviaNotaLibera}
                   disabled={isSendingMessage}
-                  className="w-full flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="w-full flex items-center justify-center px-4 py-2 bg-[var(--ink)] text-[var(--paper)] rounded-md hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <User className="w-4 h-4 mr-2" />
                   Aggiungi Nota
@@ -1060,7 +1060,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                       type="button"
                       onClick={handleSaveDeliverySettings}
                       disabled={!hasPendingDeliveryChanges || isSavingDelivery}
-                      className="px-4 py-2 rounded-md bg-blue-600 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="px-4 py-2 rounded-md bg-[var(--ink)] text-sm font-medium text-[var(--paper)] hover:bg-black disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isSavingDelivery ? (
                         <span className="flex items-center justify-center">
@@ -1174,7 +1174,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                                   });
                                 }}
                                 disabled={isSavingDelivery}
-                                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="px-4 py-2 bg-[var(--ink)] text-[var(--paper)] text-sm rounded-md hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed"
                               >
                                 📦 Spedito
                               </button>
@@ -1263,7 +1263,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                 type="button"
                 onClick={handleSaveShippingInfo}
                 disabled={isSavingDelivery || (numeroTracking === (busta.numero_tracking || '') && noteSpedizione === (busta.note_spedizione || ''))}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-[var(--ink)] text-[var(--paper)] text-sm font-medium rounded-md hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isSavingDelivery ? (
                   <>

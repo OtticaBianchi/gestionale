@@ -32,10 +32,6 @@ const LiveClock = () => {
     )
   }
 
-// test deploy automatico
-// belin che casino sto vercel
-// test con deploy hook ricreato
-
   const formattedDate = time.toLocaleDateString('it-IT', {
     weekday: 'long',
     year: 'numeric',
@@ -85,80 +81,126 @@ export default function WelcomePage() {
   ]
 
   return (
-    <div className="min-h-screen w-full bg-gray-900 text-white relative overflow-hidden">
-      {/* Sfondo con effetto gradiente e blur */}
-      <div className="absolute top-0 left-0 w-full h-full bg-contain bg-center bg-no-repeat" style={{backgroundImage: "url('/Kiasma-hero.png')"}}></div>
-      <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-black/25 via-black/25 to-black/45"></div>
+    <div className="min-h-screen w-full text-slate-900 relative overflow-hidden bg-[var(--paper)]">
+      <style jsx global>{`
+        :root {
+          --paper: #f6f1e9;
+          --ink: #1b1f24;
+          --teal: #0f6a6e;
+          --copper: #b2734b;
+        }
+        .kiasma-hero {
+          font-family: "DM Serif Display", "Iowan Old Style", "Times New Roman", serif;
+        }
+        .kiasma-body {
+          font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+        }
+      `}</style>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(15,106,110,0.18),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(178,115,75,0.18),transparent_45%),radial-gradient(circle_at_60%_80%,rgba(15,106,110,0.12),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-40 [background-image:linear-gradient(120deg,rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(0deg,rgba(0,0,0,0.04)_1px,transparent_1px)] [background-size:40px_40px]" />
 
-      <div className="relative z-10 flex flex-col justify-between min-h-screen p-4 sm:p-8">
-        {/* Header con data e ora */}
-        <header className="w-full max-w-7xl mx-auto">
-          <LiveClock />
+      <div className="relative z-10 flex min-h-screen flex-col px-5 py-6 sm:px-10 sm:py-8 kiasma-body">
+        <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white shadow-lg">
+              <img
+                src="/kiasma-logo-tondo.png"
+                alt="Kiasma"
+                className="h-10 w-10"
+              />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Optical Operating System</p>
+              <h1 className="kiasma-hero text-2xl text-[var(--ink)]">Kiasma</h1>
+            </div>
+          </div>
+          <div className="text-sm text-slate-600">
+            <LiveClock />
+          </div>
         </header>
 
-        {/* Contenuto Centrale */}
-        <main className="flex-grow flex items-end justify-start">
-          <div 
-            className="w-full max-w-md p-6 space-y-5 rounded-2xl
-                       bg-white/10 backdrop-blur-md border border-white/20 shadow-lg"
-          >
-            <div className="text-center">
-              <h1 className="text-2xl sm:text-3xl font-bold">Gestionale Ottica Bianchi</h1>
-              <p className="mt-2 text-gray-300">La tua piattaforma per la gestione operativa.</p>
+        <main className="mx-auto mt-8 flex w-full max-w-6xl flex-1 flex-col gap-6 lg:flex-row lg:items-center">
+          <section className="flex-1 space-y-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1 text-xs text-slate-600 shadow-sm">
+              <span className="h-2 w-2 rounded-full bg-[var(--teal)]" />
+              Sistema operativo per l&apos;ottica moderna
             </div>
-            
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button 
-                onClick={() => router.push('/login')}
-                className="w-full flex items-center justify-center gap-2 px-5 py-2.5 font-semibold 
-                           bg-blue-600 hover:bg-blue-500 rounded-lg transition-all"
-              >
-                <span>Accedi</span>
-                <ArrowRight className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={() => router.push('/signup')}
-                className="w-full px-5 py-2.5 font-semibold bg-white/20 hover:bg-white/30 rounded-lg transition-all"
-              >
-                Registrati
-              </button>
-            </div>
-          </div>
-        </main>
+            <h2 className="kiasma-hero text-4xl leading-tight text-[var(--ink)] sm:text-5xl">
+              Dove precisione e cura si incontrano.
+            </h2>
+            <p className="max-w-xl text-base text-slate-600">
+              Il Sistema Operativo del tuo Centro Ottico: raccoglie ogni informazione, la interpreta,
+              la rielabora e ti guida verso decisioni strategiche, con chiarezza e controllo.
+            </p>
 
-        {/* Footer con aggiornamenti */}
-        <footer className="w-full max-w-7xl mx-auto">
-          {/* Colonna Aggiornamenti */}
-          <div className="bg-black/20 p-4 rounded-lg backdrop-blur-sm max-w-2xl">
-            <div className="flex items-center gap-2 mb-2">
-              <Info className="w-5 h-5 text-blue-400" />
-              <h3 className="font-semibold">Ultimi Aggiornamenti</h3>
+            <div className="rounded-3xl border border-slate-200 bg-white/80 p-5 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.4)]">
+              <div className="mb-3 flex items-center gap-2 text-sm text-slate-700">
+                <Info className="h-4 w-4 text-[var(--teal)]" />
+                Ultimi Aggiornamenti
+              </div>
+              <ul className="space-y-2 text-sm text-slate-600">
+                {changelog.slice(0, 3).map((item) => (
+                  <li key={item.version} className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 rounded-full bg-[var(--ink)]/90 px-2 py-0.5 text-[10px] font-semibold text-[var(--paper)]">
+                        v{item.version}
+                      </span>
+                      <div>
+                        <p className="text-xs text-slate-400">{item.date}</p>
+                        <p>{item.description}</p>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {changelog.length > 3 && (
+                <details className="mt-3 text-sm text-slate-600">
+                  <summary className="cursor-pointer text-slate-500 hover:text-slate-700">Storico completo</summary>
+                  <ul className="mt-2 space-y-2">
+                    {changelog.slice(3).map((item) => (
+                      <li key={item.version} className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                        <span className="mr-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                          v{item.version}
+                        </span>
+                        {item.description}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </div>
-            <ul className="text-sm space-y-1 text-gray-300">
-              {changelog.slice(0, 2).map(item => (
-                <li key={item.version}>
-                  <span className="font-mono bg-gray-700 px-1.5 py-0.5 rounded text-xs mr-2">{item.version}</span>
-                  {item.description}
-                </li>
-              ))}
-            </ul>
-            {changelog.length > 2 && (
-              <details className="mt-3 text-sm text-gray-300">
-                <summary className="cursor-pointer text-gray-200 hover:text-white font-medium">
-                  Storico completo
-                </summary>
-                <ul className="mt-2 space-y-1 text-gray-300">
-                  {changelog.slice(2).map(item => (
-                    <li key={item.version}>
-                      <span className="font-mono bg-gray-700 px-1.5 py-0.5 rounded text-xs mr-2">{item.version}</span>
-                      {item.description}
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </div>
-        </footer>
+          </section>
+
+          <aside className="w-full max-w-md">
+            <div className="rounded-[28px] border border-slate-200 bg-white/90 p-6 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.45)]">
+              <div className="mb-4">
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Accesso rapido</p>
+                <h3 className="kiasma-hero text-2xl text-[var(--ink)]">Area Operatori</h3>
+                <p className="mt-1 text-sm text-slate-500">Accedi per gestire buste, clienti e workflow.</p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => router.push('/login')}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--ink)] px-5 py-3 text-sm font-semibold text-[var(--paper)] transition hover:translate-y-[-1px] hover:bg-black"
+                >
+                  Accedi
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => router.push('/signup')}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+                >
+                  Richiedi accesso
+                </button>
+              </div>
+
+              <div className="mt-5 rounded-2xl bg-[var(--paper)] px-4 py-3 text-xs text-slate-500">
+                Supporto clienti e formazione inclusi. Versione attuale: <strong>4.3.1</strong>
+              </div>
+            </div>
+          </aside>
+        </main>
       </div>
     </div>
   )

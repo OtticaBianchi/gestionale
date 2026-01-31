@@ -380,23 +380,25 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
 
       {/* Sidebar */}
       <div className={`
-        fixed top-0 left-0 h-screen bg-white border-r border-gray-200 z-50
-        transition-all duration-300 ease-in-out flex flex-col
+        fixed top-0 left-0 h-screen bg-white/70 border-r border-slate-200/70 z-50 backdrop-blur-xl
+        transition-all duration-300 ease-in-out flex flex-col kiasma-body relative
         ${isCollapsed ? 'w-16' : 'w-64'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${className}
       `}>
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_10%,rgba(15,106,110,0.12),transparent_55%),radial-gradient(circle_at_80%_20%,rgba(178,115,75,0.12),transparent_50%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-30 [background-image:linear-gradient(120deg,rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(0deg,rgba(0,0,0,0.04)_1px,transparent_1px)] [background-size:32px_32px]" />
 
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 flex-shrink-0">
+        <div className="relative z-10 flex items-center justify-between p-4 border-b border-slate-200/70 flex-shrink-0">
           {!isCollapsed && (
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-slate-900">
               Menu
             </h2>
           )}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1 rounded-md hover:bg-gray-100 transition-colors hidden lg:block"
+            className="p-1 rounded-md hover:bg-slate-100 transition-colors hidden lg:block"
           >
             {isCollapsed ? (
               <ChevronRight className="h-4 w-4" />
@@ -407,7 +409,7 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
         </div>
 
         {/* Menu Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+        <div className="relative z-10 flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
 
           {/* 2.A - Kanban Board (Homepage) */}
           <SidebarItem
