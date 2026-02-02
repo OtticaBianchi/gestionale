@@ -506,6 +506,24 @@ export type Database = {
           },
         ]
       }
+      classificazione_lenti: {
+        Row: {
+          id: string
+          nome: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          nome: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          nome?: string
+          created_at?: string | null
+        }
+        Relationships: []
+      }
       clienti: {
         Row: {
           categoria_cliente: string | null
@@ -1655,6 +1673,7 @@ export type Database = {
           alert_ritardo_inviato: boolean | null
           busta_id: string
           categoria_fornitore: string | null
+          classificazione_lenti_id: string | null
           comunicazione_automatica_inviata: boolean | null
           created_at: string | null
           creato_da: string | null
@@ -1685,6 +1704,7 @@ export type Database = {
           stato_disponibilita: string
           tipo_lenti_id: string | null
           tipo_ordine_id: number | null
+          trattamenti: string[] | null
           deleted_at: string | null
           deleted_by: string | null
           updated_at: string | null
@@ -1694,6 +1714,7 @@ export type Database = {
           alert_ritardo_inviato?: boolean | null
           busta_id: string
           categoria_fornitore?: string | null
+          classificazione_lenti_id?: string | null
           comunicazione_automatica_inviata?: boolean | null
           created_at?: string | null
           creato_da?: string | null
@@ -1724,6 +1745,7 @@ export type Database = {
           stato_disponibilita?: string
           tipo_lenti_id?: string | null
           tipo_ordine_id?: number | null
+          trattamenti?: string[] | null
           deleted_at?: string | null
           deleted_by?: string | null
           updated_at?: string | null
@@ -1733,6 +1755,7 @@ export type Database = {
           alert_ritardo_inviato?: boolean | null
           busta_id?: string
           categoria_fornitore?: string | null
+          classificazione_lenti_id?: string | null
           comunicazione_automatica_inviata?: boolean | null
           created_at?: string | null
           creato_da?: string | null
@@ -1763,6 +1786,7 @@ export type Database = {
           stato_disponibilita?: string
           tipo_lenti_id?: string | null
           tipo_ordine_id?: number | null
+          trattamenti?: string[] | null
           deleted_at?: string | null
           deleted_by?: string | null
           updated_at?: string | null
@@ -1816,6 +1840,13 @@ export type Database = {
             columns: ["fornitore_sport_id"]
             isOneToOne: false
             referencedRelation: "fornitori_sport"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_classificazione_lenti_id_fkey"
+            columns: ["classificazione_lenti_id"]
+            isOneToOne: false
+            referencedRelation: "classificazione_lenti"
             referencedColumns: ["id"]
           },
           {

@@ -9,6 +9,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { Database } from '@/types/database.types';
+import { LENS_TREATMENTS } from '@/lib/constants/lens-types';
 
 export async function GET(request: NextRequest) {
   try {
@@ -86,25 +87,58 @@ export async function GET(request: NextRequest) {
       dateFilterFn = () => true;
     }
 
+    const leadStartDate = new Date('2026-01-02');
+    const leadDateFilter = (date: string | null) => {
+      if (!date) return false;
+      const parsed = new Date(date);
+      if (Number.isNaN(parsed.getTime())) return false;
+      if (parsed < leadStartDate) return false;
+      return dateFilterFn(date);
+    };
+
+    const diffDays = (start: string, end: string) => {
+      const startDate = new Date(start);
+      const endDate = new Date(end);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
+      return (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+    };
+
     // Fetch all ordini_materiali with related data
+    const deliveredStates = ['consegnato', 'accettato_con_riserva', 'rifiutato'] as const;
+    const isDeliveredState = (value: string | null | undefined): value is typeof deliveredStates[number] =>
+      Boolean(value) && deliveredStates.includes(value as typeof deliveredStates[number]);
+
     const { data: ordiniAll, error: ordiniError } = await supabase
       .from('ordini_materiali')
       .select(`
         id,
+        stato,
         created_at,
         busta_id,
+        data_ordine,
+        data_consegna_effettiva,
         tipo_lenti_id,
+        classificazione_lenti_id,
+        trattamenti,
         tipi_lenti:tipo_lenti_id(nome),
+        classificazione_lenti:classificazione_lenti_id(nome),
         fornitori_montature:fornitore_montature_id(nome),
         fornitori_sport:fornitore_sport_id(nome),
         fornitori_lenti:fornitore_lenti_id(nome),
         fornitori_lac:fornitore_lac_id(nome),
-        buste:busta_id(tipo_lavorazione, cliente_id)
-      `);
+        buste:busta_id(tipo_lavorazione, cliente_id, deleted_at, data_apertura, archived_mode)
+      `)
+      .is('deleted_at', null)
+      .in('stato', deliveredStates)
+      .is('buste.deleted_at', null);
 
     if (ordiniError) throw ordiniError;
 
-    const filteredOrdini = ordiniAll?.filter(o => dateFilterFn(o.created_at)) || [];
+    const filteredOrdini = (ordiniAll || []).filter(o => {
+      const archivedMode = (o.buste as any)?.archived_mode;
+      if (archivedMode === 'ANNULLATA') return false;
+      return dateFilterFn(o.created_at);
+    });
 
     // Get unique busta IDs and cliente IDs from filtered orders
     const bustaIds = [...new Set(filteredOrdini.map(o => o.busta_id))];
@@ -141,6 +175,130 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // 2.3 CLASSIFICAZIONE LENTI STATISTICS
+    const classificazioneLentiStats: Record<string, number> = {};
+    filteredOrdini.forEach(ordine => {
+      if (ordine.tipo_lenti_id) {
+        const nome = (ordine.classificazione_lenti as any)?.nome || 'Non specificato';
+        classificazioneLentiStats[nome] = (classificazioneLentiStats[nome] || 0) + 1;
+      }
+    });
+
+    // 2.5 TRATTAMENTI STATISTICS
+    const trattamentiStats: Record<string, number> = {};
+    let ordersWithTrattamenti = 0;
+    const NONE_TREATMENT = LENS_TREATMENTS.NESSUNO;
+    filteredOrdini.forEach(ordine => {
+      const trattamenti = ordine.trattamenti as string[] | null;
+      if (trattamenti && Array.isArray(trattamenti) && trattamenti.length > 0) {
+        const normalized = trattamenti.filter(Boolean);
+        if (normalized.length === 0) return;
+
+        const hasNone = normalized.includes(NONE_TREATMENT);
+        const effective = hasNone
+          ? normalized.filter(t => t !== NONE_TREATMENT)
+          : normalized;
+
+        if (hasNone && effective.length === 0) {
+          trattamentiStats[NONE_TREATMENT] = (trattamentiStats[NONE_TREATMENT] || 0) + 1;
+          return;
+        }
+
+        if (effective.length > 0) {
+          ordersWithTrattamenti++;
+          effective.forEach(t => {
+            trattamentiStats[t] = (trattamentiStats[t] || 0) + 1;
+          });
+        }
+      }
+    });
+
+    // 2.6 TRATTAMENTI BY TIPO LENTI (cross-analysis)
+    const trattamentiByTipoLenti: Record<string, Record<string, number>> = {};
+    filteredOrdini.forEach(ordine => {
+      const tipoLente = (ordine.tipi_lenti as any)?.nome;
+      const trattamenti = ordine.trattamenti as string[] | null;
+      if (tipoLente && trattamenti && Array.isArray(trattamenti)) {
+        if (!trattamentiByTipoLenti[tipoLente]) {
+          trattamentiByTipoLenti[tipoLente] = {};
+        }
+        const normalized = trattamenti.filter(Boolean);
+        const effective = normalized.includes(NONE_TREATMENT)
+          ? normalized.filter(t => t !== NONE_TREATMENT)
+          : normalized;
+
+        if (effective.length === 0) return;
+
+        effective.forEach(t => {
+          trattamentiByTipoLenti[tipoLente][t] = (trattamentiByTipoLenti[tipoLente][t] || 0) + 1;
+        });
+      }
+    });
+
+    // 2.7 TEMPI MEDI CONSEGNA LENTI (fornitori_lenti + tipo lenti)
+    const lensDeliveryBySupplier: Record<string, {
+      totalDays: number;
+      count: number;
+      byTipo: Record<string, { totalDays: number; count: number }>;
+    }> = {};
+    const lensDeliveryTypes = new Set<string>();
+
+    (ordiniAll || []).forEach(ordine => {
+      if (!ordine.data_ordine || !ordine.data_consegna_effettiva) return;
+      if (!isDeliveredState(ordine.stato)) return;
+      if (!dateFilterFn(ordine.data_consegna_effettiva)) return;
+      if ((ordine.buste as any)?.archived_mode === 'ANNULLATA') return;
+
+      const supplier = (ordine.fornitori_lenti as any)?.nome;
+      if (!supplier) return;
+
+      const tipo = (ordine.tipi_lenti as any)?.nome || 'Non specificato';
+      lensDeliveryTypes.add(tipo);
+
+      const days = diffDays(ordine.data_ordine, ordine.data_consegna_effettiva);
+      if (days === null || days < 0) return;
+
+      if (!lensDeliveryBySupplier[supplier]) {
+        lensDeliveryBySupplier[supplier] = { totalDays: 0, count: 0, byTipo: {} };
+      }
+
+      lensDeliveryBySupplier[supplier].totalDays += days;
+      lensDeliveryBySupplier[supplier].count += 1;
+
+      if (!lensDeliveryBySupplier[supplier].byTipo[tipo]) {
+        lensDeliveryBySupplier[supplier].byTipo[tipo] = { totalDays: 0, count: 0 };
+      }
+      lensDeliveryBySupplier[supplier].byTipo[tipo].totalDays += days;
+      lensDeliveryBySupplier[supplier].byTipo[tipo].count += 1;
+    });
+
+    const lensDeliveryTypeOrder = ['Stock', 'Rx', 'Special', 'Non specificato'];
+    const lensDeliveryTypesSorted = Array.from(lensDeliveryTypes).sort((a, b) => {
+      const idxA = lensDeliveryTypeOrder.indexOf(a);
+      const idxB = lensDeliveryTypeOrder.indexOf(b);
+      if (idxA !== -1 || idxB !== -1) {
+        return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+      }
+      return a.localeCompare(b);
+    });
+
+    const lensDeliveryRows = Object.entries(lensDeliveryBySupplier)
+      .map(([supplier, stats]) => ({
+        supplier,
+        total_orders: stats.count,
+        avg_days: stats.count > 0 ? stats.totalDays / stats.count : null,
+        by_tipo: Object.fromEntries(
+          lensDeliveryTypesSorted.map(tipo => {
+            const record = stats.byTipo[tipo];
+            return [tipo, record ? {
+              avg_days: record.count > 0 ? record.totalDays / record.count : null,
+              count: record.count
+            } : null];
+          })
+        )
+      }))
+      .sort((a, b) => (b.total_orders - a.total_orders) || a.supplier.localeCompare(b.supplier));
+
     // 3. BRAND ANALYTICS
     const brandStats: Record<string, number> = {};
     filteredOrdini.forEach(ordine => {
@@ -155,25 +313,7 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // 4. SUNGLASSES BY BRAND (OS/LS tipo + fornitore)
-    const sunglassesByBrand: Record<string, number> = {};
-    const occhialiSoleBustaIds = [...bustaToTipoMap.entries()]
-      .filter(([_, tipo]) => tipo === 'OS' || tipo === 'LS')
-      .map(([id]) => id);
-
-    filteredOrdini.forEach(ordine => {
-      if (occhialiSoleBustaIds.includes(ordine.busta_id)) {
-        const fornitore =
-          (ordine.fornitori_montature as any)?.nome ||
-          (ordine.fornitori_sport as any)?.nome;
-
-        if (fornitore) {
-          sunglassesByBrand[fornitore] = (sunglassesByBrand[fornitore] || 0) + 1;
-        }
-      }
-    });
-
-    // 5. GENDER STATISTICS
+    // 4. GENDER STATISTICS
     const genderStats: Record<string, number> = {};
     bustaToTipoMap.forEach((_, bustaId) => {
       const ordine = filteredOrdini.find(o => o.busta_id === bustaId);
@@ -184,42 +324,16 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // 6. SUNGLASSES BY GENDER + BRAND
-    const sunglassesByGenderBrand: Record<string, any[]> = {
-      maschio: [],
-      femmina: [],
-    };
-
-    occhialiSoleBustaIds.forEach(bustaId => {
-      const ordine = filteredOrdini.find(o => o.busta_id === bustaId);
-      if (!ordine) return;
-
-      const clienteId = (ordine.buste as any)?.cliente_id;
-      const genere = clienteGenereMap.get(clienteId);
-
-      if (genere === 'maschio' || genere === 'femmina') {
-        const fornitore =
-          (ordine.fornitori_montature as any)?.nome ||
-          (ordine.fornitori_sport as any)?.nome;
-
-        if (fornitore) {
-          const existing = sunglassesByGenderBrand[genere].find(item => item.brand === fornitore);
-          if (existing) {
-            existing.count += 1;
-          } else {
-            sunglassesByGenderBrand[genere].push({ brand: fornitore, count: 1 });
-          }
-        }
-      }
-    });
-
-    // 7. WARRANTY REPLACEMENTS
+    // 5. WARRANTY REPLACEMENTS
     const warrantyReplacements = [...bustaToTipoMap.values()].filter(tipo => tipo === 'SG').length;
 
-    // 8. MONTHLY TREND (last 12 months) - using all ordini not just filtered
+    // 6. MONTHLY TREND (last 12 months) - using all ordini not just filtered
     const { data: allOrdiniForTrend } = await supabase
       .from('ordini_materiali')
-      .select('created_at, buste:busta_id(tipo_lavorazione)');
+      .select('created_at, stato, buste:busta_id(tipo_lavorazione, deleted_at)')
+      .is('deleted_at', null)
+      .in('stato', deliveredStates)
+      .is('buste.deleted_at', null);
 
     const monthlyTrend = [];
     for (let i = 11; i >= 0; i--) {
@@ -253,7 +367,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 9. REVENUE BY TIPO LAVORAZIONE
+    // 7. REVENUE BY TIPO LAVORAZIONE
     const { data: paymentsData } = await supabase
       .from('info_pagamenti')
       .select('prezzo_finale, importo_acconto, is_saldato, busta_id, buste:busta_id(tipo_lavorazione)')
@@ -279,6 +393,96 @@ export async function GET(request: NextRequest) {
       if (p.is_saldato) saldateCount += 1;
     });
 
+    // 8. LEAD TIME BUSTA PER TIPO LAVORAZIONE
+    const { data: statusHistoryRows } = await supabase
+      .from('status_history')
+      .select('busta_id, data_ingresso, buste!inner(id, tipo_lavorazione, data_apertura, archived_mode, deleted_at)')
+      .eq('stato', 'consegnato_pagato')
+      .is('buste.deleted_at', null);
+
+    const leadByBusta = new Map<string, { openDate: string; closeDate: string; tipo: string }>();
+    (statusHistoryRows || []).forEach((row: any) => {
+      const busta = row.buste;
+      if (!busta || busta.archived_mode === 'ANNULLATA') return;
+      const dataApertura = busta.data_apertura;
+      if (!leadDateFilter(dataApertura)) return;
+      const dataIngresso = row.data_ingresso;
+      if (!dataIngresso) return;
+
+      const existing = leadByBusta.get(row.busta_id);
+      if (!existing || new Date(dataIngresso) < new Date(existing.closeDate)) {
+        leadByBusta.set(row.busta_id, {
+          openDate: dataApertura,
+          closeDate: dataIngresso,
+          tipo: busta.tipo_lavorazione || 'Non specificato'
+        });
+      }
+    });
+
+    const leadTimeByTipo: Record<string, { totalDays: number; count: number }> = {};
+    leadByBusta.forEach((value) => {
+      const days = diffDays(value.openDate, value.closeDate);
+      if (days === null || days < 0) return;
+      if (!leadTimeByTipo[value.tipo]) {
+        leadTimeByTipo[value.tipo] = { totalDays: 0, count: 0 };
+      }
+      leadTimeByTipo[value.tipo].totalDays += days;
+      leadTimeByTipo[value.tipo].count += 1;
+    });
+
+    const leadTimeRows = Object.entries(leadTimeByTipo)
+      .map(([tipo, stats]) => ({
+        tipo,
+        avg_days: stats.count > 0 ? stats.totalDays / stats.count : null,
+        count: stats.count
+      }))
+      .sort((a, b) => (b.count - a.count) || a.tipo.localeCompare(b.tipo));
+
+    // 9. PAYMENT TYPE DISTRIBUTION + ACCONTO
+    const { data: bustePayments } = await supabase
+      .from('buste')
+      .select('id, data_apertura, archived_mode, deleted_at, payment_plan:payment_plans(payment_type), info_pagamenti(importo_acconto, ha_acconto, modalita_saldo)')
+      .is('deleted_at', null);
+
+    const paymentTypeStats: Record<string, number> = {
+      saldo_unico: 0,
+      installments: 0,
+      finanziamento_bancario: 0,
+      non_classificato: 0
+    };
+
+    let busteConsiderate = 0;
+    let busteConAcconto = 0;
+
+    const normalizePaymentType = (planType?: string | null, modalita?: string | null) => {
+      if (planType === 'saldo_unico') return 'saldo_unico';
+      if (planType === 'installments') return 'installments';
+      if (planType === 'finanziamento_bancario') return 'finanziamento_bancario';
+      if (!planType) {
+        if (modalita === 'saldo_unico') return 'saldo_unico';
+        if (modalita === 'finanziamento') return 'finanziamento_bancario';
+        if (modalita === 'due_rate' || modalita === 'tre_rate') return 'installments';
+      }
+      return 'non_classificato';
+    };
+
+    (bustePayments || []).forEach((busta: any) => {
+      if (busta.archived_mode === 'ANNULLATA') return;
+      if (!leadDateFilter(busta.data_apertura)) return;
+
+      busteConsiderate += 1;
+      const planType = busta.payment_plan?.payment_type ?? null;
+      const modalitaSaldo = busta.info_pagamenti?.modalita_saldo ?? null;
+      const normalized = normalizePaymentType(planType, modalitaSaldo);
+      paymentTypeStats[normalized] = (paymentTypeStats[normalized] || 0) + 1;
+
+      const acconto = busta.info_pagamenti?.importo_acconto ?? 0;
+      const haAcconto = busta.info_pagamenti?.ha_acconto ?? false;
+      if (haAcconto || acconto > 0) {
+        busteConAcconto += 1;
+      }
+    });
+
     // Response
     return NextResponse.json({
       success: true,
@@ -295,10 +499,22 @@ export async function GET(request: NextRequest) {
         stats: tipoLentiStats,
         total: Object.values(tipoLentiStats).reduce((a, b) => a + b, 0),
       },
+      classificazione_lenti: {
+        stats: classificazioneLentiStats,
+        total: Object.values(classificazioneLentiStats).reduce((a, b) => a + b, 0),
+      },
+      trattamenti: {
+        stats: trattamentiStats,
+        total: Object.values(trattamentiStats).reduce((a, b) => a + b, 0),
+        orders_with_trattamenti: ordersWithTrattamenti,
+        by_tipo_lenti: trattamentiByTipoLenti,
+      },
+      lens_delivery_times: {
+        by_supplier: lensDeliveryRows,
+        types: lensDeliveryTypesSorted,
+      },
       brands: {
         all: brandStats,
-        sunglasses: sunglassesByBrand,
-        by_gender_sunglasses: sunglassesByGenderBrand,
       },
       gender: {
         stats: genderStats,
@@ -315,6 +531,20 @@ export async function GET(request: NextRequest) {
         saldati: saldateCount,
         average: paymentsData && paymentsData.length > 0 ? totalRevenue / paymentsData.length : 0,
         by_tipo: revenueByTipo,
+      },
+      busta_lead_times: {
+        start_date: '2026-01-02',
+        total: leadTimeRows.reduce((sum, row) => sum + row.count, 0),
+        by_tipo: leadTimeRows,
+      },
+      payment_types: {
+        stats: paymentTypeStats,
+        total: busteConsiderate,
+      },
+      acconti: {
+        with_acconto: busteConAcconto,
+        total: busteConsiderate,
+        percent: busteConsiderate > 0 ? (busteConAcconto / busteConsiderate) * 100 : 0,
       },
     });
 

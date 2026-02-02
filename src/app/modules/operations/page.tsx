@@ -28,6 +28,7 @@ import {
 import Link from 'next/link'
 import { Database } from '@/types/database.types'
 import { createBrowserClient } from '@supabase/ssr'
+import { getTreatmentLabel } from '@/lib/constants/lens-types'
 
 // ===== TYPES =====
 type Cliente = {
@@ -58,6 +59,10 @@ type OrdineEnhanced = {
   created_at: string
   giorni_ritardo: number | null
   buste: BustaRef
+  tipi_lenti?: { nome: string } | null
+  classificazione_lenti?: { nome: string } | null
+  tipi_ordine?: { nome: string } | null
+  trattamenti?: string[] | null
 
   // Enhanced fornitore data
   fornitore_nome: string | null
@@ -135,6 +140,7 @@ export default function GestioneOrdiniPage() {
           data_consegna_prevista,
           data_consegna_effettiva,
           note,
+          trattamenti,
           created_at,
           giorni_ritardo,
 
@@ -142,6 +148,7 @@ export default function GestioneOrdiniPage() {
             id,
             readable_id,
             stato_attuale,
+            archived_mode,
             tipo_lavorazione,
             clienti!inner(id, nome, cognome, telefono)
           ),
@@ -150,8 +157,15 @@ export default function GestioneOrdiniPage() {
           fornitori_lac(nome, telefono, email, web_address, note, tempi_consegna_medi),
           fornitori_montature(nome, telefono, email, web_address, note, tempi_consegna_medi),
           fornitori_sport(nome, telefono, email, web_address, note, tempi_consegna_medi),
-          fornitori_lab_esterno(nome, telefono, email, web_address, note, tempi_consegna_medi)
+          fornitori_lab_esterno(nome, telefono, email, web_address, note, tempi_consegna_medi),
+          tipi_lenti:tipi_lenti(nome),
+          classificazione_lenti:classificazione_lenti(nome),
+          tipi_ordine:tipi_ordine(nome)
         `)
+        .is('deleted_at', null)
+        .is('buste.deleted_at', null)
+        .is('buste.archived_mode', null)
+        .neq('stato', 'annullato')
 
       // Apply filters based on active tab
       if (activeTab !== 'all') {
@@ -412,6 +426,41 @@ export default function GestioneOrdiniPage() {
       case 'misto': return <Globe className="w-4 h-4" />
       default: return <Package className="w-4 h-4" />
     }
+  }
+
+  const renderOrderMetaBadges = (ordine: OrdineEnhanced, spacingClass = 'mt-2') => {
+    const trattamenti = ordine.trattamenti?.map(getTreatmentLabel).filter(Boolean) || []
+
+    return (
+      <div className={`${spacingClass} flex flex-wrap items-center gap-2 text-xs text-slate-600`}>
+        {ordine.tipi_lenti?.nome && (
+          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-1">
+            <span className="font-semibold text-slate-700">Tipo lenti:</span>
+            <span className="ml-1">{ordine.tipi_lenti.nome}</span>
+          </span>
+        )}
+        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1">
+          <span className="font-semibold text-emerald-700">Fornitore:</span>
+          <span className="ml-1 text-emerald-700">{ordine.fornitore_nome || 'Non specificato'}</span>
+        </span>
+        {ordine.classificazione_lenti?.nome && (
+          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-1">
+            <span className="font-semibold text-slate-700">Classificazione:</span>
+            <span className="ml-1">{ordine.classificazione_lenti.nome}</span>
+          </span>
+        )}
+        {trattamenti.length > 0 && (
+          <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-1">
+            <span className="font-semibold text-blue-700">Trattamenti:</span>
+            <span className="ml-1 text-blue-700">{trattamenti.join(', ')}</span>
+          </span>
+        )}
+        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+          <span className="font-semibold text-slate-700">Come ordinare:</span>
+          <span className="ml-1">{ordine.tipi_ordine?.nome || 'Non specificato'}</span>
+        </span>
+      </div>
+    )
   }
 
   const toggleSupplier = (nome: string) => {
@@ -751,6 +800,8 @@ export default function GestioneOrdiniPage() {
                                     {ordine.descrizione_prodotto}
                                   </div>
 
+                                  {renderOrderMetaBadges(ordine)}
+
                                   {ordine.note && (
                                     <div className="text-sm text-slate-500 italic">
                                       Note: {ordine.note}
@@ -831,7 +882,10 @@ export default function GestioneOrdiniPage() {
                       <td className="px-4 py-3 text-slate-700">
                         {ordine.buste.clienti ? `${ordine.buste.clienti.cognome} ${ordine.buste.clienti.nome}` : '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-900">{ordine.descrizione_prodotto}</td>
+                      <td className="px-4 py-3 text-slate-900">
+                        <div className="font-medium">{ordine.descrizione_prodotto}</div>
+                        {renderOrderMetaBadges(ordine, 'mt-1')}
+                      </td>
                       <td className="px-4 py-3 text-slate-700">{ordine.fornitore_nome || '—'}</td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center px-2 py-1 rounded-full bg-slate-100/70 text-slate-700 text-xs">

@@ -31,6 +31,7 @@ import {
 import type { WorkflowState } from '@/app/dashboard/_components/WorkflowLogic';
 import { areAllOrdersCancelled } from '@/lib/buste/archiveRules';
 import { useUser } from '@/context/UserContext';
+import { LENS_TREATMENTS, LENS_TREATMENTS_OPTIONS, getTreatmentLabel } from '@/lib/constants/lens-types';
 
 // ===== TYPES LOCALI =====
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
@@ -68,8 +69,10 @@ type OrdineMateriale = Database['public']['Tables']['ordini_materiali']['Row'] &
   fornitori_lab_esterno?: { nome: string } | null;
   fornitori_sport?: { nome: string } | null;
   tipi_lenti?: { nome: string; giorni_consegna_stimati: number | null } | null;
+  classificazione_lenti?: { nome: string } | null;
   tipi_ordine?: { nome: string } | null;
   prezzo_prodotto?: number | null;
+  trattamenti?: string[] | null;
 };
 
 type Fornitore = {
@@ -79,6 +82,7 @@ type Fornitore = {
 
 type TipoOrdine = Database['public']['Tables']['tipi_ordine']['Row'];
 type TipoLenti = Database['public']['Tables']['tipi_lenti']['Row'];
+type ClassificazioneLenti = Database['public']['Tables']['classificazione_lenti']['Row'];
 type AutoAdvanceState = 'nuove' | 'materiali_ordinati' | 'materiali_arrivati';
 type AutoAdvanceTarget = 'materiali_ordinati' | 'materiali_arrivati';
 const MANAGED_WORKFLOW_STATES: readonly AutoAdvanceState[] = ['nuove', 'materiali_ordinati', 'materiali_arrivati'] as const;
@@ -129,7 +133,9 @@ type NuovoOrdineForm = {
   tipo_prodotto_assistenza: '' | 'lenti' | 'lac' | 'montature' | 'sport' | 'accessori';
   tipo_prodotto_ricambi: '' | 'montature' | 'sport' | 'accessori' | 'lenti';
   fornitore_id: string;
-  tipo_lenti: string;
+  tipo_lenti: string;  // Stock/RX/Special from tipi_lenti table
+  classificazione_lenti: string;  // Monofocali/Progressive/etc. from classificazione_lenti table
+  trattamenti: string[];
   tipo_ordine_id: string;
   descrizione_prodotto: string;
   data_ordine: string;
@@ -260,6 +266,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const [ordiniMateriali, setOrdiniMateriali] = useState<OrdineMateriale[]>([]);
   const [tipiOrdine, setTipiOrdine] = useState<TipoOrdine[]>([]);
   const [tipiLenti, setTipiLenti] = useState<TipoLenti[]>([]);
+  const [classificazioneLenti, setClassificazioneLenti] = useState<ClassificazioneLenti[]>([]);
   
   // Fornitori specializzati per categoria
   const [fornitoriLenti, setFornitoriLenti] = useState<Fornitore[]>([]);
@@ -395,6 +402,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     tipo_prodotto_ricambi: '', // ✅ NUOVO: Sottocategoria per Ricambi
     fornitore_id: '',
     tipo_lenti: '',
+    classificazione_lenti: '',
+    trattamenti: [],
     tipo_ordine_id: '',
     descrizione_prodotto: '',
     data_ordine: new Date().toISOString().split('T')[0],
@@ -650,6 +659,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           fornitori_lab_esterno:fornitori_lab_esterno(nome),
           fornitori_sport:fornitori_sport(nome),
           tipi_lenti:tipi_lenti(nome, giorni_consegna_stimati),
+          classificazione_lenti:classificazione_lenti(nome),
           tipi_ordine:tipi_ordine(nome)
         `)
         .eq('busta_id', busta.id)
@@ -694,6 +704,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         fornitori_sport: ordine.fornitori_sport && typeof ordine.fornitori_sport === 'object' && 'nome' in ordine.fornitori_sport
           ? ordine.fornitori_sport
           : null,
+        classificazione_lenti: ordine.classificazione_lenti && typeof ordine.classificazione_lenti === 'object' && 'nome' in ordine.classificazione_lenti
+          ? ordine.classificazione_lenti
+          : null,
         tipi_ordine: ordine.tipi_ordine && typeof ordine.tipi_ordine === 'object' && 'nome' in ordine.tipi_ordine
           ? ordine.tipi_ordine
           : null
@@ -703,13 +716,15 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
       // Load reference data se non già caricati
       if (tipiOrdine.length === 0) {
-        const [tipiOrdineData, tipiLentiData] = await Promise.all([
+        const [tipiOrdineData, tipiLentiData, classificazioneLentiData] = await Promise.all([
           supabase.from('tipi_ordine').select('*'),
-          supabase.from('tipi_lenti').select('*').not('giorni_consegna_stimati', 'is', null)
+          supabase.from('tipi_lenti').select('*'),  // Stock/RX/Special
+          supabase.from('classificazione_lenti').select('*')  // Monofocali/Progressive/Office/etc.
         ]);
 
         if (tipiOrdineData.data) setTipiOrdine(tipiOrdineData.data);
         if (tipiLentiData.data) setTipiLenti(tipiLentiData.data);
+        if (classificazioneLentiData.data) setClassificazioneLenti(classificazioneLentiData.data);
 
         // ===== CARICA FORNITORI DALLE TABELLE SPECIALIZZATE =====
         const [fornitoriLentiData, fornitoriLacData, fornitoriMontaturaData, fornitoriLabEsternoData, fornitoriSportData, fornitoriAccessoriData] = await Promise.all([
@@ -799,16 +814,16 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         return tipoLentiDb.giorni_consegna_stimati;
       }
     }
-    
+
     const tempiDefault = {
       'lac': 3,
       'montature': 4,
       'sport': 5,
       'lab.esterno': 5,
       'lenti': 5,
-      'accessori': 2, // ✅ NUOVO: Accessori solitamente disponibili velocemente
-      'assistenza': 3, // ✅ NUOVO: Assistenza tempo medio (varies by supplier)
-      'ricambi': 3 // ✅ NUOVO: Ricambi tempo medio
+      'accessori': 2,
+      'assistenza': 3,
+      'ricambi': 3
     };
 
     return tempiDefault[categoria as keyof typeof tempiDefault] || 5;
@@ -1191,15 +1206,46 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
   // ===== HANDLE NUOVO ORDINE - ✅ AGGIORNATO CON da_ordinare =====
   // ===== ORDER VALIDATION =====
-  const validateOrderForm = () => {
-    if (!nuovoOrdineForm.descrizione_prodotto.trim()) {
-      throw new Error('Descrizione prodotto obbligatoria');
-    }
+  const getOrderFormValidationError = () => {
     if (!nuovoOrdineForm.categoria_prodotto) {
-      throw new Error('Categoria prodotto obbligatoria');
+      return 'Categoria prodotto obbligatoria';
+    }
+    if (nuovoOrdineForm.categoria_prodotto === 'assistenza' && !nuovoOrdineForm.tipo_prodotto_assistenza) {
+      return 'Seleziona il tipo prodotto per assistenza';
+    }
+    if (nuovoOrdineForm.categoria_prodotto === 'ricambi' && !nuovoOrdineForm.tipo_prodotto_ricambi) {
+      return 'Seleziona il tipo prodotto per ricambi';
+    }
+    if (nuovoOrdineForm.categoria_prodotto === 'lenti') {
+      if (!nuovoOrdineForm.tipo_lenti) {
+        return 'Tipo lenti obbligatorio';
+      }
+      if (!nuovoOrdineForm.classificazione_lenti) {
+        return 'Classificazione lenti obbligatoria';
+      }
+      if (!nuovoOrdineForm.trattamenti || nuovoOrdineForm.trattamenti.length === 0) {
+        return 'Seleziona almeno un trattamento (o "Nessuno")';
+      }
+    }
+    if (!nuovoOrdineForm.fornitore_id) {
+      return 'Fornitore obbligatorio';
+    }
+    if (!nuovoOrdineForm.tipo_ordine_id) {
+      return 'Modalità ordine obbligatoria';
+    }
+    if (!nuovoOrdineForm.descrizione_prodotto.trim()) {
+      return 'Descrizione prodotto obbligatoria';
     }
     if (nuovoOrdineForm.ordine_gia_effettuato && !nuovoOrdineForm.data_ordine) {
-      throw new Error('Inserisci la data ordine per gli ordini già effettuati');
+      return 'Inserisci la data ordine per gli ordini già effettuati';
+    }
+    return null;
+  };
+
+  const validateOrderForm = () => {
+    const error = getOrderFormValidationError();
+    if (error) {
+      throw new Error(error);
     }
   };
 
@@ -1266,6 +1312,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       return {
         busta_id: busta.id,
         tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
+        classificazione_lenti_id: nuovoOrdineForm.classificazione_lenti || null,
+        trattamenti: nuovoOrdineForm.trattamenti.length > 0 ? nuovoOrdineForm.trattamenti : null,
         tipo_ordine_id: Number.parseInt(nuovoOrdineForm.tipo_ordine_id),
         descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
         data_ordine: null, // Nessuna data ordine
@@ -1294,6 +1342,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     return {
       busta_id: busta.id,
       tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
+      classificazione_lenti_id: nuovoOrdineForm.classificazione_lenti || null,
+      trattamenti: nuovoOrdineForm.trattamenti.length > 0 ? nuovoOrdineForm.trattamenti : null,
       tipo_ordine_id: nuovoOrdineForm.tipo_ordine_id ? Number.parseInt(nuovoOrdineForm.tipo_ordine_id) : null,
       descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
       data_ordine: ordineGiaEffettuato ? nuovoOrdineForm.data_ordine : null,
@@ -1359,6 +1409,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       fornitori_sport: ordineCreato.fornitori_sport && typeof ordineCreato.fornitori_sport === 'object' && 'nome' in ordineCreato.fornitori_sport
         ? ordineCreato.fornitori_sport
         : null,
+      classificazione_lenti: ordineCreato.classificazione_lenti && typeof ordineCreato.classificazione_lenti === 'object' && 'nome' in ordineCreato.classificazione_lenti
+        ? ordineCreato.classificazione_lenti
+        : ordineCreato.classificazione_lenti_id
+          ? { nome: classificazioneLenti.find(c => c.id === ordineCreato.classificazione_lenti_id)?.nome || '' }
+          : null,
       tipi_ordine: ordineCreato.tipi_ordine && typeof ordineCreato.tipi_ordine === 'object' && 'nome' in ordineCreato.tipi_ordine
         ? ordineCreato.tipi_ordine
         : null,
@@ -1399,6 +1454,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       tipo_prodotto_ricambi: '', // ✅ NUOVO
       fornitore_id: '',
       tipo_lenti: '',
+      classificazione_lenti: '',
+      trattamenti: [],
       tipo_ordine_id: '',
       descrizione_prodotto: '',
       data_ordine: new Date().toISOString().split('T')[0],
@@ -1419,6 +1476,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       tipo_prodotto_ricambi: '',
       fornitore_id: '',
       tipo_lenti: '',
+      classificazione_lenti: '',
+      trattamenti: [],
       tipo_ordine_id: '',
       descrizione_prodotto: '',
       data_ordine: getDefaultOrderDate(),
@@ -1551,6 +1610,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         ...fornitoreTableField,
         categoria_fornitore: categoriaFornitore,
         tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
+        classificazione_lenti_id: nuovoOrdineForm.classificazione_lenti || null,
+        trattamenti: nuovoOrdineForm.trattamenti.length > 0 ? nuovoOrdineForm.trattamenti : null,
         tipo_ordine_id: Number.parseInt(nuovoOrdineForm.tipo_ordine_id),
         descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
         data_ordine: null,
@@ -1566,6 +1627,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       ...fornitoreTableField,
       categoria_fornitore: categoriaFornitore,
       tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
+      classificazione_lenti_id: nuovoOrdineForm.classificazione_lenti || null,
+      trattamenti: nuovoOrdineForm.trattamenti.length > 0 ? nuovoOrdineForm.trattamenti : null,
       tipo_ordine_id: nuovoOrdineForm.tipo_ordine_id ? Number.parseInt(nuovoOrdineForm.tipo_ordine_id) : null,
       descrizione_prodotto: nuovoOrdineForm.descrizione_prodotto.trim(),
       data_ordine: dataOrdine,
@@ -1586,6 +1649,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     setNuovoOrdineForm({
       ...categoriaInfo,
       tipo_lenti: categoria === 'lenti' ? (ordine.tipo_lenti_id || '') : '',
+      classificazione_lenti: categoria === 'lenti' ? (ordine.classificazione_lenti_id || '') : '',
+      trattamenti: categoria === 'lenti' ? (ordine.trattamenti || []) : [],
       tipo_ordine_id: ordine.tipo_ordine_id ? String(ordine.tipo_ordine_id) : '',
       descrizione_prodotto: ordine.descrizione_prodotto || '',
       data_ordine: formatDateForInput(ordine.data_ordine) || (ordineGiaEffettuato ? getDefaultOrderDate() : ''),
@@ -1639,6 +1704,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                   nome: tipiLenti.find(t => t.id === updates.tipo_lenti_id)?.nome || '',
                   giorni_consegna_stimati: tipiLenti.find(t => t.id === updates.tipo_lenti_id)?.giorni_consegna_stimati || null
                 }
+              : null,
+            classificazione_lenti: updates.classificazione_lenti_id
+              ? { nome: classificazioneLenti.find(c => c.id === updates.classificazione_lenti_id)?.nome || '' }
               : null,
             tipi_ordine: updates.tipo_ordine_id
               ? { nome: tipiOrdine.find(t => t.id === updates.tipo_ordine_id)?.nome || '' }
@@ -2406,6 +2474,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       tipo_prodotto_ricambi: '',
       fornitore_id: supplierId,
       tipo_lenti: ordine.tipo_lenti_id || '',
+      classificazione_lenti: ordine.classificazione_lenti_id || '',
+      trattamenti: ordine.trattamenti || [],
       tipo_ordine_id: ordine.tipo_ordine_id ? String(ordine.tipo_ordine_id) : '',
       descrizione_prodotto: ordine.descrizione_prodotto || '',
       data_ordine: getDefaultOrderDate(),
@@ -2518,7 +2588,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     }
   };
 
-  const renderOrderForm = (title: string, onClose: () => void, onSave: () => void) => (
+  const renderOrderForm = (title: string, onClose: () => void, onSave: () => void) => {
+    const orderFormError = getOrderFormValidationError();
+
+    return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
@@ -2557,6 +2630,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                   tipo_prodotto_ricambi: '',
                   fornitore_id: '',
                   tipo_lenti: '',
+                  classificazione_lenti: '',
+                  trattamenti: [],
                   primo_acquisto_lac: false
                 }))}
                 className={`p-3 rounded-lg border text-center transition-colors ${
@@ -2646,7 +2721,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           </div>
         )}
 
-        {/* ===== STEP 2: TIPO LENTI ===== */}
+        {/* ===== STEP 2: TIPO LENTI (solo per categoria lenti) ===== */}
         {nuovoOrdineForm.categoria_prodotto === 'lenti' && (
           <div>
             <label htmlFor="tipo-lenti" className="block text-sm font-medium text-gray-700 mb-1">
@@ -2672,10 +2747,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             {nuovoOrdineForm.categoria_prodotto === 'lenti'
-              ? '3. Fornitore'
+              ? '3. Fornitore *'
               : nuovoOrdineForm.categoria_prodotto === 'assistenza'
-              ? '3. Fornitore'
-              : '2. Fornitore'}
+              ? '3. Fornitore *'
+              : '2. Fornitore *'}
           </label>
           <select
             value={nuovoOrdineForm.fornitore_id}
@@ -2725,10 +2800,72 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           </div>
         )}
 
+        {/* ===== CLASSIFICAZIONE LENTI (solo per categoria lenti) ===== */}
+        {nuovoOrdineForm.categoria_prodotto === 'lenti' && (
+          <div>
+            <label htmlFor="classificazione-lenti" className="block text-sm font-medium text-gray-700 mb-1">
+              Classificazione Lenti *
+            </label>
+            <select
+              id="classificazione-lenti"
+              value={nuovoOrdineForm.classificazione_lenti}
+              onChange={(e) => setNuovoOrdineForm(prev => ({ ...prev, classificazione_lenti: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">-- Seleziona classificazione --</option>
+              {classificazioneLenti.map(cl => (
+                <option key={cl.id} value={cl.id}>{cl.nome}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* ===== TRATTAMENTI (solo per categoria lenti) ===== */}
+        {nuovoOrdineForm.categoria_prodotto === 'lenti' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Trattamenti *
+              <span className="text-xs text-gray-500 ml-1">(multi-selezione)</span>
+            </label>
+            <select
+              multiple
+              size={5}
+              value={nuovoOrdineForm.trattamenti}
+              onChange={(e) => {
+                const selected = Array.from(e.target.selectedOptions, option => option.value);
+                setNuovoOrdineForm(prev => {
+                  const hasNessuno = selected.includes(LENS_TREATMENTS.NESSUNO);
+                  const hadNessuno = prev.trattamenti.includes(LENS_TREATMENTS.NESSUNO);
+
+                  if (hasNessuno && !hadNessuno) {
+                    return { ...prev, trattamenti: [LENS_TREATMENTS.NESSUNO] };
+                  }
+
+                  if (hasNessuno && selected.length > 1) {
+                    return { ...prev, trattamenti: selected.filter(value => value !== LENS_TREATMENTS.NESSUNO) };
+                  }
+
+                  return { ...prev, trattamenti: selected };
+                });
+              }}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            >
+              {LENS_TREATMENTS_OPTIONS.map(treatment => (
+                <option key={treatment.value} value={treatment.value}>
+                  {nuovoOrdineForm.trattamenti.includes(treatment.value) ? '✓ ' : '   '}{treatment.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Seleziona almeno un trattamento o "Nessuno". Ctrl+click (o Cmd+click su Mac) per selezionare più opzioni
+            </p>
+          </div>
+        )}
+
         {/* ===== MODALITÀ ORDINE ===== */}
         <div>
           <label htmlFor="modalita-ordine" className="block text-sm font-medium text-gray-700 mb-1">
-            Modalità Ordine
+            Modalità Ordine *
           </label>
           <select
             id="modalita-ordine"
@@ -2911,6 +3048,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               {nuovoOrdineForm.fornitore_id && ` | ${getFornitoriDisponibili().find(f => f.id === nuovoOrdineForm.fornitore_id)?.nome}`}
             </span>
           )}
+          {orderFormError && (
+            <div className="text-xs text-red-600 mt-1">
+              {orderFormError}
+            </div>
+          )}
         </div>
 
         <div className="flex space-x-3">
@@ -2923,7 +3065,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           </button>
           <button
             onClick={onSave}
-            disabled={!nuovoOrdineForm.descrizione_prodotto.trim() || !nuovoOrdineForm.categoria_prodotto || isSaving}
+            disabled={Boolean(orderFormError) || isSaving}
             className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
           >
             {isSaving ? (
@@ -2939,6 +3081,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       </div>
     </div>
   );
+  }
 
   // ===== RENDER =====
   return (
@@ -3179,6 +3322,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               else if (ordine.fornitori_montature?.nome) nomeFornitore = ordine.fornitori_montature.nome;
               else if (ordine.fornitori_lab_esterno?.nome) nomeFornitore = ordine.fornitori_lab_esterno.nome;
               else if (ordine.fornitori_sport?.nome) nomeFornitore = ordine.fornitori_sport.nome;
+              const nomeClassificazione = ordine.classificazione_lenti?.nome
+                || (ordine.classificazione_lenti_id
+                  ? classificazioneLenti.find(c => c.id === ordine.classificazione_lenti_id)?.nome || null
+                  : null);
 
               const cardBaseClasses = isAnnullato
                 ? 'border-slate-200 bg-slate-50/80 text-slate-500 cursor-not-allowed'
@@ -3414,19 +3561,54 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                       </div>
 
                       <div className={`mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 rounded-lg border p-4 text-sm ${infoPanelClass} ${infoRowTextClass}`}>
+                        {ordine.tipi_lenti?.nome && (
+                          <div className="flex items-center gap-2">
+                            <Eye className="w-4 h-4 text-slate-400" />
+                            <span>
+                              <strong>Tipo lenti:</strong> {ordine.tipi_lenti.nome}
+                            </span>
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2">
                           <Factory className="w-4 h-4 text-slate-400" />
                           <span>
                             <strong>Fornitore:</strong> {nomeFornitore}
                           </span>
                         </div>
-                        
+
+                        {nomeClassificazione && (
+                          <div className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-slate-400" />
+                            <span>
+                              <strong>Classificazione:</strong> {nomeClassificazione}
+                            </span>
+                          </div>
+                        )}
+
+                        {ordine.trattamenti && ordine.trattamenti.length > 0 && (
+                          <div className="flex items-start gap-2">
+                            <CheckCircle className="w-4 h-4 text-blue-400 mt-0.5" />
+                            <div>
+                              <strong>Trattamenti:</strong>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {ordine.trattamenti.map(t => (
+                                  <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700">
+                                    {getTreatmentLabel(t)}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="flex items-center gap-2">
                           <Phone className="w-4 h-4 text-slate-400" />
                           <span>
-                            <strong>Via:</strong> {ordine.tipi_ordine?.nome || 'Non specificato'}
+                            <strong>Come ordinare:</strong> {ordine.tipi_ordine?.nome || 'Non specificato'}
                           </span>
                         </div>
+
                         {ordine.data_ordine && (
                           <div className="flex items-center gap-2">
                             <Calendar className="w-4 h-4 text-slate-400" />
@@ -3441,15 +3623,6 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             <Clock className="w-4 h-4 text-slate-400" />
                             <span>
                               <strong>Previsto:</strong> {new Date(ordine.data_consegna_prevista).toLocaleDateString('it-IT')}
-                            </span>
-                          </div>
-                        )}
-
-                        {ordine.tipi_lenti?.nome && (
-                          <div className="flex items-center gap-2">
-                            <Eye className="w-4 h-4 text-slate-400" />
-                            <span>
-                              <strong>Tipo Lenti:</strong> {ordine.tipi_lenti.nome}
                             </span>
                           </div>
                         )}

@@ -2,19 +2,21 @@
 
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, PieChart, Pie, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
-import { Activity, TrendingUp, Package, AlertCircle, Euro, Calendar, Tag, Eye, Users, ArrowUp, ArrowLeft } from 'lucide-react';
+import { Activity, TrendingUp, Package, AlertCircle, Euro, Calendar, Tag, Eye, ArrowUp, ArrowLeft, Filter, Clock, CreditCard } from 'lucide-react';
 import Link from 'next/link';
 
 interface AnalyticsData {
   tipo_lavorazione: { stats: Record<string, number>; total: number };
   tipo_lenti: { stats: Record<string, number>; total: number };
+  classificazione_lenti?: { stats: Record<string, number>; total: number };
+  trattamenti?: {
+    stats: Record<string, number>;
+    total: number;
+    orders_with_trattamenti: number;
+    by_tipo_lenti: Record<string, Record<string, number>>;
+  };
   brands: {
     all: Record<string, number>;
-    sunglasses: Record<string, number>;
-    by_gender_sunglasses: {
-      maschio: Array<{ brand: string; count: number }>;
-      femmina: Array<{ brand: string; count: number }>;
-    };
   };
   gender: { stats: Record<string, number> };
   warranty: { total: number };
@@ -35,6 +37,22 @@ interface AnalyticsData {
     average: number;
     by_tipo: Record<string, { total: number; count: number; avg: number }>;
   };
+  lens_delivery_times?: {
+    types: string[];
+    by_supplier: Array<{
+      supplier: string;
+      total_orders: number;
+      avg_days: number | null;
+      by_tipo: Record<string, { avg_days: number | null; count: number } | null>;
+    }>;
+  };
+  busta_lead_times?: {
+    start_date: string;
+    total: number;
+    by_tipo: Array<{ tipo: string; avg_days: number | null; count: number }>;
+  };
+  payment_types?: { stats: Record<string, number>; total: number };
+  acconti?: { with_acconto: number; total: number; percent: number };
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16'];
@@ -45,6 +63,7 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState('month');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [activeSection, setActiveSection] = useState<'panoramica' | 'lenti' | 'tempi' | 'pagamenti'>('panoramica');
 
   useEffect(() => {
     fetchAnalytics();
@@ -94,10 +113,33 @@ export default function AnalyticsPage() {
 
   const tipoLavorazioneData = Object.entries(data.tipo_lavorazione.stats).map(([name, value]) => ({ name, value }));
   const topBrands = Object.entries(data.brands.all).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([name, value]) => ({ name, value }));
-  const topSunglassesBrands = Object.entries(data.brands.sunglasses).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, value]) => ({ name, value }));
-  const maleSunglasses = data.brands.by_gender_sunglasses.maschio.sort((a, b) => b.count - a.count).slice(0, 6);
-  const femaleSunglasses = data.brands.by_gender_sunglasses.femmina.sort((a, b) => b.count - a.count).slice(0, 6);
+  const topBrandMax = topBrands[0]?.value ?? 1;
+  const classificazioneMax = data.classificazione_lenti
+    ? Math.max(...Object.values(data.classificazione_lenti.stats), 1)
+    : 1;
   const revenueData = Object.entries(data.revenue.by_tipo).map(([tipo, stats]) => ({ tipo, revenue: stats.total, count: stats.count, avg: stats.avg })).sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+  const lensDeliveryTypes = data.lens_delivery_times?.types ?? [];
+  const lensDeliveryRows = data.lens_delivery_times?.by_supplier ?? [];
+  const leadTimeRows = data.busta_lead_times?.by_tipo ?? [];
+  const paymentTypeStats = data.payment_types?.stats ?? {};
+  const paymentTypeData = Object.entries(paymentTypeStats)
+    .filter(([key, value]) => key !== 'non_classificato' && value > 0)
+    .map(([key, value]) => ({
+      name: key === 'saldo_unico'
+        ? 'Saldo unico'
+        : key === 'installments'
+          ? 'Rateizzazione interna'
+          : 'Finanziamento bancario',
+      value
+    }));
+  const paymentTypeUnknown = paymentTypeStats.non_classificato ?? 0;
+
+  const analyticsSections = [
+    { key: 'panoramica' as const, label: 'Panoramica' },
+    { key: 'lenti' as const, label: 'Lenti & Fornitori' },
+    { key: 'tempi' as const, label: 'Tempi & Workflow' },
+    { key: 'pagamenti' as const, label: 'Pagamenti' },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -195,145 +237,350 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Tipo Lavorazione</h3>
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie data={tipoLavorazioneData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value" label={(entry: any) => `${entry.name}`}>
-                  {tipoLavorazioneData.map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-slate-900">Trend Mensile</h3>
-              <TrendingUp className="w-5 h-5 text-blue-500" />
-            </div>
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={data.trends.monthly}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={3} name="Totale" dot={{ r: 4 }} />
-                <Line type="monotone" dataKey="OCV" stroke="#10b981" strokeWidth={2} name="OCV" />
-                <Line type="monotone" dataKey="OV" stroke="#f59e0b" strokeWidth={2} name="OV" />
-                <Line type="monotone" dataKey="LAC" stroke="#8b5cf6" strokeWidth={2} name="LAC" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+        <div className="flex flex-wrap gap-2">
+          {analyticsSections.map(section => (
+            <button
+              key={section.key}
+              onClick={() => setActiveSection(section.key)}
+              className={`px-4 py-2 rounded-full text-sm font-semibold border transition-colors ${
+                activeSection === section.key
+                  ? 'bg-[var(--ink)] text-white border-[var(--ink)]'
+                  : 'bg-white/80 text-slate-600 border-slate-200 hover:bg-white'
+              }`}
+            >
+              {section.label}
+            </button>
+          ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center space-x-2 mb-4">
-              <Tag className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-slate-900">Top Fornitori</h3>
-            </div>
-            <div className="space-y-3">
-              {topBrands.map((brand, idx) => (
-                <div key={idx} className="flex items-center">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-slate-700">{brand.name}</span>
-                      <span className="text-sm font-bold text-slate-900">{brand.value}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-full h-2">
-                      <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all duration-500" style={{ width: `${(brand.value / topBrands[0].value) * 100}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {activeSection === 'panoramica' && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-1 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">Tipo Lavorazione</h3>
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie data={tipoLavorazioneData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2} dataKey="value" label={(entry: any) => `${entry.name}`}>
+                      {tipoLavorazioneData.map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center space-x-2 mb-4">
-              <Eye className="w-5 h-5 text-orange-600" />
-              <h3 className="text-lg font-semibold text-slate-900">Occhiali da Sole</h3>
+              <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-slate-900">Trend Mensile</h3>
+                  <TrendingUp className="w-5 h-5 text-blue-500" />
+                </div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={data.trends.monthly}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="total" stroke="#3b82f6" strokeWidth={3} name="Totale" dot={{ r: 4 }} />
+                    <Line type="monotone" dataKey="OCV" stroke="#10b981" strokeWidth={2} name="OCV" />
+                    <Line type="monotone" dataKey="OV" stroke="#f59e0b" strokeWidth={2} name="OV" />
+                    <Line type="monotone" dataKey="LAC" stroke="#8b5cf6" strokeWidth={2} name="LAC" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            {topSunglassesBrands.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={topSunglassesBrands} layout="vertical">
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Tag className="w-5 h-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-slate-900">Top Fornitori</h3>
+                </div>
+                <div className="space-y-3">
+                  {topBrands.length > 0 ? (
+                    topBrands.map((brand, idx) => (
+                      <div key={idx} className="flex items-center">
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-slate-700">{brand.name}</span>
+                            <span className="text-sm font-bold text-slate-900">{brand.value}</span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-2">
+                            <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all duration-500" style={{ width: `${(brand.value / topBrandMax) * 100}%` }}></div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-slate-400">Nessun dato disponibile</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeSection === 'lenti' && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Categoria Lenti */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Eye className="w-5 h-5 text-purple-600" />
+                  <h3 className="text-lg font-semibold text-slate-900">Categoria Lenti</h3>
+                </div>
+                {Object.keys(data.tipo_lenti.stats).length > 0 ? (
+                  <div className="space-y-3">
+                    {Object.entries(data.tipo_lenti.stats)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([nome, count], idx) => (
+                        <div key={idx} className="flex items-center">
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-medium text-slate-700">{nome}</span>
+                              <span className="text-sm font-bold text-slate-900">{count}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2">
+                              <div
+                                className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-500"
+                                style={{ width: `${(count / Math.max(...Object.values(data.tipo_lenti.stats))) * 100}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-40 text-slate-400">Nessun dato</div>
+                )}
+              </div>
+
+              {/* Classificazione Lenti */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Filter className="w-5 h-5 text-emerald-600" />
+                  <h3 className="text-lg font-semibold text-slate-900">Classificazione Lenti</h3>
+                </div>
+                {data.classificazione_lenti && Object.keys(data.classificazione_lenti.stats).length > 0 ? (
+                  <div className="space-y-3">
+                    {Object.entries(data.classificazione_lenti.stats)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([nome, count], idx) => (
+                        <div key={idx} className="flex items-center">
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-medium text-slate-700">{nome}</span>
+                              <span className="text-sm font-bold text-slate-900">{count}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2">
+                              <div
+                                className="bg-gradient-to-r from-emerald-500 to-teal-500 h-2 rounded-full transition-all duration-500"
+                                style={{ width: `${(count / classificazioneMax) * 100}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-40 text-slate-400">Nessun dato</div>
+                )}
+              </div>
+
+              {/* Trattamenti */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Tag className="w-5 h-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-slate-900">Trattamenti Lenti</h3>
+                  {data.trattamenti && (
+                    <span className="text-xs text-slate-500 ml-auto">
+                      {data.trattamenti.orders_with_trattamenti} ordini con trattamenti
+                    </span>
+                  )}
+                </div>
+                {data.trattamenti && Object.keys(data.trattamenti.stats).length > 0 ? (
+                  <div className="space-y-3">
+                    {Object.entries(data.trattamenti.stats)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([nome, count], idx) => (
+                        <div key={idx} className="flex items-center">
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-medium text-slate-700">{nome}</span>
+                              <span className="text-sm font-bold text-slate-900">{count}</span>
+                            </div>
+                            <div className="w-full bg-slate-100 rounded-full h-2">
+                              <div
+                                className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full transition-all duration-500"
+                                style={{ width: `${(count / Math.max(...Object.values(data.trattamenti!.stats))) * 100}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-40 text-slate-400">Nessun dato sui trattamenti</div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-2">
+                  <Clock className="w-5 h-5 text-emerald-600" />
+                  <h3 className="text-lg font-semibold text-slate-900">Tempi medi consegna lenti per fornitore</h3>
+                </div>
+                <span className="text-xs text-slate-500">Calcolo su ordini arrivati nel periodo selezionato</span>
+              </div>
+              {lensDeliveryRows.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500 uppercase text-xs">
+                        <th className="px-3 py-2 text-left">Fornitore</th>
+                        {lensDeliveryTypes.map(tipo => (
+                          <th key={tipo} className="px-3 py-2 text-left">{tipo}</th>
+                        ))}
+                        <th className="px-3 py-2 text-left">Media Totale</th>
+                        <th className="px-3 py-2 text-left">Ordini</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lensDeliveryRows.map((row, idx) => (
+                        <tr key={`${row.supplier}-${idx}`} className="border-b border-slate-100 hover:bg-slate-50">
+                          <td className="px-3 py-2 font-medium text-slate-900">{row.supplier}</td>
+                          {lensDeliveryTypes.map(tipo => {
+                            const record = row.by_tipo[tipo];
+                            return (
+                              <td key={`${row.supplier}-${tipo}`} className="px-3 py-2 text-slate-700">
+                                {record && record.avg_days !== null
+                                  ? `${record.avg_days.toFixed(1)}g (${record.count})`
+                                  : record
+                                    ? `— (${record.count})`
+                                    : '—'}
+                              </td>
+                            );
+                          })}
+                          <td className="px-3 py-2 text-emerald-700 font-semibold">
+                            {row.avg_days !== null ? `${row.avg_days.toFixed(1)}g` : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">{row.total_orders}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-32 text-slate-400">Nessun dato sui tempi di consegna</div>
+              )}
+            </div>
+          </>
+        )}
+
+        {activeSection === 'tempi' && (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
+                <Clock className="w-5 h-5 text-blue-600" />
+                <h3 className="text-lg font-semibold text-slate-900">Lead time buste per lavorazione</h3>
+              </div>
+              {data.busta_lead_times?.start_date && (
+                <span className="text-xs text-slate-500">
+                  Da {data.busta_lead_times.start_date} (data apertura)
+                </span>
+              )}
+            </div>
+            {leadTimeRows.length > 0 ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <BarChart data={leadTimeRows}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis type="number" tick={{ fontSize: 12 }} />
-                  <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
-                  <Tooltip />
-                  <Bar dataKey="value" radius={[0, 8, 8, 0]}>
-                    {topSunglassesBrands.map((_, idx) => (<Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />))}
-                  </Bar>
+                  <XAxis dataKey="tipo" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip formatter={(value: any) => `${Number(value).toFixed(1)} giorni`} />
+                  <Bar dataKey="avg_days" name="Giorni medi" fill="#3b82f6" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            ) : (<div className="flex items-center justify-center h-60 text-slate-400"><p>Nessun dato</p></div>)}
+            ) : (
+              <div className="flex items-center justify-center h-40 text-slate-400">Nessun dato sui tempi buste</div>
+            )}
           </div>
-        </div>
+        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center space-x-2 mb-4">
-              <Users className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-slate-900">Occhiali Sole - Uomo</h3>
-            </div>
-            {maleSunglasses.length > 0 ? (
-              <div className="space-y-2">
-                {maleSunglasses.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-lg hover:bg-blue-50 transition-colors">
-                    <span className="text-sm font-medium text-slate-700">{item.brand}</span>
-                    <span className="text-sm font-bold text-blue-600">{item.count}</span>
+        {activeSection === 'pagamenti' && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <CreditCard className="w-5 h-5 text-indigo-600" />
+                  <h3 className="text-lg font-semibold text-slate-900">Modalità di pagamento</h3>
+                </div>
+                {paymentTypeData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie data={paymentTypeData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={2}>
+                        {paymentTypeData.map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-40 text-slate-400">Nessun dato sui pagamenti</div>
+                )}
+                {paymentTypeUnknown > 0 && (
+                  <div className="text-xs text-slate-500 mt-2">
+                    {paymentTypeUnknown} buste non classificate
                   </div>
-                ))}
+                )}
               </div>
-            ) : (<div className="flex items-center justify-center h-40 text-slate-400">Nessun dato</div>)}
-          </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-            <div className="flex items-center space-x-2 mb-4">
-              <Users className="w-5 h-5 text-pink-600" />
-              <h3 className="text-lg font-semibold text-slate-900">Occhiali Sole - Donna</h3>
-            </div>
-            {femaleSunglasses.length > 0 ? (
-              <div className="space-y-2">
-                {femaleSunglasses.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-lg hover:bg-pink-50 transition-colors">
-                    <span className="text-sm font-medium text-slate-700">{item.brand}</span>
-                    <span className="text-sm font-bold text-pink-600">{item.count}</span>
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Euro className="w-5 h-5 text-green-600" />
+                  <h3 className="text-lg font-semibold text-slate-900">Acconti registrati</h3>
+                </div>
+                <div className="flex items-center justify-between bg-slate-50 rounded-xl p-4">
+                  <div>
+                    <div className="text-sm text-slate-500">Buste con acconto</div>
+                    <div className="text-3xl font-bold text-slate-900">{data.acconti?.with_acconto ?? 0}</div>
                   </div>
-                ))}
+                  <div className="text-right">
+                    <div className="text-sm text-slate-500">Percentuale</div>
+                    <div className="text-2xl font-semibold text-emerald-600">
+                      {(data.acconti?.percent ?? 0).toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-slate-400">su {data.acconti?.total ?? 0} buste</div>
+                  </div>
+                </div>
               </div>
-            ) : (<div className="flex items-center justify-center h-40 text-slate-400">Nessun dato</div>)}
-          </div>
-        </div>
+            </div>
 
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Fatturato per Tipo</h3>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Quantità</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Totale</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Media</th>
-                </tr>
-              </thead>
-              <tbody>
-                {revenueData.map((item, idx) => (
-                  <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 text-sm font-semibold text-slate-900">{item.tipo}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">{item.count}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-green-600">€{item.revenue.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-sm text-slate-600">€{item.avg.toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-900 mb-4">Fatturato per Tipo</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200">
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Tipo</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Quantità</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Totale</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase">Media</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {revenueData.map((item, idx) => (
+                      <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 text-sm font-semibold text-slate-900">{item.tipo}</td>
+                        <td className="px-4 py-3 text-sm text-slate-600">{item.count}</td>
+                        <td className="px-4 py-3 text-sm font-bold text-green-600">€{item.revenue.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-sm text-slate-600">€{item.avg.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
