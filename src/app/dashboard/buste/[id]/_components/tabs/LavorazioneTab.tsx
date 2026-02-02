@@ -83,7 +83,8 @@ type ActivityKey =
   | 'gestione_assistenza_garanzia'
   | 'riparazione_minuteria'
   | 'pit_stop_occhiale'
-  | 'training_applicazione_lac';
+  | 'training_applicazione_lac'
+  | 'pulizia';
 
 const normalizeLabel = (value?: string | null) =>
   (value ?? '')
@@ -114,6 +115,7 @@ const getActivityKeyFromLabel = (label?: string | null): ActivityKey | null => {
   if (normalized.includes('pit stop')) return 'pit_stop_occhiale';
   if (normalized.includes('training') && normalized.includes('lac')) return 'training_applicazione_lac';
   if (normalized.includes('applicazione') && normalized.includes('lac')) return 'training_applicazione_lac';
+  if (normalized.includes('pulizia')) return 'pulizia';
   if (normalized.includes('sagomatura') || normalized.includes('sagom') || normalized.includes('montaggio')) {
     return 'sagomatura_montaggio';
   }
@@ -142,7 +144,7 @@ const ACTIVITY_MATRIX: Record<string, ActivityKey[]> = {
     'richiamo_verifica_tecnica',
     'verifica_non_adattamento'
   ],
-  LAC: ['training_applicazione_lac', 'richiamo_verifica_tecnica', 'gestione_assistenza_garanzia'],
+  LAC: ['training_applicazione_lac', 'pulizia', 'richiamo_verifica_tecnica', 'gestione_assistenza_garanzia'],
   RIPARAZIONE: ['riparazione_minuteria', 'lab_esterno', 'controllo_qualita_pre_consegna'],
   LABORATORIO: [
     'sagomatura_montaggio',

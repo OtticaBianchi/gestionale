@@ -30,20 +30,8 @@ type NoteItem = {
   note: string;
   metadata?: string;
   timestamp?: string;
-};
-
-const NOTE_SOURCES: Array<{ key: NoteSource; label: string }> = [
-  { key: 'generali', label: 'Note Generali' },
-  { key: 'spedizione', label: 'Spedizione' },
-  { key: 'ordini', label: 'Ordini Materiali' },
-  { key: 'lavorazioni', label: 'Lavorazioni' }
-];
-
-const DEFAULT_SELECTED_SOURCES: Record<NoteSource, boolean> = {
-  generali: true,
-  spedizione: true,
-  ordini: true,
-  lavorazioni: true
+  orderDate?: string;
+  lavorazioneDate?: string;
 };
 
 // ===== UTILITY FUNCTION =====
@@ -96,9 +84,10 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [isLoadingNotes, setIsLoadingNotes] = useState(false);
   const [notesError, setNotesError] = useState<string | null>(null);
-  const [selectedSources, setSelectedSources] = useState<Record<NoteSource, boolean>>(DEFAULT_SELECTED_SOURCES);
-  const [includeMetadata, setIncludeMetadata] = useState(true);
-  const [includeDates, setIncludeDates] = useState(false);
+  const [includeNotes, setIncludeNotes] = useState(true);
+  const [includeProductDescription, setIncludeProductDescription] = useState(true);
+  const [includeOrderDate, setIncludeOrderDate] = useState(false);
+  const [includeLavorazioneDate, setIncludeLavorazioneDate] = useState(false);
 
   const supabase = useMemo(
     () =>
@@ -109,12 +98,7 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
     []
   );
 
-  const notesBySource = useMemo(() => {
-    return notes.reduce<Record<NoteSource, NoteItem[]>>((acc, note) => {
-      acc[note.source] = acc[note.source] ? [...acc[note.source], note] : [note];
-      return acc;
-    }, { generali: [], spedizione: [], ordini: [], lavorazioni: [] });
-  }, [notes]);
+  const notesCount = useMemo(() => notes.length, [notes]);
 
   const fetchNotes = useCallback(async () => {
     if (!bustaData.id) {
@@ -138,7 +122,7 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
       if (bustaRow?.note_generali) {
         allNotes.push({
           source: 'generali',
-          sourceLabel: 'Note Generali',
+          sourceLabel: 'Generali',
           note: bustaRow.note_generali,
           timestamp: bustaRow.data_apertura
         });
@@ -155,7 +139,7 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
 
       const { data: ordiniData, error: ordiniError } = await supabase
         .from('ordini_materiali')
-        .select('note, descrizione_prodotto, created_at')
+        .select('note, descrizione_prodotto, data_ordine, created_at')
         .eq('busta_id', bustaData.id)
         .not('note', 'is', null);
 
@@ -165,9 +149,10 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
         if (ordine.note) {
           allNotes.push({
             source: 'ordini',
-            sourceLabel: 'Ordini Materiali',
+            sourceLabel: 'Ordini',
             note: ordine.note,
             metadata: ordine.descrizione_prodotto,
+            orderDate: ordine.data_ordine || ordine.created_at || undefined,
             timestamp: ordine.created_at || undefined
           });
         }
@@ -175,7 +160,7 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
 
       const { data: lavorazioniData, error: lavorazioniError } = await supabase
         .from('lavorazioni')
-        .select('note, tentativo, created_at')
+        .select('note, data_inizio, created_at')
         .eq('busta_id', bustaData.id)
         .not('note', 'is', null);
 
@@ -187,7 +172,7 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
             source: 'lavorazioni',
             sourceLabel: 'Lavorazioni',
             note: lav.note,
-            metadata: `Tentativo #${lav.tentativo}`,
+            lavorazioneDate: lav.data_inizio || lav.created_at,
             timestamp: lav.created_at
           });
         }
@@ -210,15 +195,20 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
   }, [bustaData.id, supabase]);
 
   const buildNotesHtml = useCallback(() => {
-    const selectedNotes = notes.filter((note) => selectedSources[note.source]);
+    if (!includeNotes) {
+      return Array.from({ length: 12 }, () => '<div class="note-line"></div>').join('');
+    }
 
-    const noteLines = selectedNotes.map((note) => {
+    const noteLines = notes.map((note) => {
       const metaParts: string[] = [];
-      if (includeMetadata && note.metadata) {
+      if (includeProductDescription && note.source === 'ordini' && note.metadata) {
         metaParts.push(escapeHtml(note.metadata));
       }
-      if (includeDates && note.timestamp) {
-        metaParts.push(new Date(note.timestamp).toLocaleDateString('it-IT'));
+      if (includeOrderDate && note.source === 'ordini' && note.orderDate) {
+        metaParts.push(new Date(note.orderDate).toLocaleDateString('it-IT'));
+      }
+      if (includeLavorazioneDate && note.source === 'lavorazioni' && note.lavorazioneDate) {
+        metaParts.push(new Date(note.lavorazioneDate).toLocaleDateString('it-IT'));
       }
 
       const metaSuffix = metaParts.length ? ` (${metaParts.join(' • ')})` : '';
@@ -235,7 +225,23 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
     const blankLines = Array.from({ length: Math.max(12 - noteLines.length, 0) }, () => '<div class="note-line"></div>');
 
     return [...noteLines, ...blankLines].join('');
-  }, [includeDates, includeMetadata, notes, selectedSources]);
+  }, [includeLavorazioneDate, includeNotes, includeOrderDate, includeProductDescription, notes]);
+
+  const buildPdfFileName = useCallback(() => {
+    const sanitize = (value: string) =>
+      value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase();
+
+    const readableId = bustaData.readable_id ? String(bustaData.readable_id) : 'nuova';
+    const cognome = bustaData.cliente_cognome ? sanitize(bustaData.cliente_cognome) : 'cliente';
+    const nome = bustaData.cliente_nome ? sanitize(bustaData.cliente_nome) : '';
+    const baseName = [readableId, cognome, nome].filter(Boolean).join('-');
+    return baseName || 'busta';
+  }, [bustaData.cliente_cognome, bustaData.cliente_nome, bustaData.readable_id]);
 
   // ===== STAMPA DIRETTA SENZA POPUP - MOLTO MEGLIO! =====
   const handlePrint = (notesHtml: string) => {
@@ -246,6 +252,8 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
     }
 
     try {
+      const fileName = buildPdfFileName();
+
       // ✅ CREA ELEMENTO IFRAME NASCOSTO PER STAMPA DIRETTA
       const printFrame = document.createElement('iframe');
       printFrame.style.position = 'absolute';
@@ -264,7 +272,7 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Busta ${bustaData.readable_id || 'NUOVA'}</title>
+<title>${fileName}</title>
 <style>
 @page { margin: 10mm; size: A4 landscape; }
 * { box-sizing: border-box; }
@@ -401,6 +409,9 @@ body { print-color-adjust: exact; }
         frameDoc.open();
         frameDoc.write(printContent);
         frameDoc.close();
+        if (printFrame.contentWindow) {
+          printFrame.contentWindow.document.title = fileName;
+        }
 
         // ✅ STAMPA DIRETTA APPENA IL CONTENUTO È CARICATO
         setTimeout(() => {
@@ -485,7 +496,7 @@ body { print-color-adjust: exact; }
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
               <div>
                 <h3 className="text-base font-semibold text-gray-900">Stampa busta</h3>
-                <p className="text-xs text-gray-500">Scegli quali note consolidate inserire nella stampa.</p>
+                <p className="text-xs text-gray-500">Scegli quali dettagli aggiungere alle note consolidate.</p>
               </div>
               <button
                 onClick={() => setIsDialogOpen(false)}
@@ -497,56 +508,58 @@ body { print-color-adjust: exact; }
             </div>
 
             <div className="px-4 py-3 space-y-3">
-              <div className="space-y-2">
-                {NOTE_SOURCES.map((source) => {
-                  const count = notesBySource[source.key]?.length ?? 0;
-                  return (
-                    <label key={source.key} className="flex items-center justify-between text-sm text-gray-700">
-                      <span className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          checked={selectedSources[source.key]}
-                          onChange={(event) =>
-                            setSelectedSources((prev) => ({
-                              ...prev,
-                              [source.key]: event.target.checked
-                            }))
-                          }
-                        />
-                        {source.label}
-                      </span>
-                      <span className="text-xs text-gray-400">{count}</span>
-                    </label>
-                  );
-                })}
+              <div className="text-sm text-gray-600">
+                Le note consolidate uniscono generali, spedizione, ordini materiali e lavorazioni.
               </div>
 
-              <div className="flex flex-wrap gap-3 text-sm text-gray-600">
+              <div className="flex flex-col gap-2 text-sm text-gray-600">
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    checked={includeMetadata}
-                    onChange={(event) => setIncludeMetadata(event.target.checked)}
+                    checked={includeNotes}
+                    onChange={(event) => setIncludeNotes(event.target.checked)}
                   />
-                  Includi dettagli (prodotto/tentativo)
+                  Includi note consolidate
                 </label>
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    checked={includeDates}
-                    onChange={(event) => setIncludeDates(event.target.checked)}
+                    checked={includeProductDescription}
+                    onChange={(event) => setIncludeProductDescription(event.target.checked)}
+                    disabled={!includeNotes}
                   />
-                  Includi data
+                  Includi descrizione prodotto (ordini)
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={includeOrderDate}
+                    onChange={(event) => setIncludeOrderDate(event.target.checked)}
+                    disabled={!includeNotes}
+                  />
+                  Includi data ordine (ordini)
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={includeLavorazioneDate}
+                    onChange={(event) => setIncludeLavorazioneDate(event.target.checked)}
+                    disabled={!includeNotes}
+                  />
+                  Includi data lavorazione (lavorazioni)
                 </label>
               </div>
 
               <div className="text-xs text-gray-500">
                 {isLoadingNotes && 'Caricamento note consolidate in corso...'}
                 {!isLoadingNotes && notesError && `Errore: ${notesError}`}
-                {!isLoadingNotes && !notesError && notes.length === 0 && 'Nessuna nota consolidata trovata per questa busta.'}
+                {!isLoadingNotes && !notesError && !includeNotes && 'Stampa senza note consolidate.'}
+                {!isLoadingNotes && !notesError && includeNotes && notesCount === 0 && 'Nessuna nota consolidata trovata per questa busta.'}
+                {!isLoadingNotes && !notesError && includeNotes && notesCount > 0 && `Note consolidate trovate: ${notesCount}`}
               </div>
             </div>
 
