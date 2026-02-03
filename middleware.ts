@@ -45,7 +45,20 @@ export async function middleware(request: NextRequest) {
 
   // ===== PROTEZIONE ADMIN/MANAGER ROUTES =====
   // 🔐 Protezione per rotte admin (solo admin)
-  const adminPaths = ['/admin', '/modules/voice-triage', '/dashboard/audit']
+  const adminPaths = [
+    '/admin',
+    '/dashboard/audit',
+    '/dashboard/analytics',
+    '/dashboard/cestino',
+    '/dashboard/admin',
+    '/dashboard/governance',
+    '/dashboard/procedure-suggestions',
+    '/dashboard/procedure-compliance',
+    '/errori',
+    '/modules/fornitori',
+    '/modules/marketing',
+    '/modules/reactivation'
+  ]
   const isAdminPath = adminPaths.some(path => pathname.startsWith(path))
 
   if (isAdminPath) {
@@ -76,7 +89,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // 🔐 Protezione per rotte manager-or-above (archive module)
-  const managerPaths = ['/modules/archive', '/modules/operations', '/modules/fornitori']
+  const managerPaths = [
+    '/modules/archive',
+    '/modules/operations',
+    '/modules/voice-triage',
+    '/dashboard/buste/new'
+  ]
   const isManagerPath = managerPaths.some(path => pathname.startsWith(path))
 
   if (isManagerPath) {

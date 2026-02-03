@@ -47,11 +47,13 @@ export default function ButtonsBar() {
     }
   };
 
+  const showOpsButtons = Boolean(userRole && userRole !== 'operatore');
+
   return (
     <div className="border-b border-slate-200/70 bg-white/80 px-6 py-3 backdrop-blur">
       <div className="flex flex-wrap items-center justify-center gap-2">
         {/* Nuova Busta button - only for non-operators */}
-        {userRole !== 'operatore' && (
+        {showOpsButtons && (
           <Link
             href="/dashboard/buste/new"
             className="flex items-center gap-1.5 rounded-lg bg-[var(--ink)] px-3 py-2 text-sm text-[var(--paper)] transition-colors hover:bg-black"
@@ -62,31 +64,37 @@ export default function ButtonsBar() {
         )}
 
         {/* Ordina button */}
-        <Link
-          href="/modules/operations"
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"
-        >
-          <Package className="h-3.5 w-3.5" />
-          <span>Ordini</span>
-        </Link>
+        {showOpsButtons && (
+          <Link
+            href="/modules/operations"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"
+          >
+            <Package className="h-3.5 w-3.5" />
+            <span>Ordini</span>
+          </Link>
+        )}
 
         {/* Ricerca button */}
-        <Link
-          href="/dashboard/ricerca-avanzata"
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"
-        >
-          <Search className="h-3.5 w-3.5" />
-          <span>Ricerca</span>
-        </Link>
+        {showOpsButtons && (
+          <Link
+            href="/dashboard/ricerca-avanzata"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"
+          >
+            <Search className="h-3.5 w-3.5" />
+            <span>Ricerca</span>
+          </Link>
+        )}
 
         {/* Note Vocali button */}
-        <Link
-          href="/dashboard/voice-notes"
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"
-        >
-          <Mic className="h-3.5 w-3.5" />
-          <span>Note Vocali</span>
-        </Link>
+        {showOpsButtons && (
+          <Link
+            href="/dashboard/voice-notes"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"
+          >
+            <Mic className="h-3.5 w-3.5" />
+            <span>Note Vocali</span>
+          </Link>
+        )}
 
         {/* Aggiorna button */}
         <button

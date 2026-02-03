@@ -8,6 +8,7 @@ import { BustaWithCliente } from '@/types/shared.types';
 import ButtonsBar from './_components/ButtonsBar';
 import ErrorActions from './_components/ErrorActions';
 import SuspensionReminder from './_components/SuspensionReminder';
+import StartupNoticeModal from './_components/StartupNoticeModal';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { shouldArchiveBusta } from '@/lib/buste/archiveRules';
 
@@ -178,6 +179,7 @@ function renderDashboard(busteWithCliente: BustaWithCliente[], suspendedBuste: B
   return (
     <DashboardLayout>
       <div className="flex flex-col h-full">
+        <StartupNoticeModal />
         <SuspensionReminder buste={suspendedBuste} />
         {/* Header Profilo Utente */}
         <UserProfileHeader />

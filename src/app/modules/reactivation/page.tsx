@@ -20,9 +20,9 @@ export default async function ReactivationPage() {
     .eq('id', user.id)
     .single()
 
-  // Only managers and admins can access reactivation
-  if (!profile || !['manager', 'admin'].includes(profile.role)) {
-    redirect('/dashboard')
+  // Only admins can access reactivation
+  if (!profile || profile.role !== 'admin') {
+    redirect('/dashboard?error=admin_required')
   }
 
   return <ReactivationClient />

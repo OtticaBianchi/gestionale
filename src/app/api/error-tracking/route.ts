@@ -98,6 +98,9 @@ export async function GET(request: NextRequest) {
     if (!profile) {
       return NextResponse.json({ error: 'Profilo non trovato' }, { status: 404 })
     }
+    if (profile.role !== 'admin') {
+      return NextResponse.json({ error: 'Accesso non autorizzato' }, { status: 403 })
+    }
 
     // Parametri filtri
     const timeframe = searchParams.get('timeframe') || 'month'

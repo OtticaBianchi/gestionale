@@ -86,7 +86,7 @@ export default function VoiceNotesPage() {
   }, []);
 
   // UI permissions (RLS handles database security)
-  const canDeleteNotes = isAdmin;
+  const canDeleteNotes = canManageNotes;
   const canCreateNotes = canManageNotes;
   const isReadOnly = !canManageNotes;
 
@@ -331,8 +331,8 @@ export default function VoiceNotesPage() {
   };
 
   const deleteNote = async (noteId: string) => {
-    if (!isAdmin) {
-      toast.error('Solo gli amministratori possono eliminare le note vocali');
+    if (!canDeleteNotes) {
+      toast.error('Solo gli amministratori o manager possono eliminare le note vocali');
       return;
     }
 

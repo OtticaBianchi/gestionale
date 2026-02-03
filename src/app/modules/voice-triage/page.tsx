@@ -16,7 +16,9 @@ export default async function VoiceTriageModulePage() {
     .select('role')
     .eq('id', user.id)
     .single()
-  if (!profile || profile.role !== 'admin') redirect('/dashboard?error=admin_required')
+  if (!profile || !['admin', 'manager'].includes(profile.role)) {
+    redirect('/dashboard?error=manager_required')
+  }
 
   // Reuse existing voice notes page as triage UI
   return <VoiceNotesPage />

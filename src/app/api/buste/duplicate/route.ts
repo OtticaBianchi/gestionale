@@ -15,6 +15,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || !['admin', 'manager'].includes(profile.role)) {
+      return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 });
+    }
+
     if (!sourceId) {
       return NextResponse.json({ error: 'ID busta sorgente richiesto' }, { status: 400 });
     }

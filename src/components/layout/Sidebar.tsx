@@ -426,12 +426,14 @@ export default function Sidebar({ className = '' }: SidebarProps) {
               label="Kanban Board"
               isCollapsed={isCollapsed}
             />
-            <SidebarItem
-              href="/dashboard/analytics"
-              icon={Activity}
-              label="Analytics"
-              isCollapsed={isCollapsed}
-            />
+            {userRole === 'admin' && (
+              <SidebarItem
+                href="/dashboard/analytics"
+                icon={Activity}
+                label="Analytics"
+                isCollapsed={isCollapsed}
+              />
+            )}
             {userRole === 'admin' && (
               <SidebarItem
                 href="/dashboard/audit"
@@ -469,20 +471,23 @@ export default function Sidebar({ className = '' }: SidebarProps) {
               isCollapsed={isCollapsed}
               disabled={userRole === 'operatore'}
             />
-            <SidebarItem
-              href="/errori"
-              icon={AlertTriangle}
-              label="Tracciamento Errori"
-              isCollapsed={isCollapsed}
-              disabled={userRole !== 'admin'}
-              badge={userRole === 'admin' && errorDraftCount > 0 ? (errorDraftCount > 99 ? '99+' : errorDraftCount.toString()) : undefined}
-            />
-            <SidebarItem
-              href="/modules/archive"
-              icon={Archive}
-              label="Archivio"
-              isCollapsed={isCollapsed}
-            />
+            {userRole === 'admin' && (
+              <SidebarItem
+                href="/errori"
+                icon={AlertTriangle}
+                label="Tracciamento Errori"
+                isCollapsed={isCollapsed}
+                badge={errorDraftCount > 0 ? (errorDraftCount > 99 ? '99+' : errorDraftCount.toString()) : undefined}
+              />
+            )}
+            {userRole !== 'operatore' && (
+              <SidebarItem
+                href="/modules/archive"
+                icon={Archive}
+                label="Archivio"
+                isCollapsed={isCollapsed}
+              />
+            )}
           </SidebarSection>
 
           {/* COMUNICAZIONI Section */}
@@ -491,33 +496,37 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             icon={MessageSquareMore}
             isCollapsed={isCollapsed}
           >
-            <SidebarItem
-              href="/dashboard/voice-notes"
-              icon={Mic}
-              label="Note Vocali"
-              isCollapsed={isCollapsed}
-              badge={voiceNotesCount > 0 ? (voiceNotesCount > 99 ? '99+' : voiceNotesCount.toString()) : undefined}
-            />
+            {userRole && userRole !== 'operatore' && (
+              <SidebarItem
+                href="/dashboard/voice-notes"
+                icon={Mic}
+                label="Note Vocali"
+                isCollapsed={isCollapsed}
+                badge={voiceNotesCount > 0 ? (voiceNotesCount > 99 ? '99+' : voiceNotesCount.toString()) : undefined}
+              />
+            )}
             <SidebarItem
               href="/dashboard/follow-up"
               icon={Phone}
               label="Follow-up Chiamate"
               isCollapsed={isCollapsed}
             />
-            <SidebarItem
-              href="/modules/marketing"
-              icon={Mail}
-              label="Marketing"
-              isCollapsed={isCollapsed}
-              disabled={userRole === 'operatore'}
-            />
-            <SidebarItem
-              href="/modules/reactivation"
-              icon={RotateCcw}
-              label="Riattivazione"
-              isCollapsed={isCollapsed}
-              disabled={userRole === 'operatore'}
-            />
+            {userRole === 'admin' && (
+              <SidebarItem
+                href="/modules/marketing"
+                icon={Mail}
+                label="Marketing"
+                isCollapsed={isCollapsed}
+              />
+            )}
+            {userRole === 'admin' && (
+              <SidebarItem
+                href="/modules/reactivation"
+                icon={RotateCcw}
+                label="Riattivazione"
+                isCollapsed={isCollapsed}
+              />
+            )}
           </SidebarSection>
 
           {/* GESTIONE Section */}
@@ -543,7 +552,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
             isCollapsed={isCollapsed}
             badge={procedureUnreadCount > 0 ? (procedureUnreadCount > 99 ? '99+' : procedureUnreadCount.toString()) : undefined}
             />
-            {userRole !== 'operatore' && (
+            {userRole === 'admin' && (
               <SidebarItem
                 href="/modules/fornitori"
                 icon={Building2}

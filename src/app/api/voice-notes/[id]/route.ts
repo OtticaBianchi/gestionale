@@ -311,7 +311,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // First, ensure the caller is admin using regular client
+    // First, ensure the caller is admin or manager using regular client
     const serverClient = await createServerSupabaseClient();
     const { data: { user } } = await serverClient.auth.getUser();
     if (!user) {
@@ -322,9 +322,9 @@ export async function DELETE(
       .select('role')
       .eq('id', user.id)
       .single();
-    if (!profile || profile.role !== 'admin') {
+    if (!profile || !['admin', 'manager'].includes(profile.role)) {
       return NextResponse.json({
-        error: 'Solo gli amministratori possono eliminare le note vocali'
+        error: 'Solo gli amministratori o manager possono eliminare le note vocali'
       }, { status: 403 });
     }
 
@@ -404,7 +404,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Ensure the caller is admin
+    // Ensure the caller is admin or manager
     const serverClient = await createServerSupabaseClient();
     const { data: { user } } = await serverClient.auth.getUser();
     if (!user) {
@@ -415,9 +415,9 @@ export async function GET(
       .select('role')
       .eq('id', user.id)
       .single();
-    if (!profile || profile.role !== 'admin') {
+    if (!profile || !['admin', 'manager'].includes(profile.role)) {
       return NextResponse.json({
-        error: 'Solo gli amministratori possono accedere alle note vocali'
+        error: 'Solo gli amministratori o manager possono accedere alle note vocali'
       }, { status: 403 });
     }
 

@@ -20,9 +20,9 @@ export default async function MarketingPage() {
     .eq('id', user.id)
     .single()
 
-  // Only managers and admins can access marketing
-  if (!profile || !['manager', 'admin'].includes(profile.role)) {
-    redirect('/dashboard')
+  // Only admins can access marketing
+  if (!profile || profile.role !== 'admin') {
+    redirect('/dashboard?error=admin_required')
   }
 
   return <MarketingClient />

@@ -19,7 +19,7 @@ export default async function ArchiveModulePage() {
     .single()
   const role = profile?.role || 'operatore'
   const isAllowed = role === 'admin' || role === 'manager'
-  if (!isAllowed) redirect('/dashboard?error=access_denied')
+  if (!isAllowed) redirect('/dashboard?error=manager_required')
 
   return <ArchiveClient />
 }

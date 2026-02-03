@@ -27,11 +27,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const tipo = searchParams.get('tipo') || ''
     const payload = await request.json()
 
-    // Auth + role
+    // Auth + role (admin only)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+    if (!profile || profile.role !== 'admin') {
       return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 })
     }
 

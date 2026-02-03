@@ -433,6 +433,8 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
               icon={Plus}
               label="Nuova Busta"
               isCollapsed={isCollapsed}
+              disabled={userRole === 'operatore'}
+              disabledTooltip="Solo manager o admin"
             />
             <SidebarItem
               href="#"
@@ -464,19 +466,29 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
               label="Ordini"
               isCollapsed={isCollapsed}
             />
+            {userRole !== 'operatore' && (
+              <SidebarItem
+                href="/modules/archive"
+                icon={Archive}
+                label="Archivio"
+                isCollapsed={isCollapsed}
+              />
+            )}
             <SidebarItem
               href="/dashboard/ricerca-avanzata"
               icon={Search}
               label="Ricerca Avanzata"
               isCollapsed={isCollapsed}
             />
-            <SidebarItem
-              href="/dashboard/voice-notes"
-              icon={Mic}
-              label="Nota Vocale"
-              isCollapsed={isCollapsed}
-              badge={voiceNotesCount > 0 ? (voiceNotesCount > 99 ? '99+' : voiceNotesCount.toString()) : undefined}
-            />
+            {userRole && userRole !== 'operatore' && (
+              <SidebarItem
+                href="/dashboard/voice-notes"
+                icon={Mic}
+                label="Nota Vocale"
+                isCollapsed={isCollapsed}
+                badge={voiceNotesCount > 0 ? (voiceNotesCount > 99 ? '99+' : voiceNotesCount.toString()) : undefined}
+              />
+            )}
             <SidebarItem
               href="/dashboard/follow-up"
               icon={Phone}
