@@ -3,9 +3,25 @@
 import { useState } from 'react';
 
 export default function StartupNoticeModal() {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      return sessionStorage.getItem('startup_notice_dismissed') !== '1';
+    } catch {
+      return true;
+    }
+  });
 
   if (!isOpen) return null;
+
+  const handleClose = () => {
+    try {
+      sessionStorage.setItem('startup_notice_dismissed', '1');
+    } catch {
+      // Ignore storage errors and just close the modal for this render.
+    }
+    setIsOpen(false);
+  };
 
   return (
     <div
@@ -35,7 +51,7 @@ export default function StartupNoticeModal() {
         <div className="mt-6 flex justify-end">
           <button
             type="button"
-            onClick={() => setIsOpen(false)}
+            onClick={handleClose}
             className="rounded-lg bg-[var(--ink)] px-4 py-2 text-sm text-[var(--paper)] transition-colors hover:bg-black"
           >
             Ho capito

@@ -162,7 +162,8 @@ const CHECKLISTS: Partial<Record<ActivityKey, string[]>> = {
     'Assetto aste (in piano)',
     'Serraggio viti/chiusura cerchi',
     'Verifica corrispondenza lenti/ordine',
-    'Dotazione (Astuccio + Microfibra)'
+    'Dotazione (Astuccio + Microfibra)',
+    'Pulizia completa occhiali'
   ],
   pit_stop_occhiale: [
     'Lavaggio ultrasuoni',

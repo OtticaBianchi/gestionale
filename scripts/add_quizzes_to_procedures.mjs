@@ -682,6 +682,122 @@ export const QUIZ_DATA = {
         { text: 'Non contatti il cliente e verifichi prima con Valentina i dettagli dell\'accordo', correct: true }
       ]
     }
+  ],
+  'organigramma-e-regole-di-condotta-operativa': [
+    {
+      number: 1,
+      text: 'Qual è la catena di comando indicata nella procedura?',
+      options: [
+        { text: 'Enrico Bianchi → Valentina/Marco → Staff operativo', correct: true },
+        { text: 'Marco Comparini → Enrico Bianchi → Staff operativo', correct: false },
+        { text: 'Staff operativo → Direzione Operativa → Titolare', correct: false }
+      ]
+    },
+    {
+      number: 2,
+      text: 'Per attività fuori dalla normale amministrazione o con rischio economico, cosa è obbligatorio fare?',
+      options: [
+        { text: 'Procedere in autonomia se il cliente è presente', correct: false },
+        { text: 'Chiedere autorizzazione preventiva al Responsabile di Turno (Marco o Valentina)', correct: true },
+        { text: 'Informare il responsabile solo a lavoro concluso', correct: false }
+      ]
+    },
+    {
+      number: 3,
+      text: 'Hai commesso un errore evitabile durante una lavorazione. Secondo le regole interne, qual è il comportamento corretto?',
+      options: [
+        { text: 'Nascondere l\'errore per non creare problemi', correct: false },
+        { text: 'Aspettare che se ne accorga qualcun altro', correct: false },
+        { text: 'Dichiararlo subito: l\'errore dichiarato è occasione di miglioramento', correct: true }
+      ]
+    }
+  ],
+  'riadattamento-lenti-su-nuova-montatura': [
+    {
+      number: 1,
+      text: 'Durante la valutazione compatibilità, se la lente non copre la nuova montatura, cosa si deve fare?',
+      options: [
+        { text: 'Procedere comunque con il montaggio', correct: false },
+        { text: 'Ridurre la montatura finché la lente entra', correct: false },
+        { text: 'STOP: non procedere e proporre lenti nuove con sconto rottamazione', correct: true }
+      ]
+    },
+    {
+      number: 2,
+      text: 'Prima di iniziare il riadattamento, quale passaggio è obbligatorio?',
+      options: [
+        { text: 'Far firmare la manleva dopo il montaggio', correct: false },
+        { text: 'Far firmare la manleva/informativa al cliente', correct: true },
+        { text: 'Spedire le lenti in laboratorio esterno', correct: false }
+      ]
+    },
+    {
+      number: 3,
+      text: 'La lente è al limite di copertura (<1mm). Come si procede secondo la procedura?',
+      options: [
+        { text: 'Si procede senza comunicarlo al cliente', correct: false },
+        { text: 'Si consulta il Responsabile per valutare il rischio estetico/decentramento', correct: true },
+        { text: 'Si rifiuta sempre il lavoro senza valutazioni', correct: false }
+      ]
+    }
+  ],
+  'assistenza-prodotti-garmin': [
+    {
+      number: 1,
+      text: 'Secondo la procedura, Garmin ripara i dispositivi?',
+      options: [
+        { text: 'Sì, li ripara sempre', correct: false },
+        { text: 'No, li sostituisce con unità ricondizionate pari al nuovo', correct: true },
+        { text: 'Solo in garanzia li ripara', correct: false }
+      ]
+    },
+    {
+      number: 2,
+      text: 'Per una pratica in garanzia, quale documento è obbligatorio?',
+      options: [
+        { text: 'Scontrino o fattura originale', correct: true },
+        { text: 'Estratto carta di credito', correct: false },
+        { text: 'Solo numero di serie', correct: false }
+      ]
+    },
+    {
+      number: 3,
+      text: 'Fuori garanzia, Garmin invia un PDF con le opzioni. Cosa serve perché procedano?',
+      options: [
+        { text: 'Spedire un secondo dispositivo di prova', correct: false },
+        { text: 'Contattare il cliente solo telefonicamente', correct: false },
+        { text: 'Restituire a Garmin il PDF compilato con la scelta del cliente', correct: true }
+      ]
+    }
+  ],
+  'gestione-risposte-negative-al-cliente': [
+    {
+      number: 1,
+      text: 'Qual è la sequenza corretta per una risposta negativa al cliente?',
+      options: [
+        { text: 'Comunicare il limite → riconoscere la richiesta → offrire alternativa', correct: false },
+        { text: 'Riconoscere la richiesta → comunicare il limite → offrire alternativa', correct: true },
+        { text: 'Offrire alternativa → dire no → chiudere', correct: false }
+      ]
+    },
+    {
+      number: 2,
+      text: 'Quale comportamento NON è accettabile?',
+      options: [
+        { text: 'Dire “no” secco senza spiegazione', correct: true },
+        { text: 'Proporre un\'alternativa concreta', correct: false },
+        { text: 'Usare toni rispettosi e chiari', correct: false }
+      ]
+    },
+    {
+      number: 3,
+      text: 'Un cliente chiede uno sconto extra non previsto. Qual è la risposta corretta?',
+      options: [
+        { text: 'Concedere lo sconto per evitare il conflitto', correct: false },
+        { text: 'Rifiutare e chiudere la conversazione', correct: false },
+        { text: 'Spiegare il limite e proporre un\'alternativa in offerta o simile', correct: true }
+      ]
+    }
   ]
 };
 
