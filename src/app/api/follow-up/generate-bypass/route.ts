@@ -185,7 +185,8 @@ export async function POST() {
         busta_id: item.id,
         data_generazione: new Date().toISOString().split('T')[0],
         priorita: item.priorita,
-        stato_chiamata: 'da_chiamare'
+        stato_chiamata: 'da_chiamare',
+        origine: 'post_vendita'
       }))
 
       const { error: insertError } = await supabase

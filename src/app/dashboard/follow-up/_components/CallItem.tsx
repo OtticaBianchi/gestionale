@@ -8,7 +8,8 @@ import {
   SatisfactionLevel,
   CALL_STATUS_LABELS,
   SATISFACTION_LABELS,
-  COMPLETED_CALL_STATES
+  COMPLETED_CALL_STATES,
+  ORIGIN_LABELS
 } from '../_types'
 import {
   getCategoriaClienteLabel,
@@ -111,6 +112,13 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(call.stato_chiamata)}`}>
               {CALL_STATUS_LABELS[call.stato_chiamata]}
             </span>
+            {call.origine && (
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                call.origine === 'tecnico' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'
+              }`}>
+                {ORIGIN_LABELS[call.origine]}
+              </span>
+            )}
             {call.categoria_cliente && (
               <span className={`px-2 py-1 rounded-md text-xs font-medium ring-1 ${getCategoriaClienteColor(call.categoria_cliente as CategoriaCliente)}`}>
                 {getCategoriaClienteIcon(call.categoria_cliente as CategoriaCliente)} {getCategoriaClienteLabel(call.categoria_cliente as CategoriaCliente)}
@@ -126,6 +134,14 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
             )}
             <div>📋 Busta: {call.readable_id}</div>
             <div>📅 {call.giorni_trascorsi} giorni fa</div>
+            {call.scheduled_at && (
+              <div>🗓️ Pianificato: {new Date(call.scheduled_at).toLocaleString('it-IT')}</div>
+            )}
+            {call.motivo_urgenza && (
+              <div className="text-red-700">
+                ⚠️ {call.motivo_urgenza}
+              </div>
+            )}
             {call.livello_soddisfazione && (
               <div className="flex items-center gap-2">
                 <div className={`font-medium ${getSatisfactionColor(call.livello_soddisfazione)}`}>

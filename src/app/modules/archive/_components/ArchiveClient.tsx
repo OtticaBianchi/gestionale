@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Copy, ChevronDown, Eye, Search, X, ArrowLeft } from 'lucide-react';
+import { Copy, ChevronDown, Eye, Search, X, ArrowLeft, RotateCcw } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import { shouldArchiveBusta } from '@/lib/buste/archiveRules';
 import { Database } from '@/types/database.types';
+import { useUser } from '@/context/UserContext';
 
 interface ArchivedBusta {
   id: string;
   readable_id: string | null;
   stato_attuale: Database['public']['Enums']['job_status'];
+  tipo_lavorazione: Database['public']['Enums']['work_type'] | null;
   updated_at: string | null;
   data_apertura: string;
   archived_mode: string | null;
@@ -55,6 +57,9 @@ export default function ArchiveClient() {
   const [showDuplicateMenu, setShowDuplicateMenu] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredBuste, setFilteredBuste] = useState<ArchivedBusta[]>([]);
+  const [reopeningId, setReopeningId] = useState<string | null>(null);
+  const { profile } = useUser();
+  const canReopen = profile?.role !== 'operatore';
 
   useEffect(() => {
     fetchArchivedBuste();
@@ -84,6 +89,7 @@ export default function ArchiveClient() {
           id,
           readable_id,
           stato_attuale,
+          tipo_lavorazione,
           updated_at,
           data_apertura,
           archived_mode,
@@ -167,6 +173,47 @@ export default function ArchiveClient() {
       toast.error(error.message || 'Errore nella duplicazione della busta');
     }
     setShowDuplicateMenu(null);
+  };
+
+  const reopenBusta = async (busta: ArchivedBusta) => {
+    if (!canReopen) return;
+    if (busta.archived_mode === 'ANNULLATA') {
+      toast.error('Busta annullata: non è possibile riaprirla.');
+      return;
+    }
+
+    const confirmed = confirm('Riaprire la busta e riportarla in lavorazione?');
+    if (!confirmed) return;
+
+    try {
+      setReopeningId(busta.id);
+      const response = await fetch('/api/buste/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          bustaId: busta.id,
+          oldStatus: busta.stato_attuale,
+          newStatus: 'in_lavorazione',
+          tipoLavorazione: busta.tipo_lavorazione
+        })
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || 'Impossibile riaprire la busta');
+      }
+
+      setBuste(prev => prev.filter(item => item.id !== busta.id));
+      setFilteredBuste(prev => prev.filter(item => item.id !== busta.id));
+      toast.success('Busta riaperta e riportata in lavorazione.');
+    } catch (err: any) {
+      console.error('Errore riapertura busta:', err);
+      toast.error(err.message || 'Errore nella riapertura della busta');
+    } finally {
+      setReopeningId(null);
+    }
   };
 
   // Filter buste based on search term
@@ -338,6 +385,17 @@ export default function ArchiveClient() {
                     </td>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-2">
+                        {canReopen && (
+                          <button
+                            onClick={() => reopenBusta(busta)}
+                            disabled={reopeningId === busta.id || busta.archived_mode === 'ANNULLATA'}
+                            className="flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded text-xs hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={busta.archived_mode === 'ANNULLATA' ? 'Busta annullata: non riapribile' : 'Riapri in lavorazione'}
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            {reopeningId === busta.id ? 'Riaprendo...' : 'Riapri'}
+                          </button>
+                        )}
                         <Link 
                           href={`/dashboard/buste/${busta.id}`} 
                           className="flex items-center gap-1 px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 transition-colors"

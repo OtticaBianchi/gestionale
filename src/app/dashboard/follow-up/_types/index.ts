@@ -13,6 +13,7 @@ export type SatisfactionLevel =
   | 'insoddisfatto'
 
 export type CallPriority = 'alta' | 'normale' | 'bassa'
+export type CallOrigin = 'post_vendita' | 'tecnico'
 
 export interface FollowUpCall {
   id: string
@@ -24,8 +25,11 @@ export interface FollowUpCall {
   livello_soddisfazione?: SatisfactionLevel
   categoria_cliente?: string | null // FU2.0: Auto-categorization
   note_chiamata?: string
+  motivo_urgenza?: string
+  origine?: CallOrigin
   orario_richiamata_da?: string
   orario_richiamata_a?: string
+  scheduled_at?: string
   data_completamento?: string
   archiviato: boolean
   priorita: CallPriority
@@ -51,6 +55,7 @@ export interface CallUpdateData {
   orario_richiamata_a?: string
   data_chiamata?: string
   data_completamento?: string
+  scheduled_at?: string
 }
 
 export interface FollowUpStatistics {
@@ -109,6 +114,11 @@ export const PRIORITY_COLORS: Record<CallPriority, string> = {
   alta: 'bg-red-100 text-red-800',
   normale: 'bg-yellow-100 text-yellow-800',
   bassa: 'bg-green-100 text-green-800'
+}
+
+export const ORIGIN_LABELS: Record<CallOrigin, string> = {
+  post_vendita: 'Post-vendita',
+  tecnico: 'Tecnico'
 }
 
 // Stati che vengono considerati "completati" e devono sparire dalla lista attiva

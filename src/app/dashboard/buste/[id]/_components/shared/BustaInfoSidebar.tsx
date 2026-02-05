@@ -2,10 +2,12 @@
 
 'use client';
 
+import { useEffect, useState } from 'react';
 import { 
   Clock,
   FileText
 } from 'lucide-react';
+import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
 
 // ===== TYPES LOCALI =====
@@ -19,12 +21,21 @@ type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
   >;
 };
 
+type ControlloQualita = Database['public']['Tables']['buste_controlli_qualita']['Row'] & {
+  profiles?: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
+};
+
 // Props del componente
 interface BustaInfoSidebarProps {
   busta: BustaDettagliata;
 }
 
 export default function BustaInfoSidebar({ busta }: BustaInfoSidebarProps) {
+  const [controlliQualita, setControlliQualita] = useState<ControlloQualita[]>([]);
+  const supabase = createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
   
   // ===== UTILITY FUNCTIONS =====
   const formatDate = (dateString: string) => {
@@ -56,6 +67,52 @@ export default function BustaInfoSidebar({ busta }: BustaInfoSidebarProps) {
     };
     return colors[stato] || 'bg-gray-400';
   };
+
+  useEffect(() => {
+    const loadQcHistory = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('buste_controlli_qualita')
+          .select('id, busta_id, cycle_index, completed_by, completed_at, created_at, profiles:completed_by(full_name)')
+          .eq('busta_id', busta.id)
+          .order('cycle_index', { ascending: false });
+
+        if (error) {
+          console.error('❌ Errore caricamento storico controlli qualità:', error);
+          setControlliQualita([]);
+          return;
+        }
+
+        setControlliQualita((data || []) as ControlloQualita[]);
+      } catch (err) {
+        console.error('❌ Errore caricamento storico controlli qualità:', err);
+        setControlliQualita([]);
+      }
+    };
+
+    loadQcHistory();
+  }, [busta.id, busta.controllo_completato_at]);
+
+  const timelineEntries = [
+    ...busta.status_history.map((entry) => ({
+      type: 'status' as const,
+      id: entry.id,
+      date: entry.data_ingresso,
+      label: entry.stato,
+      color: getStatoColore(entry.stato),
+      user: entry.profiles?.full_name || null,
+      note: entry.note_stato || null
+    })),
+    ...controlliQualita.map((entry) => ({
+      type: 'qc' as const,
+      id: entry.id,
+      date: entry.completed_at,
+      label: `Controllo Qualità #${entry.cycle_index}`,
+      color: 'bg-emerald-500',
+      user: entry.profiles?.full_name || null,
+      note: null
+    }))
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   // ===== RENDER =====
   return (
@@ -103,24 +160,24 @@ export default function BustaInfoSidebar({ busta }: BustaInfoSidebarProps) {
         </h3>
         
         <div className="space-y-4">
-          {busta.status_history.map((entry, index) => (
-            <div key={entry.id} className="flex items-start space-x-3">
-              <div className={`w-3 h-3 rounded-full mt-1.5 ${getStatoColore(entry.stato)}`} />
+          {timelineEntries.map((entry) => (
+            <div key={`${entry.type}-${entry.id}`} className="flex items-start space-x-3">
+              <div className={`w-3 h-3 rounded-full mt-1.5 ${entry.color}`} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900">
-                  {entry.stato.replace(/_/g, ' ').toUpperCase()}
+                  {entry.type === 'status' ? entry.label.replace(/_/g, ' ').toUpperCase() : entry.label}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {formatDate(entry.data_ingresso)}
+                  {formatDate(entry.date)}
                 </p>
-                {entry.profiles?.full_name && (
+                {entry.user && (
                   <p className="text-xs text-gray-400">
-                    da {entry.profiles.full_name}
+                    da {entry.user}
                   </p>
                 )}
-                {entry.note_stato && (
+                {entry.note && (
                   <p className="text-xs text-gray-600 mt-1">
-                    {entry.note_stato}
+                    {entry.note}
                   </p>
                 )}
               </div>

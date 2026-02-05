@@ -60,8 +60,10 @@ export const ALLOWED_TRANSITIONS: Record<WorkflowState, WorkflowState[]> = {
     'consegnato_pagato'        // Cliente ritira
   ],
 
-  // CONSEGNATO_PAGATO: Stato finale (mai modificabile)
-  'consegnato_pagato': []
+  // CONSEGNATO_PAGATO: Stato finale, ma riapribile per interventi post-consegna
+  'consegnato_pagato': [
+    'in_lavorazione'
+  ]
 };
 
 // Messaggi di spiegazione per ogni transizione
@@ -88,7 +90,8 @@ export const TRANSITION_REASONS: Record<string, string> = {
   'in_lavorazione->pronto_ritiro': 'Lavorazione completata',
 
   'pronto_ritiro->in_lavorazione': 'Problema trovato: torna in lavorazione',
-  'pronto_ritiro->consegnato_pagato': 'Cliente ha ritirato e pagato'
+  'pronto_ritiro->consegnato_pagato': 'Cliente ha ritirato e pagato',
+  'consegnato_pagato->in_lavorazione': 'Post-consegna: intervento/controllo aggiuntivo'
 };
 
 // Funzione per verificare se una busta ha workflow speciale

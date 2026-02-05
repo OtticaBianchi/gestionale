@@ -3,11 +3,12 @@
 import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
@@ -156,14 +157,30 @@ function LoginForm() {
               </div>
               <input
                 id="password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white/80 py-2.5 pl-10 pr-3 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--teal)]/30"
+                onChange={(e) => {
+                  const next = e.target.value
+                  setPassword(next)
+                  if (!next) {
+                    setShowPassword(false)
+                  }
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-white/80 py-2.5 pl-10 pr-10 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--teal)]/30"
                 placeholder="Password"
               />
+              {password.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(prev => !prev)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700"
+                  aria-label={showPassword ? 'Nascondi password' : 'Mostra password'}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              )}
             </div>
           </div>
 
@@ -205,11 +222,18 @@ function LoginForm() {
 
         <div className="mt-6 border-t border-slate-200 pt-6">
           <div className="mb-2 text-center text-xs text-slate-400">
-            Versione 4.3.3
+            Versione 4.3.4
           </div>
           <div className="text-xs text-slate-500">
             <div className="text-center font-medium text-slate-600">Ultimi aggiornamenti</div>
             <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+              <div className="font-semibold text-slate-700">v4.3.4 - Febbraio 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>Controllo qualità: storico per ciclo + timeline in sidebar</li>
+                <li>Riapertura buste archiviate con reset QC e nuovo ciclo</li>
+                <li>Follow-up tecnici urgenti con motivo e pianificazione</li>
+                <li>Checklist sagomatura e toggle mostra password login</li>
+              </ul>
               <div className="font-semibold text-slate-700">v4.3.3 - Febbraio 2026</div>
               <ul className="ml-2 list-disc list-inside space-y-1">
                 <li>Nuovi menu lenti obbligatori (tipo, classificazione, trattamenti con opzione "Nessuno")</li>

@@ -64,6 +64,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.3.4', date: '05/02/2026', description: 'Controllo qualità: storico per ciclo + timeline stati, riapertura buste archiviate, follow-up tecnici con urgenza/pianificazione e checklist sagomatura.' },
     { version: '4.3.3', date: '02/02/2026', description: 'Sistema lenti: nuovi menu obbligatori (tipo/classificazione/trattamenti con "Nessuno"), badge info ordini in Materiali e Operazioni, analytics con tempi consegna/lead time e breakdown pagamenti.' },
     { version: '4.3.2', date: '31/01/2026', description: 'Lavorazioni: menu LS/LV/OCV esteso (Sagom./Lab.Int., Richiamo Verifica Tecnica, Verifica Non Adattamento) con filtri coerenti per lenti graduate.' },
     { version: '4.3.1', date: '30/01/2026', description: 'Dedup clienti: scansione completa con paginazione e normalizzazione avanzata, migliore riconoscimento duplicati con nomi invertiti o incompleti.' },
@@ -199,7 +200,7 @@ export default function WelcomePage() {
               </div>
 
               <div className="mt-5 rounded-2xl bg-[var(--paper)] px-4 py-3 text-xs text-slate-500">
-                Supporto clienti e formazione inclusi. Versione attuale: <strong>4.3.3</strong>
+                Supporto clienti e formazione inclusi. Versione attuale: <strong>4.3.4</strong>
               </div>
             </div>
           </aside>

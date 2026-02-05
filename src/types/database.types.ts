@@ -506,6 +506,48 @@ export type Database = {
           },
         ]
       }
+      buste_controlli_qualita: {
+        Row: {
+          busta_id: string
+          completed_at: string
+          completed_by: string
+          created_at: string
+          cycle_index: number
+          id: string
+        }
+        Insert: {
+          busta_id: string
+          completed_at?: string
+          completed_by: string
+          created_at?: string
+          cycle_index: number
+          id?: string
+        }
+        Update: {
+          busta_id?: string
+          completed_at?: string
+          completed_by?: string
+          created_at?: string
+          cycle_index?: number
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buste_controlli_qualita_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: false
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "buste_controlli_qualita_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classificazione_lenti: {
         Row: {
           id: string
@@ -913,10 +955,13 @@ export type Database = {
           id: string
           livello_soddisfazione: string | null
           note_chiamata: string | null
+          motivo_urgenza: string | null
+          origine: string
           operatore_id: string | null
           orario_richiamata_a: string | null
           orario_richiamata_da: string | null
           priorita: string
+          scheduled_at: string | null
           stato_chiamata: string
           updated_at: string | null
           updated_by: string | null
@@ -933,10 +978,13 @@ export type Database = {
           id?: string
           livello_soddisfazione?: string | null
           note_chiamata?: string | null
+          motivo_urgenza?: string | null
+          origine?: string
           operatore_id?: string | null
           orario_richiamata_a?: string | null
           orario_richiamata_da?: string | null
           priorita: string
+          scheduled_at?: string | null
           stato_chiamata?: string
           updated_at?: string | null
           updated_by?: string | null
@@ -953,10 +1001,13 @@ export type Database = {
           id?: string
           livello_soddisfazione?: string | null
           note_chiamata?: string | null
+          motivo_urgenza?: string | null
+          origine?: string
           operatore_id?: string | null
           orario_richiamata_a?: string | null
           orario_richiamata_da?: string | null
           priorita?: string
+          scheduled_at?: string | null
           stato_chiamata?: string
           updated_at?: string | null
           updated_by?: string | null

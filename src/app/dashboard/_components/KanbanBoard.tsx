@@ -222,7 +222,7 @@ function DroppableColumn({
         )}
         {isFinalColumn && (
           <p className="text-[10px] text-emerald-700 bg-emerald-100 rounded px-2 py-1 mx-2 mb-2 font-medium">
-            Si archivia automaticamente dopo 7 giorni
+            Si archivia automaticamente dopo 1 giorno
           </p>
         )}
         

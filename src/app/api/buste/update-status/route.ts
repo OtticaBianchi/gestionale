@@ -114,13 +114,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Busta non trovata' }, { status: 404 })
     }
 
+    const updatePayload: Record<string, any> = {
+      stato_attuale: newStatus,
+      updated_by: user.id,
+      updated_at: now,
+    }
+
+    if (newStatus === 'in_lavorazione' && (oldStatus === 'pronto_ritiro' || oldStatus === 'consegnato_pagato')) {
+      updatePayload.controllo_completato = false
+      updatePayload.controllo_completato_da = null
+      updatePayload.controllo_completato_at = null
+    }
+
     const { data: updatedBuste, error: updateError } = await admin
       .from('buste')
-      .update({
-        stato_attuale: newStatus,
-        updated_by: user.id,
-        updated_at: now,
-      })
+      .update(updatePayload)
       .eq('id', bustaId)
       .eq('stato_attuale', oldStatus) // optimistic concurrency control
       .select('id, readable_id, stato_attuale, updated_at, updated_by')

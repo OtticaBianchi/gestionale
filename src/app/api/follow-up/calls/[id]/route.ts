@@ -15,6 +15,9 @@ const pickFollowUpAuditFields = (row: any) => ({
   orario_richiamata_a: row?.orario_richiamata_a ?? null,
   categoria_cliente: row?.categoria_cliente ?? null,
   crea_errore: row?.crea_errore ?? null,
+  origine: row?.origine ?? null,
+  motivo_urgenza: row?.motivo_urgenza ?? null,
+  scheduled_at: row?.scheduled_at ?? null,
 })
 
 // PATCH - Aggiorna stato chiamata
@@ -53,7 +56,10 @@ export async function PATCH(
         orario_richiamata_da,
         orario_richiamata_a,
         categoria_cliente,
-        crea_errore
+        crea_errore,
+        origine,
+        motivo_urgenza,
+        scheduled_at
       `)
       .eq('id', id)
       .single()
@@ -102,6 +108,7 @@ export async function PATCH(
     // FU2.0: Auto-categorize customer based on call outcome
     // Check both the update payload and existing state for stato_chiamata
     const finalStato = updateData.stato_chiamata || existingCall.stato_chiamata;
+    const finalOrigine = updateData.origine || existingCall.origine;
 
     // Categorize if:
     // 1. Satisfaction level is being set (for completed calls)
@@ -179,11 +186,14 @@ export async function PATCH(
         stato_chiamata,
         livello_soddisfazione,
         note_chiamata,
+        motivo_urgenza,
         orario_richiamata_da,
         orario_richiamata_a,
+        scheduled_at,
         data_completamento,
         archiviato,
         priorita,
+        origine,
         created_at,
         updated_at,
         categoria_cliente,
@@ -215,6 +225,28 @@ export async function PATCH(
 
     if (!audit.success) {
       console.error('AUDIT_UPDATE_FOLLOWUP_FAILED', audit.error)
+    }
+
+    const completedStates = ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato']
+    if (finalOrigine === 'tecnico' && completedStates.includes(finalStato)) {
+      try {
+        const completedAt = patch.data_chiamata || now
+        const { error: bustaUpdateError } = await supabase
+          .from('buste')
+          .update({
+            richiede_telefonata: true,
+            telefonata_completata: true,
+            telefonata_completata_data: completedAt,
+            telefonata_completata_da: user.id
+          })
+          .eq('id', existingCall.busta_id)
+
+        if (bustaUpdateError) {
+          console.error('Errore aggiornamento busta (telefonata completata):', bustaUpdateError)
+        }
+      } catch (bustaUpdateErr) {
+        console.error('Errore aggiornamento busta (telefonata completata):', bustaUpdateErr)
+      }
     }
 
     return NextResponse.json({

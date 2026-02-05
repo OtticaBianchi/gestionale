@@ -72,6 +72,9 @@ type Lavorazione = {
 
 type TipoMontaggio = Database['public']['Tables']['tipi_montaggio']['Row'];
 type LavorazioneChecklistItem = Database['public']['Tables']['lavorazioni_checklist_items']['Row'];
+type ControlloQualita = Database['public']['Tables']['buste_controlli_qualita']['Row'] & {
+  profiles?: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
+};
 type Comunicazione = Database['public']['Tables']['comunicazioni']['Row'];
 type ComunicazioneTipo = 'nota_comunicazione_cliente';
 type ActivityKey =
@@ -157,6 +160,14 @@ const ACTIVITY_MATRIX: Record<string, ActivityKey[]> = {
 };
 
 const CHECKLISTS: Partial<Record<ActivityKey, string[]>> = {
+  sagomatura_montaggio: [
+    'Parametri ordine verificati (RX/PD/altezza/trattamenti)',
+    'Sagoma montatura tracciata e centratura corretta',
+    'Sagomatura e montaggio completati senza difetti',
+    'Assetto meccanico ok (aste/chiusure/allineamento)',
+    'Pulizia finale lenti e montatura',
+    'Note/anomalie registrate (se presenti)'
+  ],
   controllo_qualita_pre_consegna: [
     'Pulizia lenti (no aloni)',
     'Assetto aste (in piano)',
@@ -210,6 +221,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
 
   // ===== STATE =====
   const [lavorazioni, setLavorazioni] = useState<Lavorazione[]>([]);
+  const [controlliQualita, setControlliQualita] = useState<ControlloQualita[]>([]);
   const [tipiMontaggio, setTipiMontaggio] = useState<TipoMontaggio[]>([]);
   const [showNuovaLavorazioneForm, setShowNuovaLavorazioneForm] = useState(false);
   const [isLoadingLavorazioni, setIsLoadingLavorazioni] = useState(false);
@@ -229,6 +241,8 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
   const [telefonataCompletataData, setTelefonataCompletataData] = useState<string | null>(busta.telefonata_completata_data || null);
   const [isSavingPhoneRequest, setIsSavingPhoneRequest] = useState(false);
   const [showingCallOutcome, setShowingCallOutcome] = useState(false);
+  const [telefonataMotivo, setTelefonataMotivo] = useState('');
+  const [telefonataScheduledAt, setTelefonataScheduledAt] = useState('');
 
   const PHONE_ASSIGNEES = ['Chiunque', 'Enrico', 'Valentina', 'Marco', 'Roberta', 'Cecilia', 'Anna', 'Monica', 'Noemi'];
 
@@ -344,6 +358,13 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
     : null;
   const selectedTipoKey = getActivityKeyFromLabel(selectedTipoMontaggio?.nome);
   const isLabEsternoSelected = selectedTipoKey === 'lab_esterno';
+  const allChecklistsCompleted = lavorazioni.length > 0 && lavorazioni.every((lav) => {
+    const items = lav.checklist_items || [];
+    return items.length === 0 || items.every(item => item.is_checked);
+  });
+  const allLavorazioniCompleted = lavorazioni.length > 0 && lavorazioni.every(lav => lav.stato === 'completato');
+  const phoneRequirementSatisfied = !richiedeTelefonata || telefonataCompletata;
+  const controlloPrerequisitesMet = allChecklistsCompleted && allLavorazioniCompleted && phoneRequirementSatisfied;
 
   // ===== EFFECTS =====
   useEffect(() => {
@@ -448,10 +469,24 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
 
       console.log(`✅ Caricate ${lavorazioniArricchite.length} lavorazioni per busta ${busta.id}`);
       setLavorazioni(lavorazioniArricchite);
+
+      const { data: qcData, error: qcError } = await supabase
+        .from('buste_controlli_qualita')
+        .select('id, busta_id, cycle_index, completed_by, completed_at, created_at, profiles:completed_by(full_name)')
+        .eq('busta_id', busta.id)
+        .order('cycle_index', { ascending: false });
+
+      if (qcError) {
+        console.error('❌ Errore caricamento storico controlli qualità:', qcError);
+        setControlliQualita([]);
+      } else {
+        setControlliQualita((qcData || []) as ControlloQualita[]);
+      }
       
     } catch (error) {
       console.error('❌ Error loading lavorazioni data:', error);
       setLavorazioni([]);
+      setControlliQualita([]);
     } finally {
       setIsLoadingLavorazioni(false);
     }
@@ -759,6 +794,38 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
     }
   };
 
+  const updateLatestTechnicalFollowUp = async (patch: Record<string, any>) => {
+    try {
+      const { data: calls, error } = await supabase
+        .from('follow_up_chiamate')
+        .select('id, stato_chiamata')
+        .eq('busta_id', busta.id)
+        .eq('origine', 'tecnico')
+        .not('stato_chiamata', 'in', '(chiamato_completato,non_vuole_essere_contattato,numero_sbagliato)')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) {
+        console.error('Errore ricerca follow-up tecnico:', error);
+        return;
+      }
+
+      const target = (calls || [])[0];
+      if (!target) return;
+
+      const { error: updateError } = await supabase
+        .from('follow_up_chiamate')
+        .update(patch)
+        .eq('id', target.id);
+
+      if (updateError) {
+        console.error('Errore aggiornamento follow-up tecnico:', updateError);
+      }
+    } catch (err) {
+      console.error('Errore aggiornamento follow-up tecnico:', err);
+    }
+  };
+
   const createCommunicationRecord = async (tipo: ComunicazioneTipo, testoFinale: string) => {
     const response = await fetch('/api/comunicazioni', {
       method: 'POST',
@@ -786,7 +853,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
     return payload?.comunicazione as Comunicazione;
   };
 
-  const handleSavePhoneRequest = async () => {
+  const handleSavePhoneRequest = async (contextNote?: string | null) => {
     if (!telefonataAssegnataA) {
       alert('Seleziona a chi assegnare la telefonata');
       return;
@@ -794,6 +861,41 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
 
     setIsSavingPhoneRequest(true);
     try {
+      const trimmedMotivo = telefonataMotivo.trim();
+      const motivoFinale = trimmedMotivo || (contextNote?.trim() || '');
+      const scheduledAt = telefonataScheduledAt ? new Date(telefonataScheduledAt).toISOString() : null;
+
+      const { data: existingTechCalls, error: existingTechError } = await supabase
+        .from('follow_up_chiamate')
+        .select('id, stato_chiamata')
+        .eq('busta_id', busta.id)
+        .eq('origine', 'tecnico')
+        .not('stato_chiamata', 'in', '(chiamato_completato,non_vuole_essere_contattato,numero_sbagliato)')
+        .limit(1);
+
+      if (existingTechError) {
+        console.error('Errore controllo follow-up tecnico:', existingTechError);
+      }
+
+      if (!existingTechError && (existingTechCalls || []).length === 0) {
+        const { error: followUpError } = await supabase
+          .from('follow_up_chiamate')
+          .insert({
+            busta_id: busta.id,
+            data_generazione: new Date().toISOString().split('T')[0],
+            priorita: 'alta',
+            stato_chiamata: 'da_chiamare',
+            origine: 'tecnico',
+            motivo_urgenza: motivoFinale || null,
+            scheduled_at: scheduledAt
+          });
+
+        if (followUpError) {
+          console.error('Errore creazione follow-up tecnico:', followUpError);
+          alert('Errore creazione follow-up tecnico. Riprova o contatta un amministratore.');
+        }
+      }
+
       const { error } = await supabase
         .from('buste')
         .update({
@@ -856,6 +958,12 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
           'nota_comunicazione_cliente',
           `Telefonata al cliente: andata a buon fine. Effettuata da: ${callerName}.`
         );
+        await updateLatestTechnicalFollowUp({
+          stato_chiamata: 'chiamato_completato',
+          data_chiamata: completedAt,
+          data_completamento: completedAt.split('T')[0],
+          note_chiamata: `Telefonata al cliente: andata a buon fine. Effettuata da: ${callerName}.`
+        });
       } catch (communicationError) {
         console.error('Errore salvataggio comunicazione telefonata:', communicationError);
       }
@@ -882,6 +990,10 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
           'nota_comunicazione_cliente',
           `Telefonata al cliente: nessuna risposta - richiamare. Tentativo effettuato da ${callerName} il ${formattedDate} alle ${formattedTime}.`
         );
+        await updateLatestTechnicalFollowUp({
+          stato_chiamata: 'richiamami',
+          note_chiamata: `Telefonata al cliente: nessuna risposta - richiamare. Tentativo effettuato da ${callerName} il ${formattedDate} alle ${formattedTime}.`
+        });
       } catch (communicationError) {
         console.error('Errore salvataggio comunicazione telefonata:', communicationError);
       }
@@ -922,6 +1034,9 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
         telefonata_completata: false,
         telefonata_completata_data: null,
         telefonata_completata_da: null
+      });
+      await updateLatestTechnicalFollowUp({
+        archiviato: true
       });
       alert('Richiesta telefonata annullata!');
     } catch (error: any) {
@@ -990,6 +1105,11 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
       return;
     }
 
+    if (!controlloPrerequisitesMet) {
+      alert('Per completare il controllo finale devi completare tutte le lavorazioni, tutte le checklist ed eventuali telefonate richieste.');
+      return;
+    }
+
     // Double check con l'utente
     if (!confirm('Hai controllato attentamente che tutto sia a posto? La busta verrà spostata in "Pronto Ritiro".')) {
       setControlloCompletato(false);
@@ -1038,6 +1158,42 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
 
       const data = await response.json();
       console.log('✅ Busta moved to pronto_ritiro successfully');
+
+      try {
+        const { data: lastCycleData, error: cycleError } = await supabase
+          .from('buste_controlli_qualita')
+          .select('cycle_index')
+          .eq('busta_id', busta.id)
+          .order('cycle_index', { ascending: false })
+          .limit(1);
+
+        if (cycleError) throw cycleError;
+
+        const nextCycle = ((lastCycleData?.[0]?.cycle_index) ?? 0) + 1;
+
+        const { data: qcRow, error: qcInsertError } = await supabase
+          .from('buste_controlli_qualita')
+          .insert({
+            busta_id: busta.id,
+            cycle_index: nextCycle,
+            completed_by: user.id,
+            completed_at: now
+          })
+          .select('id, busta_id, cycle_index, completed_by, completed_at, created_at')
+          .single();
+
+        if (qcInsertError) throw qcInsertError;
+
+        const qcEntry: ControlloQualita = {
+          ...(qcRow as ControlloQualita),
+          profiles: { full_name: currentUser?.full_name || 'Operatore' }
+        };
+
+        setControlliQualita(prev => [qcEntry, ...prev]);
+      } catch (qcError) {
+        console.error('❌ Errore registrazione storico controllo qualità:', qcError);
+        alert('Controllo completato, ma lo storico non è stato registrato. Avvisa un amministratore.');
+      }
 
       // Update the busta state locally with ALL new fields
       const updatedBusta = {
@@ -1471,12 +1627,14 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
 
                     {(() => {
                       const activityKey = getActivityKeyFromLabel(lavorazione.tipi_montaggio?.nome);
-                      if (!['richiamo_verifica_tecnica', 'training_applicazione_lac'].includes(activityKey || '')) {
+                      if (!['richiamo_verifica_tecnica', 'training_applicazione_lac', 'verifica_non_adattamento'].includes(activityKey || '')) {
                         return null;
                       }
                       const panelTitle = activityKey === 'training_applicazione_lac'
                         ? 'Contatto Cliente (Training Applicazione LAC)'
-                        : 'Richiamo Cliente (Verifica Tecnica)';
+                        : activityKey === 'verifica_non_adattamento'
+                          ? 'Richiamo Cliente (Verifica Non Adattamento)'
+                          : 'Richiamo Cliente (Verifica Tecnica)';
                       return (
                       <div className={`mt-4 border rounded-lg p-4 ${
                         richiedeTelefonata && !telefonataCompletata
@@ -1594,28 +1752,53 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
                             <p className="text-sm text-gray-600">
                               Il cliente dev&apos;essere contattato telefonicamente
                             </p>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">
-                                Assegna a:
-                              </label>
-                              <select
-                                value={telefonataAssegnataA}
-                                onChange={(e) => setTelefonataAssegnataA(e.target.value)}
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
-                                disabled={!canEdit}
-                              >
-                                <option value="">Seleziona...</option>
-                                {PHONE_ASSIGNEES.map((name) => (
-                                  <option key={name} value={name}>{name}</option>
-                                ))}
-                              </select>
-                            </div>
-                            {canEdit && (
-                              <button
-                                onClick={handleSavePhoneRequest}
-                                disabled={isSavingPhoneRequest || !telefonataAssegnataA}
-                                className="w-full flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                              >
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Assegna a:
+                            </label>
+                            <select
+                              value={telefonataAssegnataA}
+                              onChange={(e) => setTelefonataAssegnataA(e.target.value)}
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
+                              disabled={!canEdit}
+                            >
+                              <option value="">Seleziona...</option>
+                              {PHONE_ASSIGNEES.map((name) => (
+                                <option key={name} value={name}>{name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Motivo urgenza (follow-up tecnico)
+                            </label>
+                            <textarea
+                              value={telefonataMotivo}
+                              onChange={(e) => setTelefonataMotivo(e.target.value)}
+                              rows={3}
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
+                              placeholder={lavorazione.note || 'Motivo o note da associare al follow-up'}
+                              disabled={!canEdit}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                              Pianifica richiamo (data/ora)
+                            </label>
+                            <input
+                              type="datetime-local"
+                              value={telefonataScheduledAt}
+                              onChange={(e) => setTelefonataScheduledAt(e.target.value)}
+                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
+                              disabled={!canEdit}
+                            />
+                          </div>
+                          {canEdit && (
+                            <button
+                              onClick={() => handleSavePhoneRequest(lavorazione.note)}
+                              disabled={isSavingPhoneRequest || !telefonataAssegnataA}
+                              className="w-full flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
                                 {isSavingPhoneRequest ? (
                                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                 ) : (
@@ -1733,7 +1916,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
               id="controllo-completato"
               checked={controlloCompletato}
               onChange={(e) => handleControlloCompletato(e.target.checked)}
-              disabled={isMovingToReady || (busta.controllo_completato ?? false)}
+              disabled={isMovingToReady || (busta.controllo_completato ?? false) || !controlloPrerequisitesMet}
               className="mt-1 h-6 w-6 text-green-600 focus:ring-green-500 border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <div className="flex-1">
@@ -1750,6 +1933,20 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
                 <p className="text-xs text-gray-600 mt-1">
                   Spunta SOLO dopo aver attentamente controllato che tutto sia a posto
                 </p>
+              )}
+
+              {!busta.controllo_completato && !controlloPrerequisitesMet && (
+                <div className="mt-2 text-xs text-gray-600 space-y-1">
+                  {!allLavorazioniCompleted && (
+                    <p>Completa tutte le lavorazioni prima del controllo finale.</p>
+                  )}
+                  {!allChecklistsCompleted && (
+                    <p>Completa tutte le checklist associate alle lavorazioni.</p>
+                  )}
+                  {!phoneRequirementSatisfied && (
+                    <p>Completa la telefonata richiesta al cliente.</p>
+                  )}
+                </div>
               )}
 
               {busta.controllo_completato && busta.controllo_completato_at && (
@@ -1774,6 +1971,23 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {controlliQualita.length > 0 && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Storico controlli qualità</h3>
+          <div className="space-y-2">
+            {controlliQualita.map((entry) => (
+              <div key={entry.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm text-gray-700">
+                <div className="font-medium">Controllo #{entry.cycle_index}</div>
+                <div className="text-gray-600">
+                  {entry.profiles?.full_name || 'Utente'} •{' '}
+                  {new Date(entry.completed_at).toLocaleString('it-IT')}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
