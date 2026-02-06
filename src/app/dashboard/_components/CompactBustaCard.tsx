@@ -118,6 +118,8 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
 
   const materialsStats = getMaterialsStats(busta.ordini_materiali || []);
   const hasPaymentPlan = busta.payment_plan && busta.payment_plan.payment_installments && busta.payment_plan.payment_installments.length > 0;
+  const planCompleted = busta.payment_plan?.is_completed ?? busta.info_pagamenti?.is_saldato ?? false;
+  const hasBonificoPending = busta.info_pagamenti?.modalita_saldo === 'bonifico' && !planCompleted;
 
   const priorityStyles: Record<string, string> = {
     normale: 'border-l-gray-400',
@@ -213,6 +215,11 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
           {hasPaymentPlan && (
             <span className="text-[10px] font-semibold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded">
               RATE
+            </span>
+          )}
+          {hasBonificoPending && (
+            <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+              BONIFICO
             </span>
           )}
         </div>

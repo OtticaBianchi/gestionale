@@ -132,6 +132,9 @@ const mapLegacyPaymentType = (
 ): 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'no_payment' | 'none' => {
   if (!modalita) return 'none';
   if (modalita === 'saldo_unico') return 'saldo_unico';
+  if (modalita === 'contanti' || modalita === 'pos' || modalita === 'bonifico' || modalita === 'carta') {
+    return 'saldo_unico';
+  }
   if (modalita === 'finanziamento') return 'finanziamento_bancario';
   if (modalita === 'due_rate' || modalita === 'tre_rate') return 'installments';
   if (modalita === 'nessun_pagamento') return 'no_payment';
@@ -160,7 +163,8 @@ const buildPaymentBadge = (
   planCompleted: boolean,
   totalAmount: number,
   acconto: number,
-  showSetupWarning: boolean
+  showSetupWarning: boolean,
+  saldoMethod?: string | null
 ): PaymentBadge | null => {
   if (planType === 'installments' && totalInstallments > 0) {
     const allPaid = planCompleted || outstanding <= 0.5;
@@ -192,6 +196,16 @@ const buildPaymentBadge = (
   }
 
   if (planType === 'saldo_unico') {
+    const bonificoPending = saldoMethod === 'bonifico' && !planCompleted;
+    if (bonificoPending) {
+      return {
+        label: 'BONIFICO',
+        className: 'bg-amber-50 text-amber-700 border border-amber-200',
+        icon: <Landmark className="w-3 h-3 mr-1" />,
+        sublabel: outstanding > 0.5 ? `Da incassare ${formatCurrency(outstanding)}` : 'In attesa incasso'
+      };
+    }
+
     const saldoOk = planCompleted || outstanding <= 0.5;
     return {
       label: saldoOk ? 'PAGATO' : 'Saldo da incassare',
@@ -306,6 +320,7 @@ const processPaymentData = (busta: BustaWithCliente) => {
   return {
     paymentPlan,
     legacyInfo,
+    saldoMethod: legacyInfo?.modalita_saldo ?? null,
     installments,
     totalAmount,
     acconto,
@@ -361,7 +376,8 @@ const generateBadgesAndAlerts = (
     paymentData.planCompleted,
     paymentData.totalAmount,
     paymentData.acconto,
-    shouldShowSetupWarning
+    shouldShowSetupWarning,
+    paymentData.saldoMethod
   );
 
   const installmentAlert = getInstallmentAlert(

@@ -30,7 +30,7 @@ const currencyFormatter = new Intl.NumberFormat('it-IT', {
 const paymentTypeLabels: Record<string, { title: string; description: string }> = {
   saldo_unico: {
     title: '💳 Saldo Unico',
-    description: 'Incasso completo alla consegna'
+    description: 'Contanti, POS o bonifico (con conferma incasso)'
   },
   installments: {
     title: '📊 Rateizzazione Interna',
@@ -58,6 +58,19 @@ const reminderPreferenceLabels: Record<string, { title: string; hint: string; ic
     hint: 'Nessun promemoria previsto',
     icon: <BellOff className="w-4 h-4 mr-1 text-gray-500" />
   }
+};
+
+const SALDO_UNICO_METHODS = ['contanti', 'pos', 'bonifico'] as const;
+type SaldoUnicoMethod = typeof SALDO_UNICO_METHODS[number];
+
+const normalizeSaldoUnicoMethod = (value?: string | null): SaldoUnicoMethod | '' => {
+  if (!value) return '';
+  if (value === 'carta') return 'pos';
+  if (SALDO_UNICO_METHODS.includes(value as SaldoUnicoMethod)) {
+    return value as SaldoUnicoMethod;
+  }
+  if (value === 'saldo_unico') return 'contanti';
+  return '';
 };
 
 type PaymentPlanRecord = Database['public']['Tables']['payment_plans']['Row'] & {
@@ -177,6 +190,12 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     busta.payment_plan?.payment_installments ?? []
   );
   const [infoPagamento, setInfoPagamento] = useState<InfoPagamentoRecord | null>(busta.info_pagamenti ?? null);
+  const [saldoUnicoMethod, setSaldoUnicoMethod] = useState<SaldoUnicoMethod | ''>(
+    normalizeSaldoUnicoMethod(busta.info_pagamenti?.modalita_saldo)
+  );
+  const [bonificoIncassato, setBonificoIncassato] = useState(
+    busta.payment_plan?.is_completed ?? busta.info_pagamenti?.is_saldato ?? false
+  );
   const [totalDraft, setTotalDraft] = useState(() => {
     const initialTotal = busta.payment_plan?.total_amount ?? busta.info_pagamenti?.prezzo_finale ?? '';
     return initialTotal === '' ? '' : String(initialTotal ?? '');
@@ -214,6 +233,12 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     loadPaymentContext();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busta.id]);
+
+  useEffect(() => {
+    setSaldoUnicoMethod(normalizeSaldoUnicoMethod(infoPagamento?.modalita_saldo));
+    const incassato = paymentPlan?.is_completed ?? infoPagamento?.is_saldato ?? false;
+    setBonificoIncassato(incassato);
+  }, [infoPagamento?.modalita_saldo, infoPagamento?.is_saldato, paymentPlan?.is_completed]);
 
   const fetchPaymentPlan = async () => {
     const { data: planData, error: planError } = await supabase
@@ -584,6 +609,26 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     }
   };
 
+  const handleUpdateSaldoUnico = async (method: SaldoUnicoMethod, incassato: boolean) => {
+    if (!canEdit) return;
+    setOngoingAction('update-saldo-unico');
+    try {
+      await callPaymentsAction('update_saldo_unico', {
+        bustaId: busta.id,
+        paymentPlanId: paymentPlan?.id,
+        modalitaSaldo: method,
+        isIncassato: incassato
+      });
+      await loadPaymentContext();
+      await mutate('/api/buste');
+    } catch (error: any) {
+      console.error('❌ Error updating saldo unico:', error);
+      alert(`Errore aggiornamento saldo unico: ${error.message}`);
+    } finally {
+      setOngoingAction(null);
+    }
+  };
+
   const handleCloseBusta = async () => {
     if (!canEdit) return;
     if (!confirm('Segnare la busta come consegnata e pagata?')) return;
@@ -604,6 +649,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
 
   const outstandingZero = financeSnapshot.outstanding <= 0.5;
   const planIsInstallments = paymentPlan?.payment_type === 'installments';
+  const planIsSaldoUnico = paymentPlan?.payment_type === 'saldo_unico';
 
   const installmentsSorted = useMemo(
     () => [...installments].sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()),
@@ -845,7 +891,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                     ? 'Saldo pronto per chiusura'
                     : 'Saldo in corso'}
               </div>
-              {canEdit && !paymentPlan.is_completed && paymentPlan.payment_type !== 'installments' && (
+              {canEdit && !paymentPlan.is_completed && paymentPlan.payment_type !== 'installments' && paymentPlan.payment_type !== 'saldo_unico' && (
                 <button
                   onClick={handleMarkPlanAsCompleted}
                   disabled={ongoingAction === 'complete-plan'}
@@ -856,6 +902,59 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
               )}
             </div>
           </div>
+
+          {planIsSaldoUnico && (
+            <div className="px-6 py-4 border-b border-gray-100">
+              <div className="text-sm font-semibold text-gray-900">Modalità saldo unico</div>
+              <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-3">
+                <select
+                  value={saldoUnicoMethod}
+                  onChange={(event) => {
+                    const value = event.target.value as SaldoUnicoMethod;
+                    if (!value) return;
+                    if (value === 'contanti' || value === 'pos') {
+                      const ok = window.confirm('Sei sicuro che sia questa la modalità di pagamento?');
+                      if (!ok) {
+                        setSaldoUnicoMethod('');
+                        setBonificoIncassato(false);
+                        return;
+                      }
+                    }
+                    setSaldoUnicoMethod(value);
+                    const nextIncassato = value === 'bonifico' ? false : true;
+                    setBonificoIncassato(nextIncassato);
+                    void handleUpdateSaldoUnico(value, nextIncassato);
+                  }}
+                  disabled={!canEdit || ongoingAction === 'update-saldo-unico'}
+                  className="w-full sm:max-w-xs border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 disabled:bg-gray-100"
+                >
+                  <option value="">-- Seleziona modalità --</option>
+                  <option value="contanti">Contanti</option>
+                  <option value="pos">POS</option>
+                  <option value="bonifico">Bonifico</option>
+                </select>
+                {saldoUnicoMethod === 'bonifico' && (
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={bonificoIncassato}
+                      onChange={(event) => {
+                        const nextValue = event.target.checked;
+                        setBonificoIncassato(nextValue);
+                        void handleUpdateSaldoUnico('bonifico', nextValue);
+                      }}
+                      disabled={!canEdit || ongoingAction === 'update-saldo-unico'}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Incassato
+                  </label>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                Seleziona Bonifico per tenere la busta aperta finché non è incassato.
+              </p>
+            </div>
+          )}
 
           {planIsInstallments && (
             <div className="px-6 py-4 border-b border-gray-100">

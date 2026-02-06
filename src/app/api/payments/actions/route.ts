@@ -65,6 +65,9 @@ export async function POST(request: NextRequest) {
       case 'complete_plan':
         result = await handleCompletePlan(body.payload, user.id, userRole)
         break
+      case 'update_saldo_unico':
+        result = await handleUpdateSaldoUnico(body.payload, user.id, userRole)
+        break
       case 'close_busta':
         result = await handleCloseBusta(body.payload, user.id, userRole)
         break
@@ -94,7 +97,8 @@ async function handleCreatePlan(payload: any, userId: string, userRole: string |
     paymentType,
     reminderPreference,
     installments,
-    modalitaSaldo
+    modalitaSaldo,
+    saldoIncassato
   } = payload || {}
 
   if (!bustaId || typeof totalAmount !== 'number' || totalAmount <= 0 || !paymentType) {
@@ -103,6 +107,10 @@ async function handleCreatePlan(payload: any, userId: string, userRole: string |
 
   const now = new Date().toISOString()
 
+  const isSaldoIncassato = paymentType === 'saldo_unico'
+    ? !!saldoIncassato
+    : paymentType === 'finanziamento_bancario';
+
   const planPayload = {
     busta_id: bustaId,
     total_amount: totalAmount,
@@ -110,7 +118,7 @@ async function handleCreatePlan(payload: any, userId: string, userRole: string |
     payment_type: paymentType,
     auto_reminders_enabled: paymentType === 'installments' && reminderPreference === 'automatic',
     reminder_preference: paymentType === 'installments' ? (reminderPreference || 'manual') : 'disabled',
-    is_completed: paymentType === 'finanziamento_bancario',
+    is_completed: isSaldoIncassato,
     created_at: now,
     updated_at: now
   }
@@ -193,8 +201,8 @@ async function handleCreatePlan(payload: any, userId: string, userRole: string |
       importo_acconto: acconto ?? 0,
       ha_acconto: (acconto ?? 0) > 0,
       modalita_saldo: modalitaSaldo || paymentType,
-      is_saldato: paymentType === 'finanziamento_bancario',
-      data_saldo: paymentType === 'finanziamento_bancario' ? now : null
+      is_saldato: isSaldoIncassato,
+      data_saldo: isSaldoIncassato ? now : null
     },
     userId,
     userRole,
@@ -456,6 +464,66 @@ async function handleCompletePlan(payload: any, userId: string, userRole: string
   )
 
   return { message: 'Piano completato' }
+}
+
+async function handleUpdateSaldoUnico(payload: any, userId: string, userRole: string | null) {
+  const { bustaId, paymentPlanId, modalitaSaldo, isIncassato } = payload || {}
+  if (!bustaId || !modalitaSaldo) {
+    throw new Error('Parametri saldo unico mancanti')
+  }
+
+  const now = new Date().toISOString()
+  const incassato = !!isIncassato
+
+  await upsertInfoPagamenti(
+    {
+      busta_id: bustaId,
+      modalita_saldo: modalitaSaldo,
+      is_saldato: incassato,
+      data_saldo: incassato ? now : null
+    },
+    userId,
+    userRole,
+    'Aggiornamento saldo unico'
+  )
+
+  if (paymentPlanId) {
+    const { data: plan } = await admin
+      .from('payment_plans')
+      .select('*')
+      .eq('id', paymentPlanId)
+      .single()
+
+    if (!plan) {
+      throw new Error('Piano pagamenti non trovato')
+    }
+
+    if (plan.payment_type === 'saldo_unico') {
+      const { data: updatedPlan, error } = await admin
+        .from('payment_plans')
+        .update({ is_completed: incassato, updated_at: now })
+        .eq('id', paymentPlanId)
+        .select('*')
+        .single()
+
+      if (error || !updatedPlan) {
+        throw new Error('Errore aggiornamento piano saldo unico')
+      }
+
+      await logUpdate(
+        'payment_plans',
+        paymentPlanId,
+        userId,
+        plan,
+        updatedPlan,
+        'Aggiornamento saldo unico',
+        { bustaId },
+        userRole
+      )
+    }
+  }
+
+  return { message: 'Saldo unico aggiornato' }
 }
 
 async function handleCloseBusta(payload: any, userId: string, userRole: string | null) {

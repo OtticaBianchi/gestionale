@@ -25,6 +25,7 @@ interface PaymentPlanSetupProps {
 
 type PaymentType = 'saldo_unico' | 'installments' | 'finanziamento_bancario';
 type ReminderPreference = 'automatic' | 'manual' | 'disabled';
+type SaldoUnicoMethod = 'contanti' | 'pos' | 'bonifico';
 
 interface Installment {
   id: string;
@@ -41,6 +42,8 @@ export default function PaymentPlanSetup({
 }: PaymentPlanSetupProps) {
   const [paymentType, setPaymentType] = useState<PaymentType>('saldo_unico');
   const [reminderPreference, setReminderPreference] = useState<ReminderPreference>('automatic');
+  const [saldoUnicoMethod, setSaldoUnicoMethod] = useState<SaldoUnicoMethod | ''>('');
+  const [bonificoIncassato, setBonificoIncassato] = useState(false);
   const [installments, setInstallments] = useState<Installment[]>([
     { id: '1', amount: '', dueDate: '' },
     { id: '2', amount: '', dueDate: '' }
@@ -88,16 +91,24 @@ export default function PaymentPlanSetup({
       alert('Imposta un totale valido prima di creare il piano pagamenti.');
       return;
     }
+    if (paymentType === 'saldo_unico' && !saldoUnicoMethod) {
+      alert('Seleziona la modalità di saldo unico prima di creare il piano.');
+      return;
+    }
 
     setIsCreating(true);
     try {
       const modalitaSaldo = paymentType === 'saldo_unico'
-        ? 'saldo_unico'
+        ? saldoUnicoMethod
         : paymentType === 'finanziamento_bancario'
           ? 'finanziamento'
           : installments.length === 2
             ? 'due_rate'
             : 'tre_rate';
+
+      const saldoIncassato = paymentType === 'saldo_unico'
+        ? (saldoUnicoMethod && saldoUnicoMethod !== 'bonifico' ? true : bonificoIncassato)
+        : paymentType === 'finanziamento_bancario';
 
       const response = await fetch('/api/payments/actions', {
         method: 'POST',
@@ -111,7 +122,8 @@ export default function PaymentPlanSetup({
             paymentType,
             reminderPreference,
             installments,
-            modalitaSaldo
+            modalitaSaldo,
+            saldoIncassato
           }
         })
       });
@@ -196,10 +208,55 @@ export default function PaymentPlanSetup({
                 <div>
                   <div className="font-medium">💳 Saldo Unico</div>
                   <div className="text-sm text-gray-600">
-                    €{remainingAmount.toFixed(2)} alla consegna - Busta si chiude subito
+                    €{remainingAmount.toFixed(2)} alla consegna (contanti/POS) o bonifico con conferma incasso
                   </div>
                 </div>
               </div>
+              {paymentType === 'saldo_unico' && (
+                <div className="mt-3 ml-7 space-y-2">
+                  <label className="block text-xs font-medium text-gray-600">Modalità saldo</label>
+                  <select
+                    value={saldoUnicoMethod}
+                    onChange={(event) => {
+                      const value = event.target.value as SaldoUnicoMethod;
+                      if (!value) {
+                        setSaldoUnicoMethod('');
+                        setBonificoIncassato(false);
+                        return;
+                      }
+                      if (value === 'contanti' || value === 'pos') {
+                        const ok = window.confirm('Sei sicuro che sia questa la modalità di pagamento?');
+                        if (!ok) {
+                          setSaldoUnicoMethod('');
+                          setBonificoIncassato(false);
+                          return;
+                        }
+                      }
+                      setSaldoUnicoMethod(value);
+                      if (value !== 'bonifico') {
+                        setBonificoIncassato(false);
+                      }
+                    }}
+                    className="w-full max-w-xs border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">-- Seleziona modalità --</option>
+                    <option value="contanti">Contanti</option>
+                    <option value="pos">POS</option>
+                    <option value="bonifico">Bonifico</option>
+                  </select>
+                  {saldoUnicoMethod === 'bonifico' && (
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={bonificoIncassato}
+                        onChange={(event) => setBonificoIncassato(event.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      Incassato
+                    </label>
+                  )}
+                </div>
+              )}
             </label>
 
             {/* Installments */}
