@@ -96,6 +96,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
 
   // ✅ AGGIORNATO: Helper per controlli - solo le azioni sono limitate
   const canEdit = !isReadOnly && profile?.role !== 'operatore';
+  const canUndoDelivery = !isReadOnly && profile?.role === 'admin';
 
   // Stato per editing messaggi
   const [editingMessageType, setEditingMessageType] = useState<'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente' | null>(null);
@@ -278,10 +279,90 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
   const handleStatusUpdate = async (updates: Partial<BustaUpdatePayload>) => {
     const completionIso = ensureCompletionDate();
     if (!completionIso) return;
-    await updateDeliveryInfo({
+
+    const payload: Partial<BustaUpdatePayload> = {
       ...updates,
       data_completamento_consegna: completionIso
-    });
+    };
+
+    if (payload.stato_attuale && payload.stato_attuale !== busta.stato_attuale) {
+      setIsSavingDelivery(true);
+      setDeliveryError(null);
+
+      try {
+        const response = await fetch('/api/buste/update-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bustaId: busta.id,
+            oldStatus: busta.stato_attuale,
+            newStatus: payload.stato_attuale,
+            tipoLavorazione: busta.tipo_lavorazione ?? null
+          })
+        });
+
+        const statusPayload = await response.json().catch(() => ({}));
+        if (!response.ok || !statusPayload.success) {
+          throw new Error(statusPayload?.error || 'Impossibile aggiornare lo stato della busta');
+        }
+
+        if (statusPayload.followUpWarning) {
+          console.warn('Follow-up restore warning:', statusPayload.followUpWarning);
+        }
+
+        const { stato_attuale, ...deliveryUpdates } = payload;
+        const deliverySaved = await updateDeliveryInfo(deliveryUpdates);
+        if (!deliverySaved) {
+          router.refresh();
+        }
+      } catch (error: any) {
+        console.error('Errore aggiornamento stato consegna:', error);
+        setDeliveryError(error.message ?? 'Errore durante l\'aggiornamento della consegna.');
+      } finally {
+        setIsSavingDelivery(false);
+      }
+
+      return;
+    }
+
+    await updateDeliveryInfo(payload);
+  };
+
+  const handleUndoDeliveryStatus = async () => {
+    if (!confirm('Annullare il ritiro/consegna e riportare la busta in "Pronto Ritiro"?')) {
+      return;
+    }
+    setIsSavingDelivery(true);
+    setDeliveryError(null);
+
+    try {
+      const response = await fetch('/api/buste/update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bustaId: busta.id,
+          oldStatus: busta.stato_attuale,
+          newStatus: 'pronto_ritiro',
+          tipoLavorazione: busta.tipo_lavorazione ?? null
+        })
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload.success) {
+        throw new Error(payload?.error || 'Impossibile annullare il ritiro');
+      }
+
+      if (payload.followUpWarning) {
+        console.warn('Follow-up archive warning:', payload.followUpWarning);
+      }
+
+      router.refresh();
+    } catch (error: any) {
+      console.error('Errore annullamento ritiro:', error);
+      setDeliveryError(error.message ?? 'Errore durante l\'annullamento del ritiro.');
+    } finally {
+      setIsSavingDelivery(false);
+    }
   };
 
   const updateDeliveryInfo = async (updates: Partial<BustaUpdatePayload>) => {
@@ -1195,8 +1276,19 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                         </div>
                       )}
                       {busta.stato_consegna !== 'in_attesa' && busta.data_completamento_consegna && (
-                        <div className="text-green-700 text-sm">
-                          ✓ Completato il {new Date(busta.data_completamento_consegna).toLocaleDateString('it-IT')}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-green-700 text-sm">
+                          <span>
+                            ✓ Completato il {new Date(busta.data_completamento_consegna).toLocaleDateString('it-IT')}
+                          </span>
+                          {canUndoDelivery && (
+                            <button
+                              onClick={handleUndoDeliveryStatus}
+                              disabled={isSavingDelivery}
+                              className="px-3 py-1.5 text-xs rounded-md border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              Annulla ritiro/consegna
+                            </button>
+                          )}
                         </div>
                       )}
                     </>

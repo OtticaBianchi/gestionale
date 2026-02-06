@@ -33,7 +33,8 @@ import {
   isTransitionAllowed, 
   getTransitionReason, 
   WorkflowState,
-  hasSpecialWorkflow 
+  hasSpecialWorkflow,
+  isAdminOnlyTransition
 } from './WorkflowLogic';
 import { CheckCircle, XCircle, Info, Loader2, RefreshCw, Wifi, WifiOff, X, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
@@ -315,7 +316,10 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     allowed: boolean;
     message: string;
     businessRule?: string;
+    permissionHint?: string;
   }>({ show: false, allowed: false, message: '' });
+
+  const isAdmin = profile?.role === 'admin';
 
   // Toggle expand/collapse card
   const handleToggleExpand = useCallback((bustaId: string) => {
@@ -547,6 +551,11 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     }
 
     try {
+      if (isAdminOnlyTransition(oldStatus, newStatus) && !isAdmin) {
+        toast.error('Solo admin può eseguire questo movimento');
+        return false;
+      }
+
       // ✅ VALIDAZIONE BUSINESS RULES
       const allowed = isTransitionAllowed(oldStatus, newStatus, tipoLavorazione);
       if (!allowed) {
@@ -580,6 +589,11 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
         return false
       }
 
+      if (response.status === 403) {
+        toast.error(payload?.error || 'Permessi insufficienti per il movimento')
+        return false
+      }
+
       if (!response.ok || !payload.success) {
         const message = payload?.error || 'Errore durante l\'aggiornamento'
         console.error('❌ Kanban API error:', payload)
@@ -598,7 +612,7 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
       toast.error('Errore durante l\'aggiornamento');
       return false;
     }
-  }, [isOnline]);
+  }, [isAdmin, isOnline]);
 
   // ✅ GESTIONI DRAG
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -618,7 +632,8 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
         show: true,
         allowed: false,
         message: `📋 ${bustaToDrag.readable_id} - ${clienteNome}`,
-        businessRule: bustaToDrag.tipo_lavorazione || 'Tipo da specificare'
+        businessRule: bustaToDrag.tipo_lavorazione || 'Tipo da specificare',
+        permissionHint: undefined
       });
     }
   }, [currentBuste]);
@@ -660,15 +675,18 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     const oldStatus = bustaToDrag.stato_attuale as WorkflowState;
     
     // Verifica transizione workflow
+    const adminRequired = isAdminOnlyTransition(oldStatus, newStatus as WorkflowState);
     const workflowAllowed = isTransitionAllowed(oldStatus, newStatus as WorkflowState, bustaToDrag.tipo_lavorazione);
     const reason = getTransitionReason(oldStatus, newStatus as WorkflowState, bustaToDrag.tipo_lavorazione);
+    const canMove = workflowAllowed && (!adminRequired || isAdmin);
     
     setDragFeedback(prev => ({
       ...prev,
-      allowed: workflowAllowed,
-      message: workflowAllowed ? `✅ ${reason}` : `❌ ${reason}`,
+      allowed: canMove,
+      message: adminRequired && !isAdmin ? '❌ Solo admin può eseguire questo movimento' : (workflowAllowed ? `✅ ${reason}` : `❌ ${reason}`),
+      permissionHint: adminRequired && !isAdmin ? 'Richiede ruolo admin' : undefined
     }));
-  }, [currentBuste]);
+  }, [currentBuste, isAdmin]);
 
   // ✅ DRAG END CORRETTO - FIX PER UUID CONFLICTS
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
@@ -736,6 +754,12 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     }
 
     // ✅ VALIDAZIONE BUSINESS RULES PRE-UPDATE
+    const adminRequired = isAdminOnlyTransition(oldStatus, newStatus as WorkflowState);
+    if (adminRequired && !isAdmin) {
+      toast.error('❌ Solo admin può eseguire questo movimento', { duration: 4000 });
+      return;
+    }
+
     const allowed = isTransitionAllowed(oldStatus, newStatus as WorkflowState, bustaDaAggiornare.tipo_lavorazione);
     
     if (!allowed) {
@@ -811,6 +835,11 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
           {dragFeedback.businessRule && (
             <div className="text-xs text-gray-600 ml-7">
               {dragFeedback.businessRule}
+            </div>
+          )}
+          {dragFeedback.permissionHint && (
+            <div className="text-xs text-amber-700 ml-7">
+              {dragFeedback.permissionHint}
             </div>
           )}
         </div>

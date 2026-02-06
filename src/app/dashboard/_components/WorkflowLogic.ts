@@ -56,12 +56,14 @@ export const ALLOWED_TRANSITIONS: Record<WorkflowState, WorkflowState[]> = {
 
   // PRONTO_RITIRO: Consegna o problemi dell'ultimo minuto
   'pronto_ritiro': [
+    'materiali_ordinati',      // Materiali da riordinare
     'in_lavorazione',          // Problema trovato: torna in lavorazione
     'consegnato_pagato'        // Cliente ritira
   ],
 
   // CONSEGNATO_PAGATO: Stato finale, ma riapribile per interventi post-consegna
   'consegnato_pagato': [
+    'pronto_ritiro',           // Annulla ritiro/consegna
     'in_lavorazione'
   ]
 };
@@ -89,10 +91,24 @@ export const TRANSITION_REASONS: Record<string, string> = {
   'in_lavorazione->materiali_arrivati': 'Problema lavorazione: ricomincia',
   'in_lavorazione->pronto_ritiro': 'Lavorazione completata',
 
+  'pronto_ritiro->materiali_ordinati': 'Problema: serve riordinare materiali',
   'pronto_ritiro->in_lavorazione': 'Problema trovato: torna in lavorazione',
   'pronto_ritiro->consegnato_pagato': 'Cliente ha ritirato e pagato',
+  'consegnato_pagato->pronto_ritiro': 'Annulla ritiro/consegna',
   'consegnato_pagato->in_lavorazione': 'Post-consegna: intervento/controllo aggiuntivo'
 };
+
+// Transizioni consentite solo agli admin (movimenti retroattivi/annullamenti)
+export const ADMIN_ONLY_TRANSITIONS: Array<[WorkflowState, WorkflowState]> = [
+  ['pronto_ritiro', 'materiali_ordinati'],
+  ['pronto_ritiro', 'in_lavorazione'],
+  ['consegnato_pagato', 'pronto_ritiro'],
+  ['consegnato_pagato', 'in_lavorazione']
+];
+
+export function isAdminOnlyTransition(from: WorkflowState, to: WorkflowState): boolean {
+  return ADMIN_ONLY_TRANSITIONS.some(([source, target]) => source === from && target === to);
+}
 
 // Funzione per verificare se una busta ha workflow speciale
 export function hasSpecialWorkflow(tipoLavorazione: string | null): boolean {

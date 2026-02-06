@@ -8,7 +8,8 @@ import { logInsert, logUpdate } from '@/lib/audit/auditLog'
 import {
   WorkflowState,
   isTransitionAllowed,
-  getTransitionReason
+  getTransitionReason,
+  isAdminOnlyTransition
 } from '@/app/dashboard/_components/WorkflowLogic'
 
 interface UpdateStatusPayload {
@@ -38,6 +39,42 @@ const pickHistoryAuditFields = (row: {
   note_stato: row?.note_stato ?? null
 })
 
+const pickFollowUpAuditFields = (row: {
+  archiviato?: boolean | null
+  stato_chiamata?: string | null
+  data_chiamata?: string | null
+  data_completamento?: string | null
+  note_chiamata?: string | null
+  updated_at?: string | null
+  updated_by?: string | null
+} | null) => ({
+  archiviato: row?.archiviato ?? null,
+  stato_chiamata: row?.stato_chiamata ?? null,
+  data_chiamata: row?.data_chiamata ?? null,
+  data_completamento: row?.data_completamento ?? null,
+  note_chiamata: row?.note_chiamata ?? null,
+  updated_at: row?.updated_at ?? null,
+  updated_by: row?.updated_by ?? null,
+})
+
+const FOLLOWUP_AUTO_ARCHIVE_MARKER = '[AUTO_ARCHIVE_UNDO_RITIRO]'
+
+const appendFollowUpMarker = (note?: string | null): string => {
+  if (!note) return FOLLOWUP_AUTO_ARCHIVE_MARKER
+  if (note.includes(FOLLOWUP_AUTO_ARCHIVE_MARKER)) return note
+  return `${note}\n${FOLLOWUP_AUTO_ARCHIVE_MARKER}`
+}
+
+const removeFollowUpMarker = (note?: string | null): string | null => {
+  if (!note) return null
+  const cleaned = note
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line !== FOLLOWUP_AUTO_ARCHIVE_MARKER && line !== '')
+    .join('\n')
+  return cleaned || null
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -59,6 +96,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     const userRole = profile?.role ?? null
+    const isAdmin = userRole === 'admin'
 
     const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -98,6 +136,21 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    if (isAdminOnlyTransition(oldStatus, newStatus) && !isAdmin) {
+      console.warn('KANBAN_UPDATE_FORBIDDEN_ROLE', {
+        userId: user.id,
+        bustaId,
+        from: oldStatus,
+        to: newStatus,
+        userRole
+      })
+
+      return NextResponse.json({
+        error: 'Solo admin può eseguire questa transizione',
+        reason: 'Permesso insufficiente'
+      }, { status: 403 })
+    }
+
     const now = new Date().toISOString()
 
     const { data: existingBusta, error: fetchError } = await admin
@@ -124,6 +177,11 @@ export async function POST(request: NextRequest) {
       updatePayload.controllo_completato = false
       updatePayload.controllo_completato_da = null
       updatePayload.controllo_completato_at = null
+    }
+
+    if (oldStatus === 'consegnato_pagato' && newStatus === 'pronto_ritiro') {
+      updatePayload.stato_consegna = 'in_attesa'
+      updatePayload.data_completamento_consegna = null
     }
 
     const { data: updatedBuste, error: updateError } = await admin
@@ -218,6 +276,136 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let followUpWarning: string | undefined
+    if (oldStatus === 'consegnato_pagato' && newStatus === 'pronto_ritiro') {
+      const { data: followUps, error: followUpError } = await admin
+        .from('follow_up_chiamate')
+        .select('id, archiviato, stato_chiamata, data_chiamata, data_completamento, note_chiamata, updated_at, updated_by')
+        .eq('busta_id', bustaId)
+        .or('archiviato.is.null,archiviato.eq.false')
+
+      if (followUpError) {
+        console.error('KANBAN_FOLLOWUP_ARCHIVE_ERROR', {
+          bustaId,
+          error: followUpError.message
+        })
+        followUpWarning = followUpError.message
+      } else if (followUps && followUps.length > 0) {
+        for (const row of followUps) {
+          const updatedSnapshot = {
+            ...row,
+            archiviato: true,
+            note_chiamata: appendFollowUpMarker(row.note_chiamata),
+            updated_at: now,
+            updated_by: user.id
+          }
+
+          const { error: archiveError } = await admin
+            .from('follow_up_chiamate')
+            .update({
+              archiviato: true,
+              note_chiamata: updatedSnapshot.note_chiamata,
+              updated_at: now,
+              updated_by: user.id
+            })
+            .eq('id', row.id)
+
+          if (archiveError) {
+            console.error('KANBAN_FOLLOWUP_ARCHIVE_ERROR', {
+              bustaId,
+              error: archiveError.message
+            })
+            followUpWarning = archiveError.message
+            continue
+          }
+
+          const audit = await logUpdate(
+            'follow_up_chiamate',
+            row.id,
+            user.id,
+            pickFollowUpAuditFields(row),
+            pickFollowUpAuditFields(updatedSnapshot),
+            'Archiviazione follow-up per annullamento ritiro',
+            {
+              source: 'api/buste/update-status',
+              action: 'archive_followup_on_undo',
+              bustaId
+            },
+            userRole
+          )
+
+          if (!audit.success) {
+            console.error('AUDIT_ARCHIVE_FOLLOWUP_FAILED', audit.error)
+          }
+        }
+      }
+    }
+
+    if (newStatus === 'consegnato_pagato') {
+      const { data: archivedFollowUps, error: restoreError } = await admin
+        .from('follow_up_chiamate')
+        .select('id, archiviato, stato_chiamata, data_chiamata, data_completamento, note_chiamata, updated_at, updated_by')
+        .eq('busta_id', bustaId)
+        .eq('archiviato', true)
+        .ilike('note_chiamata', `%${FOLLOWUP_AUTO_ARCHIVE_MARKER}%`)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+
+      if (restoreError) {
+        console.error('KANBAN_FOLLOWUP_RESTORE_ERROR', {
+          bustaId,
+          error: restoreError.message
+        })
+        followUpWarning = restoreError.message
+      } else if (archivedFollowUps && archivedFollowUps.length > 0) {
+        const row = archivedFollowUps[0]
+        const updatedSnapshot = {
+          ...row,
+          archiviato: false,
+          note_chiamata: removeFollowUpMarker(row.note_chiamata),
+          updated_at: now,
+          updated_by: user.id
+        }
+
+        const { error: restoreUpdateError } = await admin
+          .from('follow_up_chiamate')
+          .update({
+            archiviato: false,
+            note_chiamata: updatedSnapshot.note_chiamata,
+            updated_at: now,
+            updated_by: user.id
+          })
+          .eq('id', row.id)
+
+        if (restoreUpdateError) {
+          console.error('KANBAN_FOLLOWUP_RESTORE_ERROR', {
+            bustaId,
+            error: restoreUpdateError.message
+          })
+          followUpWarning = restoreUpdateError.message
+        } else {
+          const audit = await logUpdate(
+            'follow_up_chiamate',
+            row.id,
+            user.id,
+            pickFollowUpAuditFields(row),
+            pickFollowUpAuditFields(updatedSnapshot),
+            'Ripristino follow-up dopo ritorno in consegnato',
+            {
+              source: 'api/buste/update-status',
+              action: 'restore_followup_on_reclose',
+              bustaId
+            },
+            userRole
+          )
+
+          if (!audit.success) {
+            console.error('AUDIT_RESTORE_FOLLOWUP_FAILED', audit.error)
+          }
+        }
+      }
+    }
+
     const kanbanLogInsert = await admin
       .from('kanban_update_logs')
       .insert({
@@ -252,6 +440,7 @@ export async function POST(request: NextRequest) {
       success: true,
       busta: updatedBusta,
       historyWarning: historyError?.message,
+      followUpWarning
     })
   } catch (error: any) {
     console.error('KANBAN_UPDATE_UNEXPECTED_ERROR', {
