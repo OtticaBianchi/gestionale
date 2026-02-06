@@ -3412,6 +3412,7 @@ export type Database = {
         | "LV"
         | "LS"
         | "LAC"
+        | "TALAC"
         | "ACC"
         | "RIC"
         | "LAB"
@@ -3589,6 +3590,7 @@ export const Constants = {
         "LV",
         "LS",
         "LAC",
+        "TALAC",
         "ACC",
         "RIC",
         "LAB",

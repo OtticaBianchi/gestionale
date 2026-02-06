@@ -251,21 +251,22 @@ function calcolaPriorità(
   haPrimoAcquistoLAC: boolean
 ): 'alta' | 'normale' | 'bassa' {
   if (!tipoLavorazione) return 'bassa'
+  const tipo = tipoLavorazione === 'TALAC' ? 'LAC' : tipoLavorazione
 
   // PRIORITÀ ALTA: Lenti + Occhiali sopra 400€
-  if (prezzoFinale >= 400 && ['OCV', 'OV'].includes(tipoLavorazione)) {
+  if (prezzoFinale >= 400 && ['OCV', 'OV'].includes(tipo)) {
     return 'alta'
   }
 
   // PRIORITÀ NORMALE: Prime LAC, Lenti da vista sopra 100€, o Occhiali Completi/Vista sopra 200€
   if (haPrimoAcquistoLAC ||
-      (prezzoFinale >= 100 && tipoLavorazione === 'LV') ||
-      (prezzoFinale >= 200 && ['OCV', 'OV'].includes(tipoLavorazione))) {
+      (prezzoFinale >= 100 && tipo === 'LV') ||
+      (prezzoFinale >= 200 && ['OCV', 'OV'].includes(tipo))) {
     return 'normale'
   }
 
   // PRIORITÀ BASSA: Occhiali da sole sopra 400€, o qualsiasi altro acquisto sopra 100€
-  if ((prezzoFinale >= 400 && tipoLavorazione === 'OS') ||
+  if ((prezzoFinale >= 400 && tipo === 'OS') ||
       (prezzoFinale >= 100)) {
     return 'bassa'
   }
@@ -279,6 +280,7 @@ function getTipoAcquisto(tipoLavorazione: string | null): string {
     'OV': 'Occhiali da Vista',
     'OS': 'Occhiali da Sole',
     'LAC': 'Lenti a Contatto',
+    'TALAC': 'Lenti a Contatto',
     'LV': 'Lenti da Vista'
   }
   return mapping[tipoLavorazione || ''] || tipoLavorazione || 'N/A'

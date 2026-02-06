@@ -141,7 +141,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
 
   const validateWorkType = (): Database['public']['Enums']['work_type'] | null => {
     const validWorkTypes = [
-      'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'ACC', 'RIC', 'LAB',
+      'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'TALAC', 'ACC', 'RIC', 'LAB',
       'SA', 'SG', 'CT', 'BR', 'SPRT', 'ES', 'REL', 'FT', 'VFT'
     ] as const;
 
@@ -325,6 +325,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                   readable_id: busta.readable_id,
                   cliente_nome: busta.clienti.nome,
                   cliente_cognome: busta.clienti.cognome,
+                  cliente_telefono: busta.clienti.telefono,
                   tipo_lavorazione: busta.tipo_lavorazione,
                   data_apertura: busta.data_apertura
                 }}
@@ -544,6 +545,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                 <option value="LV">🔍 LV - Lenti da vista</option>
                 <option value="LS">🌅 LS - Lenti da sole</option>
                 <option value="LAC">👁️ LAC - Lenti a contatto</option>
+                <option value="TALAC">👁️ TALAC - Training Applicativo LAC</option>
                 <option value="ACC">🔧 ACC - Accessori</option>
                 <option value="RIC">🔄 RIC - Ricambio</option>
                 <option value="LAB">🧪 LAB - Laboratorio</option>

@@ -29,6 +29,7 @@ const getTipoLavorazioneSigla = (tipo: string | null) => {
     LV: 'LV',
     LS: 'LS',
     LAC: 'LAC',
+    TALAC: 'TALAC',
     ACC: 'ACC',
     RIC: 'RIC',
     LAB: 'LAB',

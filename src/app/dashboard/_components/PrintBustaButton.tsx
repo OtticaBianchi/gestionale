@@ -6,6 +6,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Printer, X } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
+import { formatPhoneDisplay } from '@/utils/formatPhone';
 
 // ===== TYPES =====
 interface PrintBustaButtonProps {
@@ -14,6 +15,7 @@ interface PrintBustaButtonProps {
     readable_id?: string | null;
     cliente_nome: string;
     cliente_cognome: string;
+    cliente_telefono?: string | null;
     tipo_lavorazione: string | null;
     data_apertura?: string | null;
   };
@@ -45,6 +47,7 @@ const getTipoLavorazioneFull = (tipo: string | null): string => {
     'LV': 'LENTI DA VISTA',
     'LS': 'LENTI DA SOLE',
     'LAC': 'LENTI A CONTATTO',
+    'TALAC': 'TRAINING APPLICATIVO LAC',
     'ACC': 'ACCESSORI',
     'RIC': 'RICAMBIO',
     'LAB': 'LABORATORIO',
@@ -308,6 +311,13 @@ font-size: 18px;
 font-weight: bold;
 color: #0066cc;
 }
+.cliente-telefono {
+font-size: 28px;
+font-weight: bold;
+color: #111;
+margin-top: 6px;
+letter-spacing: 0.5px;
+}
 .data-apertura {
 font-size: 20px;
 color: #666;
@@ -378,6 +388,9 @@ body { print-color-adjust: exact; }
 <div style="text-align: right;">
   <div class="cliente-nome">${bustaData.cliente_cognome.toUpperCase()} ${bustaData.cliente_nome.toUpperCase()}</div>
   <div class="lavorazione">${getTipoLavorazioneFull(bustaData.tipo_lavorazione)}</div>
+  ${bustaData.cliente_telefono
+    ? `<div class="cliente-telefono">${escapeHtml(formatPhoneDisplay(bustaData.cliente_telefono))}</div>`
+    : ''}
 </div>
 </div>
 <div class="content-grid">

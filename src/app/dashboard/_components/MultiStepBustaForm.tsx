@@ -955,6 +955,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   <option value="LV">🔍 LV - Lenti vista</option>
                   <option value="LS">🌅 LS - Lenti sole</option>
                   <option value="LAC">👁️ LAC - Lenti contatto</option>
+                  <option value="TALAC">👁️ TALAC - Training Applicativo LAC</option>
                   <option value="ACC">🔧 ACC - Accessori</option>
                   <option value="RIC">🔄 RIC - Ricambio</option>
                   <option value="LAB">🧪 LAB - Laboratorio</option>

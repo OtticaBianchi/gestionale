@@ -103,6 +103,11 @@ export async function GET(request: NextRequest) {
       return (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
     };
 
+    const normalizeTipoLavorazione = (tipo?: string | null): string | null => {
+      if (!tipo) return null;
+      return tipo === 'TALAC' ? 'LAC' : tipo;
+    };
+
     // Fetch all ordini_materiali with related data
     const deliveredStates = ['consegnato', 'accettato_con_riserva', 'rifiutato'] as const;
     const isDeliveredState = (value: string | null | undefined): value is typeof deliveredStates[number] =>
@@ -155,7 +160,7 @@ export async function GET(request: NextRequest) {
     // 1. TIPO LAVORAZIONE STATISTICS
     const bustaToTipoMap = new Map<string, string>();
     filteredOrdini.forEach(o => {
-      const tipo = (o.buste as any)?.tipo_lavorazione;
+      const tipo = normalizeTipoLavorazione((o.buste as any)?.tipo_lavorazione);
       if (tipo && !bustaToTipoMap.has(o.busta_id)) {
         bustaToTipoMap.set(o.busta_id, tipo);
       }
@@ -348,7 +353,7 @@ export async function GET(request: NextRequest) {
 
       const uniqueBustas = new Map<string, string>();
       monthData.forEach(o => {
-        const tipo = (o.buste as any)?.tipo_lavorazione;
+        const tipo = normalizeTipoLavorazione((o.buste as any)?.tipo_lavorazione);
         if (tipo) uniqueBustas.set((o as any).busta_id, tipo);
       });
 
@@ -380,7 +385,7 @@ export async function GET(request: NextRequest) {
     let saldateCount = 0;
 
     paymentsData?.forEach(p => {
-      const tipo = (p.buste as any)?.tipo_lavorazione || 'Non specificato';
+      const tipo = normalizeTipoLavorazione((p.buste as any)?.tipo_lavorazione) || 'Non specificato';
       if (!revenueByTipo[tipo]) {
         revenueByTipo[tipo] = { total: 0, count: 0, avg: 0 };
       }
@@ -414,7 +419,7 @@ export async function GET(request: NextRequest) {
         leadByBusta.set(row.busta_id, {
           openDate: dataApertura,
           closeDate: dataIngresso,
-          tipo: busta.tipo_lavorazione || 'Non specificato'
+          tipo: normalizeTipoLavorazione(busta.tipo_lavorazione) || 'Non specificato'
         });
       }
     });

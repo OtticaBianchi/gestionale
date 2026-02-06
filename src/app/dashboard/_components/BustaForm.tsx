@@ -79,6 +79,7 @@ const tipoLavorazioneOptions = [
   { value: 'LV', label: 'LV - Lenti da vista', icon: '🔍' },
   { value: 'LS', label: 'LS - Lenti da sole', icon: '☀️' },
   { value: 'LAC', label: 'LAC - Lenti a contatto', icon: '👁️' },
+  { value: 'TALAC', label: 'TALAC - Training Applicativo LAC', icon: '👁️' },
   { value: 'ACC', label: 'ACC - Accessori', icon: '🔧' },
   { value: 'RIC', label: 'RIC - Ricambio', icon: '⚙️' },
   { value: 'LAB', label: 'LAB - Laboratorio', icon: '🧪' },

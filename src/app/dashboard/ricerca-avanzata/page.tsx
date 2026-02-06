@@ -424,6 +424,7 @@ export default function RicercaAvanzataPage() {
                     <option value="LV">LV</option>
                     <option value="LS">LS</option>
                     <option value="LAC">LAC</option>
+                    <option value="TALAC">TALAC</option>
                     <option value="ACC">ACC</option>
                     <option value="RIC">RIC</option>
                     <option value="LAB">LAB</option>

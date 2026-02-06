@@ -159,6 +159,7 @@ function getTipoAcquisto(tipoLavorazione: string | null): string {
     'OV': 'Occhiali da Vista',
     'OS': 'Occhiali da Sole',
     'LAC': 'Lenti a Contatto',
+    'TALAC': 'Lenti a Contatto',
     'LV': 'Lenti da Vista'
   }
   return mapping[tipoLavorazione || ''] || tipoLavorazione || 'N/A'

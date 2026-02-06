@@ -25,7 +25,7 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 })
 
 const VALID_WORK_TYPES = [
-  'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'ACC', 'RIC', 'LAB',
+  'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'TALAC', 'ACC', 'RIC', 'LAB',
   'SA', 'SG', 'CT', 'BR', 'ES', 'REL', 'FT', 'SPRT', 'VFT'
 ]
 
