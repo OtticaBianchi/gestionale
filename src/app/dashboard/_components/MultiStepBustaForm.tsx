@@ -960,7 +960,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   <option value="RIC">🔄 RIC - Ricambio</option>
                   <option value="LAB">🧪 LAB - Laboratorio</option>
                   <option value="SA">📐 SA - Sostituzione anticipata</option>
-                  <option value="SG">🧵 SG - Sostituzione in garanzia</option>
+                  <option value="SG">🧵 SG - Sostituzione in Garanzia</option>
                   <option value="CT">👁️ CT - Controllo tecnico</option>
                   <option value="BR">🎁 BR - Buono Regalo</option>
                   <option value="SPRT">🚴 SPRT - Sport</option>

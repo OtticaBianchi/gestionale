@@ -194,11 +194,11 @@ const CHECKLISTS: Partial<Record<ActivityKey, string[]>> = {
 
 const getCategoryForBusta = (tipoLavorazione?: string | null): string => {
   if (!tipoLavorazione) return 'VISTA';
-  if (['OCV', 'OV', 'LV'].includes(tipoLavorazione)) return 'VISTA';
+  if (['OCV', 'OV', 'LV', 'SG'].includes(tipoLavorazione)) return 'VISTA';
   if (['OS', 'LS', 'ACC', 'BR'].includes(tipoLavorazione)) return 'SOLE';
   if (['LAC', 'TALAC'].includes(tipoLavorazione)) return 'LAC';
   if (['LAB'].includes(tipoLavorazione)) return 'LABORATORIO';
-  if (['RIC', 'SA', 'SG'].includes(tipoLavorazione)) return 'RIPARAZIONE';
+  if (['RIC', 'SA'].includes(tipoLavorazione)) return 'RIPARAZIONE';
   return 'VISTA';
 };
 
