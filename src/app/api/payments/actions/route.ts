@@ -5,6 +5,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { logDelete, logInsert, logUpdate } from '@/lib/audit/auditLog'
+import {
+  canonicalizeModalitaSaldo,
+  composePagamentoNoteWithSaldoMethod,
+  normalizeSaldoUnicoMethod
+} from '@/lib/payments/saldoMethod'
 import type { Database } from '@/types/database.types'
 
 type ActionRequest = {
@@ -523,6 +528,16 @@ async function handleUpdateSaldoUnico(payload: any, userId: string, userRole: st
     }
   }
 
+  const shouldAutoCloseBusta = incassato
+  if (shouldAutoCloseBusta) {
+    await markBustaAsConsegnatoPagato(
+      bustaId,
+      userId,
+      userRole,
+      'Chiusura automatica da saldo unico incassato'
+    )
+  }
+
   return { message: 'Saldo unico aggiornato' }
 }
 
@@ -530,6 +545,22 @@ async function handleCloseBusta(payload: any, userId: string, userRole: string |
   const { bustaId } = payload || {}
   if (!bustaId) throw new Error('bustaId mancante')
 
+  await markBustaAsConsegnatoPagato(
+    bustaId,
+    userId,
+    userRole,
+    'Busta segnata come consegnato pagato'
+  )
+
+  return { message: 'Busta aggiornata' }
+}
+
+async function markBustaAsConsegnatoPagato(
+  bustaId: string,
+  userId: string,
+  userRole: string | null,
+  reason: string
+) {
   const { data: existingBusta } = await admin
     .from('buste')
     .select('id, stato_attuale')
@@ -538,6 +569,10 @@ async function handleCloseBusta(payload: any, userId: string, userRole: string |
 
   if (!existingBusta) {
     throw new Error('Busta non trovata')
+  }
+
+  if (existingBusta.stato_attuale === 'consegnato_pagato') {
+    return existingBusta
   }
 
   const { data: updatedBusta, error } = await admin
@@ -557,12 +592,11 @@ async function handleCloseBusta(payload: any, userId: string, userRole: string |
     userId,
     existingBusta,
     updatedBusta,
-    'Busta segnata come consegnato pagato',
+    reason,
     { bustaId },
     userRole
   )
-
-  return { message: 'Busta aggiornata' }
+  return updatedBusta
 }
 
 async function handleSyncPlanAcconto(payload: any, userId: string, userRole: string | null) {
@@ -783,11 +817,30 @@ async function upsertInfoPagamenti(
     .eq('busta_id', payload.busta_id)
     .maybeSingle()
 
+  const hasIncomingModalita = typeof payload.modalita_saldo !== 'undefined'
+  const canonicalModalitaSaldo = hasIncomingModalita
+    ? canonicalizeModalitaSaldo(payload.modalita_saldo)
+    : canonicalizeModalitaSaldo(existing?.modalita_saldo)
+
+  let notePagamento = payload.note_pagamento !== undefined
+    ? payload.note_pagamento
+    : existing?.note_pagamento ?? null
+
+  if (hasIncomingModalita) {
+    const requestedSaldoMethod = normalizeSaldoUnicoMethod(payload.modalita_saldo)
+    if (requestedSaldoMethod) {
+      notePagamento = composePagamentoNoteWithSaldoMethod(notePagamento, requestedSaldoMethod)
+    } else if (canonicalModalitaSaldo !== 'saldo_unico') {
+      notePagamento = composePagamentoNoteWithSaldoMethod(notePagamento, '')
+    }
+  }
+
   const { data: upserted, error } = await admin
     .from('info_pagamenti')
     .upsert({
       ...payload,
-      modalita_saldo: payload.modalita_saldo ?? existing?.modalita_saldo ?? 'saldo_unico',
+      modalita_saldo: canonicalModalitaSaldo,
+      note_pagamento: notePagamento,
       updated_by: userId,
       updated_at: new Date().toISOString()
     }, { onConflict: 'busta_id' })

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { User, Calendar, Phone, Mail, ArrowLeft, Edit3, Save, X, Trash2, Search } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { User, Calendar, Phone, Mail, ArrowLeft, Edit3, Save, X, Trash2, Search, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatPhoneDisplay } from '@/utils/formatPhone'; // ✅ IMPORT PHONE FORMATTER
@@ -63,12 +63,52 @@ interface ClientDetailClientProps {
   userRole: string;
 }
 
+type SurveyBadgeLevel = 'eccellente' | 'positivo' | 'attenzione' | 'critico';
+
+type SurveyClientSummary = {
+  cliente_id: string;
+  responses_count: number;
+  latest_response_at: string | null;
+  avg_overall_score: number | null;
+  latest_overall_score: number | null;
+  latest_badge_level: SurveyBadgeLevel | null;
+  latest_section_scores: Record<string, number> | null;
+  followup_candidates_count: number;
+  has_pending_followup: boolean;
+};
+
+const SURVEY_BADGE_STYLES: Record<SurveyBadgeLevel, string> = {
+  eccellente: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+  positivo: 'bg-blue-100 text-blue-800 border border-blue-200',
+  attenzione: 'bg-amber-100 text-amber-800 border border-amber-200',
+  critico: 'bg-rose-100 text-rose-800 border border-rose-200'
+};
+
+const SURVEY_BADGE_LABELS: Record<SurveyBadgeLevel, string> = {
+  eccellente: 'Eccellente',
+  positivo: 'Positivo',
+  attenzione: 'Attenzione',
+  critico: 'Critico'
+};
+
+const SURVEY_SECTION_LABELS: Record<string, string> = {
+  servizio: 'Servizio',
+  controllo_vista: 'Controllo Vista',
+  esperienza: 'Esperienza',
+  overall: 'Overall',
+  recommend: 'Consiglio',
+  prodotto: 'Prodotto'
+};
+
 export default function ClientDetailClient({ cliente, userRole }: ClientDetailClientProps) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [activeTab, setActiveTab] = useState<'anagrafica' | 'storico' | 'profilo'>('anagrafica');
+  const [surveySummary, setSurveySummary] = useState<SurveyClientSummary | null>(null);
+  const [surveyLoading, setSurveyLoading] = useState(false);
+  const [surveyError, setSurveyError] = useState<string | null>(null);
 
   const [editForm, setEditForm] = useState({
     nome: cliente.nome,
@@ -82,6 +122,52 @@ export default function ClientDetailClient({ cliente, userRole }: ClientDetailCl
 
   const canEdit = userRole === 'admin' || userRole === 'manager';
   const canDelete = userRole === 'admin';
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchSurveySummary = async () => {
+      setSurveyLoading(true);
+      setSurveyError(null);
+      try {
+        const response = await fetch(`/api/clienti/${cliente.id}/survey-summary`, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload?.success !== true) {
+          throw new Error(payload?.error || 'Errore caricamento survey cliente');
+        }
+
+        const data = payload?.data || null;
+        if (!isCancelled) {
+          if (data && data.latest_section_scores && typeof data.latest_section_scores === 'string') {
+            try {
+              data.latest_section_scores = JSON.parse(data.latest_section_scores);
+            } catch {
+              data.latest_section_scores = null;
+            }
+          }
+          setSurveySummary(data);
+        }
+      } catch (error: any) {
+        if (!isCancelled) {
+          setSurveySummary(null);
+          setSurveyError(error?.message || 'Errore caricamento survey cliente');
+        }
+      } finally {
+        if (!isCancelled) {
+          setSurveyLoading(false);
+        }
+      }
+    };
+
+    fetchSurveySummary();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [cliente.id]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -145,6 +231,19 @@ export default function ClientDetailClient({ cliente, userRole }: ClientDetailCl
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('it-IT');
+  };
+
+  const formatDateTime = (dateString: string | null) => {
+    if (!dateString) return '—';
+    const parsed = new Date(dateString);
+    if (Number.isNaN(parsed.getTime())) return '—';
+    return parsed.toLocaleString('it-IT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const getCategoriaColor = (categoria: string | null) => {
@@ -423,6 +522,69 @@ export default function ClientDetailClient({ cliente, userRole }: ClientDetailCl
                   <p className="text-gray-900">{cliente.note_cliente || 'Nessuna nota'}</p>
                 )}
               </div>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h3 className="text-md font-semibold text-gray-900 mb-3">Survey Soddisfazione Cliente</h3>
+              {surveyLoading ? (
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Caricamento dati survey...</span>
+                </div>
+              ) : surveyError ? (
+                <p className="text-sm text-rose-600">{surveyError}</p>
+              ) : !surveySummary ? (
+                <p className="text-sm text-gray-600">Nessuna risposta survey collegata a questo cliente.</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {surveySummary.latest_badge_level && (
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${SURVEY_BADGE_STYLES[surveySummary.latest_badge_level]}`}>
+                        {SURVEY_BADGE_LABELS[surveySummary.latest_badge_level]}
+                      </span>
+                    )}
+                    <span className="text-sm text-gray-700">
+                      Risposte collegate: <strong>{surveySummary.responses_count}</strong>
+                    </span>
+                    <span className="text-sm text-gray-700">
+                      Ultima risposta: <strong>{formatDateTime(surveySummary.latest_response_at)}</strong>
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="p-3 rounded-md bg-gray-50 border border-gray-200">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Punteggio Medio</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {typeof surveySummary.avg_overall_score === 'number' ? `${surveySummary.avg_overall_score.toFixed(2)}/100` : '—'}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-md bg-gray-50 border border-gray-200">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">Ultimo Punteggio</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {typeof surveySummary.latest_overall_score === 'number' ? `${surveySummary.latest_overall_score.toFixed(2)}/100` : '—'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {surveySummary.latest_section_scores && Object.keys(surveySummary.latest_section_scores).length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(surveySummary.latest_section_scores).map(([sectionKey, value]) => (
+                        <span
+                          key={sectionKey}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-medium"
+                        >
+                          <span>{SURVEY_SECTION_LABELS[sectionKey] || sectionKey}</span>
+                          <span>{typeof value === 'number' ? `${value.toFixed(1)}/100` : '—'}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {surveySummary.has_pending_followup && (
+                    <p className="text-sm text-amber-700">Sono presenti follow-up survey pendenti per questo cliente.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="mt-6 pt-6 border-t border-gray-200">

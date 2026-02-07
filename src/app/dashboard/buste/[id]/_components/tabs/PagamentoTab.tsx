@@ -6,6 +6,7 @@ import { Database } from '@/types/database.types';
 import PaymentPlanSetup from '../PaymentPlanSetup';
 import { mutate } from 'swr';
 import { useUser } from '@/context/UserContext';
+import { resolveSaldoUnicoMethod, type SaldoUnicoMethod } from '@/lib/payments/saldoMethod';
 import {
   AlertCircle,
   AlertTriangle,
@@ -60,19 +61,6 @@ const reminderPreferenceLabels: Record<string, { title: string; hint: string; ic
   }
 };
 
-const SALDO_UNICO_METHODS = ['contanti', 'pos', 'bonifico'] as const;
-type SaldoUnicoMethod = typeof SALDO_UNICO_METHODS[number];
-
-const normalizeSaldoUnicoMethod = (value?: string | null): SaldoUnicoMethod | '' => {
-  if (!value) return '';
-  if (value === 'carta') return 'pos';
-  if (SALDO_UNICO_METHODS.includes(value as SaldoUnicoMethod)) {
-    return value as SaldoUnicoMethod;
-  }
-  if (value === 'saldo_unico') return 'contanti';
-  return '';
-};
-
 type PaymentPlanRecord = Database['public']['Tables']['payment_plans']['Row'] & {
   payment_installments: Database['public']['Tables']['payment_installments']['Row'][] | null;
 };
@@ -116,12 +104,15 @@ const computeFinanceSnapshot = (
 ): DerivedFinance => {
   const totalAmount = plan?.total_amount ?? info?.prezzo_finale ?? 0;
   const acconto = plan?.acconto ?? info?.importo_acconto ?? 0;
+  const planCompleted = plan?.is_completed ?? info?.is_saldato ?? false;
   const paidInstallments = installments.reduce((sum, installment) => {
     return sum + (installment.paid_amount || 0);
   }, 0);
 
   const outstandingRaw = totalAmount - (acconto + paidInstallments);
-  const outstanding = Number.isFinite(outstandingRaw) ? Math.max(outstandingRaw, 0) : 0;
+  const outstanding = planCompleted
+    ? 0
+    : Number.isFinite(outstandingRaw) ? Math.max(outstandingRaw, 0) : 0;
 
   const sortedInstallments = [...installments].sort((a, b) =>
     new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
@@ -191,7 +182,10 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   );
   const [infoPagamento, setInfoPagamento] = useState<InfoPagamentoRecord | null>(busta.info_pagamenti ?? null);
   const [saldoUnicoMethod, setSaldoUnicoMethod] = useState<SaldoUnicoMethod | ''>(
-    normalizeSaldoUnicoMethod(busta.info_pagamenti?.modalita_saldo)
+    resolveSaldoUnicoMethod({
+      modalitaSaldo: busta.info_pagamenti?.modalita_saldo,
+      notePagamento: busta.info_pagamenti?.note_pagamento
+    })
   );
   const [bonificoIncassato, setBonificoIncassato] = useState(
     busta.payment_plan?.is_completed ?? busta.info_pagamenti?.is_saldato ?? false
@@ -235,10 +229,13 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   }, [busta.id]);
 
   useEffect(() => {
-    setSaldoUnicoMethod(normalizeSaldoUnicoMethod(infoPagamento?.modalita_saldo));
+    setSaldoUnicoMethod(resolveSaldoUnicoMethod({
+      modalitaSaldo: infoPagamento?.modalita_saldo,
+      notePagamento: infoPagamento?.note_pagamento
+    }));
     const incassato = paymentPlan?.is_completed ?? infoPagamento?.is_saldato ?? false;
     setBonificoIncassato(incassato);
-  }, [infoPagamento?.modalita_saldo, infoPagamento?.is_saldato, paymentPlan?.is_completed]);
+  }, [infoPagamento?.modalita_saldo, infoPagamento?.note_pagamento, infoPagamento?.is_saldato, paymentPlan?.is_completed]);
 
   const fetchPaymentPlan = async () => {
     const { data: planData, error: planError } = await supabase

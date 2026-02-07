@@ -592,6 +592,12 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
                 label="Duplicati Clienti"
                 isCollapsed={isCollapsed}
               />
+              <SidebarItem
+                href="/dashboard/admin/survey-matches"
+                icon={Search}
+                label="Match Survey"
+                isCollapsed={isCollapsed}
+              />
               <AccordionSection
                 title="Procedure"
                 icon={BookOpen}

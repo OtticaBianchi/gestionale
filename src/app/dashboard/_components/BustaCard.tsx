@@ -5,6 +5,7 @@ import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins, Rec
 import Link from 'next/link';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
 import { isOtticaBianchiName, isRealCustomerPhone, isShopPhone } from '@/lib/clients/phoneRules';
+import { resolveSaldoUnicoMethod } from '@/lib/payments/saldoMethod';
 
 interface BustaCardProps {
   busta: BustaWithCliente;
@@ -320,7 +321,10 @@ const processPaymentData = (busta: BustaWithCliente) => {
   return {
     paymentPlan,
     legacyInfo,
-    saldoMethod: legacyInfo?.modalita_saldo ?? null,
+    saldoMethod: resolveSaldoUnicoMethod({
+      modalitaSaldo: legacyInfo?.modalita_saldo,
+      notePagamento: legacyInfo?.note_pagamento
+    }) || legacyInfo?.modalita_saldo || null,
     installments,
     totalAmount,
     acconto,

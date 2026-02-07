@@ -3,6 +3,7 @@
 import { Clock, Bell, Phone, PhoneOff } from 'lucide-react';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
 import { isOtticaBianchiName, isRealCustomerPhone, isShopPhone } from '@/lib/clients/phoneRules';
+import { resolveSaldoUnicoMethod } from '@/lib/payments/saldoMethod';
 
 interface CompactBustaCardProps {
   busta: BustaWithCliente;
@@ -119,7 +120,11 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
   const materialsStats = getMaterialsStats(busta.ordini_materiali || []);
   const hasPaymentPlan = busta.payment_plan && busta.payment_plan.payment_installments && busta.payment_plan.payment_installments.length > 0;
   const planCompleted = busta.payment_plan?.is_completed ?? busta.info_pagamenti?.is_saldato ?? false;
-  const hasBonificoPending = busta.info_pagamenti?.modalita_saldo === 'bonifico' && !planCompleted;
+  const saldoMethod = resolveSaldoUnicoMethod({
+    modalitaSaldo: busta.info_pagamenti?.modalita_saldo,
+    notePagamento: busta.info_pagamenti?.note_pagamento
+  });
+  const hasBonificoPending = saldoMethod === 'bonifico' && !planCompleted;
 
   const priorityStyles: Record<string, string> = {
     normale: 'border-l-gray-400',
