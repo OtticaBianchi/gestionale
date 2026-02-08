@@ -15,6 +15,14 @@ type SearchContext = {
 }
 
 type SearchResult = Record<string, unknown>
+type SurveyParticipation = 'all' | 'yes' | 'no'
+
+type SurveyFilterContext = {
+  enabled: boolean
+  participation: SurveyParticipation
+  allParticipantIds: Set<string>
+  matchingParticipantIds: Set<string>
+}
 
 const CATEGORY_MAP: Record<string, string[]> = {
   lenti: ['LENTI'],
@@ -331,6 +339,139 @@ const HANDLERS: Record<Exclude<SearchType, 'all'>, (ctx: SearchContext) => Promi
   fornitore: (ctx) => searchSuppliers(ctx),
 }
 
+const asDayBoundIso = (value: string | null, bound: 'start' | 'end') => {
+  if (!value) return null
+  const normalized = value.trim()
+  if (!normalized) return null
+  return bound === 'start'
+    ? `${normalized}T00:00:00.000Z`
+    : `${normalized}T23:59:59.999Z`
+}
+
+const loadSurveyFilterContext = async (
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  params: {
+    participation: SurveyParticipation
+    badge: string | null
+    scoreMin: number | null
+    scoreMode: 'avg' | 'latest'
+    lastFrom: string | null
+    lastTo: string | null
+  }
+): Promise<SurveyFilterContext> => {
+  const hasExtraFilters = Boolean(
+    (params.badge && params.badge !== 'all') ||
+    params.scoreMin !== null ||
+    params.lastFrom ||
+    params.lastTo
+  )
+
+  if (params.participation === 'all' && !hasExtraFilters) {
+    return {
+      enabled: false,
+      participation: 'all',
+      allParticipantIds: new Set(),
+      matchingParticipantIds: new Set()
+    }
+  }
+
+  const { data, error } = await (supabase as any)
+    .from('survey_client_summary')
+    .select('cliente_id, latest_badge_level, avg_overall_score, latest_overall_score, latest_response_at')
+
+  if (error || !data) {
+    throw new Error(`Errore recupero filtri survey: ${error?.message || 'unknown'}`)
+  }
+
+  const allParticipantIds = new Set<string>((data || []).map((row: any) => row.cliente_id).filter(Boolean))
+  const fromIso = asDayBoundIso(params.lastFrom, 'start')
+  const toIso = asDayBoundIso(params.lastTo, 'end')
+
+  const filtered = (data || []).filter((row: any) => {
+    if (params.badge && params.badge !== 'all' && row.latest_badge_level !== params.badge) return false
+
+    if (params.scoreMin !== null) {
+      const score = params.scoreMode === 'latest' ? row.latest_overall_score : row.avg_overall_score
+      if (typeof score !== 'number' || score < params.scoreMin) return false
+    }
+
+    if (fromIso || toIso) {
+      if (!row.latest_response_at) return false
+      const responseTime = new Date(row.latest_response_at).getTime()
+      if (!Number.isFinite(responseTime)) return false
+      if (fromIso && responseTime < new Date(fromIso).getTime()) return false
+      if (toIso && responseTime > new Date(toIso).getTime()) return false
+    }
+
+    return true
+  })
+
+  return {
+    enabled: true,
+    participation: params.participation,
+    allParticipantIds,
+    matchingParticipantIds: new Set(filtered.map((row: any) => row.cliente_id).filter(Boolean))
+  }
+}
+
+const extractClientIdFromResult = (result: SearchResult): string | null => {
+  const directCliente = (result as any).cliente
+  if (directCliente?.id) return String(directCliente.id)
+
+  const bustaCliente = (result as any).busta?.clienti
+  if (bustaCliente?.id) return String(bustaCliente.id)
+
+  const busteArray = (result as any).buste
+  if (Array.isArray(busteArray) && busteArray.length > 0) {
+    const first = busteArray[0]
+    if (first?.clienti?.id) return String(first.clienti.id)
+  }
+
+  return null
+}
+
+const applySurveyFilterToResults = (
+  results: SearchResult[],
+  surveyFilters: SurveyFilterContext
+) => {
+  if (!surveyFilters.enabled) return results
+
+  return results.filter((result) => {
+    const clientId = extractClientIdFromResult(result)
+    if (!clientId) return false
+
+    if (surveyFilters.participation === 'no') {
+      return !surveyFilters.allParticipantIds.has(clientId)
+    }
+
+    return surveyFilters.matchingParticipantIds.has(clientId)
+  })
+}
+
+const mapClientRowsToResults = (
+  clienti: any[],
+  includeArchived: boolean,
+  now: Date,
+  matchField: string
+): SearchResult[] => {
+  return (clienti || []).map((cliente: any) => {
+    const buste = (cliente.buste || [])
+      .filter((busta: any) => !busta.deleted_at)
+      .filter((busta: any) => includeArchived || !shouldArchiveBusta(busta, { now }))
+      .map((busta: any) => ({
+        ...busta,
+        isArchived: shouldArchiveBusta(busta, { now })
+      }))
+
+    return {
+      type: 'cliente' as const,
+      cliente,
+      buste,
+      matchField
+    }
+  })
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -351,9 +492,39 @@ export async function GET(request: NextRequest) {
     const telefono = searchParams.get('telefono')
     const statoPagamento = searchParams.get('statoPagamento')
     const statoOrdine = searchParams.get('statoOrdine')
+    const surveyParticipation = (searchParams.get('surveyParticipation') || 'all') as SurveyParticipation
+    const surveyBadge = searchParams.get('surveyBadge')
+    const surveyScoreMode = (searchParams.get('surveyScoreMode') || 'avg') as 'avg' | 'latest'
+    const surveyScoreMinRaw = searchParams.get('surveyScoreMin')
+    const surveyScoreMin = surveyScoreMinRaw && surveyScoreMinRaw.trim() !== ''
+      ? Number.parseFloat(surveyScoreMinRaw)
+      : null
+    const surveyLastFrom = searchParams.get('surveyLastFrom')
+    const surveyLastTo = searchParams.get('surveyLastTo')
 
     // Check if we have filters (allow search with just filters, no text query)
-    const hasFilters = bustaId || priorita || tipoLavorazione || fornitore || categoria || dateFrom || dateTo || telefono || statoPagamento || statoOrdine
+    const hasSurveyFilters = (
+      surveyParticipation !== 'all' ||
+      (surveyBadge && surveyBadge !== 'all') ||
+      (surveyScoreMin !== null && Number.isFinite(surveyScoreMin)) ||
+      Boolean(surveyLastFrom) ||
+      Boolean(surveyLastTo)
+    )
+
+    const hasNonSurveyFilters = Boolean(
+      bustaId ||
+      priorita ||
+      tipoLavorazione ||
+      fornitore ||
+      categoria ||
+      dateFrom ||
+      dateTo ||
+      telefono ||
+      statoPagamento ||
+      statoOrdine
+    )
+
+    const hasFilters = bustaId || priorita || tipoLavorazione || fornitore || categoria || dateFrom || dateTo || telefono || statoPagamento || statoOrdine || hasSurveyFilters
     const hasTextQuery = query && query.trim().length >= 2
 
     if (!hasTextQuery && !hasFilters) {
@@ -361,9 +532,90 @@ export async function GET(request: NextRequest) {
     }
 
     const searchTerm = query?.trim() || ''
-    console.log('🔍 Advanced search:', { searchTerm, type, includeArchived, bustaId, priorita, tipoLavorazione, fornitore, categoria, dateFrom, dateTo, telefono, statoPagamento, statoOrdine })
+    console.log('🔍 Advanced search:', {
+      searchTerm,
+      type,
+      includeArchived,
+      bustaId,
+      priorita,
+      tipoLavorazione,
+      fornitore,
+      categoria,
+      dateFrom,
+      dateTo,
+      telefono,
+      statoPagamento,
+      statoOrdine,
+      surveyParticipation,
+      surveyBadge,
+      surveyScoreMode,
+      surveyScoreMin,
+      surveyLastFrom,
+      surveyLastTo
+    })
 
     const now = new Date()
+    const surveyFilters = await loadSurveyFilterContext(supabase, {
+      participation: ['all', 'yes', 'no'].includes(surveyParticipation) ? surveyParticipation : 'all',
+      badge: surveyBadge,
+      scoreMin: surveyScoreMin !== null && Number.isFinite(surveyScoreMin) ? surveyScoreMin : null,
+      scoreMode: surveyScoreMode === 'latest' ? 'latest' : 'avg',
+      lastFrom: surveyLastFrom,
+      lastTo: surveyLastTo
+    })
+
+    // ===== SURVEY-ONLY SEARCH (no text + no other filters) =====
+    if (!hasTextQuery && hasSurveyFilters && !hasNonSurveyFilters) {
+      const selectFields = `
+        id, nome, cognome, telefono, email, genere, note_cliente,
+        buste (
+          ${BUSTA_ARCHIVE_FIELDS}
+        )
+      `
+
+      if (surveyFilters.participation === 'no') {
+        const { data: clienti } = await supabase
+          .from('clienti')
+          .select(selectFields)
+          .is('deleted_at', null)
+          .order('cognome')
+          .order('nome')
+          .limit(500)
+
+        const mapped = mapClientRowsToResults(clienti || [], includeArchived, now, 'survey')
+        const surveyFilteredResults = applySurveyFilterToResults(mapped, surveyFilters)
+        return NextResponse.json({ results: surveyFilteredResults, total: surveyFilteredResults.length })
+      }
+
+      const participantIds = [...surveyFilters.matchingParticipantIds]
+      if (participantIds.length === 0) {
+        return NextResponse.json({ results: [], total: 0 })
+      }
+
+      const chunkSize = 200
+      const clienti: any[] = []
+      for (let index = 0; index < participantIds.length; index += chunkSize) {
+        const chunk = participantIds.slice(index, index + chunkSize)
+        const { data: chunkClienti } = await supabase
+          .from('clienti')
+          .select(selectFields)
+          .is('deleted_at', null)
+          .in('id', chunk)
+        clienti.push(...(chunkClienti || []))
+      }
+
+      clienti.sort((a, b) => {
+        const cognomeA = (a.cognome || '').toLowerCase()
+        const cognomeB = (b.cognome || '').toLowerCase()
+        if (cognomeA !== cognomeB) return cognomeA.localeCompare(cognomeB)
+        const nomeA = (a.nome || '').toLowerCase()
+        const nomeB = (b.nome || '').toLowerCase()
+        return nomeA.localeCompare(nomeB)
+      })
+
+      const surveyResults = mapClientRowsToResults(clienti, includeArchived, now, 'survey')
+      return NextResponse.json({ results: surveyResults, total: surveyResults.length })
+    }
 
     // ===== PHONE NUMBER SEARCH (Direct lookup) =====
     if (telefono) {
@@ -398,7 +650,8 @@ export async function GET(request: NextRequest) {
         }]
       })
 
-      return NextResponse.json({ results: phoneResults, total: phoneResults.length })
+      const surveyFilteredResults = applySurveyFilterToResults(phoneResults, surveyFilters)
+      return NextResponse.json({ results: surveyFilteredResults, total: surveyFilteredResults.length })
     }
 
     // ===== BUSTA ID SEARCH (Direct lookup) =====
@@ -425,7 +678,8 @@ export async function GET(request: NextRequest) {
         matchField: 'busta ID'
       }))
 
-      return NextResponse.json({ results: bustaResults, total: bustaResults.length })
+      const surveyFilteredResults = applySurveyFilterToResults(bustaResults, surveyFilters)
+      return NextResponse.json({ results: surveyFilteredResults, total: surveyFilteredResults.length })
     }
 
     // ===== FILTER-BASED SEARCH (for categoria/fornitore/statoOrdine, we need to query ordini_materiali) =====
@@ -508,7 +762,8 @@ export async function GET(request: NextRequest) {
           matchField: [priorita && 'priorità', tipoLavorazione && 'tipo lavorazione', categoria && 'categoria', fornitore && 'fornitore', statoOrdine && 'stato ordine', (dateFrom && dateTo) && 'periodo'].filter(Boolean).join(', ')
         }))
 
-        return NextResponse.json({ results: filteredResults, total: filteredResults.length })
+        const surveyFilteredResults = applySurveyFilterToResults(filteredResults, surveyFilters)
+        return NextResponse.json({ results: surveyFilteredResults, total: surveyFilteredResults.length })
       }
 
       // If searching by payment status, query info_pagamenti
@@ -568,7 +823,8 @@ export async function GET(request: NextRequest) {
           matchField: [statoPagamento && 'stato pagamento', priorita && 'priorità', tipoLavorazione && 'tipo lavorazione', (dateFrom && dateTo) && 'periodo'].filter(Boolean).join(', ')
         }))
 
-        return NextResponse.json({ results: paymentResults, total: paymentResults.length })
+        const surveyFilteredResults = applySurveyFilterToResults(paymentResults, surveyFilters)
+        return NextResponse.json({ results: surveyFilteredResults, total: surveyFilteredResults.length })
       }
 
       // Otherwise, query buste directly
@@ -604,7 +860,8 @@ export async function GET(request: NextRequest) {
         matchField: [priorita && 'priorità', tipoLavorazione && 'tipo lavorazione', (dateFrom && dateTo) && 'periodo'].filter(Boolean).join(', ')
       }))
 
-      return NextResponse.json({ results: filteredResults, total: filteredResults.length })
+      const surveyFilteredResults = applySurveyFilterToResults(filteredResults, surveyFilters)
+      return NextResponse.json({ results: surveyFilteredResults, total: surveyFilteredResults.length })
     }
 
     // ===== ORIGINAL TEXT-BASED SEARCH =====
@@ -628,7 +885,8 @@ export async function GET(request: NextRequest) {
     }
 
     const results = (await Promise.all(tasks)).flat()
-    return NextResponse.json({ results, total: results.length })
+    const surveyFilteredResults = applySurveyFilterToResults(results, surveyFilters)
+    return NextResponse.json({ results: surveyFilteredResults, total: surveyFilteredResults.length })
   } catch (error: any) {
     console.error('❌ Advanced search error:', error)
     return NextResponse.json({ error: 'Errore nella ricerca avanzata' }, { status: 500 })

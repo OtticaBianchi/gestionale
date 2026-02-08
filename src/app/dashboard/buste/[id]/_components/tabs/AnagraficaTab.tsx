@@ -57,6 +57,13 @@ type SurveyClientSummary = {
   latest_section_scores: Record<string, number> | null;
   followup_candidates_count: number;
   has_pending_followup: boolean;
+  latest_suggestion?: string | null;
+  response_history?: Array<{
+    id: string;
+    overall_score: number | null;
+    submitted_at: string | null;
+    created_at: string | null;
+  }>;
 };
 
 // ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
@@ -131,13 +138,39 @@ const SURVEY_BADGE_LABELS: Record<SurveyBadgeLevel, string> = {
   critico: 'Critico'
 };
 
-const SURVEY_SECTION_LABELS: Record<string, string> = {
-  servizio: 'Servizio',
-  controllo_vista: 'Controllo Vista',
-  esperienza: 'Esperienza',
-  overall: 'Overall',
-  recommend: 'Consiglio',
-  prodotto: 'Prodotto'
+const SURVEY_SECTION_ORDER: Array<{ key: string; label: string }> = [
+  { key: 'controllo_vista', label: 'CV' },
+  { key: 'adattamento', label: 'Adattamento' },
+  { key: 'prodotto', label: 'Prodotto Acquistato' },
+  { key: 'servizio', label: 'Servizio Negozio' },
+  { key: 'esperienza', label: 'Esperienza Ottica Bianchi' },
+  { key: 'passaparola', label: 'Passaparola' }
+];
+
+const SURVEY_SECTION_ALIASES: Record<string, string> = {
+  recommend: 'passaparola',
+  overall: 'esperienza'
+};
+
+const normalizeSurveySectionEntries = (sectionScores: Record<string, number> | null | undefined) => {
+  if (!sectionScores || typeof sectionScores !== 'object') return [] as Array<[string, number]>;
+
+  const canonical = new Map<string, number>();
+  for (const [rawKey, rawValue] of Object.entries(sectionScores)) {
+    if (typeof rawValue !== 'number' || Number.isNaN(rawValue)) continue;
+    const key = SURVEY_SECTION_ALIASES[rawKey] || rawKey;
+    if (!canonical.has(key)) {
+      canonical.set(key, rawValue);
+    }
+  }
+
+  const ordered = SURVEY_SECTION_ORDER
+    .filter(({ key }) => canonical.has(key))
+    .map(({ key }) => [key, canonical.get(key) as number] as [string, number]);
+
+  const knownKeys = new Set(SURVEY_SECTION_ORDER.map(({ key }) => key));
+  const extra = [...canonical.entries()].filter(([key]) => !knownKeys.has(key));
+  return [...ordered, ...extra];
 };
 
 // Tipi props
@@ -155,6 +188,13 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
   const [surveySummary, setSurveySummary] = useState<SurveyClientSummary | null>(null);
   const [surveyLoading, setSurveyLoading] = useState(false);
   const [surveyError, setSurveyError] = useState<string | null>(null);
+  const orderedSurveySections = normalizeSurveySectionEntries(surveySummary?.latest_section_scores || null);
+  const surveyHistory = surveySummary?.response_history || [];
+  const latestHistoryScore = typeof surveyHistory[0]?.overall_score === 'number' ? surveyHistory[0].overall_score : null;
+  const previousHistoryScore = typeof surveyHistory[1]?.overall_score === 'number' ? surveyHistory[1].overall_score : null;
+  const trendDelta = latestHistoryScore !== null && previousHistoryScore !== null
+    ? Number((latestHistoryScore - previousHistoryScore).toFixed(2))
+    : null;
   
   // User context for role checking
   const { profile } = useUser();
@@ -621,30 +661,54 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="p-3 rounded-md bg-gray-50 border border-gray-200">
-                <p className="text-xs uppercase tracking-wide text-gray-500">Punteggio Medio</p>
-                <p className="text-lg font-semibold text-gray-900">
-                  {typeof surveySummary.avg_overall_score === 'number' ? `${surveySummary.avg_overall_score.toFixed(2)}/100` : '—'}
-                </p>
-              </div>
-              <div className="p-3 rounded-md bg-gray-50 border border-gray-200">
                 <p className="text-xs uppercase tracking-wide text-gray-500">Ultimo Punteggio</p>
                 <p className="text-lg font-semibold text-gray-900">
                   {typeof surveySummary.latest_overall_score === 'number' ? `${surveySummary.latest_overall_score.toFixed(2)}/100` : '—'}
                 </p>
               </div>
+              <div className="p-3 rounded-md bg-gray-50 border border-gray-200">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Trend (ultimo vs precedente)</p>
+                <p className="text-lg font-semibold text-gray-900">
+                  {trendDelta === null ? '—' : `${trendDelta > 0 ? '+' : ''}${trendDelta.toFixed(2)} pt`}
+                </p>
+              </div>
             </div>
 
-            {surveySummary.latest_section_scores && Object.keys(surveySummary.latest_section_scores).length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(surveySummary.latest_section_scores).map(([sectionKey, value]) => (
+            {orderedSurveySections.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Sezioni (ultima risposta)</p>
+                <div className="flex flex-wrap gap-2">
+                  {orderedSurveySections.map(([sectionKey, value]) => (
                   <span
                     key={sectionKey}
                     className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-medium"
                   >
-                    <span>{SURVEY_SECTION_LABELS[sectionKey] || sectionKey}</span>
+                    <span>{SURVEY_SECTION_ORDER.find((item) => item.key === sectionKey)?.label || sectionKey}</span>
                     <span>{typeof value === 'number' ? `${value.toFixed(1)}/100` : '—'}</span>
                   </span>
-                ))}
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {surveySummary.latest_suggestion && (
+              <div className="p-3 rounded-md bg-blue-50 border border-blue-100">
+                <p className="text-xs uppercase tracking-wide text-blue-700 mb-1">Suggerimenti</p>
+                <p className="text-sm text-blue-900 whitespace-pre-wrap">{surveySummary.latest_suggestion}</p>
+              </div>
+            )}
+
+            {surveyHistory.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-wide text-gray-500">Storico risposte</p>
+                <div className="space-y-1">
+                  {surveyHistory.slice(0, 6).map((item) => (
+                    <div key={item.id} className="text-xs text-gray-700 flex items-center justify-between rounded bg-gray-50 px-2 py-1 border border-gray-100">
+                      <span>{formatDateTimeDisplay(item.submitted_at || item.created_at)}</span>
+                      <span className="font-medium">{typeof item.overall_score === 'number' ? `${item.overall_score.toFixed(2)}/100` : '—'}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

@@ -16,6 +16,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout';
 import { createClient } from '@/lib/supabase/client';
 import { useUser } from '@/context/UserContext';
 import ManualClientForm from './_components/ManualClientForm';
+import SurveyCsvImportForm from './_components/SurveyCsvImportForm';
 
 type RawClientRecord = {
   cognome: string;
@@ -65,7 +66,7 @@ export default function ImportClientiPage() {
   const supabase = useMemo(() => createClient(), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'csv' | 'manual'>('csv');
+  const [activeTab, setActiveTab] = useState<'csv' | 'manual' | 'survey'>('csv');
   const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<ImportRow[]>([]);
   const [parsingError, setParsingError] = useState<string | null>(null);
@@ -341,19 +342,32 @@ export default function ImportClientiPage() {
                 Import CSV
               </div>
             </button>
-            <button
-              onClick={() => setActiveTab('manual')}
-              className={`px-4 py-2 font-medium text-sm transition-colors ${
-                activeTab === 'manual'
-                  ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <UserPlus className="w-4 h-4" />
-                Inserimento Manuale
-              </div>
-            </button>
+              <button
+                onClick={() => setActiveTab('manual')}
+                className={`px-4 py-2 font-medium text-sm transition-colors ${
+                  activeTab === 'manual'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  Inserimento Manuale
+                </div>
+              </button>
+              <button
+                onClick={() => setActiveTab('survey')}
+                className={`px-4 py-2 font-medium text-sm transition-colors ${
+                  activeTab === 'survey'
+                    ? 'text-blue-600 border-b-2 border-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <ListChecks className="w-4 h-4" />
+                  Import Survey CSV
+                </div>
+              </button>
           </div>
         </div>
 
@@ -361,6 +375,8 @@ export default function ImportClientiPage() {
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
             {activeTab === 'manual' ? (
               <ManualClientForm />
+            ) : activeTab === 'survey' ? (
+              <SurveyCsvImportForm />
             ) : (
             <>
             <section>

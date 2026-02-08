@@ -4,9 +4,22 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
+import { promises as fs } from 'fs'
+import path from 'path'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+const projectRoot = process.cwd()
+const databaseTypesPath = path.join(projectRoot, 'src', 'types', 'database.types.ts')
+
+const COVERED_AUTO_MERGE_TABLES = new Set([
+  'buste',
+  'error_tracking',
+  'voice_notes',
+  'survey_response_matches'
+])
+
+let clienteIdTablesPromise: Promise<string[]> | null = null
 
 type ResolvePayload = {
   cliente_id?: string | null
@@ -24,6 +37,12 @@ type MatchClient = {
   note_cliente: string | null
   created_at: string | null
   deleted_at: string | null
+}
+
+type MergeBlocker = {
+  table: string
+  count: number | null
+  error: string | null
 }
 
 const normalizeText = (value: string | null | undefined) =>
@@ -73,6 +92,100 @@ const appendNotes = (base: string | null | undefined, extra: string) => {
   if (!cleanExtra) return cleanBase
   return `${cleanBase}\n${cleanExtra}`
 }
+
+const isMissingTableError = (error: any) => {
+  const message = `${error?.message || ''}`.toLowerCase()
+  return error?.code === '42P01' || message.includes('does not exist') || message.includes('could not find the table')
+}
+
+const discoverClienteIdTablesFromTypes = async (): Promise<string[]> => {
+  const fallback = [...COVERED_AUTO_MERGE_TABLES]
+
+  try {
+    const content = await fs.readFile(databaseTypesPath, 'utf8')
+    const lines = content.split(/\r?\n/)
+    const tables = new Set<string>()
+    let section = ''
+
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i]
+
+      if (/^\s{4}Tables:\s*\{/.test(line)) {
+        section = 'tables'
+        continue
+      }
+      if (/^\s{4}(Views|Functions|Enums|CompositeTypes):\s*\{/.test(line)) {
+        section = 'other'
+        continue
+      }
+      if (section !== 'tables') continue
+      if (!line.includes('cliente_id:')) continue
+
+      for (let j = i; j >= 0; j -= 1) {
+        const match = lines[j].match(/^\s{6}([a-zA-Z0-9_]+):\s*\{$/)
+        if (match) {
+          tables.add(match[1])
+          break
+        }
+        if (/^\s{4}Tables:\s*\{/.test(lines[j])) break
+      }
+    }
+
+    for (const tableName of COVERED_AUTO_MERGE_TABLES) {
+      tables.add(tableName)
+    }
+
+    return tables.size > 0 ? [...tables] : fallback
+  } catch (error) {
+    console.warn('Could not discover cliente_id tables from types file. Falling back to covered merge tables.')
+    return fallback
+  }
+}
+
+const getClienteIdTables = async () => {
+  if (!clienteIdTablesPromise) {
+    clienteIdTablesPromise = discoverClienteIdTablesFromTypes()
+  }
+  return clienteIdTablesPromise
+}
+
+const getExternalReferenceBlockers = async (
+  admin: any,
+  clientId: string,
+  cache: Map<string, MergeBlocker[]>
+) => {
+  if (cache.has(clientId)) return cache.get(clientId) || []
+
+  const tablesWithClienteId = await getClienteIdTables()
+  const externalTables = tablesWithClienteId.filter((tableName) => !COVERED_AUTO_MERGE_TABLES.has(tableName))
+  const blockers: MergeBlocker[] = []
+
+  for (const tableName of externalTables) {
+    const { count, error } = await admin
+      .from(tableName)
+      .select('cliente_id', { count: 'exact', head: true })
+      .eq('cliente_id', clientId)
+
+    if (error) {
+      if (isMissingTableError(error)) continue
+      blockers.push({ table: tableName, count: null, error: error.message })
+      continue
+    }
+
+    const refs = count || 0
+    if (refs > 0) {
+      blockers.push({ table: tableName, count: refs, error: null })
+    }
+  }
+
+  cache.set(clientId, blockers)
+  return blockers
+}
+
+const formatBlockersForNote = (blockers: MergeBlocker[]) =>
+  blockers
+    .map((entry) => (entry.error ? `${entry.table}:error` : `${entry.table}:${entry.count || 0}`))
+    .join(', ')
 
 const areOrthographicVariants = (clients: MatchClient[]) => {
   const active = clients.filter((client) => !client.deleted_at)
@@ -154,6 +267,27 @@ const mergeOrthographicDuplicates = async ({
 }) => {
   const now = new Date().toISOString()
   const { winner, losers } = await chooseMergeWinner(admin, clients)
+  const externalReferenceCache = new Map<string, MergeBlocker[]>()
+  const blockedLosers: Array<{ loserId: string; blockers: MergeBlocker[] }> = []
+
+  for (const loser of losers) {
+    const blockers = await getExternalReferenceBlockers(admin, loser.id, externalReferenceCache)
+    if (blockers.length > 0) {
+      blockedLosers.push({
+        loserId: loser.id,
+        blockers
+      })
+    }
+  }
+
+  if (blockedLosers.length > 0) {
+    return {
+      winnerId: winner.id,
+      mergedCount: 0,
+      blockedLosers
+    }
+  }
+
   const preferredSurname = pickPreferredSurname(clients, winner.cognome)
 
   const winnerPatch: Record<string, any> = { updated_at: now, updated_by: reviewerId }
@@ -216,7 +350,8 @@ const mergeOrthographicDuplicates = async ({
 
   return {
     winnerId: winner.id,
-    mergedCount: losers.length
+    mergedCount: losers.length,
+    blockedLosers: [] as Array<{ loserId: string; blockers: MergeBlocker[] }>
   }
 }
 
@@ -314,12 +449,21 @@ export async function PATCH(
           reviewerId: user.id,
           clients: activeCandidates
         })
-        resolvedClienteId = mergeResult.winnerId
-        updateData.match_notes = appendNotes(
-          updateData.match_notes,
-          `Auto-merge ortografico eseguito (${mergeResult.mergedCount} record unificati).`
-        )
-        updateData.match_strategy = 'manual_confirmed_orthographic_merged'
+
+        if (mergeResult.blockedLosers.length > 0) {
+          updateData.match_notes = appendNotes(
+            updateData.match_notes,
+            `Auto-merge ortografico NON eseguito (guardrail): ${mergeResult.blockedLosers.map((entry) => `${entry.loserId}[${formatBlockersForNote(entry.blockers)}]`).join(' | ')}`
+          )
+          updateData.match_strategy = 'manual_confirmed_orthographic_guardrail_skip'
+        } else {
+          resolvedClienteId = mergeResult.winnerId
+          updateData.match_notes = appendNotes(
+            updateData.match_notes,
+            `Auto-merge ortografico eseguito (${mergeResult.mergedCount} record unificati).`
+          )
+          updateData.match_strategy = 'manual_confirmed_orthographic_merged'
+        }
       }
 
       updateData.cliente_id = resolvedClienteId

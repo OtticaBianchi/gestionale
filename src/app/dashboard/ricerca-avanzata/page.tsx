@@ -95,6 +95,12 @@ export default function RicercaAvanzataPage() {
   const [telefono, setTelefono] = useState('');
   const [statoPagamento, setStatoPagamento] = useState<'all' | 'pagato' | 'non_pagato' | 'parziale' | 'saldo'>('all');
   const [statoOrdine, setStatoOrdine] = useState<'all' | 'da_ordinare' | 'ordinato' | 'in_arrivo' | 'in_ritardo' | 'arrivato' | 'accettato_con_riserva' | 'rifiutato' | 'sbagliato' | 'annullato'>('all');
+  const [surveyParticipation, setSurveyParticipation] = useState<'all' | 'yes' | 'no'>('all');
+  const [surveyBadge, setSurveyBadge] = useState<'all' | 'eccellente' | 'positivo' | 'attenzione' | 'critico'>('all');
+  const [surveyScoreMode, setSurveyScoreMode] = useState<'avg' | 'latest'>('avg');
+  const [surveyScoreMin, setSurveyScoreMin] = useState('');
+  const [surveyLastFrom, setSurveyLastFrom] = useState('');
+  const [surveyLastTo, setSurveyLastTo] = useState('');
 
   // ===== SUPPLIER DROPDOWN DATA =====
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -121,7 +127,21 @@ export default function RicercaAvanzataPage() {
 
   const searchAdvanced = async () => {
     // Allow search with just filters (no text required)
-    const hasFilters = bustaId || priorita !== 'all' || tipoLavorazione !== 'all' || fornitore !== 'all' || categoria !== 'all' || dateRange !== 'all' || telefono || statoPagamento !== 'all' || statoOrdine !== 'all';
+    const hasFilters =
+      bustaId ||
+      priorita !== 'all' ||
+      tipoLavorazione !== 'all' ||
+      fornitore !== 'all' ||
+      categoria !== 'all' ||
+      dateRange !== 'all' ||
+      telefono ||
+      statoPagamento !== 'all' ||
+      statoOrdine !== 'all' ||
+      surveyParticipation !== 'all' ||
+      surveyBadge !== 'all' ||
+      surveyScoreMin ||
+      surveyLastFrom ||
+      surveyLastTo;
 
     if (!searchQuery.trim() && !hasFilters) {
       setResults([]);
@@ -152,6 +172,14 @@ export default function RicercaAvanzataPage() {
       if (telefono) params.append('telefono', telefono);
       if (statoPagamento !== 'all') params.append('statoPagamento', statoPagamento);
       if (statoOrdine !== 'all') params.append('statoOrdine', statoOrdine);
+      if (surveyParticipation !== 'all') params.append('surveyParticipation', surveyParticipation);
+      if (surveyParticipation !== 'no' && surveyBadge !== 'all') params.append('surveyBadge', surveyBadge);
+      if (surveyParticipation !== 'no' && surveyScoreMin.trim() !== '') {
+        params.append('surveyScoreMode', surveyScoreMode);
+        params.append('surveyScoreMin', surveyScoreMin.trim());
+      }
+      if (surveyParticipation !== 'no' && surveyLastFrom) params.append('surveyLastFrom', surveyLastFrom);
+      if (surveyParticipation !== 'no' && surveyLastTo) params.append('surveyLastTo', surveyLastTo);
 
       // Calculate date range
       if (dateRange !== 'all' && dateRange !== 'custom') {
@@ -311,7 +339,7 @@ export default function RicercaAvanzataPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Inserisci termine di ricerca (min. 2 caratteri)..."
+                placeholder="Termine opzionale (min. 2 caratteri se compilato)..."
                 className="w-full px-4 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--teal)]/30 focus:border-transparent"
               />
             </div>
@@ -602,6 +630,93 @@ export default function RicercaAvanzataPage() {
                         />
                       </>
                     )}
+                  </div>
+                </div>
+
+                {/* Survey Participation */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Survey
+                  </label>
+                  <select
+                    value={surveyParticipation}
+                    onChange={(e) => setSurveyParticipation(e.target.value as any)}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">Tutti</option>
+                    <option value="yes">Ha partecipato</option>
+                    <option value="no">Non ha partecipato</option>
+                  </select>
+                </div>
+
+                {/* Survey Badge */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Badge Survey
+                  </label>
+                  <select
+                    value={surveyBadge}
+                    onChange={(e) => setSurveyBadge(e.target.value as any)}
+                    disabled={surveyParticipation === 'no'}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  >
+                    <option value="all">Tutti</option>
+                    <option value="eccellente">Eccellente</option>
+                    <option value="positivo">Positivo</option>
+                    <option value="attenzione">Attenzione</option>
+                    <option value="critico">Critico</option>
+                  </select>
+                </div>
+
+                {/* Survey Score */}
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Score Survey Minimo
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={surveyScoreMode}
+                      onChange={(e) => setSurveyScoreMode(e.target.value as any)}
+                      disabled={surveyParticipation === 'no'}
+                      className="w-40 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    >
+                      <option value="avg">Media</option>
+                      <option value="latest">Ultimo</option>
+                    </select>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={surveyScoreMin}
+                      onChange={(e) => setSurveyScoreMin(e.target.value)}
+                      disabled={surveyParticipation === 'no'}
+                      placeholder="es. 85"
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    />
+                  </div>
+                </div>
+
+                {/* Survey Date Range */}
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Ultima risposta survey (da/a)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={surveyLastFrom}
+                      onChange={(e) => setSurveyLastFrom(e.target.value)}
+                      disabled={surveyParticipation === 'no'}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    />
+                    <input
+                      type="date"
+                      value={surveyLastTo}
+                      onChange={(e) => setSurveyLastTo(e.target.value)}
+                      disabled={surveyParticipation === 'no'}
+                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    />
                   </div>
                 </div>
               </div>

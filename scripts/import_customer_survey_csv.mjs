@@ -22,6 +22,16 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false }
 })
 
+const COVERED_AUTO_MERGE_TABLES = new Set([
+  'buste',
+  'error_tracking',
+  'voice_notes',
+  'survey_response_matches'
+])
+
+const TYPES_SCHEMA_PATH = path.join(rootDir, 'src', 'types', 'database.types.ts')
+let clienteIdTablesPromise = null
+
 const PRODUCT_SCORE_MAP = {
   'si': 100,
   'sì': 100,
@@ -30,13 +40,27 @@ const PRODUCT_SCORE_MAP = {
   'no': 0
 }
 
+const FOUR_STAR_EXPERIENCE_MAP = {
+  1: 0,
+  2: 30,
+  3: 65,
+  4: 100
+}
+
+const THREE_STAR_RECOMMEND_MAP = {
+  1: 0,
+  2: 50,
+  3: 100
+}
+
 function parseArgs(argv) {
   const args = {
     file: '',
     dryRun: false,
     isHistorical: true,
     recencyDays: 90,
-    notes: ''
+    notes: '',
+    autoMergeOrthographic: true
   }
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -67,6 +91,10 @@ function parseArgs(argv) {
     if (token === '--notes') {
       args.notes = argv[i + 1] || ''
       i += 1
+      continue
+    }
+    if (token === '--no-auto-merge') {
+      args.autoMergeOrthographic = false
       continue
     }
   }
@@ -239,24 +267,44 @@ function parseDateValue(input) {
   return null
 }
 
-function getSectionKey(header, columns) {
+function getSectionKey(header, columns, context = { hasAdattamentoQuestion: false }) {
   if (!header) return 'other'
   const lower = header.toLowerCase()
-  if (header === columns.overallHeader) return 'overall'
-  if (header === columns.recommendHeader) return 'recommend'
+  if (header === columns.overallHeader) return 'esperienza'
+  if (header === columns.recommendHeader) return 'passaparola'
   if (header === columns.productHeader) return 'prodotto'
   if (lower.includes('controllo della vista')) return 'controllo_vista'
-  if (lower.includes('come è stata la tua esperienza')) return 'esperienza'
-  if (lower.includes('come e stata la tua esperienza')) return 'esperienza'
+  if (lower.includes('adattamento')) return 'adattamento'
+  if (lower.includes('come è stata la tua esperienza') || lower.includes('come e stata la tua esperienza')) {
+    return context.hasAdattamentoQuestion ? 'adattamento' : 'esperienza'
+  }
   if (lower.includes('come valuti il servizio ricevuto')) return 'servizio'
   return 'other'
 }
 
+function normalizeSurveyScore({ numericValue, maxScale, sectionKey, isOverallQuestion }) {
+  if (!Number.isFinite(numericValue)) return null
+
+  if (sectionKey === 'passaparola' && maxScale === 3) {
+    return THREE_STAR_RECOMMEND_MAP[numericValue] ?? null
+  }
+
+  if (sectionKey === 'esperienza' && (isOverallQuestion || maxScale === 4)) {
+    return FOUR_STAR_EXPERIENCE_MAP[numericValue] ?? null
+  }
+
+  const denominator = Math.max(1, maxScale - 1)
+  return ((numericValue - 1) / denominator) * 100
+}
+
 function scoreResponse(row, columns, args) {
   const sectionBuckets = new Map()
-  const normalizedScores = []
-  let lowSignalCount = 0
-  let veryLowSignalCount = 0
+  const suggestionText = columns.suggestionHeader ? (row[columns.suggestionHeader] || '').trim() : ''
+  const hasAdattamentoQuestion = columns.numericColumns.some((header) => {
+    const lower = header.toLowerCase()
+    if (!lower.includes('adattamento')) return false
+    return (row[header] || '').trim() !== ''
+  })
 
   for (const header of columns.numericColumns) {
     const value = (row[header] || '').trim()
@@ -264,18 +312,17 @@ function scoreResponse(row, columns, args) {
     const numericValue = Number(value)
     if (!Number.isFinite(numericValue)) continue
 
-    const maxScale = header === columns.recommendHeader
-      ? Math.max(3, columns.numericMaxByColumn[header] || 3)
-      : 5
+    const sectionKey = getSectionKey(header, columns, { hasAdattamentoQuestion })
+    if (sectionKey === 'other') continue
+    const maxScale = Math.max(1, columns.numericMaxByColumn[header] || 5)
+    const normalized = normalizeSurveyScore({
+      numericValue,
+      maxScale,
+      sectionKey,
+      isOverallQuestion: header === columns.overallHeader
+    })
+    if (!Number.isFinite(normalized)) continue
 
-    const denominator = Math.max(1, maxScale - 1)
-    const normalized = ((numericValue - 1) / denominator) * 100
-    normalizedScores.push(normalized)
-
-    if (normalized <= 50) lowSignalCount += 1
-    if (normalized <= 25) veryLowSignalCount += 1
-
-    const sectionKey = getSectionKey(header, columns)
     if (!sectionBuckets.has(sectionKey)) sectionBuckets.set(sectionKey, [])
     sectionBuckets.get(sectionKey).push(normalized)
   }
@@ -285,12 +332,9 @@ function scoreResponse(row, columns, args) {
     if (productValue) {
       const mapped = PRODUCT_SCORE_MAP[productValue]
       if (typeof mapped === 'number') {
-        normalizedScores.push(mapped)
-        const sectionKey = getSectionKey(columns.productHeader, columns)
+        const sectionKey = getSectionKey(columns.productHeader, columns, { hasAdattamentoQuestion })
         if (!sectionBuckets.has(sectionKey)) sectionBuckets.set(sectionKey, [])
         sectionBuckets.get(sectionKey).push(mapped)
-        if (mapped <= 50) lowSignalCount += 1
-        if (mapped <= 25) veryLowSignalCount += 1
       }
     }
   }
@@ -302,11 +346,18 @@ function scoreResponse(row, columns, args) {
     sectionScores[sectionKey] = Number(avg.toFixed(2))
   }
 
-  const overallScore = normalizedScores.length > 0
-    ? Number((normalizedScores.reduce((sum, value) => sum + value, 0) / normalizedScores.length).toFixed(2))
+  const sectionValues = Object.values(sectionScores)
+  const overallScore = sectionValues.length > 0
+    ? Number((sectionValues.reduce((sum, value) => sum + value, 0) / sectionValues.length).toFixed(2))
     : null
 
-  const sectionValues = Object.values(sectionScores)
+  let lowSignalCount = 0
+  let veryLowSignalCount = 0
+  for (const value of sectionValues) {
+    if (value <= 50) lowSignalCount += 1
+    if (value <= 25) veryLowSignalCount += 1
+  }
+
   const minSection = sectionValues.length > 0 ? Math.min(...sectionValues) : 100
 
   let badgeLevel = 'attenzione'
@@ -326,13 +377,9 @@ function scoreResponse(row, columns, args) {
     ? parseDateValue((row[columns.submittedAtHeader] || '').trim())
     : null
 
-  const now = Date.now()
-  const recentThresholdMs = args.recencyDays * 24 * 60 * 60 * 1000
-  const isRecent = Boolean(
-    submittedAt &&
-    !args.isHistorical &&
-    (now - submittedAt.getTime()) <= recentThresholdMs
-  )
+  // Live imports represent newly received survey responses: always eligible for follow-up logic.
+  // Historical backfills stay excluded from auto follow-up generation.
+  const isRecent = !args.isHistorical
 
   const requiresFollowup = isRecent && (badgeLevel === 'attenzione' || badgeLevel === 'critico')
   const followupStatus = requiresFollowup
@@ -342,6 +389,7 @@ function scoreResponse(row, columns, args) {
   return {
     overallScore,
     sectionScores,
+    suggestionText: suggestionText || null,
     badgeLevel,
     lowSignalCount,
     veryLowSignalCount,
@@ -448,6 +496,110 @@ function normalizePhoneDigits(value) {
 
 function normalizeLooseText(value) {
   return (value || '').trim().toLowerCase()
+}
+
+async function discoverClienteIdTablesFromTypes() {
+  const fallback = [...COVERED_AUTO_MERGE_TABLES]
+
+  try {
+    const content = await fs.readFile(TYPES_SCHEMA_PATH, 'utf8')
+    const lines = content.split(/\r?\n/)
+    const tables = new Set()
+    let section = ''
+
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i]
+
+      if (/^\s{4}Tables:\s*\{/.test(line)) {
+        section = 'tables'
+        continue
+      }
+      if (/^\s{4}(Views|Functions|Enums|CompositeTypes):\s*\{/.test(line)) {
+        section = 'other'
+        continue
+      }
+      if (section !== 'tables') continue
+      if (!line.includes('cliente_id:')) continue
+
+      for (let j = i; j >= 0; j -= 1) {
+        const match = lines[j].match(/^\s{6}([a-zA-Z0-9_]+):\s*\{$/)
+        if (match) {
+          tables.add(match[1])
+          break
+        }
+        if (/^\s{4}Tables:\s*\{/.test(lines[j])) break
+      }
+    }
+
+    for (const tableName of COVERED_AUTO_MERGE_TABLES) {
+      tables.add(tableName)
+    }
+
+    return tables.size > 0 ? [...tables] : fallback
+  } catch (error) {
+    console.warn('Unable to discover cliente_id tables from types file, fallback to covered list only.')
+    return fallback
+  }
+}
+
+async function getClienteIdTables() {
+  if (!clienteIdTablesPromise) {
+    clienteIdTablesPromise = discoverClienteIdTablesFromTypes()
+  }
+  return clienteIdTablesPromise
+}
+
+function isMissingTableError(error) {
+  const message = `${error?.message || ''}`.toLowerCase()
+  return error?.code === '42P01' || message.includes('does not exist') || message.includes('could not find the table')
+}
+
+async function getExternalReferenceBlockers(clientId, cache) {
+  if (cache.has(clientId)) return cache.get(clientId)
+
+  const tablesWithClienteId = await getClienteIdTables()
+  const externalTables = tablesWithClienteId.filter((tableName) => !COVERED_AUTO_MERGE_TABLES.has(tableName))
+  const blockers = []
+
+  for (const tableName of externalTables) {
+    const { count, error } = await supabase
+      .from(tableName)
+      .select('cliente_id', { count: 'exact', head: true })
+      .eq('cliente_id', clientId)
+
+    if (error) {
+      if (isMissingTableError(error)) {
+        continue
+      }
+      blockers.push({
+        table: tableName,
+        count: null,
+        error: error.message
+      })
+      continue
+    }
+
+    const refs = count || 0
+    if (refs > 0) {
+      blockers.push({
+        table: tableName,
+        count: refs,
+        error: null
+      })
+    }
+  }
+
+  cache.set(clientId, blockers)
+  return blockers
+}
+
+function formatBlockersForNote(entries) {
+  return entries
+    .map((entry) => {
+      if (entry.error) return `${entry.table}:error`
+      return `${entry.table}:${entry.count || 0}`
+    })
+    .join(', ')
 }
 
 function hasAccentedVowel(value) {
@@ -701,8 +853,10 @@ async function findMatch({
   clientById,
   mergedInto,
   busteCountCache,
+  externalReferenceCache,
   adminUserId,
-  dryRun
+  dryRun,
+  autoMergeOrthographic
 }) {
   const normalizedName = normalizeText(respondentName)
   const normalizedEmail = normalizeEmail(respondentEmail)
@@ -750,9 +904,30 @@ async function findMatch({
     }
 
     if (highCandidates.length > 1) {
-      if (areOrthographicVariants(highCandidates)) {
+      if (areOrthographicVariants(highCandidates) && autoMergeOrthographic) {
         const { winner } = await chooseWinnerClient(highCandidates, busteCountCache)
         const losers = highCandidates.filter((candidate) => candidate.id !== winner.id)
+        const blockedLosers = []
+
+        for (const loser of losers) {
+          const blockers = await getExternalReferenceBlockers(loser.id, externalReferenceCache)
+          if (blockers.length > 0) {
+            blockedLosers.push({
+              loserId: loser.id,
+              blockers
+            })
+          }
+        }
+
+        if (blockedLosers.length > 0) {
+          result.clienteId = winner.id
+          result.confidence = 'high'
+          result.strategy = 'email_and_name_exact_orthographic_guardrail_review'
+          result.candidateClientIds = highCandidates.map((client) => client.id)
+          result.needsReview = true
+          result.notes = `Orthographic duplicate detected, but auto-merge blocked by guardrail (${blockedLosers.map((entry) => `${entry.loserId}[${formatBlockersForNote(entry.blockers)}]`).join(' | ')}).`
+          return result
+        }
 
         if (!dryRun) {
           const preferredSurname = pickPreferredSurname(highCandidates, winner.rawCognome)
@@ -777,6 +952,17 @@ async function findMatch({
           ? `Orthographic duplicate eligible for auto-merge (${losers.length}). Dry-run preview only.`
           : `Orthographic duplicate merged (${losers.length}) and auto-associated.`
         result.needsReview = false
+        return result
+      }
+
+      if (areOrthographicVariants(highCandidates) && !autoMergeOrthographic) {
+        const { winner } = await chooseWinnerClient(highCandidates, busteCountCache)
+        result.clienteId = winner.id
+        result.confidence = 'high'
+        result.strategy = 'email_and_name_exact_orthographic_review'
+        result.candidateClientIds = highCandidates.map((client) => client.id)
+        result.needsReview = true
+        result.notes = 'Orthographic duplicate detected. Auto-merge disabled: manual review required.'
         return result
       }
 
@@ -888,7 +1074,7 @@ async function getAdminId() {
 async function run() {
   const args = parseArgs(process.argv.slice(2))
   if (!args.file) {
-    console.error('Usage: node scripts/import_customer_survey_csv.mjs --file <path> [--dry-run] [--live] [--recency-days 90]')
+    console.error('Usage: node scripts/import_customer_survey_csv.mjs --file <path> [--dry-run] [--live|--historical]')
     process.exit(1)
   }
 
@@ -907,6 +1093,7 @@ async function run() {
   const clientById = new Map(clients.map((client) => [client.id, client]))
   const mergedInto = new Map()
   const busteCountCache = new Map()
+  const externalReferenceCache = new Map()
   const adminUserId = await getAdminId()
 
   console.log(`Loaded ${records.length} survey rows and ${clients.length} clients.`)
@@ -943,8 +1130,10 @@ async function run() {
       clientById,
       mergedInto,
       busteCountCache,
+      externalReferenceCache,
       adminUserId,
-      dryRun: args.dryRun
+      dryRun: args.dryRun,
+      autoMergeOrthographic: args.autoMergeOrthographic
     })
 
     stats.parsedRows += 1
@@ -993,7 +1182,7 @@ async function run() {
   console.log(`Low matches: ${stats.matchedLow}`)
   console.log(`Unmatched: ${stats.unmatched}`)
   console.log(`Needs review: ${stats.needsReview}`)
-  console.log(`Follow-up pending (recent only): ${stats.followsPending}`)
+  console.log(`Follow-up pending (live imports): ${stats.followsPending}`)
 
   if (args.dryRun) {
     console.log('Dry-run completed. No data was written.')

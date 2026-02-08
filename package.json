@@ -1,6 +1,6 @@
 {
   "name": "ob-moduli",
-  "version": "4.3.4",
+  "version": "4.3.5",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -10,7 +10,8 @@
     "type-check": "tsc --noEmit",
     "admin:prune-users": "node scripts/prune-users.js",
     "survey:import": "node scripts/import_customer_survey_csv.mjs",
-    "survey:auto-resolve": "node scripts/auto_resolve_survey_matches.mjs"
+    "survey:auto-resolve": "node scripts/auto_resolve_survey_matches.mjs",
+    "survey:recalculate": "node scripts/recalculate_survey_scores.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

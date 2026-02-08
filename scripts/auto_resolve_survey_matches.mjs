@@ -1,6 +1,7 @@
 import dotenv from 'dotenv'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { promises as fs } from 'fs'
 import { createClient } from '@supabase/supabase-js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -20,6 +21,16 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false }
 })
+
+const COVERED_AUTO_MERGE_TABLES = new Set([
+  'buste',
+  'error_tracking',
+  'voice_notes',
+  'survey_response_matches'
+])
+
+const TYPES_SCHEMA_PATH = path.join(rootDir, 'src', 'types', 'database.types.ts')
+let clienteIdTablesPromise = null
 
 function parseArgs(argv) {
   return {
@@ -54,6 +65,101 @@ function normalizePhoneDigits(input) {
 
 function normalizeLooseText(input) {
   return (input || '').trim().toLowerCase()
+}
+
+async function discoverClienteIdTablesFromTypes() {
+  const fallback = [...COVERED_AUTO_MERGE_TABLES]
+
+  try {
+    const content = await fs.readFile(TYPES_SCHEMA_PATH, 'utf8')
+    const lines = content.split(/\r?\n/)
+    const tables = new Set()
+    let section = ''
+
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i]
+
+      if (/^\s{4}Tables:\s*\{/.test(line)) {
+        section = 'tables'
+        continue
+      }
+      if (/^\s{4}(Views|Functions|Enums|CompositeTypes):\s*\{/.test(line)) {
+        section = 'other'
+        continue
+      }
+      if (section !== 'tables') continue
+      if (!line.includes('cliente_id:')) continue
+
+      for (let j = i; j >= 0; j -= 1) {
+        const match = lines[j].match(/^\s{6}([a-zA-Z0-9_]+):\s*\{$/)
+        if (match) {
+          tables.add(match[1])
+          break
+        }
+        if (/^\s{4}Tables:\s*\{/.test(lines[j])) break
+      }
+    }
+
+    for (const tableName of COVERED_AUTO_MERGE_TABLES) {
+      tables.add(tableName)
+    }
+
+    return tables.size > 0 ? [...tables] : fallback
+  } catch (error) {
+    console.warn('Unable to discover cliente_id tables from types file, fallback to covered list only.')
+    return fallback
+  }
+}
+
+async function getClienteIdTables() {
+  if (!clienteIdTablesPromise) {
+    clienteIdTablesPromise = discoverClienteIdTablesFromTypes()
+  }
+  return clienteIdTablesPromise
+}
+
+function isMissingTableError(error) {
+  const message = `${error?.message || ''}`.toLowerCase()
+  return error?.code === '42P01' || message.includes('does not exist') || message.includes('could not find the table')
+}
+
+async function getExternalReferenceBlockers(clientId, cache) {
+  if (cache.has(clientId)) return cache.get(clientId)
+
+  const tablesWithClienteId = await getClienteIdTables()
+  const externalTables = tablesWithClienteId.filter((tableName) => !COVERED_AUTO_MERGE_TABLES.has(tableName))
+  const blockers = []
+
+  for (const tableName of externalTables) {
+    const { count, error } = await supabase
+      .from(tableName)
+      .select('cliente_id', { count: 'exact', head: true })
+      .eq('cliente_id', clientId)
+
+    if (error) {
+      if (isMissingTableError(error)) {
+        continue
+      }
+      blockers.push({
+        table: tableName,
+        count: null,
+        error: error.message
+      })
+      continue
+    }
+
+    const refs = count || 0
+    if (refs > 0) {
+      blockers.push({
+        table: tableName,
+        count: refs,
+        error: null
+      })
+    }
+  }
+
+  cache.set(clientId, blockers)
+  return blockers
 }
 
 function tokenizeName(input) {
@@ -271,6 +377,7 @@ async function run() {
   const args = parseArgs(process.argv.slice(2))
   const dryRun = !args.apply
   const busteCountCache = new Map()
+  const externalReferenceCache = new Map()
 
   const { data: rows, error } = await supabase
     .from('survey_match_review_queue')
@@ -289,6 +396,7 @@ async function run() {
     resolvedUniqueByRespondent: 0,
     resolvedMerged: 0,
     rejectedNoActive: 0,
+    skippedGuardrail: 0,
     skippedAmbiguous: 0
   }
 
@@ -347,6 +455,23 @@ async function run() {
       const winner = await chooseWinnerClient(activeClients, busteCountCache)
       const preferredSurname = pickPreferredSurname(activeClients, winner.cognome)
       const losers = activeClients.filter((client) => client.id !== winner.id)
+      const blockedLosers = []
+
+      for (const loser of losers) {
+        const blockers = await getExternalReferenceBlockers(loser.id, externalReferenceCache)
+        if (blockers.length > 0) {
+          blockedLosers.push({
+            loserId: loser.id,
+            blockers
+          })
+        }
+      }
+
+      if (blockedLosers.length > 0) {
+        summary.skippedGuardrail += 1
+        summary.skippedAmbiguous += 1
+        continue
+      }
 
       if (!dryRun) {
         for (const loser of losers) {
@@ -412,7 +537,7 @@ async function run() {
           needs_review: false,
           matched_manually: true,
           match_strategy: resolutionStrategy,
-          match_notes: appendNotes(row.match_notes, 'Auto-resolved in bulk cleanup.'),
+          match_notes: appendNotes(row.match_notes, 'Auto-resolved in bulk cleanup (guardrail respected).'),
           updated_at: new Date().toISOString()
         })
         .eq('id', row.match_id)
@@ -431,6 +556,7 @@ async function run() {
   console.log(`Resolved - unique by respondent: ${summary.resolvedUniqueByRespondent}`)
   console.log(`Resolved - merged duplicates: ${summary.resolvedMerged}`)
   console.log(`Resolved - rejected no active: ${summary.rejectedNoActive}`)
+  console.log(`Skipped by guardrail: ${summary.skippedGuardrail}`)
   console.log(`Skipped ambiguous: ${summary.skippedAmbiguous}`)
 }
 
