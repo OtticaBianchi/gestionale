@@ -36,6 +36,13 @@ export interface FollowUpCall {
   created_at: string
   updated_at: string
 
+  // Ambassador & Recensioni
+  potenziale_ambassador?: boolean
+  motivo_ambassador?: string | null
+  problema_risolto?: boolean
+  richiesta_recensione_google?: boolean
+  link_recensione_inviato?: boolean
+
   // Dati correlati dalla busta/cliente
   cliente_nome: string
   cliente_cognome: string
@@ -56,6 +63,19 @@ export interface CallUpdateData {
   data_chiamata?: string
   data_completamento?: string
   scheduled_at?: string
+  // Ambassador & Recensioni
+  potenziale_ambassador?: boolean
+  motivo_ambassador?: string
+  problema_risolto?: boolean
+  richiesta_recensione_google?: boolean
+  link_recensione_inviato?: boolean
+}
+
+export interface AmbassadorSourceStats {
+  fonte_ambassador: 'survey' | 'follow_up' | 'manuale'
+  totale_ambassador: number
+  giorni_medi_attivazione: number
+  ultimi_30gg: number
 }
 
 export interface FollowUpStatistics {

@@ -42,7 +42,8 @@ const getTipoLavorazioneSigla = (tipo: string | null) => {
     FT: 'FT',
     SPRT: 'SPRT',
     VFT: 'VFT',
-    BR: 'BR'
+    BR: 'BR',
+    VC: 'VC'
   };
   return tipo ? tipiLavorazione[tipo] || tipo : '---';
 };

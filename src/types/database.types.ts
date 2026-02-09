@@ -568,14 +568,18 @@ export type Database = {
       }
       clienti: {
         Row: {
+          ambassador_activated_at: string | null
+          ambassador_code: string | null
           categoria_cliente: string | null
           categoria_updated_at: string | null
           cognome: string
           created_at: string | null
           data_nascita: string | null
           email: string | null
+          fonte_ambassador: string | null
           genere: string | null
           id: string
+          is_ambassador: boolean | null
           nome: string
           note_cliente: string | null
           telefono: string | null
@@ -585,14 +589,18 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          ambassador_activated_at?: string | null
+          ambassador_code?: string | null
           categoria_cliente?: string | null
           categoria_updated_at?: string | null
           cognome: string
           created_at?: string | null
           data_nascita?: string | null
           email?: string | null
+          fonte_ambassador?: string | null
           genere?: string | null
           id?: string
+          is_ambassador?: boolean | null
           nome: string
           note_cliente?: string | null
           telefono?: string | null
@@ -602,14 +610,18 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          ambassador_activated_at?: string | null
+          ambassador_code?: string | null
           categoria_cliente?: string | null
           categoria_updated_at?: string | null
           cognome?: string
           created_at?: string | null
           data_nascita?: string | null
           email?: string | null
+          fonte_ambassador?: string | null
           genere?: string | null
           id?: string
+          is_ambassador?: boolean | null
           nome?: string
           note_cliente?: string | null
           telefono?: string | null
@@ -953,14 +965,19 @@ export type Database = {
           data_completamento: string | null
           data_generazione: string
           id: string
+          link_recensione_inviato: boolean | null
           livello_soddisfazione: string | null
+          motivo_ambassador: string | null
           note_chiamata: string | null
           motivo_urgenza: string | null
           origine: string
           operatore_id: string | null
           orario_richiamata_a: string | null
           orario_richiamata_da: string | null
+          potenziale_ambassador: boolean | null
           priorita: string
+          problema_risolto: boolean | null
+          richiesta_recensione_google: boolean | null
           scheduled_at: string | null
           stato_chiamata: string
           updated_at: string | null
@@ -976,14 +993,19 @@ export type Database = {
           data_completamento?: string | null
           data_generazione?: string
           id?: string
+          link_recensione_inviato?: boolean | null
           livello_soddisfazione?: string | null
+          motivo_ambassador?: string | null
           note_chiamata?: string | null
           motivo_urgenza?: string | null
           origine?: string
           operatore_id?: string | null
           orario_richiamata_a?: string | null
           orario_richiamata_da?: string | null
+          potenziale_ambassador?: boolean | null
           priorita: string
+          problema_risolto?: boolean | null
+          richiesta_recensione_google?: boolean | null
           scheduled_at?: string | null
           stato_chiamata?: string
           updated_at?: string | null
@@ -999,14 +1021,19 @@ export type Database = {
           data_completamento?: string | null
           data_generazione?: string
           id?: string
+          link_recensione_inviato?: boolean | null
           livello_soddisfazione?: string | null
+          motivo_ambassador?: string | null
           note_chiamata?: string | null
           motivo_urgenza?: string | null
           origine?: string
           operatore_id?: string | null
           orario_richiamata_a?: string | null
           orario_richiamata_da?: string | null
+          potenziale_ambassador?: boolean | null
           priorita?: string
+          problema_risolto?: boolean | null
+          richiesta_recensione_google?: boolean | null
           scheduled_at?: string | null
           stato_chiamata?: string
           updated_at?: string | null
@@ -3425,6 +3452,7 @@ export type Database = {
         | "FT"
         | "SPRT"
         | "VFT"
+        | "VC"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3603,6 +3631,7 @@ export const Constants = {
         "FT",
         "SPRT",
         "VFT",
+        "VC",
       ],
     },
   },

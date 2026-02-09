@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
+// Tipi lavorazione eligibili per follow-up
+const FOLLOW_UP_ELIGIBLE_TYPES = ['OCV', 'OV', 'LAC', 'OS', 'LV', 'LS']
+
 export async function POST() {
   try {
     const supabase = await createServerSupabaseClient()
@@ -134,6 +137,18 @@ export async function POST() {
           return false
         }
 
+        // Filtra per tipi lavorazione eligibili
+        if (!busta.tipo_lavorazione || !FOLLOW_UP_ELIGIBLE_TYPES.includes(busta.tipo_lavorazione)) {
+          return false
+        }
+
+        // Soglia minima prezzo 100€
+        const infoPagamenti = Array.isArray(busta.info_pagamenti) ? busta.info_pagamenti[0] : busta.info_pagamenti
+        const prezzoFinale = infoPagamenti?.prezzo_finale || 0
+        if (prezzoFinale < 100) {
+          return false
+        }
+
         // Verifica che sia almeno 11 giorni fa (già filtrato nella query, ma ricontrolliamo)
         const dataConsegna = new Date(busta.data_completamento_consegna || busta.updated_at || Date.now())
         const giorniTrascorsi = Math.floor((Date.now() - dataConsegna.getTime()) / (1000 * 60 * 60 * 24))
@@ -253,24 +268,16 @@ function calcolaPriorità(
   if (!tipoLavorazione) return 'bassa'
   const tipo = tipoLavorazione === 'TALAC' ? 'LAC' : tipoLavorazione
 
-  // PRIORITÀ ALTA: Lenti + Occhiali sopra 400€
-  if (prezzoFinale >= 400 && ['OCV', 'OV'].includes(tipo)) {
-    return 'alta'
-  }
+  // PRIORITÀ ALTA
+  if (prezzoFinale >= 400 && ['OCV', 'OV'].includes(tipo)) return 'alta'
+  if (['LAC'].includes(tipo)) return 'alta'
+  if (tipo === 'LV' && prezzoFinale >= 100) return 'alta'
+  if (['LS', 'OS'].includes(tipo) && prezzoFinale >= 300) return 'alta'
 
-  // PRIORITÀ NORMALE: Prime LAC, Lenti da vista sopra 100€, o Occhiali Completi/Vista sopra 200€
-  if (haPrimoAcquistoLAC ||
-      (prezzoFinale >= 100 && tipo === 'LV') ||
-      (prezzoFinale >= 200 && ['OCV', 'OV'].includes(tipo))) {
-    return 'normale'
-  }
+  // PRIORITÀ NORMALE
+  if (prezzoFinale >= 100) return 'normale'
 
-  // PRIORITÀ BASSA: Occhiali da sole sopra 400€, o qualsiasi altro acquisto sopra 100€
-  if ((prezzoFinale >= 400 && tipo === 'OS') ||
-      (prezzoFinale >= 100)) {
-    return 'bassa'
-  }
-
+  // PRIORITÀ BASSA
   return 'bassa'
 }
 
@@ -281,7 +288,8 @@ function getTipoAcquisto(tipoLavorazione: string | null): string {
     'OS': 'Occhiali da Sole',
     'LAC': 'Lenti a Contatto',
     'TALAC': 'Lenti a Contatto',
-    'LV': 'Lenti da Vista'
+    'LV': 'Lenti da Vista',
+    'LS': 'Lenti da Sole'
   }
   return mapping[tipoLavorazione || ''] || tipoLavorazione || 'N/A'
 }

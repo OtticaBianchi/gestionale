@@ -38,6 +38,11 @@ export async function GET(request: Request) {
         origine,
         created_at,
         updated_at,
+        potenziale_ambassador,
+        motivo_ambassador,
+        problema_risolto,
+        richiesta_recensione_google,
+        link_recensione_inviato,
         buste!inner (
           id,
           cliente_id,
@@ -135,7 +140,12 @@ export async function GET(request: Request) {
         giorni_trascorsi: giorniTrascorsi,
         readable_id: busta.readable_id,
         operatore_nome: chiamata.profiles?.full_name,
-        descrizione_prodotti: descrizioniProdotti
+        descrizione_prodotti: descrizioniProdotti,
+        potenziale_ambassador: chiamata.potenziale_ambassador || false,
+        motivo_ambassador: chiamata.motivo_ambassador,
+        problema_risolto: chiamata.problema_risolto || false,
+        richiesta_recensione_google: chiamata.richiesta_recensione_google || false,
+        link_recensione_inviato: chiamata.link_recensione_inviato || false
       }
     }) || []
 
@@ -160,7 +170,8 @@ function getTipoAcquisto(tipoLavorazione: string | null): string {
     'OS': 'Occhiali da Sole',
     'LAC': 'Lenti a Contatto',
     'TALAC': 'Lenti a Contatto',
-    'LV': 'Lenti da Vista'
+    'LV': 'Lenti da Vista',
+    'LS': 'Lenti da Sole'
   }
   return mapping[tipoLavorazione || ''] || tipoLavorazione || 'N/A'
 }

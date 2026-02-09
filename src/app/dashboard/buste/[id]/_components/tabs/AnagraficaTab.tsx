@@ -801,6 +801,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                 <option value="REL">📋 REL - Relazione</option>
                 <option value="FT">🧾 FT - Fattura</option>
                 <option value="VFT">🔍 VFT - Verifica Fattibilità Tecnica</option>
+                <option value="VC">👁️ VC - Visita Controllo</option>
                 </select>
             ) : (
               <p className="text-gray-900">{busta.tipo_lavorazione || 'Da specificare'}</p>

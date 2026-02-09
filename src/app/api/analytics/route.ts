@@ -490,6 +490,34 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // 10. AMBASSADOR & RECENSIONI STATS
+    const { data: ambassadorStats } = await supabase
+      .from('clienti')
+      .select('id, is_ambassador, ambassador_code, ambassador_activated_at, fonte_ambassador')
+      .eq('is_ambassador', true)
+
+    const ambassadorByFonte: Record<string, { totale: number; ultimi_30gg: number }> = {}
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+
+    ;(ambassadorStats || []).forEach((c: any) => {
+      const fonte = c.fonte_ambassador || 'manuale'
+      if (!ambassadorByFonte[fonte]) {
+        ambassadorByFonte[fonte] = { totale: 0, ultimi_30gg: 0 }
+      }
+      ambassadorByFonte[fonte].totale += 1
+      if (c.ambassador_activated_at && new Date(c.ambassador_activated_at) >= thirtyDaysAgo) {
+        ambassadorByFonte[fonte].ultimi_30gg += 1
+      }
+    })
+
+    const { data: recensioniStats } = await supabase
+      .from('follow_up_chiamate')
+      .select('id, richiesta_recensione_google, link_recensione_inviato')
+      .eq('richiesta_recensione_google', true)
+
+    const recensioniRichieste = recensioniStats?.length || 0
+    const linkInviati = recensioniStats?.filter((r: any) => r.link_recensione_inviato).length || 0
+
     // Response
     return NextResponse.json({
       success: true,
@@ -552,6 +580,12 @@ export async function GET(request: NextRequest) {
         with_acconto: busteConAcconto,
         total: busteConsiderate,
         percent: busteConsiderate > 0 ? (busteConAcconto / busteConsiderate) * 100 : 0,
+      },
+      ambassador: {
+        totale: ambassadorStats?.length || 0,
+        by_fonte: ambassadorByFonte,
+        recensioni_richieste: recensioniRichieste,
+        link_inviati: linkInviati,
       },
     });
 

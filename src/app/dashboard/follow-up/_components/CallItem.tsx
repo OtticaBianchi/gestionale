@@ -28,17 +28,36 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
   const [isUpdating, setIsUpdating] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
   const [showErrorModal, setShowErrorModal] = useState(false)
+  const [showConfirmAmbassador, setShowConfirmAmbassador] = useState(false)
   const [formData, setFormData] = useState({
     stato_chiamata: call.stato_chiamata,
     livello_soddisfazione: call.livello_soddisfazione || '',
     note_chiamata: call.note_chiamata || '',
     orario_richiamata_da: call.orario_richiamata_da || '',
-    orario_richiamata_a: call.orario_richiamata_a || ''
+    orario_richiamata_a: call.orario_richiamata_a || '',
+    potenziale_ambassador: call.potenziale_ambassador || false,
+    motivo_ambassador: call.motivo_ambassador || '',
+    problema_risolto: call.problema_risolto || false,
+    richiesta_recensione_google: call.richiesta_recensione_google || false,
+    link_recensione_inviato: call.link_recensione_inviato || false
   })
 
   const handleUpdate = async () => {
+    // If ambassador is checked but no motivo, block
+    if (formData.potenziale_ambassador && !formData.motivo_ambassador.trim()) {
+      alert('Inserisci il motivo per la nomina ambassador.')
+      return
+    }
+
+    // If ambassador is newly checked, show confirmation modal first
+    if (formData.potenziale_ambassador && !call.potenziale_ambassador && !showConfirmAmbassador) {
+      setShowConfirmAmbassador(true)
+      return
+    }
+
     try {
       setIsUpdating(true)
+      setShowConfirmAmbassador(false)
 
       const updateData: CallUpdateData = {
         stato_chiamata: formData.stato_chiamata as CallStatus,
@@ -55,12 +74,24 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
         updateData.orario_richiamata_a = formData.orario_richiamata_a || undefined
       }
 
+      // Ambassador & Recensioni fields
+      if (formData.stato_chiamata === 'chiamato_completato') {
+        updateData.potenziale_ambassador = formData.potenziale_ambassador
+        if (formData.potenziale_ambassador) {
+          updateData.motivo_ambassador = formData.motivo_ambassador || undefined
+          updateData.problema_risolto = formData.problema_risolto
+        }
+        updateData.richiesta_recensione_google = formData.richiesta_recensione_google
+        if (formData.richiesta_recensione_google) {
+          updateData.link_recensione_inviato = formData.link_recensione_inviato
+        }
+      }
+
       await onUpdate(call.id, updateData)
 
       // Gli stati completati faranno sparire l'intera card dalla lista,
       // quindi non serve chiudere il form manualmente
       if (COMPLETED_CALL_STATES.includes(formData.stato_chiamata)) {
-        // Mostra un feedback visivo prima che la card sparisca
         console.log(`✅ Chiamata completata per ${call.cliente_nome} ${call.cliente_cognome}`)
       } else {
         setShowDetails(false)
@@ -122,6 +153,20 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
             {call.categoria_cliente && (
               <span className={`px-2 py-1 rounded-md text-xs font-medium ring-1 ${getCategoriaClienteColor(call.categoria_cliente as CategoriaCliente)}`}>
                 {getCategoriaClienteIcon(call.categoria_cliente as CategoriaCliente)} {getCategoriaClienteLabel(call.categoria_cliente as CategoriaCliente)}
+              </span>
+            )}
+            {call.potenziale_ambassador && (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                Ambassador
+              </span>
+            )}
+            {call.richiesta_recensione_google && (
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                call.link_recensione_inviato
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-yellow-100 text-yellow-800'
+              }`}>
+                {call.link_recensione_inviato ? 'Recensione Inviata' : 'Recensione Richiesta'}
               </span>
             )}
           </div>
@@ -285,6 +330,102 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
               />
             </div>
 
+            {/* Ambassador & Recensioni (solo se chiamato_completato + molto_soddisfatto) */}
+            {formData.stato_chiamata === 'chiamato_completato' && formData.livello_soddisfazione === 'molto_soddisfatto' && (
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-3">
+                <h5 className="text-sm font-semibold text-purple-800">Ambassador & Recensioni</h5>
+
+                {/* Potenziale Ambassador */}
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.potenziale_ambassador}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      potenziale_ambassador: e.target.checked,
+                      ...(!e.target.checked && { motivo_ambassador: '', problema_risolto: false })
+                    }))}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">Potenziale Ambassador</span>
+                    <p className="text-xs text-gray-500">Il cliente mostra entusiasmo spontaneo e potrebbe promuovere il negozio</p>
+                  </div>
+                </label>
+
+                {/* Motivo Ambassador (solo se checkbox attiva) */}
+                {formData.potenziale_ambassador && (
+                  <div className="ml-6 space-y-2">
+                    <div>
+                      <label htmlFor="motivo-ambassador" className="block text-xs font-medium text-gray-700 mb-1">
+                        Motivo nomina *
+                      </label>
+                      <textarea
+                        id="motivo-ambassador"
+                        value={formData.motivo_ambassador}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          motivo_ambassador: e.target.value
+                        }))}
+                        rows={2}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="Es: Entusiasmo spontaneo per la montatura, problema risolto velocemente..."
+                        required
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.problema_risolto}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          problema_risolto: e.target.checked
+                        }))}
+                        className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="text-sm text-gray-700">Problema risolto durante il follow-up</span>
+                    </label>
+                  </div>
+                )}
+
+                <hr className="border-purple-200" />
+
+                {/* Recensione Google */}
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.richiesta_recensione_google}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      richiesta_recensione_google: e.target.checked,
+                      ...(!e.target.checked && { link_recensione_inviato: false })
+                    }))}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 text-yellow-600 focus:ring-yellow-500"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">Richiesta Recensione Google</span>
+                    <p className="text-xs text-gray-500">Ho chiesto al cliente di lasciare una recensione su Google</p>
+                  </div>
+                </label>
+
+                {/* Link inviato (solo se recensione richiesta) */}
+                {formData.richiesta_recensione_google && (
+                  <label className="flex items-center gap-2 ml-6 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.link_recensione_inviato}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        link_recensione_inviato: e.target.checked
+                      }))}
+                      className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    <span className="text-sm text-gray-700">Link recensione inviato via WhatsApp/SMS</span>
+                  </label>
+                )}
+              </div>
+            )}
+
             {/* Azioni */}
             <div className="flex justify-end space-x-2 pt-2">
               <button
@@ -295,7 +436,7 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
               </button>
               <button
                 onClick={handleUpdate}
-                disabled={isUpdating || (formData.stato_chiamata === 'chiamato_completato' && !formData.livello_soddisfazione)}
+                disabled={isUpdating || (formData.stato_chiamata === 'chiamato_completato' && !formData.livello_soddisfazione) || (formData.potenziale_ambassador && !formData.motivo_ambassador.trim())}
                 className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 {isUpdating ? 'Salvando...' : 'Salva'}
@@ -311,6 +452,49 @@ export function CallItem({ call, onUpdate }: CallItemProps) {
           <p className="text-sm text-gray-700">
             <strong>Note:</strong> {call.note_chiamata}
           </p>
+        </div>
+      )}
+
+      {/* Ambassador detail box (for completed calls with ambassador data) */}
+      {call.potenziale_ambassador && call.motivo_ambassador && (
+        <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-md">
+          <p className="text-sm text-purple-800">
+            <strong>Ambassador:</strong> {call.motivo_ambassador}
+          </p>
+          {call.problema_risolto && (
+            <p className="text-xs text-purple-600 mt-1">Problema risolto durante il follow-up</p>
+          )}
+        </div>
+      )}
+
+      {/* Ambassador Confirmation Modal */}
+      {showConfirmAmbassador && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Conferma Nomina Ambassador</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Stai per nominare <strong>{call.cliente_nome} {call.cliente_cognome}</strong> come Ambassador.
+              Verr&agrave; generato un codice referral univoco e il cliente sar&agrave; inserito nel programma Ambassador.
+            </p>
+            <p className="text-sm text-gray-600 mb-4">
+              <strong>Motivo:</strong> {formData.motivo_ambassador}
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowConfirmAmbassador(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={handleUpdate}
+                disabled={isUpdating}
+                className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-md hover:bg-purple-700 disabled:bg-gray-300"
+              >
+                {isUpdating ? 'Salvando...' : 'Conferma Ambassador'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

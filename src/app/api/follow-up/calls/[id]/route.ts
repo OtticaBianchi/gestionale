@@ -18,7 +18,24 @@ const pickFollowUpAuditFields = (row: any) => ({
   origine: row?.origine ?? null,
   motivo_urgenza: row?.motivo_urgenza ?? null,
   scheduled_at: row?.scheduled_at ?? null,
+  potenziale_ambassador: row?.potenziale_ambassador ?? null,
+  motivo_ambassador: row?.motivo_ambassador ?? null,
+  problema_risolto: row?.problema_risolto ?? null,
+  richiesta_recensione_google: row?.richiesta_recensione_google ?? null,
+  link_recensione_inviato: row?.link_recensione_inviato ?? null,
 })
+
+function generateAmbassadorCode(cognome: string): string {
+  const base = cognome
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z]/g, '')
+    .substring(0, 10)
+
+  const random = Math.floor(Math.random() * 900) + 100
+  return `${base}${random}-AMB`
+}
 
 // PATCH - Aggiorna stato chiamata
 export async function PATCH(
@@ -59,7 +76,12 @@ export async function PATCH(
         crea_errore,
         origine,
         motivo_urgenza,
-        scheduled_at
+        scheduled_at,
+        potenziale_ambassador,
+        motivo_ambassador,
+        problema_risolto,
+        richiesta_recensione_google,
+        link_recensione_inviato
       `)
       .eq('id', id)
       .single()
@@ -198,6 +220,11 @@ export async function PATCH(
         updated_at,
         categoria_cliente,
         crea_errore,
+        potenziale_ambassador,
+        motivo_ambassador,
+        problema_risolto,
+        richiesta_recensione_google,
+        link_recensione_inviato,
         profiles:profiles!follow_up_chiamate_operatore_id_fkey (
           full_name
         )
@@ -227,6 +254,67 @@ export async function PATCH(
       console.error('AUDIT_UPDATE_FOLLOWUP_FAILED', audit.error)
     }
 
+    // Ambassador nomination logic
+    let ambassadorResult: { activated?: boolean; code?: string; alreadyAmbassador?: boolean } = {}
+    if (updateData.potenziale_ambassador === true && data) {
+      try {
+        const adminClient = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+
+        // Fetch cliente to check existing ambassador status
+        const { data: bustaWithCliente } = await adminClient
+          .from('buste')
+          .select('cliente_id, clienti ( id, cognome, ambassador_code )')
+          .eq('id', existingCall.busta_id)
+          .single()
+
+        const cliente = bustaWithCliente?.clienti as any
+        if (cliente?.ambassador_code) {
+          console.log(`Cliente ${cliente.id} già ambassador (codice: ${cliente.ambassador_code})`)
+          ambassadorResult = { alreadyAmbassador: true, code: cliente.ambassador_code }
+        } else if (cliente && (updateData.livello_soddisfazione === 'molto_soddisfatto' || existingCall.livello_soddisfazione === 'molto_soddisfatto')) {
+          const ambassadorCode = generateAmbassadorCode(cliente.cognome || 'CLIENTE')
+
+          const { error: updateClienteError } = await adminClient
+            .from('clienti')
+            .update({
+              is_ambassador: true,
+              ambassador_code: ambassadorCode,
+              ambassador_activated_at: new Date().toISOString(),
+              fonte_ambassador: 'follow_up',
+              updated_by: user.id
+            })
+            .eq('id', cliente.id)
+
+          if (updateClienteError) {
+            console.error('Errore attivazione ambassador:', updateClienteError)
+          } else {
+            ambassadorResult = { activated: true, code: ambassadorCode }
+
+            await logUpdate(
+              'clienti',
+              cliente.id,
+              user.id,
+              { is_ambassador: false, ambassador_code: null, fonte_ambassador: null },
+              { is_ambassador: true, ambassador_code: ambassadorCode, fonte_ambassador: 'follow_up' },
+              'Nomina ambassador da follow-up',
+              {
+                source: 'follow_up_call',
+                follow_up_id: id,
+                motivo: updateData.motivo_ambassador
+              },
+              profile?.role ?? null
+            )
+            console.log(`✅ Ambassador attivato: ${cliente.cognome} -> ${ambassadorCode}`)
+          }
+        }
+      } catch (ambassadorErr) {
+        console.error('Errore gestione ambassador:', ambassadorErr)
+      }
+    }
+
     const completedStates = ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato']
     if (finalOrigine === 'tecnico' && completedStates.includes(finalStato)) {
       try {
@@ -251,7 +339,8 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      data
+      data,
+      ...(ambassadorResult.activated && { ambassador: ambassadorResult })
     })
 
   } catch (error) {

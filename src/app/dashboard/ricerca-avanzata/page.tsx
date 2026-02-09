@@ -464,6 +464,7 @@ export default function RicercaAvanzataPage() {
                     <option value="FT">FT</option>
                     <option value="SPRT">SPRT</option>
                     <option value="VFT">VFT</option>
+                    <option value="VC">VC</option>
                   </select>
                 </div>
 

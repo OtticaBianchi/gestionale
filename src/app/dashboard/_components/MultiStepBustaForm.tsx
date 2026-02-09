@@ -968,6 +968,7 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   <option value="REL">📋 REL - Relazione</option>
                   <option value="FT">🧾 FT - Fattura</option>
                   <option value="VFT">🔍 VFT - Verifica Fattibilità Tecnica</option>
+                  <option value="VC">👁️ VC - Visita Controllo</option>
                 </select>
               </div>
 

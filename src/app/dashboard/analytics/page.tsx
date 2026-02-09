@@ -53,6 +53,12 @@ interface AnalyticsData {
   };
   payment_types?: { stats: Record<string, number>; total: number };
   acconti?: { with_acconto: number; total: number; percent: number };
+  ambassador?: {
+    totale: number;
+    by_fonte: Record<string, { totale: number; ultimi_30gg: number }>;
+    recensioni_richieste: number;
+    link_inviati: number;
+  };
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16'];
@@ -63,7 +69,7 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState('month');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [activeSection, setActiveSection] = useState<'panoramica' | 'lenti' | 'tempi' | 'pagamenti'>('panoramica');
+  const [activeSection, setActiveSection] = useState<'panoramica' | 'lenti' | 'tempi' | 'pagamenti' | 'ambassador'>('panoramica');
 
   useEffect(() => {
     fetchAnalytics();
@@ -139,6 +145,7 @@ export default function AnalyticsPage() {
     { key: 'lenti' as const, label: 'Lenti & Fornitori' },
     { key: 'tempi' as const, label: 'Tempi & Workflow' },
     { key: 'pagamenti' as const, label: 'Pagamenti' },
+    { key: 'ambassador' as const, label: 'Ambassador & Recensioni' },
   ];
 
   return (
@@ -577,6 +584,102 @@ export default function AnalyticsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeSection === 'ambassador' && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Ambassador totali */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="bg-purple-100 p-2 rounded-lg">
+                    <TrendingUp className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-900">Ambassador Totali</h3>
+                </div>
+                <div className="text-center py-4">
+                  <div className="text-5xl font-bold text-purple-600">{data.ambassador?.totale ?? 0}</div>
+                  <div className="text-sm text-slate-500 mt-2">clienti ambassador attivi</div>
+                </div>
+              </div>
+
+              {/* Fonti Ambassador */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="bg-indigo-100 p-2 rounded-lg">
+                    <Tag className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-900">Fonti Ambassador</h3>
+                </div>
+                {data.ambassador?.by_fonte && Object.keys(data.ambassador.by_fonte).length > 0 ? (
+                  <div className="space-y-3">
+                    {Object.entries(data.ambassador.by_fonte).map(([fonte, stats]) => {
+                      const fonteLabels: Record<string, string> = {
+                        survey: 'Survey',
+                        follow_up: 'Follow-Up',
+                        manuale: 'Manuale'
+                      }
+                      const fonteColors: Record<string, string> = {
+                        survey: 'from-blue-500 to-cyan-500',
+                        follow_up: 'from-purple-500 to-pink-500',
+                        manuale: 'from-amber-500 to-orange-500'
+                      }
+                      return (
+                        <div key={fonte}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium text-slate-700">{fonteLabels[fonte] || fonte}</span>
+                            <div className="text-right">
+                              <span className="text-sm font-bold text-slate-900">{stats.totale}</span>
+                              {stats.ultimi_30gg > 0 && (
+                                <span className="ml-2 text-xs text-green-600">+{stats.ultimi_30gg} (30gg)</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-2">
+                            <div
+                              className={`bg-gradient-to-r ${fonteColors[fonte] || 'from-slate-400 to-slate-500'} h-2 rounded-full transition-all duration-500`}
+                              style={{ width: `${Math.min(100, ((stats.totale / Math.max(data.ambassador?.totale || 1, 1)) * 100))}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-32 text-slate-400">Nessun ambassador ancora</div>
+                )}
+              </div>
+
+              {/* Recensioni Google */}
+              <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="bg-yellow-100 p-2 rounded-lg">
+                    <Activity className="w-5 h-5 text-yellow-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-slate-900">Recensioni Google</h3>
+                </div>
+                <div className="space-y-4 py-2">
+                  <div className="flex items-center justify-between bg-yellow-50 rounded-xl p-4">
+                    <div>
+                      <div className="text-sm text-slate-500">Recensioni richieste</div>
+                      <div className="text-3xl font-bold text-slate-900">{data.ambassador?.recensioni_richieste ?? 0}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-slate-500">Link inviati</div>
+                      <div className="text-2xl font-semibold text-green-600">{data.ambassador?.link_inviati ?? 0}</div>
+                    </div>
+                  </div>
+                  {(data.ambassador?.recensioni_richieste ?? 0) > 0 && (
+                    <div className="text-center text-sm text-slate-500">
+                      Tasso invio link: <span className="font-semibold text-slate-700">
+                        {((data.ambassador?.link_inviati ?? 0) / (data.ambassador?.recensioni_richieste ?? 1) * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </>

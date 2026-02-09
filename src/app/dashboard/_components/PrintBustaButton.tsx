@@ -59,7 +59,8 @@ const getTipoLavorazioneFull = (tipo: string | null): string => {
     'REL': 'RELAZIONE',
     'FT': 'FATTURA',
     'SPRT': 'SPORT',
-    'VFT': 'VERIFICA FATTIBILITA TECNICA'
+    'VFT': 'VERIFICA FATTIBILITA TECNICA',
+    'VC': 'VISITA CONTROLLO'
 };
   
   return tipiLavorazione[tipo] || tipo.toUpperCase();

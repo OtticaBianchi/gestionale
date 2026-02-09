@@ -91,7 +91,8 @@ const tipoLavorazioneOptions = [
   { value: 'ES', label: 'ES - Esame specialistico', icon: '🏥' },
   { value: 'REL', label: 'REL - Relazione', icon: '📋' },
   { value: 'FT', label: 'FT - Fattura', icon: '🧾' },
-  { value: 'VFT', label: 'VFT - Verifica Fattibilità Tecnica', icon: '🔍' }
+  { value: 'VFT', label: 'VFT - Verifica Fattibilità Tecnica', icon: '🔍' },
+  { value: 'VC', label: 'VC - Visita Controllo', icon: '👁️' }
 ];
 
 type ClienteSuggestion = {
