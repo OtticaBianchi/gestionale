@@ -12,6 +12,7 @@ import {
   type IntercettatoDa,
   type ProceduraFlag,
   type ImpattoCliente,
+  type CausaErrore,
   type AssegnazioneColpa,
 } from '@/lib/et2/assegnazioneColpa'
 import { shouldGenerateProcedureSuggestion } from '@/lib/et2/procedureSuggestions'
@@ -19,7 +20,7 @@ import { shouldGenerateProcedureSuggestion } from '@/lib/et2/procedureSuggestion
 type ErrorTrackingRow = {
   id: string
   busta_id: string | null
-  employee_id: string
+  employee_id: string | null
   cliente_id: string | null
   error_type: string
   error_category: 'critico' | 'medio' | 'basso'
@@ -45,6 +46,7 @@ type ErrorTrackingRow = {
   intercettato_da: IntercettatoDa | null
   procedura_flag: ProceduraFlag | null
   impatto_cliente: ImpattoCliente | null
+  causa_errore: CausaErrore | null
   assegnazione_colpa: AssegnazioneColpa | null
   operatore_coinvolto: string | null
   creato_da_followup: boolean
@@ -71,6 +73,7 @@ const pickAuditSnapshot = (row: Partial<ErrorTrackingRow>) => ({
   intercettato_da: row.intercettato_da ?? null,
   procedura_flag: row.procedura_flag ?? null,
   impatto_cliente: row.impatto_cliente ?? null,
+  causa_errore: row.causa_errore ?? null,
   assegnazione_colpa: row.assegnazione_colpa ?? null,
   operatore_coinvolto: row.operatore_coinvolto ?? null,
   creato_da_followup: row.creato_da_followup ?? null,
@@ -164,6 +167,7 @@ export async function GET(request: NextRequest) {
         intercettato_da,
         procedura_flag,
         impatto_cliente,
+        causa_errore,
         assegnazione_colpa,
         operatore_coinvolto,
         creato_da_followup,
@@ -282,15 +286,23 @@ export async function POST(request: NextRequest) {
       intercettato_da,
       procedura_flag,
       impatto_cliente,
+      causa_errore,
       operatore_coinvolto,
       creato_da_followup = false,
+      autore_sconosciuto = false,
       procedure_id, // For procedure suggestion linking
     } = body
 
     // Validazione input obbligatori
-    if (!employee_id || !error_type || !error_category || !error_description) {
+    if (!error_type || !error_category || !error_description) {
       return NextResponse.json({
-        error: 'Campi obbligatori mancanti: employee_id, error_type, error_category, error_description'
+        error: 'Campi obbligatori mancanti: error_type, error_category, error_description'
+      }, { status: 400 })
+    }
+
+    if (!autore_sconosciuto && !employee_id) {
+      return NextResponse.json({
+        error: 'Seleziona il dipendente responsabile oppure imposta autore sconosciuto'
       }, { status: 400 })
     }
 
@@ -301,6 +313,7 @@ export async function POST(request: NextRequest) {
         intercettato_da,
         procedura_flag,
         impatto_cliente,
+        causa_errore,
         operatore_coinvolto,
         creato_da_followup,
       })
@@ -352,10 +365,12 @@ export async function POST(request: NextRequest) {
         intercettato_da,
         procedura_flag,
         impatto_cliente,
+        causa_errore,
         operatore_coinvolto,
         creato_da_followup,
       })
     }
+    const employeeIdForInsert = autore_sconosciuto ? null : employee_id
 
     // Use service role per inserimento (after auth check)
     const adminClient = (await import('@supabase/supabase-js')).createClient(
@@ -368,7 +383,7 @@ export async function POST(request: NextRequest) {
       .from('error_tracking')
       .insert({
         busta_id: busta_id || null,
-        employee_id,
+        employee_id: employeeIdForInsert,
         cliente_id: cliente_id || null,
         error_type,
         error_category,
@@ -387,6 +402,7 @@ export async function POST(request: NextRequest) {
         intercettato_da: intercettato_da || null,
         procedura_flag: procedura_flag || null,
         impatto_cliente: impatto_cliente || null,
+        causa_errore: causa_errore || null,
         assegnazione_colpa,
         operatore_coinvolto: operatore_coinvolto || null,
         creato_da_followup,
@@ -410,6 +426,7 @@ export async function POST(request: NextRequest) {
         intercettato_da,
         procedura_flag,
         impatto_cliente,
+        causa_errore,
         assegnazione_colpa,
         operatore_coinvolto,
         creato_da_followup,
@@ -475,7 +492,10 @@ export async function POST(request: NextRequest) {
 
     // Log per errori critici (come nel pattern esistente)
     if (error_category === 'critico') {
-      console.log(`🚨 ERRORE CRITICO registrato: ${newError.id} - €${cost_amount} - ${(newError.employee as any)?.full_name}`)
+      const employeeLabel = autore_sconosciuto
+        ? 'AUTORE_SCONOSCIUTO'
+        : ((newError.employee as any)?.full_name || 'N/D')
+      console.log(`🚨 ERRORE CRITICO registrato: ${newError.id} - €${cost_amount} - ${employeeLabel}`)
     }
 
     return NextResponse.json({
@@ -485,6 +505,7 @@ export async function POST(request: NextRequest) {
       meta: {
         procedure_suggestion_created: procedureSuggestionCreated,
         assegnazione_colpa,
+        autore_sconosciuto,
       }
     })
 

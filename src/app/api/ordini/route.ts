@@ -5,6 +5,80 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { logInsert } from '@/lib/audit/auditLog'
 
+const MENU_CATEGORIES = [
+  'lenti',
+  'lac',
+  'montature',
+  'sport',
+  'accessori',
+  'lab.esterno',
+  'assistenza',
+  'ricambi'
+] as const
+
+const hasValue = (value: unknown): value is string | number =>
+  value !== null && value !== undefined && value !== ''
+
+function validateOrderMenus(body: Record<string, unknown>): string | null {
+  const categoria = String(body.categoria_fornitore || '').trim().toLowerCase()
+
+  if (!categoria) {
+    return 'Categoria prodotto obbligatoria'
+  }
+
+  if (!MENU_CATEGORIES.includes(categoria as (typeof MENU_CATEGORIES)[number])) {
+    return `Categoria prodotto non valida: ${categoria}`
+  }
+
+  if (!hasValue(body.tipo_ordine_id)) {
+    return 'Modalità ordine obbligatoria'
+  }
+  if (Number.isNaN(Number(body.tipo_ordine_id))) {
+    return 'Modalità ordine non valida'
+  }
+
+  const supplierByCategory: Record<
+    (typeof MENU_CATEGORIES)[number],
+    string[]
+  > = {
+    lenti: ['fornitore_lenti_id'],
+    lac: ['fornitore_lac_id'],
+    montature: ['fornitore_montature_id'],
+    sport: ['fornitore_sport_id'],
+    accessori: ['fornitore_accessori_id'],
+    'lab.esterno': ['fornitore_lab_esterno_id'],
+    assistenza: [
+      'fornitore_lenti_id',
+      'fornitore_lac_id',
+      'fornitore_montature_id',
+      'fornitore_sport_id',
+      'fornitore_accessori_id'
+    ],
+    ricambi: ['fornitore_montature_id', 'fornitore_sport_id', 'fornitore_accessori_id']
+  }
+
+  const hasSupplier = supplierByCategory[categoria as (typeof MENU_CATEGORIES)[number]]
+    .some((field) => hasValue(body[field]))
+
+  if (!hasSupplier) {
+    return 'Fornitore obbligatorio'
+  }
+
+  if (categoria === 'lenti') {
+    if (!hasValue(body.tipo_lenti_id)) {
+      return 'Tipo lenti obbligatorio'
+    }
+    if (!hasValue(body.classificazione_lenti_id)) {
+      return 'Classificazione lenti obbligatoria'
+    }
+    if (!Array.isArray(body.trattamenti) || body.trattamenti.length === 0) {
+      return 'Seleziona almeno un trattamento (o "Nessuno")'
+    }
+  }
+
+  return null
+}
+
 // List ordini_materiali with optional status filter and overdue logic
 export async function GET(request: NextRequest) {
   try {
@@ -89,6 +163,11 @@ export async function POST(request: NextRequest) {
 
     if (!body.busta_id) {
       return NextResponse.json({ error: 'busta_id mancante' }, { status: 400 })
+    }
+
+    const menuValidationError = validateOrderMenus(body as Record<string, unknown>)
+    if (menuValidationError) {
+      return NextResponse.json({ error: menuValidationError }, { status: 400 })
     }
 
     const orderData = {

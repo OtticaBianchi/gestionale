@@ -775,6 +775,7 @@ export type Database = {
           assegnazione_colpa: string | null
           auto_created_from_order: string | null
           busta_id: string | null
+          causa_errore: string | null
           client_impacted: boolean | null
           cliente_id: string | null
           cost_amount: number
@@ -782,7 +783,7 @@ export type Database = {
           cost_type: string
           created_at: string | null
           creato_da_followup: boolean | null
-          employee_id: string
+          employee_id: string | null
           error_category: string
           error_description: string
           error_type: string
@@ -807,6 +808,7 @@ export type Database = {
           assegnazione_colpa?: string | null
           auto_created_from_order?: string | null
           busta_id?: string | null
+          causa_errore?: string | null
           client_impacted?: boolean | null
           cliente_id?: string | null
           cost_amount: number
@@ -814,7 +816,7 @@ export type Database = {
           cost_type: string
           created_at?: string | null
           creato_da_followup?: boolean | null
-          employee_id: string
+          employee_id?: string | null
           error_category: string
           error_description: string
           error_type: string
@@ -839,6 +841,7 @@ export type Database = {
           assegnazione_colpa?: string | null
           auto_created_from_order?: string | null
           busta_id?: string | null
+          causa_errore?: string | null
           client_impacted?: boolean | null
           cliente_id?: string | null
           cost_amount?: number
@@ -846,7 +849,7 @@ export type Database = {
           cost_type?: string
           created_at?: string | null
           creato_da_followup?: boolean | null
-          employee_id?: string
+          employee_id?: string | null
           error_category?: string
           error_description?: string
           error_type?: string

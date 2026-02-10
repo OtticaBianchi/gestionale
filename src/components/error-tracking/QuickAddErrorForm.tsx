@@ -12,6 +12,7 @@ import {
   type IntercettatoDa,
   type ProceduraFlag,
   type ImpattoCliente,
+  type CausaErrore,
   type AssegnazioneColpa
 } from '@/lib/et2/assegnazioneColpa'
 
@@ -49,7 +50,7 @@ interface QuickAddErrorFormProps {
   draftData?: {
     id?: string
     busta_id?: string | null
-    employee_id?: string
+    employee_id?: string | null
     cliente_id?: string | null
     error_type?: string
     error_category?: 'critico' | 'medio' | 'basso' | ''
@@ -67,6 +68,7 @@ interface QuickAddErrorFormProps {
     intercettato_da?: string
     procedura_flag?: string
     impatto_cliente?: string
+    causa_errore?: string
     operatore_coinvolto?: string
   } | null
 }
@@ -81,6 +83,7 @@ export default function QuickAddErrorForm({
   draftId = null,
   draftData = null
 }: QuickAddErrorFormProps) {
+  const UNKNOWN_EMPLOYEE_VALUE = '__UNKNOWN__'
   const defaultFormState = {
     busta_id: prefilledBustaId || '',
     employee_id: prefilledEmployeeId || '',
@@ -99,6 +102,7 @@ export default function QuickAddErrorForm({
     intercettato_da: '',
     procedura_flag: '',
     impatto_cliente: '',
+    causa_errore: '',
     operatore_coinvolto: ''
   }
 
@@ -152,7 +156,10 @@ export default function QuickAddErrorForm({
 
       setFormData({
         busta_id: draftDefaults?.busta_id ?? prefilledBustaId ?? '',
-        employee_id: draftDefaults?.employee_id ?? prefilledEmployeeId ?? '',
+        employee_id:
+          draftDefaults?.employee_id === null
+            ? UNKNOWN_EMPLOYEE_VALUE
+            : draftDefaults?.employee_id ?? prefilledEmployeeId ?? '',
         cliente_id: draftDefaults?.cliente_id ?? prefilledClienteId ?? '',
         error_type: draftDefaults?.error_type ?? '',
         error_category: draftDefaults?.error_category ?? '',
@@ -175,6 +182,7 @@ export default function QuickAddErrorForm({
         intercettato_da: (draftDefaults as any)?.intercettato_da ?? '',
         procedura_flag: (draftDefaults as any)?.procedura_flag ?? '',
         impatto_cliente: (draftDefaults as any)?.impatto_cliente ?? '',
+        causa_errore: (draftDefaults as any)?.causa_errore ?? '',
         operatore_coinvolto: (draftDefaults as any)?.operatore_coinvolto ?? ''
       })
       setSearchCliente(draftDefaults?.cliente_label ?? '')
@@ -207,14 +215,15 @@ export default function QuickAddErrorForm({
 
   // ET2.0: Auto-calculate assegnazione_colpa when classification fields change
   useEffect(() => {
-    const { step_workflow, intercettato_da, procedura_flag, impatto_cliente, operatore_coinvolto } = formData
+    const { step_workflow, intercettato_da, procedura_flag, impatto_cliente, causa_errore, operatore_coinvolto } = formData
 
-    if (step_workflow && procedura_flag) {
+    if (step_workflow && procedura_flag && causa_errore) {
       const result = calculateAssegnazioneColpa({
         step_workflow: step_workflow as StepWorkflow,
         intercettato_da: intercettato_da as IntercettatoDa,
         procedura_flag: procedura_flag as ProceduraFlag,
         impatto_cliente: impatto_cliente as ImpattoCliente,
+        causa_errore: causa_errore as CausaErrore,
         operatore_coinvolto: operatore_coinvolto || undefined,
         creato_da_followup: false
       })
@@ -222,7 +231,7 @@ export default function QuickAddErrorForm({
     } else {
       setAssegnazioneColpa(null)
     }
-  }, [formData.step_workflow, formData.intercettato_da, formData.procedura_flag, formData.impatto_cliente, formData.operatore_coinvolto])
+  }, [formData.step_workflow, formData.intercettato_da, formData.procedura_flag, formData.impatto_cliente, formData.causa_errore, formData.operatore_coinvolto])
 
   const fetchEmployees = async () => {
     const { data, error } = await supabase
@@ -317,8 +326,11 @@ export default function QuickAddErrorForm({
     setLoading(true)
 
     try {
+      const isUnknownEmployee = formData.employee_id === UNKNOWN_EMPLOYEE_VALUE
       const payload = {
         ...formData,
+        employee_id: isUnknownEmployee ? null : formData.employee_id || undefined,
+        autore_sconosciuto: isUnknownEmployee,
         custom_cost: formData.custom_cost ? Number.parseFloat(formData.custom_cost) : undefined,
         time_lost_minutes: Number.parseInt(formData.time_lost_minutes) || 0,
         cost_detail: formData.cost_type === 'real' ? formData.cost_detail : formData.cost_detail || null,
@@ -327,6 +339,7 @@ export default function QuickAddErrorForm({
         intercettato_da: formData.intercettato_da || undefined,
         procedura_flag: formData.procedura_flag || undefined,
         impatto_cliente: formData.impatto_cliente || undefined,
+        causa_errore: formData.causa_errore || undefined,
         operatore_coinvolto: formData.operatore_coinvolto || undefined
         // assegnazione_colpa is calculated server-side
       }
@@ -391,12 +404,16 @@ export default function QuickAddErrorForm({
               className="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Seleziona dipendente...</option>
+              <option value={UNKNOWN_EMPLOYEE_VALUE}>Autore sconosciuto/a (non attribuire)</option>
               {employees.map(emp => (
                 <option key={emp.id} value={emp.id}>
                   {emp.full_name || 'Nome non disponibile'} ({emp.role})
                 </option>
               ))}
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Se non hai evidenza certa, seleziona "Autore sconosciuto/a".
+            </p>
           </div>
 
           {/* Tipo e categoria errore */}
@@ -524,6 +541,34 @@ export default function QuickAddErrorForm({
                 </select>
               </div>
 
+              {/* Causa Errore */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Causa Errore <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.causa_errore}
+                  onChange={(e) =>
+                    setFormData(prev => ({
+                      ...prev,
+                      causa_errore: e.target.value,
+                      operatore_coinvolto: e.target.value === 'interno' ? prev.operatore_coinvolto : ''
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="">Seleziona...</option>
+                  <option value="cliente">Cliente</option>
+                  <option value="interno">Interno</option>
+                  <option value="esterno">Esterno</option>
+                  <option value="non_identificabile">Non identificabile</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Distingue la causa dell&apos;errore da chi lo ha intercettato.
+                </p>
+              </div>
+
               {/* Impatto Cliente */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -544,7 +589,7 @@ export default function QuickAddErrorForm({
                 </p>
               </div>
 
-              {/* Operatore Coinvolto - Only show if procedura_presente */}
+              {/* Operatore Coinvolto - only meaningful for internal cause */}
               {formData.procedura_flag === 'procedura_presente' && (
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -554,8 +599,13 @@ export default function QuickAddErrorForm({
                     value={formData.operatore_coinvolto}
                     onChange={(e) => setFormData({...formData, operatore_coinvolto: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={formData.causa_errore !== 'interno'}
                   >
-                    <option value="">Nessun operatore specifico</option>
+                    <option value="">
+                      {formData.causa_errore === 'interno'
+                        ? 'Nessun operatore specifico'
+                        : 'Disponibile solo con causa "Interno"'}
+                    </option>
                     {employees.map(emp => (
                       <option key={emp.id} value={emp.id}>
                         {emp.full_name || 'Nome non disponibile'}
@@ -563,7 +613,7 @@ export default function QuickAddErrorForm({
                     ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Indica l'operatore coinvolto se diverso da chi ha registrato l'errore
+                    Selezionabile solo quando la causa è interna.
                   </p>
                 </div>
               )}
@@ -799,7 +849,7 @@ export default function QuickAddErrorForm({
               />
               <span className="ml-3 text-sm text-gray-700">
                 <span className="font-medium">Il cliente è stato impattato</span>
-                <div className="text-gray-500">Cliente ha dovuto tornare, ricontatti necessari, etc.</div>
+                <div className="text-gray-500">Cliente è dovuto tornare, ricontatti necessari, etc.</div>
               </span>
             </label>
 

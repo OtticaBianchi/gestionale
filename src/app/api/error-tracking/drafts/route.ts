@@ -8,7 +8,8 @@ import {
   type StepWorkflow,
   type IntercettatoDa,
   type ProceduraFlag,
-  type ImpattoCliente
+  type ImpattoCliente,
+  type CausaErrore
 } from '@/lib/et2/assegnazioneColpa'
 
 type AuthContext = {
@@ -187,13 +188,6 @@ export async function POST(request: NextRequest) {
     responsibleEmployeeId = history?.[0]?.operatore_id ?? null
   }
 
-  if (!responsibleEmployeeId) {
-    return NextResponse.json({
-      error: 'Impossibile determinare il responsabile originale dell\'ordine',
-      code: 'MISSING_EMPLOYEE'
-    }, { status: 422 })
-  }
-
   const bustaInfo = ordineData.busta as any
   const clienteRecord = bustaInfo?.clienti as any
   const clienteId = clienteRecord?.id ?? null
@@ -211,6 +205,7 @@ export async function POST(request: NextRequest) {
     `Ordine contrassegnato come “Sbagliato” per la busta ${readableId}.`,
     `Prodotto: ${prodotto}.`,
     `Fornitore: ${fornitore}.`,
+    !responsibleEmployeeId ? 'Autore originario non identificato automaticamente: completare la bozza selezionando un autore o marcando "autore sconosciuto/a".' : '',
     '',
     'Verificare l\'ordine inserito e completare le informazioni mancanti per chiudere l\'errore.'
   ].join(' ')
@@ -249,6 +244,7 @@ export async function POST(request: NextRequest) {
       requires_reorder: true,
       reported_by: context.userId,
       is_draft: true,
+      causa_errore: 'non_identificabile',
       auto_created_from_order: ordineData.id
     })
     .select('id, error_type, error_category, error_description, reported_at')
@@ -287,6 +283,7 @@ export async function PATCH(request: NextRequest) {
     id,
     busta_id,
     employee_id,
+    autore_sconosciuto = false,
     cliente_id,
     error_type,
     error_category,
@@ -302,11 +299,20 @@ export async function PATCH(request: NextRequest) {
     intercettato_da,
     procedura_flag,
     impatto_cliente,
+    causa_errore,
     operatore_coinvolto
   } = body
 
-  if (!employee_id || !error_type || !error_category || !error_description) {
-    return NextResponse.json({ error: 'Campi obbligatori mancanti per completare la bozza' }, { status: 400 })
+  if (!error_type || !error_category || !error_description) {
+    return NextResponse.json({
+      error: 'Campi obbligatori mancanti per completare la bozza'
+    }, { status: 400 })
+  }
+
+  if (!autore_sconosciuto && !employee_id) {
+    return NextResponse.json({
+      error: 'Seleziona il dipendente responsabile oppure imposta autore sconosciuto'
+    }, { status: 400 })
   }
 
   if (cost_type === 'real') {
@@ -347,7 +353,7 @@ export async function PATCH(request: NextRequest) {
 
   const updatePayload: Record<string, any> = {
     busta_id: busta_id || null,
-    employee_id,
+    employee_id: autore_sconosciuto ? null : employee_id,
     cliente_id: cliente_id || null,
     error_type,
     error_category,
@@ -365,6 +371,7 @@ export async function PATCH(request: NextRequest) {
     intercettato_da: intercettato_da || null,
     procedura_flag: procedura_flag || null,
     impatto_cliente: impatto_cliente || null,
+    causa_errore: causa_errore || null,
     operatore_coinvolto: operatore_coinvolto || null
   }
 
@@ -375,6 +382,7 @@ export async function PATCH(request: NextRequest) {
       intercettato_da: updatePayload.intercettato_da as IntercettatoDa,
       procedura_flag: updatePayload.procedura_flag as ProceduraFlag,
       impatto_cliente: updatePayload.impatto_cliente as ImpattoCliente,
+      causa_errore: updatePayload.causa_errore as CausaErrore,
       operatore_coinvolto: updatePayload.operatore_coinvolto,
       creato_da_followup: false
     })

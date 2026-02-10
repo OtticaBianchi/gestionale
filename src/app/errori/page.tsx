@@ -23,13 +23,20 @@ type ErrorData = {
   resolution_status: string
   time_lost_minutes: number
   cliente_id?: string | null
+  step_workflow?: string | null
+  intercettato_da?: string | null
+  procedura_flag?: string | null
+  impatto_cliente?: string | null
+  causa_errore?: string | null
+  operatore_coinvolto?: string | null
+  assegnazione_colpa?: string | null
   is_draft: boolean
   auto_created_from_order?: string | null
   employee: {
     id: string
     full_name: string
     role: string
-  }
+  } | null
   busta?: {
     readable_id: string
     stato_attuale: string
@@ -219,13 +226,13 @@ export default function ErroriPage() {
 
   // Raggruppa errori per dipendente per statistiche rapide
   const errorsByEmployee = regularErrors.reduce((acc, error) => {
-    const employeeName = error.employee.full_name
+    const employeeName = error.employee?.full_name || 'Autore sconosciuto/a'
     if (!acc[employeeName]) {
       acc[employeeName] = {
         count: 0,
         cost: 0,
         critical: 0,
-        employee_id: error.employee.id,
+        employee_id: error.employee?.id || null,
         errors: []
       }
     }
@@ -235,6 +242,9 @@ export default function ErroriPage() {
     acc[employeeName].errors.push(error)
     return acc
   }, {} as Record<string, any>)
+  const errorsByEmployeeForLetters = Object.fromEntries(
+    Object.entries(errorsByEmployee).filter(([, data]) => Boolean((data as any).employee_id))
+  ) as Record<string, any>
 
   const totalCost = regularErrors.reduce((sum, error) => sum + error.cost_amount, 0)
   const criticalErrors = regularErrors.filter(error => error.error_category === 'critico').length
@@ -477,7 +487,7 @@ export default function ErroriPage() {
                 <div key={employeeName} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
                   <div className="flex justify-between items-start mb-3">
                     <h3 className="font-medium text-gray-900">{employeeName}</h3>
-                    {profile?.role === 'admin' && (
+                    {profile?.role === 'admin' && stats.employee_id && (
                       <button
                         onClick={() => {
                           setSelectedEmployee(stats.employee_id)
@@ -555,8 +565,12 @@ export default function ErroriPage() {
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{error.employee.full_name}</div>
-                      <div className="text-sm text-gray-500 capitalize">{error.employee.role}</div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {error.employee?.full_name || 'Autore sconosciuto/a'}
+                      </div>
+                      <div className="text-sm text-gray-500 capitalize">
+                        {error.employee?.role || 'non attribuito'}
+                      </div>
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -678,13 +692,13 @@ export default function ErroriPage() {
             router.replace(params.toString() ? `/errori?${params.toString()}` : '/errori', { scroll: false })
           }}
           prefilledBustaId={draftToEdit?.busta_id || undefined}
-          prefilledEmployeeId={draftToEdit?.employee?.id}
+          prefilledEmployeeId={draftToEdit?.employee?.id || undefined}
           prefilledClienteId={draftToEdit?.cliente?.id}
           draftId={draftToEdit?.id ?? null}
           draftData={draftToEdit ? {
             id: draftToEdit.id,
             busta_id: draftToEdit.busta_id,
-            employee_id: draftToEdit.employee.id,
+            employee_id: draftToEdit.employee?.id ?? null,
             cliente_id: draftToEdit.cliente?.id ?? null,
             error_type: draftToEdit.error_type,
             error_category: draftToEdit.error_category,
@@ -695,6 +709,12 @@ export default function ErroriPage() {
             time_lost_minutes: draftToEdit.time_lost_minutes,
             client_impacted: draftToEdit.client_impacted,
             requires_reorder: draftToEdit.requires_reorder,
+            step_workflow: draftToEdit.step_workflow ?? '',
+            intercettato_da: draftToEdit.intercettato_da ?? '',
+            procedura_flag: draftToEdit.procedura_flag ?? '',
+            impatto_cliente: draftToEdit.impatto_cliente ?? '',
+            causa_errore: draftToEdit.causa_errore ?? '',
+            operatore_coinvolto: draftToEdit.operatore_coinvolto ?? '',
             busta_label: draftToEdit.busta?.readable_id ?? null,
             cliente_label: draftToEdit.cliente ? `${draftToEdit.cliente.cognome} ${draftToEdit.cliente.nome}` : null
           } : null}
@@ -709,7 +729,7 @@ export default function ErroriPage() {
             setSelectedEmployee('')
           }}
           preselectedEmployeeId={selectedEmployee}
-          errorsByEmployee={errorsByEmployee}
+          errorsByEmployee={errorsByEmployeeForLetters}
         />
       )}
     </div>

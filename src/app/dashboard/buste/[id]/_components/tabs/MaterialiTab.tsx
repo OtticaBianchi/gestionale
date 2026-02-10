@@ -831,8 +831,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
   // ===== CALCOLO DATA CONSEGNA PREVISTA =====
   const calcolaDataConsegnaPrevista = () => {
-    if (!nuovoOrdineForm.data_ordine) return '';
-    const dataOrdine = new Date(nuovoOrdineForm.data_ordine);
+    const dataOrdineValue = nuovoOrdineForm.data_ordine || '';
+    if (!dataOrdineValue) return '';
+    const dataOrdine = new Date(dataOrdineValue);
     if (Number.isNaN(dataOrdine.getTime())) return '';
     let giorniConsegna = 5;
 

@@ -54,7 +54,14 @@ export async function POST(
       operatore_coinvolto,
       procedura_flag = 'procedura_presente', // Default as per PRD
       impatto_cliente, // Optional override
+      causa_errore,
     } = body;
+
+    const validCause = ['cliente', 'interno', 'esterno', 'non_identificabile'];
+    const normalizedCause =
+      typeof causa_errore === 'string' && validCause.includes(causa_errore)
+        ? causa_errore
+        : null;
 
     // Validate required fields
     if (!error_type || !error_category || !error_description) {
@@ -135,7 +142,8 @@ export async function POST(
     // We'll call the error-tracking API internally
     const errorPayload = {
       busta_id: followUp.busta_id,
-      employee_id: operatore_coinvolto || user.id, // Fallback to current user
+      // Avoid forced blame when the responsible operator is unknown.
+      employee_id: operatore_coinvolto || null,
       cliente_id,
       error_type,
       error_category,
@@ -150,6 +158,7 @@ export async function POST(
       intercettato_da: 'ob_follow_up',
       procedura_flag,
       impatto_cliente: finalImpatto,
+      causa_errore: normalizedCause || (operatore_coinvolto ? 'interno' : 'non_identificabile'),
       operatore_coinvolto,
       creato_da_followup: true,
     };

@@ -30,8 +30,15 @@ export type ProceduraFlag =
 
 export type ImpattoCliente = 'basso' | 'medio' | 'alto';
 
+export type CausaErrore =
+  | 'cliente'
+  | 'interno'
+  | 'esterno'
+  | 'non_identificabile';
+
 export type AssegnazioneColpa =
   | 'persona'
+  | 'cliente'
   | 'procedura'
   | 'organizzazione'
   | 'sistemico'
@@ -42,6 +49,7 @@ export interface ErrorClassificationInput {
   intercettato_da?: IntercettatoDa | null;
   procedura_flag: ProceduraFlag;
   impatto_cliente?: ImpattoCliente | null;
+  causa_errore?: CausaErrore | null;
   operatore_coinvolto?: string | null;
   creato_da_followup?: boolean;
 }
@@ -65,7 +73,14 @@ export interface ErrorClassificationInput {
  *    AND operatore_coinvolto IS NULL
  *      → assegnazione_colpa = "non_identificabile"
  *
- * 5. IF step_workflow IN ("ordine_materiali", "lavorazione")
+ * 5. IF procedura_flag = "procedura_presente"
+ *    AND causa_errore = "cliente"
+ *      → assegnazione_colpa = "cliente"
+ *
+ * 6. IF causa_errore = "esterno"
+ *      → assegnazione_colpa = "non_identificabile"
+ *
+ * 7. IF step_workflow IN ("ordine_materiali", "lavorazione")
  *    AND operatore_coinvolto IS NULL
  *    AND procedura_flag = "procedura_presente"
  *      → assegnazione_colpa = "sistemico"
@@ -79,6 +94,7 @@ export function calculateAssegnazioneColpa(
   const {
     step_workflow,
     procedura_flag,
+    causa_errore,
     operatore_coinvolto,
     creato_da_followup = false,
   } = input;
@@ -98,7 +114,20 @@ export function calculateAssegnazioneColpa(
     return 'non_identificabile';
   }
 
-  // Rule 5: System-related steps without operator → sistemico
+  // Rule 5: Explicit customer-caused issue → cliente
+  if (
+    procedura_flag === 'procedura_presente' &&
+    causa_errore === 'cliente'
+  ) {
+    return 'cliente';
+  }
+
+  // Rule 6: External cause (supplier/third-party) -> keep out of internal blame buckets
+  if (causa_errore === 'esterno') {
+    return 'non_identificabile';
+  }
+
+  // Rule 7: System-related steps without operator → sistemico
   const systemicSteps: StepWorkflow[] = ['ordine_materiali', 'lavorazione'];
   if (
     systemicSteps.includes(step_workflow) &&
@@ -136,6 +165,10 @@ export function validateErrorClassification(data: Partial<ErrorClassificationInp
 
   if (!data.procedura_flag) {
     errors.push('procedura_flag è obbligatorio');
+  }
+
+  if (!data.causa_errore) {
+    errors.push('causa_errore è obbligatorio');
   }
 
   // Validate enum values
@@ -183,6 +216,25 @@ export function validateErrorClassification(data: Partial<ErrorClassificationInp
     errors.push(`impatto_cliente non valido: ${data.impatto_cliente}`);
   }
 
+  const validCause: CausaErrore[] = [
+    'cliente',
+    'interno',
+    'esterno',
+    'non_identificabile',
+  ];
+
+  if (data.causa_errore && !validCause.includes(data.causa_errore)) {
+    errors.push(`causa_errore non valida: ${data.causa_errore}`);
+  }
+
+  if (
+    data.causa_errore &&
+    data.causa_errore !== 'interno' &&
+    data.operatore_coinvolto
+  ) {
+    errors.push('operatore_coinvolto è consentito solo quando causa_errore è "interno"');
+  }
+
   // Business logic validation
   if (data.procedura_flag === 'procedura_presente' && !data.operatore_coinvolto) {
     // This is allowed, but might result in 'sistemico' or 'non_identificabile'
@@ -201,6 +253,7 @@ export function validateErrorClassification(data: Partial<ErrorClassificationInp
 export function getAssegnazioneColpaLabel(colpa: AssegnazioneColpa): string {
   const labels: Record<AssegnazioneColpa, string> = {
     persona: 'Errore umano (operatore)',
+    cliente: 'Errore del cliente',
     procedura: 'Procedura imprecisa/inadeguata',
     organizzazione: 'Mancanza organizzativa',
     sistemico: 'Errore di sistema/processo',
@@ -216,6 +269,7 @@ export function getAssegnazioneColpaLabel(colpa: AssegnazioneColpa): string {
 export function getAssegnazioneColpaColor(colpa: AssegnazioneColpa): string {
   const colors: Record<AssegnazioneColpa, string> = {
     persona: 'bg-orange-100 text-orange-800 ring-orange-200',
+    cliente: 'bg-emerald-100 text-emerald-800 ring-emerald-200',
     procedura: 'bg-purple-100 text-purple-800 ring-purple-200',
     organizzazione: 'bg-red-100 text-red-800 ring-red-200',
     sistemico: 'bg-blue-100 text-blue-800 ring-blue-200',

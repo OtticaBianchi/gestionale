@@ -171,6 +171,47 @@ describe('calculateAssegnazioneColpa', () => {
     });
   });
 
+  describe('Rule 6: Procedura presente + causa_errore cliente → cliente', () => {
+    test('should assign "cliente" when customer provided wrong input and no operator is involved', () => {
+      const input: ErrorClassificationInput = {
+        step_workflow: 'ordine_materiali',
+        procedura_flag: 'procedura_presente',
+        intercettato_da: 'cliente',
+        causa_errore: 'cliente',
+        operatore_coinvolto: null,
+      };
+
+      const result = calculateAssegnazioneColpa(input);
+      expect(result).toBe('cliente');
+    });
+
+    test('should keep follow-up generated records as non_identificabile when operator is missing', () => {
+      const input: ErrorClassificationInput = {
+        step_workflow: 'follow_up',
+        procedura_flag: 'procedura_presente',
+        intercettato_da: 'cliente',
+        causa_errore: 'cliente',
+        creato_da_followup: true,
+        operatore_coinvolto: null,
+      };
+
+      const result = calculateAssegnazioneColpa(input);
+      expect(result).toBe('non_identificabile');
+    });
+
+    test('should assign "non_identificabile" when cause is external', () => {
+      const input: ErrorClassificationInput = {
+        step_workflow: 'ordine_materiali',
+        procedura_flag: 'procedura_presente',
+        causa_errore: 'esterno',
+        operatore_coinvolto: null,
+      };
+
+      const result = calculateAssegnazioneColpa(input);
+      expect(result).toBe('non_identificabile');
+    });
+  });
+
   describe('Rule precedence and edge cases', () => {
     test('Rule 2 (procedura_imprecisa) should override Rule 1', () => {
       const input: ErrorClassificationInput = {
@@ -215,6 +256,7 @@ describe('validateErrorClassification', () => {
       procedura_flag: 'procedura_presente',
       intercettato_da: 'ob_controllo_qualita',
       impatto_cliente: 'medio',
+      causa_errore: 'interno',
     };
 
     const result = validateErrorClassification(data);
@@ -225,6 +267,7 @@ describe('validateErrorClassification', () => {
   test('should fail if step_workflow is missing', () => {
     const data: Partial<ErrorClassificationInput> = {
       procedura_flag: 'procedura_presente',
+      causa_errore: 'interno',
     };
 
     const result = validateErrorClassification(data);
@@ -235,6 +278,7 @@ describe('validateErrorClassification', () => {
   test('should fail if procedura_flag is missing', () => {
     const data: Partial<ErrorClassificationInput> = {
       step_workflow: 'lavorazione',
+      causa_errore: 'interno',
     };
 
     const result = validateErrorClassification(data);
@@ -246,6 +290,7 @@ describe('validateErrorClassification', () => {
     const data: Partial<ErrorClassificationInput> = {
       step_workflow: 'invalid_step' as any,
       procedura_flag: 'procedura_presente',
+      causa_errore: 'interno',
     };
 
     const result = validateErrorClassification(data);
@@ -258,6 +303,7 @@ describe('validateErrorClassification', () => {
       step_workflow: 'lavorazione',
       procedura_flag: 'procedura_presente',
       intercettato_da: 'invalid_value' as any,
+      causa_errore: 'interno',
     };
 
     const result = validateErrorClassification(data);
@@ -270,6 +316,7 @@ describe('validateErrorClassification', () => {
       step_workflow: 'lavorazione',
       procedura_flag: 'procedura_presente',
       impatto_cliente: 'extra_alto' as any,
+      causa_errore: 'interno',
     };
 
     const result = validateErrorClassification(data);
@@ -283,10 +330,49 @@ describe('validateErrorClassification', () => {
       procedura_flag: 'procedura_presente',
       intercettato_da: null,
       impatto_cliente: null,
+      causa_errore: 'non_identificabile',
       operatore_coinvolto: null,
     };
 
     const result = validateErrorClassification(data);
     expect(result.valid).toBe(true);
+  });
+
+  test('should fail if causa_errore is missing', () => {
+    const data: Partial<ErrorClassificationInput> = {
+      step_workflow: 'lavorazione',
+      procedura_flag: 'procedura_presente',
+    };
+
+    const result = validateErrorClassification(data);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toContain('causa_errore è obbligatorio');
+  });
+
+  test('should fail for invalid causa_errore value', () => {
+    const data: Partial<ErrorClassificationInput> = {
+      step_workflow: 'lavorazione',
+      procedura_flag: 'procedura_presente',
+      causa_errore: 'invalid' as any,
+    };
+
+    const result = validateErrorClassification(data);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('causa_errore non valida'))).toBe(true);
+  });
+
+  test('should fail if operator is set with non-internal cause', () => {
+    const data: Partial<ErrorClassificationInput> = {
+      step_workflow: 'lavorazione',
+      procedura_flag: 'procedura_presente',
+      causa_errore: 'cliente',
+      operatore_coinvolto: 'user-123',
+    };
+
+    const result = validateErrorClassification(data);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.includes('operatore_coinvolto è consentito solo quando causa_errore è "interno"')
+    ).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ import {
   type IntercettatoDa,
   type ProceduraFlag,
   type ImpattoCliente,
+  type CausaErrore,
   type AssegnazioneColpa
 } from '@/lib/et2/assegnazioneColpa'
 
@@ -44,20 +45,22 @@ export function CreateErrorModal({
     intercettato_da: 'cliente', // Pre-filled since customer reported during follow-up
     procedura_flag: '',
     impatto_cliente: 'alto', // Pre-filled as alto since customer is dissatisfied
+    causa_errore: 'non_identificabile',
     operatore_coinvolto: ''
   })
   const [assegnazioneColpa, setAssegnazioneColpa] = useState<AssegnazioneColpa | null>(null)
 
   // ET2.0: Auto-calculate assegnazione_colpa when classification fields change
   useEffect(() => {
-    const { step_workflow, intercettato_da, procedura_flag, impatto_cliente, operatore_coinvolto } = formData
+    const { step_workflow, intercettato_da, procedura_flag, impatto_cliente, causa_errore, operatore_coinvolto } = formData
 
-    if (step_workflow && procedura_flag) {
+    if (step_workflow && procedura_flag && causa_errore) {
       const result = calculateAssegnazioneColpa({
         step_workflow: step_workflow as StepWorkflow,
         intercettato_da: intercettato_da as IntercettatoDa,
         procedura_flag: procedura_flag as ProceduraFlag,
         impatto_cliente: impatto_cliente as ImpattoCliente,
+        causa_errore: causa_errore as CausaErrore,
         operatore_coinvolto: operatore_coinvolto || undefined,
         creato_da_followup: true
       })
@@ -65,7 +68,7 @@ export function CreateErrorModal({
     } else {
       setAssegnazioneColpa(null)
     }
-  }, [formData.step_workflow, formData.intercettato_da, formData.procedura_flag, formData.impatto_cliente, formData.operatore_coinvolto])
+  }, [formData.step_workflow, formData.intercettato_da, formData.procedura_flag, formData.impatto_cliente, formData.causa_errore, formData.operatore_coinvolto])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,6 +84,7 @@ export function CreateErrorModal({
           intercettato_da: formData.intercettato_da,
           procedura_flag: formData.procedura_flag,
           impatto_cliente: formData.impatto_cliente,
+          causa_errore: formData.causa_errore,
           operatore_coinvolto: formData.operatore_coinvolto || undefined
         })
       })
@@ -234,6 +238,24 @@ export function CreateErrorModal({
                 <p className="text-xs text-blue-600 mt-1">
                   Pre-impostato su "Alto" per clienti insoddisfatti
                 </p>
+              </div>
+
+              {/* Causa Errore */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Causa Errore <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.causa_errore}
+                  onChange={(e) => setFormData({ ...formData, causa_errore: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="cliente">Cliente</option>
+                  <option value="interno">Interno</option>
+                  <option value="esterno">Esterno</option>
+                  <option value="non_identificabile">Non identificabile</option>
+                </select>
               </div>
             </div>
 
