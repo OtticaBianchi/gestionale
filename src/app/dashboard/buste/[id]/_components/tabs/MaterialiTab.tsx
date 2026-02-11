@@ -1300,6 +1300,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   // ===== DATABASE ORDER CREATION =====
   const createOrderData = () => {
     const fornitoreTableField = getSupplierField();
+    const categoriaFornitore = nuovoOrdineForm.categoria_prodotto || null;
 
     // Check if tipo_ordine is "negozio"
     const tipoSelezionato = tipiOrdine.find(t => t.id === Number(nuovoOrdineForm.tipo_ordine_id));
@@ -1312,6 +1313,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     if (isNegozio) {
       return {
         busta_id: busta.id,
+        categoria_fornitore: categoriaFornitore,
         tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
         classificazione_lenti_id: nuovoOrdineForm.classificazione_lenti || null,
         trattamenti: nuovoOrdineForm.trattamenti.length > 0 ? nuovoOrdineForm.trattamenti : null,
@@ -1342,6 +1344,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     // Ordine normale con date
     return {
       busta_id: busta.id,
+      categoria_fornitore: categoriaFornitore,
       tipo_lenti_id: nuovoOrdineForm.tipo_lenti || null,
       classificazione_lenti_id: nuovoOrdineForm.classificazione_lenti || null,
       trattamenti: nuovoOrdineForm.trattamenti.length > 0 ? nuovoOrdineForm.trattamenti : null,

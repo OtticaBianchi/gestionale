@@ -20,7 +20,8 @@ const hasValue = (value: unknown): value is string | number =>
   value !== null && value !== undefined && value !== ''
 
 function validateOrderMenus(body: Record<string, unknown>): string | null {
-  const categoria = String(body.categoria_fornitore || '').trim().toLowerCase()
+  const categoriaRaw = body.categoria_fornitore ?? body.categoria_prodotto
+  const categoria = String(categoriaRaw || '').trim().toLowerCase()
 
   if (!categoria) {
     return 'Categoria prodotto obbligatoria'
