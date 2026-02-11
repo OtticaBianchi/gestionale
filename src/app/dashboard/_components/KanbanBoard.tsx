@@ -935,6 +935,56 @@ function StatusDrawer({
     };
   }, [mounted, onClose]);
 
+  const sortByCognomeNome = useCallback((a: BustaWithCliente, b: BustaWithCliente) => {
+    const lastA = (a.clienti?.cognome || '').trim();
+    const lastB = (b.clienti?.cognome || '').trim();
+
+    if (lastA && !lastB) return -1;
+    if (!lastA && lastB) return 1;
+    if (lastA || lastB) {
+      const compareLast = lastA.localeCompare(lastB, 'it', { sensitivity: 'base' });
+      if (compareLast !== 0) return compareLast;
+    }
+
+    const firstA = (a.clienti?.nome || '').trim();
+    const firstB = (b.clienti?.nome || '').trim();
+
+    if (firstA && !firstB) return -1;
+    if (!firstA && firstB) return 1;
+    if (firstA || firstB) {
+      const compareFirst = firstA.localeCompare(firstB, 'it', { sensitivity: 'base' });
+      if (compareFirst !== 0) return compareFirst;
+    }
+
+    const readableA = (a.readable_id || a.id || '').toString();
+    const readableB = (b.readable_id || b.id || '').toString();
+    return readableA.localeCompare(readableB, 'it', { sensitivity: 'base', numeric: true });
+  }, []);
+
+  const orderedBuste = useMemo(() => {
+    return [...buste].sort(sortByCognomeNome);
+  }, [buste, sortByCognomeNome]);
+
+  const getOpenActionCount = useCallback((busta: BustaWithCliente) => {
+    return (busta.ordini_materiali || []).filter(
+      ordine => ordine.needs_action && !ordine.needs_action_done
+    ).length;
+  }, []);
+
+  const groupedSpecial = useMemo(() => {
+    const daChiamare = orderedBuste.filter(
+      busta => busta.richiede_telefonata && !busta.telefonata_completata
+    );
+    const azioneDaCompiere = orderedBuste.filter(
+      busta => getOpenActionCount(busta) > 0
+    );
+
+    return {
+      da_chiamare: daChiamare,
+      azione_da_compiere: azioneDaCompiere
+    };
+  }, [orderedBuste, getOpenActionCount]);
+
   // Group buste by priority
   const groupedByPriority = useMemo(() => {
     const groups = {
@@ -945,7 +995,7 @@ function StatusDrawer({
       normale: [] as BustaWithCliente[]
     };
 
-    buste.forEach(busta => {
+    orderedBuste.forEach(busta => {
       if (status === 'nuove' && busta.is_suspended) {
         groups.sospese.push(busta);
         return;
@@ -968,7 +1018,7 @@ function StatusDrawer({
     });
 
     return groups;
-  }, [buste, status]);
+  }, [orderedBuste, status]);
 
   // Auto-collapse NORMALI if more than 20
   useEffect(() => {
@@ -1007,6 +1057,19 @@ function StatusDrawer({
     ? (['sospese', 'critica', 'urgente', 'in_ritardo', 'normale'] as const)
     : (['critica', 'urgente', 'in_ritardo', 'normale'] as const);
 
+  const specialLabels = {
+    da_chiamare: {
+      label: 'CHIAMARE IL CLIENTE',
+      className: 'text-red-700 bg-red-50/80 border-red-200'
+    },
+    azione_da_compiere: {
+      label: 'AZIONE DA COMPIERE',
+      className: 'text-amber-700 bg-amber-50/80 border-amber-200'
+    }
+  };
+
+  const specialOrder = ['da_chiamare', 'azione_da_compiere'] as const;
+
   return createPortal(
     <>
       <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]" onClick={onClose} />
@@ -1033,6 +1096,82 @@ function StatusDrawer({
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
+              {specialOrder.map(specialKey => {
+                const groupBuste = groupedSpecial[specialKey];
+                if (groupBuste.length === 0) return null;
+
+                const collapseKey = `special-${specialKey}`;
+                const isCollapsed = collapsedGroups.has(collapseKey);
+                const { label, className } = specialLabels[specialKey];
+
+                return (
+                  <div key={specialKey}>
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(collapseKey)}
+                      className={`w-full flex items-center justify-between px-5 py-3 border-b transition-colors hover:brightness-95 ${className}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-semibold tracking-[0.18em]">{label}</span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/70 border border-white/60">
+                          {groupBuste.length}
+                        </span>
+                      </div>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                    </button>
+
+                    {!isCollapsed && (
+                      <ul className="divide-y divide-gray-100">
+                        {groupBuste.map((busta) => {
+                          const readableId = busta.readable_id || busta.id;
+                          const cognome = (busta.clienti?.cognome || '').trim();
+                          const nome = (busta.clienti?.nome || '').trim();
+                          const displayName = [cognome, nome].filter(Boolean).join(' ') || 'Cliente non specificato';
+                          const openActionCount = getOpenActionCount(busta);
+
+                          return (
+                            <li key={`special-${specialKey}-${busta.id}`}>
+                              <Link
+                                href={`/dashboard/buste/${busta.id}`}
+                                className="group flex items-center justify-between px-5 py-3 transition-colors hover:bg-blue-50"
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-medium text-gray-500">{readableId}</span>
+                                  <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-700">
+                                    {displayName}
+                                  </span>
+                                  {specialKey === 'da_chiamare' && (
+                                    <span className="text-[11px] text-red-700 mt-0.5">
+                                      {busta.telefonata_assegnata_a
+                                        ? `Assegnata a: ${busta.telefonata_assegnata_a}`
+                                        : 'Assegnazione non indicata'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {specialKey === 'da_chiamare' ? (
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-red-100 text-red-700 border-red-200">
+                                      Telefono rosso
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-100 text-amber-800 border-amber-200">
+                                      Azione !{openActionCount}
+                                    </span>
+                                  )}
+                                  <span className="text-xs font-medium text-blue-600 group-hover:text-blue-700">
+                                    Apri
+                                  </span>
+                                </div>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+
               {priorityOrder.map(priorityKey => {
                 const groupBuste = groupedByPriority[priorityKey];
                 if (groupBuste.length === 0) return null;

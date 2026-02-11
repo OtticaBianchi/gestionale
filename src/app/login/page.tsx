@@ -222,11 +222,18 @@ function LoginForm() {
 
         <div className="mt-6 border-t border-slate-200 pt-6">
           <div className="mb-2 text-center text-xs text-slate-400">
-            Versione 4.3.5
+            Versione 4.3.6
           </div>
           <div className="text-xs text-slate-500">
             <div className="text-center font-medium text-slate-600">Ultimi aggiornamenti</div>
             <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+              <div className="font-semibold text-slate-700">v4.3.6 - Febbraio 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>ET2.0: aggiunto campo obbligatorio "Causa errore" (cliente, interno, esterno, non identificabile)</li>
+                <li>Separazione tra "Intercettato da" (chi scopre) e causa reale dell&apos;errore</li>
+                <li>Supporto autore sconosciuto/a senza attribuzione forzata a un dipendente</li>
+                <li>Fix MaterialiTab: la categoria prodotto viene sempre inviata e validata correttamente in creazione ordine</li>
+              </ul>
               <div className="font-semibold text-slate-700">v4.3.5 - Febbraio 2026</div>
               <ul className="ml-2 list-disc list-inside space-y-1">
                 <li>Survey: import CSV integrato in Governance {'>'} Import Clienti</li>

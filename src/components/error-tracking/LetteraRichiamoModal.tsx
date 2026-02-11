@@ -155,7 +155,7 @@ Data: _____ / _____ / __________
 
 ---
 Documento generato automaticamente dal sistema di tracciamento errori
-Kiasma v4.3.5 - ${today}
+Kiasma v4.3.6 - ${today}
     `.trim()
   }
 
