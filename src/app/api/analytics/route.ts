@@ -464,7 +464,7 @@ export async function GET(request: NextRequest) {
       if (planType === 'installments') return 'installments';
       if (planType === 'finanziamento_bancario') return 'finanziamento_bancario';
       if (!planType) {
-        if (modalita === 'saldo_unico' || modalita === 'contanti' || modalita === 'pos' || modalita === 'bonifico' || modalita === 'carta') {
+        if (modalita === 'saldo_unico' || modalita === 'contanti' || modalita === 'pos' || modalita === 'bonifico' || modalita === 'paghero' || modalita === 'carta') {
           return 'saldo_unico';
         }
         if (modalita === 'finanziamento') return 'finanziamento_bancario';

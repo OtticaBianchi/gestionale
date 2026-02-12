@@ -125,7 +125,7 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
     modalitaSaldo: busta.info_pagamenti?.modalita_saldo,
     notePagamento: busta.info_pagamenti?.note_pagamento
   });
-  const hasBonificoPending = saldoMethod === 'bonifico' && !planCompleted;
+  const hasDeferredPending = (saldoMethod === 'bonifico' || saldoMethod === 'paghero') && !planCompleted;
 
   const priorityStyles: Record<string, string> = {
     normale: 'border-l-gray-400',
@@ -223,9 +223,9 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
               RATE
             </span>
           )}
-          {hasBonificoPending && (
+          {hasDeferredPending && (
             <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
-              BONIFICO
+              {saldoMethod === 'paghero' ? 'PAGHERÒ' : 'BONIFICO'}
             </span>
           )}
         </div>

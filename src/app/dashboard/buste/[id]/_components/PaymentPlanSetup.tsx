@@ -25,7 +25,7 @@ interface PaymentPlanSetupProps {
 
 type PaymentType = 'saldo_unico' | 'installments' | 'finanziamento_bancario';
 type ReminderPreference = 'automatic' | 'manual' | 'disabled';
-type SaldoUnicoMethod = 'contanti' | 'pos' | 'bonifico';
+type SaldoUnicoMethod = 'contanti' | 'pos' | 'bonifico' | 'paghero';
 
 interface Installment {
   id: string;
@@ -107,7 +107,7 @@ export default function PaymentPlanSetup({
             : 'tre_rate';
 
       const saldoIncassato = paymentType === 'saldo_unico'
-        ? (saldoUnicoMethod && saldoUnicoMethod !== 'bonifico' ? true : bonificoIncassato)
+        ? ((saldoUnicoMethod && saldoUnicoMethod !== 'bonifico' && saldoUnicoMethod !== 'paghero') ? true : bonificoIncassato)
         : paymentType === 'finanziamento_bancario';
 
       const response = await fetch('/api/payments/actions', {
@@ -208,7 +208,7 @@ export default function PaymentPlanSetup({
                 <div>
                   <div className="font-medium">💳 Saldo Unico</div>
                   <div className="text-sm text-gray-600">
-                    €{remainingAmount.toFixed(2)} alla consegna (contanti/POS) o bonifico con conferma incasso
+                    €{remainingAmount.toFixed(2)} alla consegna (contanti/POS) o bonifico/pagherò con conferma incasso
                   </div>
                 </div>
               </div>
@@ -233,7 +233,7 @@ export default function PaymentPlanSetup({
                         }
                       }
                       setSaldoUnicoMethod(value);
-                      if (value !== 'bonifico') {
+                      if (value !== 'bonifico' && value !== 'paghero') {
                         setBonificoIncassato(false);
                       }
                     }}
@@ -243,8 +243,9 @@ export default function PaymentPlanSetup({
                     <option value="contanti">Contanti</option>
                     <option value="pos">POS</option>
                     <option value="bonifico">Bonifico</option>
+                    <option value="paghero">Pagherò</option>
                   </select>
-                  {saldoUnicoMethod === 'bonifico' && (
+                  {(saldoUnicoMethod === 'bonifico' || saldoUnicoMethod === 'paghero') && (
                     <label className="flex items-center gap-2 text-sm text-gray-700">
                       <input
                         type="checkbox"

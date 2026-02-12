@@ -1,4 +1,4 @@
-export const SALDO_UNICO_METHODS = ['contanti', 'pos', 'bonifico'] as const
+export const SALDO_UNICO_METHODS = ['contanti', 'pos', 'bonifico', 'paghero'] as const
 
 export type SaldoUnicoMethod = typeof SALDO_UNICO_METHODS[number]
 export type CanonicalModalitaSaldo = 'saldo_unico' | 'due_rate' | 'tre_rate' | 'finanziamento'
@@ -24,6 +24,7 @@ const stripSystemPaymentNotes = (note?: string | null): string | null => {
 export const normalizeSaldoUnicoMethod = (value?: string | null): SaldoUnicoMethod | '' => {
   if (!value) return ''
   if (value === 'carta') return 'pos'
+  if (value === 'pagherò') return 'paghero'
   if (value === 'saldo_unico') return 'contanti'
   if (SALDO_UNICO_METHODS.includes(value as SaldoUnicoMethod)) {
     return value as SaldoUnicoMethod
@@ -68,7 +69,14 @@ export const canonicalizeModalitaSaldo = (value?: string | null): CanonicalModal
   if (value === 'due_rate') return 'due_rate'
   if (value === 'tre_rate') return 'tre_rate'
   if (value === 'finanziamento' || value === 'finanziamento_bancario') return 'finanziamento'
-  if (value === 'saldo_unico' || value === 'contanti' || value === 'pos' || value === 'bonifico' || value === 'carta') {
+  if (
+    value === 'saldo_unico' ||
+    value === 'contanti' ||
+    value === 'pos' ||
+    value === 'bonifico' ||
+    value === 'paghero' ||
+    value === 'carta'
+  ) {
     return 'saldo_unico'
   }
 

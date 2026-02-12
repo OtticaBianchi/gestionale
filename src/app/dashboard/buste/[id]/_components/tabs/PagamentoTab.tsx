@@ -31,7 +31,7 @@ const currencyFormatter = new Intl.NumberFormat('it-IT', {
 const paymentTypeLabels: Record<string, { title: string; description: string }> = {
   saldo_unico: {
     title: '💳 Saldo Unico',
-    description: 'Contanti, POS o bonifico (con conferma incasso)'
+    description: 'Contanti, POS, bonifico o pagherò (con conferma incasso)'
   },
   installments: {
     title: '📊 Rateizzazione Interna',
@@ -96,6 +96,8 @@ interface DerivedFinance {
 }
 
 const formatCurrency = (value: number | null | undefined) => currencyFormatter.format(value || 0);
+const isDeferredSaldoMethod = (method: SaldoUnicoMethod | '' | null | undefined) =>
+  method === 'bonifico' || method === 'paghero';
 
 const computeFinanceSnapshot = (
   plan: PaymentPlanRecord | null,
@@ -918,7 +920,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                       }
                     }
                     setSaldoUnicoMethod(value);
-                    const nextIncassato = value === 'bonifico' ? false : true;
+                    const nextIncassato = isDeferredSaldoMethod(value) ? false : true;
                     setBonificoIncassato(nextIncassato);
                     void handleUpdateSaldoUnico(value, nextIncassato);
                   }}
@@ -929,16 +931,18 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                   <option value="contanti">Contanti</option>
                   <option value="pos">POS</option>
                   <option value="bonifico">Bonifico</option>
+                  <option value="paghero">Pagherò</option>
                 </select>
-                {saldoUnicoMethod === 'bonifico' && (
+                {isDeferredSaldoMethod(saldoUnicoMethod) && (
                   <label className="flex items-center gap-2 text-sm text-gray-700">
                     <input
                       type="checkbox"
                       checked={bonificoIncassato}
                       onChange={(event) => {
+                        if (!saldoUnicoMethod) return;
                         const nextValue = event.target.checked;
                         setBonificoIncassato(nextValue);
-                        void handleUpdateSaldoUnico('bonifico', nextValue);
+                        void handleUpdateSaldoUnico(saldoUnicoMethod, nextValue);
                       }}
                       disabled={!canEdit || ongoingAction === 'update-saldo-unico'}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -948,7 +952,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                 )}
               </div>
               <p className="mt-2 text-xs text-gray-500">
-                Seleziona Bonifico per tenere la busta aperta finché non è incassato.
+                Seleziona Bonifico o Pagherò per tenere la busta aperta finché non è incassato.
               </p>
             </div>
           )}

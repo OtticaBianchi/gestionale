@@ -44,7 +44,7 @@ const mapLegacyPaymentType = (
 ): 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'no_payment' | 'none' => {
   if (!modalita) return 'none'
   if (modalita === 'saldo_unico') return 'saldo_unico'
-  if (modalita === 'contanti' || modalita === 'pos' || modalita === 'bonifico' || modalita === 'carta') {
+  if (modalita === 'contanti' || modalita === 'pos' || modalita === 'bonifico' || modalita === 'paghero' || modalita === 'carta') {
     return 'saldo_unico'
   }
   if (modalita === 'finanziamento') return 'finanziamento_bancario'

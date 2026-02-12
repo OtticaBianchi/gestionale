@@ -133,7 +133,7 @@ const mapLegacyPaymentType = (
 ): 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'no_payment' | 'none' => {
   if (!modalita) return 'none';
   if (modalita === 'saldo_unico') return 'saldo_unico';
-  if (modalita === 'contanti' || modalita === 'pos' || modalita === 'bonifico' || modalita === 'carta') {
+  if (modalita === 'contanti' || modalita === 'pos' || modalita === 'bonifico' || modalita === 'paghero' || modalita === 'carta') {
     return 'saldo_unico';
   }
   if (modalita === 'finanziamento') return 'finanziamento_bancario';
@@ -197,10 +197,10 @@ const buildPaymentBadge = (
   }
 
   if (planType === 'saldo_unico') {
-    const bonificoPending = saldoMethod === 'bonifico' && !planCompleted;
-    if (bonificoPending) {
+    const deferredPending = (saldoMethod === 'bonifico' || saldoMethod === 'paghero') && !planCompleted;
+    if (deferredPending) {
       return {
-        label: 'BONIFICO',
+        label: saldoMethod === 'paghero' ? 'PAGHERÒ' : 'BONIFICO',
         className: 'bg-amber-50 text-amber-700 border border-amber-200',
         icon: <Landmark className="w-3 h-3 mr-1" />,
         sublabel: outstanding > 0.5 ? `Da incassare ${formatCurrency(outstanding)}` : 'In attesa incasso'
