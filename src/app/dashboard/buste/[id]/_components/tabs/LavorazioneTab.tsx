@@ -165,16 +165,13 @@ const CHECKLISTS: Partial<Record<ActivityKey, string[]>> = {
     'Sagoma montatura tracciata e centratura corretta',
     'Sagomatura e montaggio completati senza difetti',
     'Assetto meccanico ok (aste/chiusure/allineamento)',
-    'Pulizia finale lenti e montatura',
     'Note/anomalie registrate (se presenti)'
   ],
   controllo_qualita_pre_consegna: [
-    'Pulizia lenti (no aloni)',
     'Assetto aste (in piano)',
     'Serraggio viti/chiusura cerchi',
     'Verifica corrispondenza lenti/ordine',
-    'Dotazione (Astuccio + Microfibra)',
-    'Pulizia completa occhiali'
+    'Dotazione (Astuccio + Microfibra)'
   ],
   pit_stop_occhiale: [
     'Lavaggio ultrasuoni',
@@ -190,6 +187,14 @@ const CHECKLISTS: Partial<Record<ActivityKey, string[]>> = {
     'Rimozione OS riuscita',
     'Istruzioni manutenzione fornite'
   ]
+};
+
+// Tipi lavorazione esclusi dal flag pulizia prodotto (LAC, Relazione, Esercizi oculari, Fattura)
+const PULIZIA_FLAG_EXCLUDED_TYPES = ['LAC', 'TALAC', 'REL', 'ES', 'FT', 'VFT'];
+
+const needsPuliziaFlag = (tipoLavorazione?: string | null): boolean => {
+  if (!tipoLavorazione) return true;
+  return !PULIZIA_FLAG_EXCLUDED_TYPES.includes(tipoLavorazione);
 };
 
 const getCategoryForBusta = (tipoLavorazione?: string | null): string => {
@@ -227,6 +232,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
   const [isLoadingLavorazioni, setIsLoadingLavorazioni] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [controlloCompletato, setControlloCompletato] = useState(false);
+  const [puliziaCompletata, setPuliziaCompletata] = useState(false);
   const [isMovingToReady, setIsMovingToReady] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [showCheckboxSection, setShowCheckboxSection] = useState(false);
@@ -364,7 +370,9 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
   });
   const allLavorazioniCompleted = lavorazioni.length > 0 && lavorazioni.every(lav => lav.stato === 'completato');
   const phoneRequirementSatisfied = !richiedeTelefonata || telefonataCompletata;
-  const controlloPrerequisitesMet = allChecklistsCompleted && allLavorazioniCompleted && phoneRequirementSatisfied;
+  const requiresPulizia = needsPuliziaFlag(busta.tipo_lavorazione);
+  const puliziaRequirementSatisfied = !requiresPulizia || puliziaCompletata;
+  const controlloPrerequisitesMet = allChecklistsCompleted && allLavorazioniCompleted && phoneRequirementSatisfied && puliziaRequirementSatisfied;
 
   // ===== EFFECTS =====
   useEffect(() => {
@@ -1903,6 +1911,37 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
         </div>
       )}
 
+      {/* 🧹 PULIZIA PRODOTTO - Flag obbligatorio prima del controllo qualità */}
+      {showCheckboxSection && requiresPulizia && !busta.controllo_completato && (
+        <div className={`rounded-lg shadow-sm border-2 p-5 ${
+          puliziaCompletata
+            ? 'bg-gradient-to-r from-sky-50 to-cyan-50 border-sky-400'
+            : 'bg-gradient-to-r from-sky-50 to-cyan-50 border-sky-200'
+        }`}>
+          <div className="flex items-start space-x-4">
+            <input
+              type="checkbox"
+              id="pulizia-prodotto"
+              checked={puliziaCompletata}
+              onChange={(e) => setPuliziaCompletata(e.target.checked)}
+              disabled={!canEdit || !allLavorazioniCompleted}
+              className="mt-1 h-6 w-6 text-sky-600 focus:ring-sky-500 border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <div className="flex-1">
+              <label
+                htmlFor="pulizia-prodotto"
+                className="text-lg font-semibold text-gray-900 select-none cursor-pointer"
+              >
+                Pulizia completa lenti e montatura
+              </label>
+              <p className="text-xs text-gray-600 mt-1">
+                Conferma che il prodotto è stato pulito accuratamente (lenti senza aloni, montatura pulita) prima del controllo qualità finale.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ✅ CHECKBOX CONTROLLO COMPLETATO - Always visible when relevant */}
       {showCheckboxSection && (
         <div className={`rounded-lg shadow-sm border-2 p-6 ${
@@ -1942,6 +1981,9 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
                   )}
                   {!allChecklistsCompleted && (
                     <p>Completa tutte le checklist associate alle lavorazioni.</p>
+                  )}
+                  {!puliziaRequirementSatisfied && (
+                    <p>Conferma la pulizia completa del prodotto prima del controllo finale.</p>
                   )}
                   {!phoneRequirementSatisfied && (
                     <p>Completa la telefonata richiesta al cliente.</p>
