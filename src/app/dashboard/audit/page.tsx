@@ -33,6 +33,7 @@ type AuditUserOption = {
 const TABLE_OPTIONS = [
   { value: '', label: 'Tutte le tabelle' },
   { value: 'buste', label: 'Buste' },
+  { value: 'kanban_diagnostics', label: 'Kanban Diagnostica' },
   { value: 'clienti', label: 'Clienti' },
   { value: 'ordini_materiali', label: 'Ordini Materiali' },
   { value: 'status_history', label: 'Storico Stati' },
@@ -98,8 +99,9 @@ const formatValue = (value: unknown) => {
 const getReadableLabel = (entry: AuditEntry) => {
   const metadata = entry.metadata ?? {};
   const busta = typeof (metadata as any)?.bustaReadableId === 'string' ? (metadata as any).bustaReadableId : null;
+  const readableId = typeof (metadata as any)?.readable_id === 'string' ? (metadata as any).readable_id : null;
   const recordLabel = typeof (metadata as any)?.recordLabel === 'string' ? (metadata as any).recordLabel : null;
-  return busta || recordLabel || entry.record_id || 'Record sconosciuto';
+  return busta || readableId || recordLabel || entry.record_id || 'Record sconosciuto';
 };
 
 const getClienteLabel = (entry: AuditEntry) => {

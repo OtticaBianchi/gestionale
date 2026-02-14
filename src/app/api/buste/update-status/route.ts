@@ -4,7 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
-import { logInsert, logUpdate } from '@/lib/audit/auditLog'
+import { logAuditChange, logInsert, logUpdate } from '@/lib/audit/auditLog'
 import {
   WorkflowState,
   isTransitionAllowed,
@@ -75,7 +75,74 @@ const removeFollowUpMarker = (note?: string | null): string | null => {
   return cleaned || null
 }
 
+const getRequestIp = (request: NextRequest): string | undefined => {
+  const forwarded = request.headers.get('x-forwarded-for')
+  if (forwarded) {
+    const first = forwarded.split(',')[0]?.trim()
+    if (first) return first
+  }
+  const realIp = request.headers.get('x-real-ip')?.trim()
+  return realIp || undefined
+}
+
+type KanbanDiagnosticInput = {
+  code: string
+  httpStatus: number
+  message?: string | null
+  userId?: string | null
+  userRole?: string | null
+  bustaId?: string | null
+  oldStatus?: WorkflowState | null
+  newStatus?: WorkflowState | null
+  tipoLavorazione?: string | null
+  extra?: Record<string, unknown>
+}
+
+const logKanbanDiagnostic = async (request: NextRequest, input: KanbanDiagnosticInput) => {
+  const result = await logAuditChange(
+    {
+      tableName: 'kanban_diagnostics',
+      recordId: input.bustaId || 'kanban-board',
+      action: 'INSERT',
+      userId: input.userId ?? null,
+      userRole: input.userRole ?? null,
+      reason: input.code,
+      metadata: {
+        source: 'api/buste/update-status',
+        stage: 'server',
+        http_status: input.httpStatus,
+        message: input.message || null,
+        busta_id: input.bustaId || null,
+        old_status: input.oldStatus || null,
+        new_status: input.newStatus || null,
+        tipo_lavorazione: input.tipoLavorazione || null,
+        ...(input.extra || {}),
+      },
+    },
+    {
+      logToConsole: false,
+      ipAddress: getRequestIp(request),
+      userAgent: request.headers.get('user-agent') || undefined,
+    }
+  )
+
+  if (!result.success) {
+    console.error('KANBAN_DIAGNOSTIC_LOG_FAILED', {
+      code: input.code,
+      bustaId: input.bustaId,
+      error: result.error,
+    })
+  }
+}
+
 export async function POST(request: NextRequest) {
+  let diagnosticUserId: string | null = null
+  let diagnosticUserRole: string | null = null
+  let diagnosticBustaId: string | null = null
+  let diagnosticOldStatus: WorkflowState | null = null
+  let diagnosticNewStatus: WorkflowState | null = null
+  let diagnosticTipoLavorazione: string | null = null
+
   try {
     const supabase = await createServerSupabaseClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -86,8 +153,16 @@ export async function POST(request: NextRequest) {
         timestamp: new Date().toISOString(),
       })
 
+      await logKanbanDiagnostic(request, {
+        code: 'KANBAN_AUTH_FAILURE',
+        httpStatus: 401,
+        message: authError?.message || 'Unauthorized',
+      })
+
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    diagnosticUserId = user.id
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -96,6 +171,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     const userRole = profile?.role ?? null
+    diagnosticUserRole = userRole
     const isAdmin = userRole === 'admin'
 
     const admin = createClient(
@@ -105,8 +181,24 @@ export async function POST(request: NextRequest) {
 
     const body: UpdateStatusPayload = await request.json()
     const { bustaId, oldStatus, newStatus, tipoLavorazione = null } = body
+    diagnosticBustaId = bustaId || null
+    diagnosticOldStatus = oldStatus || null
+    diagnosticNewStatus = newStatus || null
+    diagnosticTipoLavorazione = tipoLavorazione
 
     if (!bustaId || !oldStatus || !newStatus) {
+      await logKanbanDiagnostic(request, {
+        code: 'KANBAN_MISSING_REQUIRED_FIELDS',
+        httpStatus: 400,
+        message: 'Missing required fields',
+        userId: user.id,
+        userRole,
+        bustaId: bustaId || null,
+        oldStatus: oldStatus || null,
+        newStatus: newStatus || null,
+        tipoLavorazione,
+      })
+
       return NextResponse.json({
         error: 'Missing required fields',
       }, { status: 400 })
@@ -130,6 +222,18 @@ export async function POST(request: NextRequest) {
         tipoLavorazione,
       })
 
+      await logKanbanDiagnostic(request, {
+        code: 'KANBAN_TRANSITION_NOT_ALLOWED',
+        httpStatus: 400,
+        message: 'Transition not allowed',
+        userId: user.id,
+        userRole,
+        bustaId,
+        oldStatus,
+        newStatus,
+        tipoLavorazione,
+      })
+
       return NextResponse.json({
         error: 'Transition not allowed',
         reason: getTransitionReason(oldStatus, newStatus, tipoLavorazione),
@@ -143,6 +247,18 @@ export async function POST(request: NextRequest) {
         from: oldStatus,
         to: newStatus,
         userRole
+      })
+
+      await logKanbanDiagnostic(request, {
+        code: 'KANBAN_FORBIDDEN_ROLE',
+        httpStatus: 403,
+        message: 'Solo admin può eseguire questa transizione',
+        userId: user.id,
+        userRole,
+        bustaId,
+        oldStatus,
+        newStatus,
+        tipoLavorazione,
       })
 
       return NextResponse.json({
@@ -164,6 +280,19 @@ export async function POST(request: NextRequest) {
         bustaId,
         error: fetchError?.message
       })
+
+      await logKanbanDiagnostic(request, {
+        code: 'KANBAN_BUSTA_NOT_FOUND',
+        httpStatus: 404,
+        message: fetchError?.message || 'Busta non trovata',
+        userId: user.id,
+        userRole,
+        bustaId,
+        oldStatus,
+        newStatus,
+        tipoLavorazione,
+      })
+
       return NextResponse.json({ error: 'Busta non trovata' }, { status: 404 })
     }
 
@@ -200,6 +329,18 @@ export async function POST(request: NextRequest) {
         error: updateError.message,
       })
 
+      await logKanbanDiagnostic(request, {
+        code: 'KANBAN_DB_UPDATE_ERROR',
+        httpStatus: 500,
+        message: updateError.message,
+        userId: user.id,
+        userRole,
+        bustaId,
+        oldStatus,
+        newStatus,
+        tipoLavorazione,
+      })
+
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
@@ -209,6 +350,18 @@ export async function POST(request: NextRequest) {
         bustaId,
         from: oldStatus,
         to: newStatus,
+      })
+
+      await logKanbanDiagnostic(request, {
+        code: 'KANBAN_STATUS_CONFLICT',
+        httpStatus: 409,
+        message: 'Conflict: stato aggiornato da un altro utente',
+        userId: user.id,
+        userRole,
+        bustaId,
+        oldStatus,
+        newStatus,
+        tipoLavorazione,
       })
 
       return NextResponse.json({
@@ -446,6 +599,18 @@ export async function POST(request: NextRequest) {
     console.error('KANBAN_UPDATE_UNEXPECTED_ERROR', {
       message: error?.message,
       timestamp: new Date().toISOString(),
+    })
+
+    await logKanbanDiagnostic(request, {
+      code: 'KANBAN_UNEXPECTED_EXCEPTION',
+      httpStatus: 500,
+      message: error?.message || 'Unexpected error updating busta',
+      userId: diagnosticUserId,
+      userRole: diagnosticUserRole,
+      bustaId: diagnosticBustaId,
+      oldStatus: diagnosticOldStatus,
+      newStatus: diagnosticNewStatus,
+      tipoLavorazione: diagnosticTipoLavorazione,
     })
 
     return NextResponse.json({

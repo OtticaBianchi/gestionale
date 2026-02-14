@@ -47,6 +47,15 @@ interface KanbanBoardProps {
   buste: BustaWithCliente[];
 }
 
+type UpdateStatusResult =
+  | { ok: true }
+  | {
+      ok: false;
+      code: string;
+      httpStatus?: number;
+      message?: string;
+    };
+
 // Colonne Kanban in ordine (6 stati)
 const columns: (Database['public']['Tables']['buste']['Row']['stato_attuale'])[] = [
   'nuove',
@@ -321,6 +330,56 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
 
   const isAdmin = profile?.role === 'admin';
 
+  const logKanbanDiagnostic = useCallback((
+    code: string,
+    options: {
+      severity?: 'info' | 'warn' | 'error';
+      message?: string;
+      busta?: BustaWithCliente | null;
+      oldStatus?: string;
+      newStatus?: string;
+      httpStatus?: number;
+      context?: Record<string, unknown>;
+    } = {}
+  ) => {
+    const incidentId = `KBN-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const busta = options.busta || null;
+
+    const payload = {
+      code,
+      severity: options.severity || 'warn',
+      message: options.message || null,
+      bustaId: busta?.id || null,
+      readableId: busta?.readable_id || null,
+      oldStatus: options.oldStatus || null,
+      newStatus: options.newStatus || null,
+      tipoLavorazione: busta?.tipo_lavorazione || null,
+      incidentId,
+      context: {
+        http_status: options.httpStatus || null,
+        role: profile?.role || null,
+        is_online: navigator.onLine,
+        online_state: isOnline,
+        user_agent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        viewport: `${window.innerWidth}x${window.innerHeight}`,
+        ...(options.context || {}),
+      },
+    };
+
+    void fetch('/api/buste/diagnostics', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch((error) => {
+      console.warn('KANBAN_DIAGNOSTIC_CLIENT_LOG_FAILED', { code, incidentId, error });
+    });
+  }, [isOnline, profile?.role]);
+
   // Toggle expand/collapse card
   const handleToggleExpand = useCallback((bustaId: string) => {
     setExpandedCardId(prev => prev === bustaId ? null : bustaId);
@@ -544,16 +603,24 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     newStatus: WorkflowState,
     oldStatus: WorkflowState,
     tipoLavorazione: string | null
-  ): Promise<boolean> => {
+  ): Promise<UpdateStatusResult> => {
     if (!isOnline) {
       toast.error('Impossibile aggiornare - Modalità offline');
-      return false;
+      return {
+        ok: false,
+        code: 'CLIENT_OFFLINE',
+        message: 'Impossibile aggiornare - Modalità offline'
+      };
     }
 
     try {
       if (isAdminOnlyTransition(oldStatus, newStatus) && !isAdmin) {
         toast.error('Solo admin può eseguire questo movimento');
-        return false;
+        return {
+          ok: false,
+          code: 'CLIENT_ADMIN_ONLY_BLOCK',
+          message: 'Solo admin può eseguire questo movimento'
+        };
       }
 
       // ✅ VALIDAZIONE BUSINESS RULES
@@ -561,7 +628,11 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
       if (!allowed) {
         const reason = getTransitionReason(oldStatus, newStatus, tipoLavorazione);
         toast.error(`Movimento non permesso: ${reason}`);
-        return false;
+        return {
+          ok: false,
+          code: 'CLIENT_TRANSITION_NOT_ALLOWED',
+          message: reason
+        };
       }
 
       const response = await fetch('/api/buste/update-status', {
@@ -581,24 +652,44 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
 
       if (response.status === 401) {
         toast.error('Sessione scaduta - Effettua nuovamente il login')
-        return false
+        return {
+          ok: false,
+          code: 'HTTP_401',
+          httpStatus: 401,
+          message: 'Sessione scaduta'
+        }
       }
 
       if (response.status === 409) {
         toast.error('Questa busta è già stata aggiornata da un altro operatore')
-        return false
+        return {
+          ok: false,
+          code: 'HTTP_409',
+          httpStatus: 409,
+          message: payload?.error || 'Conflict stato busta'
+        }
       }
 
       if (response.status === 403) {
         toast.error(payload?.error || 'Permessi insufficienti per il movimento')
-        return false
+        return {
+          ok: false,
+          code: 'HTTP_403',
+          httpStatus: 403,
+          message: payload?.error || 'Permessi insufficienti'
+        }
       }
 
       if (!response.ok || !payload.success) {
         const message = payload?.error || 'Errore durante l\'aggiornamento'
         console.error('❌ Kanban API error:', payload)
         toast.error(message)
-        return false
+        return {
+          ok: false,
+          code: `HTTP_${response.status || 0}`,
+          httpStatus: response.status,
+          message
+        }
       }
 
       if (payload.historyWarning) {
@@ -606,11 +697,15 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
       }
 
       toast.success('Busta aggiornata con successo')
-      return true
+      return { ok: true }
     } catch (error) {
       console.error('❌ Error in updateBustaStatus:', error);
       toast.error('Errore durante l\'aggiornamento');
-      return false;
+      return {
+        ok: false,
+        code: 'CLIENT_NETWORK_EXCEPTION',
+        message: error instanceof Error ? error.message : 'Errore di rete'
+      };
     }
   }, [isAdmin, isOnline]);
 
@@ -713,6 +808,15 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
         originalOverId: over.id, 
         newStatus 
       });
+      logKanbanDiagnostic('DRAG_DROP_NON_COLUMN_TARGET', {
+        severity: 'warn',
+        message: 'Drop target non valido',
+        context: {
+          original_over_id: over.id,
+          new_status_raw: newStatus,
+          active_id: active.id,
+        },
+      });
       return;
     }
     
@@ -730,6 +834,15 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     if (!columns.includes(newStatus as any)) {
       console.log('❌ DRAG END: Invalid column', { newStatus, validColumns: columns });
       toast.error('Colonna non valida');
+      logKanbanDiagnostic('DRAG_DROP_INVALID_COLUMN', {
+        severity: 'warn',
+        message: 'Colonna non valida',
+        newStatus,
+        context: {
+          active_id: active.id,
+          valid_columns: columns,
+        },
+      });
       return;
     }
 
@@ -737,6 +850,14 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     if (!bustaDaAggiornare) {
       console.log('❌ DRAG END: Busta not found');
       toast.error('Busta non trovata');
+      logKanbanDiagnostic('DRAG_BUSTA_NOT_FOUND', {
+        severity: 'error',
+        message: 'Busta non trovata nel dataset client',
+        context: {
+          busta_id: bustaId,
+          active_id: active.id,
+        },
+      });
       return;
     }
 
@@ -757,6 +878,13 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
     const adminRequired = isAdminOnlyTransition(oldStatus, newStatus as WorkflowState);
     if (adminRequired && !isAdmin) {
       toast.error('❌ Solo admin può eseguire questo movimento', { duration: 4000 });
+      logKanbanDiagnostic('CLIENT_ADMIN_ONLY_BLOCK', {
+        severity: 'info',
+        message: 'Movimento bloccato: transizione solo admin',
+        busta: bustaDaAggiornare,
+        oldStatus,
+        newStatus,
+      });
       return;
     }
 
@@ -766,20 +894,27 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
       const reason = getTransitionReason(oldStatus, newStatus as WorkflowState, bustaDaAggiornare.tipo_lavorazione);
       console.log('❌ DRAG END: Business rule violation', { reason });
       toast.error(`❌ Movimento non permesso: ${reason}`, { duration: 4000 });
+      logKanbanDiagnostic('CLIENT_TRANSITION_NOT_ALLOWED', {
+        severity: 'info',
+        message: reason,
+        busta: bustaDaAggiornare,
+        oldStatus,
+        newStatus,
+      });
       return;
     }
 
     try {
       setIsUpdating(true);
       
-      const success = await updateBustaStatus(
+      const result = await updateBustaStatus(
         bustaId, 
         newStatus as WorkflowState, 
         oldStatus, 
         bustaDaAggiornare.tipo_lavorazione
       );
       
-      if (success) {
+      if (result.ok) {
         // ✅ SWR: Optimistic update + revalidation
         await mutate('/api/buste', 
           currentBuste.map(b => 
@@ -792,15 +927,31 @@ export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
         
         // ✅ Refresh dati dal server dopo un breve delay
         setTimeout(() => revalidate(), 500);
+      } else {
+        logKanbanDiagnostic(result.code, {
+          severity: result.httpStatus && result.httpStatus >= 500 ? 'error' : 'warn',
+          message: result.message,
+          busta: bustaDaAggiornare,
+          oldStatus,
+          newStatus,
+          httpStatus: result.httpStatus,
+        });
       }
       
     } catch (error: any) {
       console.error('❌ DRAG END: Error', error);
       toast.error(`Errore: ${error.message}`);
+      logKanbanDiagnostic('DRAG_END_EXCEPTION', {
+        severity: 'error',
+        message: error?.message || 'Eccezione in handleDragEnd',
+        busta: bustaDaAggiornare,
+        oldStatus,
+        newStatus,
+      });
     } finally {
       setIsUpdating(false);
     }
-  }, [currentBuste, updateBustaStatus, revalidate]);
+  }, [currentBuste, isAdmin, logKanbanDiagnostic, revalidate, updateBustaStatus]);
 
   // Trova la busta attiva per la drag overlay
   const activeBusta = activeId && currentBuste ? currentBuste.find(b => `busta-${b.id}` === activeId) : null;
