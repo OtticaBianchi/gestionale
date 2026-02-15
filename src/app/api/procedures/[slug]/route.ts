@@ -197,25 +197,34 @@ export async function PUT(
       return NextResponse.json({ error: 'Procedura non trovata' }, { status: 404 })
     }
 
-    // Generate new slug if title changed
-    let newSlug = slug
-    if (body.title && body.title !== existing.title) {
+    const valuesEqual = (a: any, b: any) => {
+      if (Array.isArray(a) || Array.isArray(b)) {
+        const arrA = Array.isArray(a) ? a : []
+        const arrB = Array.isArray(b) ? b : []
+        return JSON.stringify(arrA) === JSON.stringify(arrB)
+      }
+      return a === b
+    }
+
+    const changedFields = new Set<string>()
+    const updateData: Record<string, any> = {}
+
+    // Generate slug from title only when title is actually changed
+    let newSlug = existing.slug
+    if (typeof body.title === 'string' && body.title !== existing.title) {
       newSlug = body.title
         .toLowerCase()
         .replace(/[^a-z0-9\s-]/g, '')
         .replace(/\s+/g, '-')
         .trim()
+
+      if (newSlug !== existing.slug) {
+        updateData.slug = newSlug
+        changedFields.add('slug')
+      }
     }
 
-    // Only include fields that should be updated (exclude read-only and relation fields)
-    const updateData: any = {
-      slug: newSlug,
-      updated_by: user.id,
-      last_reviewed_at: new Date().toISOString().split('T')[0],
-      last_reviewed_by: user.id
-    }
-
-    // Add only the fields that are allowed to be updated
+    // Add only fields that are explicitly provided and changed
     const allowedFields = [
       'title',
       'description',
@@ -230,11 +239,36 @@ export async function PUT(
       'mini_help_action'
     ]
 
-    allowedFields.forEach(field => {
+    allowedFields.forEach((field) => {
       if (field in body) {
-        updateData[field] = body[field]
+        const nextValue = body[field]
+        const prevValue = (existing as any)[field]
+        if (!valuesEqual(nextValue, prevValue)) {
+          updateData[field] = nextValue
+          changedFields.add(field)
+        }
       }
     })
+
+    // Avoid false "updated/unread" state when save is pressed without real changes.
+    if (changedFields.size === 0) {
+      return NextResponse.json({
+        success: true,
+        data: existing,
+        message: 'Nessuna modifica rilevata'
+      })
+    }
+
+    updateData.updated_by = user.id
+
+    // Only refresh review metadata when core procedure content changed.
+    const contentAffectingChanges = ['title', 'description', 'content']
+      .some((field) => changedFields.has(field))
+
+    if (contentAffectingChanges) {
+      updateData.last_reviewed_at = new Date().toISOString().split('T')[0]
+      updateData.last_reviewed_by = user.id
+    }
 
     const { data: updatedProcedure, error: updateError } = await adminClient
       .from('procedures')

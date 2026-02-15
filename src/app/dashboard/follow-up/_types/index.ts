@@ -3,6 +3,7 @@ export type CallStatus =
   | 'chiamato_completato'
   | 'non_vuole_essere_contattato'
   | 'non_risponde'
+  | 'cellulare_staccato'
   | 'numero_sbagliato'
   | 'richiamami'
 
@@ -113,6 +114,7 @@ export const CALL_STATUS_LABELS: Record<CallStatus, string> = {
   chiamato_completato: 'Chiamata completata',
   non_vuole_essere_contattato: 'Non vuole essere contattato',
   non_risponde: 'Non risponde',
+  cellulare_staccato: 'Cellulare staccato',
   numero_sbagliato: 'Numero sbagliato',
   richiamami: 'Richiamami più tardi'
 }
@@ -145,5 +147,6 @@ export const ORIGIN_LABELS: Record<CallOrigin, string> = {
 export const COMPLETED_CALL_STATES: CallStatus[] = [
   'chiamato_completato',
   'non_vuole_essere_contattato',
+  'cellulare_staccato',
   'numero_sbagliato'
 ]

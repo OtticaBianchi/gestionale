@@ -48,6 +48,7 @@ export async function GET(request: Request) {
           cliente_id,
           readable_id,
           updated_at,
+          data_completamento_consegna,
           tipo_lavorazione,
           clienti!inner (
             nome,
@@ -78,7 +79,7 @@ export async function GET(request: Request) {
 
     // Filter out completed calls from the active list unless explicitly requested
     if (!includeCompleted) {
-      const completedStates = ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato']
+      const completedStates = ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato', 'cellulare_staccato']
       query = query.not('stato_chiamata', 'in', `(${completedStates.join(',')})`)
     }
 
@@ -93,7 +94,7 @@ export async function GET(request: Request) {
     const processedCalls = chiamate?.map(chiamata => {
       const busta = chiamata.buste
       const cliente = busta.clienti
-      const dataConsegna = new Date(busta.updated_at || Date.now())
+      const dataConsegna = new Date(busta.data_completamento_consegna || busta.updated_at || Date.now())
       const giorniTrascorsi = Math.floor((Date.now() - dataConsegna.getTime()) / (1000 * 60 * 60 * 24))
 
       // Determina tipo acquisto

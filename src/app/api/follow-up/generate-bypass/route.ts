@@ -4,12 +4,27 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 // BYPASS endpoint for testing follow-up generation with minimal filters
 export async function POST() {
   try {
+    // Endpoint di diagnostica: non deve essere disponibile in produzione.
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
     const supabase = await createServerSupabaseClient()
 
     // Verifica autenticazione
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || profile.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     console.log('🚀 BYPASS: Starting minimal follow-up generation...')
@@ -228,17 +243,4 @@ export async function POST() {
       { status: 500 }
     )
   }
-}
-
-// Helper functions (simplified versions)
-function getTipoAcquisto(tipoLavorazione: string | null): string {
-  const mapping: Record<string, string> = {
-    'OCV': 'Occhiali Completi',
-    'OV': 'Occhiali da Vista',
-    'OS': 'Occhiali da Sole',
-    'LAC': 'Lenti a Contatto',
-    'TALAC': 'Lenti a Contatto',
-    'LV': 'Lenti da Vista'
-  }
-  return mapping[tipoLavorazione || ''] || tipoLavorazione || 'N/A'
 }

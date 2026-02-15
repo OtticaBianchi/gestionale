@@ -289,7 +289,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
   const validateWorkType = (): Database['public']['Enums']['work_type'] | null => {
     const validWorkTypes = [
       'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'TALAC', 'ACC', 'RIC', 'LAB',
-      'SA', 'SG', 'CT', 'BR', 'SPRT', 'ES', 'REL', 'FT', 'VFT'
+      'SA', 'SG', 'CT', 'BR', 'SPRT', 'ES', 'REL', 'FT', 'VFT', 'VC'
     ] as const;
 
     if (!editForm.tipo_lavorazione || editForm.tipo_lavorazione.trim() === '') {
@@ -365,6 +365,42 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
       const riesameDate = editForm.is_suspended && sospensioneDate
         ? (editForm.data_riesame_sospensione || addDaysToInputValue(sospensioneDate, 3))
         : null;
+      const originalPhoneNormalized = (busta.clienti?.telefono || '').replace(/\D/g, '');
+      const editedPhoneRaw = editForm.cliente_telefono.trim();
+      const editedPhoneNormalized = editedPhoneRaw.replace(/\D/g, '');
+      const hasOriginalPhone = originalPhoneNormalized.length > 0;
+      const hasEditedPhone = editedPhoneNormalized.length > 0;
+      const phoneChanged = editedPhoneNormalized !== originalPhoneNormalized;
+
+      // Preserve customer matching quality: prevent removing an existing phone number.
+      if (hasOriginalPhone && !hasEditedPhone) {
+        throw new Error(
+          'Il telefono non puo essere rimosso: inserisci un numero valido oppure 0000000 se non disponibile'
+        );
+      }
+
+      const shouldIncludePhone = phoneChanged || (!hasOriginalPhone && hasEditedPhone);
+      type ClientePayloadForSave = {
+        id?: string;
+        nome: string;
+        cognome: string;
+        genere: string | null;
+        email: string | null;
+        note_cliente: string | null;
+        telefono?: string | null;
+      };
+      const clientePayload: ClientePayloadForSave = {
+        id: busta.clienti?.id,
+        nome: editForm.cliente_nome.trim(),
+        cognome: editForm.cliente_cognome.trim(),
+        genere: editForm.cliente_genere,
+        email: editForm.cliente_email.trim() || null,
+        note_cliente: editForm.cliente_note.trim() || null,
+      };
+
+      if (shouldIncludePhone) {
+        clientePayload.telefono = hasEditedPhone ? editedPhoneRaw : null;
+      }
 
       const payload = {
         tipo_lavorazione: tipoLavorazioneValue,
@@ -373,15 +409,7 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
         is_suspended: editForm.is_suspended,
         data_sospensione: sospensioneDate,
         data_riesame_sospensione: riesameDate,
-        cliente: {
-          id: busta.clienti?.id,
-          nome: editForm.cliente_nome.trim(),
-          cognome: editForm.cliente_cognome.trim(),
-          genere: editForm.cliente_genere,
-          telefono: editForm.cliente_telefono.trim() || null,
-          email: editForm.cliente_email.trim() || null,
-          note_cliente: editForm.cliente_note.trim() || null,
-        }
+        cliente: clientePayload
       };
 
       const response = await fetch(`/api/buste/${busta.id}/anagrafica`, {

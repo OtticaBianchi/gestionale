@@ -12,6 +12,29 @@ import {
   isOtticaBianchiName
 } from '@/lib/clients/phoneRules'
 
+const WORK_TYPE_DESCRIPTIONS: Record<string, string> = {
+  OCV: 'Occhiale da vista completo',
+  OV: 'Montatura',
+  OS: 'Occhiale da sole',
+  LV: 'Lenti da vista',
+  LS: 'Lenti da sole',
+  LAC: 'Lenti a contatto',
+  TALAC: 'Training Applicativo LAC',
+  ACC: 'Accessori',
+  RIC: 'Ricambio',
+  LAB: 'Laboratorio',
+  SA: 'Sostituzione Anticipata',
+  SG: 'Sostituzione in Garanzia',
+  CT: 'Controllo tecnico',
+  BR: 'Buono Regalo',
+  SPRT: 'Sport',
+  ES: 'Esercizi oculari',
+  REL: 'Relazione',
+  FT: 'Fattura',
+  VFT: 'Verifica Fattibilità Tecnica',
+  VC: 'Visita Controllo'
+}
+
 interface ClientePayload {
   id?: string
   nome?: string
@@ -48,6 +71,26 @@ const capitalizeNameProperly = (name: string): string => {
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ');
 };
+
+const ensureWorkTypeCatalogEntry = async (
+  admin: any,
+  workType: string
+) => {
+  const codice = workType.trim().toUpperCase()
+  if (!codice) return
+
+  const descrizione = WORK_TYPE_DESCRIPTIONS[codice] || codice
+  const { error } = await admin
+    .from('tipi_lavorazione')
+    .upsert(
+      { codice, descrizione },
+      { onConflict: 'codice', ignoreDuplicates: false }
+    )
+
+  if (error) {
+    console.error('WORK_TYPE_CATALOG_UPSERT_FAILED', { codice, error })
+  }
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -135,6 +178,10 @@ export async function PATCH(
 
     let updatedBusta = existingBusta
     if (Object.keys(fieldsToUpdate).length > 0) {
+      if (typeof fieldsToUpdate.tipo_lavorazione === 'string' && fieldsToUpdate.tipo_lavorazione.trim() !== '') {
+        await ensureWorkTypeCatalogEntry(admin, fieldsToUpdate.tipo_lavorazione)
+      }
+
       const { data, error: updateBustaError } = await admin
         .from('buste')
         .update({
@@ -148,7 +195,11 @@ export async function PATCH(
 
       if (updateBustaError || !data) {
         console.error('Errore aggiornamento busta:', updateBustaError)
-        return NextResponse.json({ error: 'Errore aggiornamento busta' }, { status: 500 })
+        return NextResponse.json({
+          error: updateBustaError?.message || 'Errore aggiornamento busta',
+          details: updateBustaError?.details || updateBustaError?.hint || null,
+          code: updateBustaError?.code || null
+        }, { status: 500 })
       }
 
       updatedBusta = data

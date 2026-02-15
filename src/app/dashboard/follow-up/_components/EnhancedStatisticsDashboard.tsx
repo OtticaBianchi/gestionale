@@ -69,10 +69,10 @@ export function EnhancedStatisticsDashboard({
           const operatorsMap = new Map<string, { id: string; full_name: string }>()
 
           data.data.forEach((stat: any) => {
-            if (stat.operatore_id && stat.profiles?.full_name) {
+            if (stat.operatore_id && stat.operatore_nome) {
               operatorsMap.set(stat.operatore_id, {
                 id: stat.operatore_id,
-                full_name: stat.profiles.full_name
+                full_name: stat.operatore_nome
               })
             }
           })

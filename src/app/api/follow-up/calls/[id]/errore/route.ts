@@ -12,6 +12,12 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import { logInsert, logUpdate } from '@/lib/audit/auditLog';
 import { calculateImpattoCliente } from '@/lib/fu2/categorizeCustomer';
+import {
+  calculateAssegnazioneColpa,
+  type CausaErrore,
+  type ImpattoCliente,
+  type ProceduraFlag,
+} from '@/lib/et2/assegnazioneColpa';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -45,8 +51,13 @@ export async function POST(
       return NextResponse.json({ error: 'Profilo non trovato' }, { status: 404 });
     }
 
+    const allowedRoles = new Set(['admin', 'manager', 'operatore']);
+    if (!profile.role || !allowedRoles.has(profile.role)) {
+      return NextResponse.json({ error: 'Accesso non autorizzato' }, { status: 403 });
+    }
+
     // Parse request body
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const {
       error_type,
       error_category,
@@ -57,18 +68,10 @@ export async function POST(
       causa_errore,
     } = body;
 
-    const validCause = ['cliente', 'interno', 'esterno', 'non_identificabile'];
-    const normalizedCause =
-      typeof causa_errore === 'string' && validCause.includes(causa_errore)
-        ? causa_errore
-        : null;
-
-    // Validate required fields
-    if (!error_type || !error_category || !error_description) {
+    if (!error_description || typeof error_description !== 'string' || !error_description.trim()) {
       return NextResponse.json(
         {
-          error:
-            'Campi obbligatori mancanti: error_type, error_category, error_description',
+          error: 'Campo obbligatorio mancante: error_description',
         },
         { status: 400 }
       );
@@ -121,6 +124,55 @@ export async function POST(
       );
     }
 
+    const validErrorTypes = new Set([
+      'anagrafica_cliente',
+      'materiali_ordine',
+      'comunicazione_cliente',
+      'misurazioni_vista',
+      'controllo_qualita',
+      'consegna_prodotto',
+      'gestione_pagamenti',
+      'voice_note_processing',
+      'busta_creation',
+      'post_vendita',
+      'altro',
+    ]);
+    const normalizedErrorType =
+      typeof error_type === 'string' && validErrorTypes.has(error_type)
+        ? error_type
+        : 'post_vendita';
+
+    const validErrorCategories = new Set(['critico', 'medio', 'basso']);
+    const fallbackCategory =
+      followUp.livello_soddisfazione === 'insoddisfatto' ? 'critico' : 'medio';
+    const normalizedErrorCategory =
+      typeof error_category === 'string' && validErrorCategories.has(error_category)
+        ? error_category
+        : fallbackCategory;
+
+    const validCause = new Set(['cliente', 'interno', 'esterno', 'non_identificabile']);
+    const normalizedCause: CausaErrore =
+      typeof causa_errore === 'string' && validCause.has(causa_errore)
+        ? (causa_errore as CausaErrore)
+        : operatore_coinvolto
+        ? 'interno'
+        : 'non_identificabile';
+
+    const validProcedureFlags = new Set([
+      'procedura_presente',
+      'procedura_imprecisa',
+      'procedura_assente',
+    ]);
+    const normalizedProceduraFlag: ProceduraFlag =
+      typeof procedura_flag === 'string' && validProcedureFlags.has(procedura_flag)
+        ? (procedura_flag as ProceduraFlag)
+        : 'procedura_presente';
+
+    const normalizedOperatoreCoinvolto =
+      normalizedCause === 'interno' && typeof operatore_coinvolto === 'string' && operatore_coinvolto
+        ? operatore_coinvolto
+        : null;
+
     // Get busta total value for impatto calculation
     const { data: infoPagamenti } = await adminClient
       .from('info_pagamenti')
@@ -130,23 +182,35 @@ export async function POST(
 
     const ticketValue = infoPagamenti?.totale || 0;
 
-    // Calculate impatto_cliente if not provided
-    const finalImpatto =
-      impatto_cliente || calculateImpattoCliente(ticketValue);
+    const validImpatto = new Set(['basso', 'medio', 'alto']);
+    const finalImpatto: ImpattoCliente =
+      typeof impatto_cliente === 'string' && validImpatto.has(impatto_cliente)
+        ? (impatto_cliente as ImpattoCliente)
+        : calculateImpattoCliente(ticketValue);
 
     // Extract cliente_id from nested structure
     const cliente = (followUp.busta as any)?.clienti;
     const cliente_id = cliente?.id || (followUp.busta as any)?.cliente_id;
+
+    const assegnazioneColpa = calculateAssegnazioneColpa({
+      step_workflow: 'follow_up',
+      intercettato_da: 'ob_follow_up',
+      procedura_flag: normalizedProceduraFlag,
+      impatto_cliente: finalImpatto,
+      causa_errore: normalizedCause,
+      operatore_coinvolto: normalizedOperatoreCoinvolto,
+      creato_da_followup: true,
+    });
 
     // Create error via error-tracking API logic (reuse existing cost calculation)
     // We'll call the error-tracking API internally
     const errorPayload = {
       busta_id: followUp.busta_id,
       // Avoid forced blame when the responsible operator is unknown.
-      employee_id: operatore_coinvolto || null,
+      employee_id: normalizedOperatoreCoinvolto,
       cliente_id,
-      error_type,
-      error_category,
+      error_type: normalizedErrorType,
+      error_category: normalizedErrorCategory,
       error_description,
       cost_type: 'estimate',
       client_impacted: true, // Always true for follow-up generated errors
@@ -156,10 +220,11 @@ export async function POST(
       // ET2.0 fields - prepopulated as per PRD Section 3.3
       step_workflow: 'follow_up',
       intercettato_da: 'ob_follow_up',
-      procedura_flag,
+      procedura_flag: normalizedProceduraFlag,
       impatto_cliente: finalImpatto,
-      causa_errore: normalizedCause || (operatore_coinvolto ? 'interno' : 'non_identificabile'),
-      operatore_coinvolto,
+      causa_errore: normalizedCause,
+      operatore_coinvolto: normalizedOperatoreCoinvolto,
+      assegnazione_colpa: assegnazioneColpa,
       creato_da_followup: true,
     };
 

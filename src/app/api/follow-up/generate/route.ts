@@ -116,23 +116,21 @@ export async function POST() {
       console.log('📋 DEBUG: Sample busta:', JSON.stringify(fallbackData[0], null, 2))
     }
 
-    // Recupera le buste già in follow-up per escluderle
-    // Stati che NON devono riapparire: da_chiamare, chiamato_completato, non_vuole_essere_contattato, numero_sbagliato
-    // Stati che devono continuare ad apparire: non_risponde, richiamami (cliente temporaneamente non disponibile)
+    // Recupera le buste già in follow-up ATTIVE per escluderle dalla rigenerazione.
+    // In questo modo evitiamo duplicati (es. non_risponde/richiamami) quando si rilancia "Genera Lista".
     const { data: existingFollowUps } = await supabase
       .from('follow_up_chiamate')
       .select('busta_id')
-      .in('stato_chiamata', ['da_chiamare', 'chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato'])
+      .or('archiviato.is.null,archiviato.eq.false')
 
     const existingBusteIds = new Set(existingFollowUps?.map(f => f.busta_id) || [])
-    console.log('🚫 DEBUG: Found', existingBusteIds.size, 'buste with final/completed states to exclude')
+    console.log('🚫 DEBUG: Found', existingBusteIds.size, 'active follow-up buste to exclude')
 
     // Processa i dati manualmente
     const safeData = Array.isArray(fallbackData) ? fallbackData : []
     const processedData = safeData
       .filter(busta => {
-        // Esclude buste già presenti con stati: da_chiamare, chiamato_completato, non_vuole_essere_contattato, numero_sbagliato
-        // Le buste con stati temporanei (non_risponde, richiamami) continuano ad apparire perché il cliente potrebbe rispondere successivamente
+        // Esclude tutte le buste già presenti in follow-up attivo per evitare duplicazioni.
         if (existingBusteIds.has(busta.id)) {
           return false
         }
@@ -157,20 +155,12 @@ export async function POST() {
       })
       .map(busta => {
         const cliente = Array.isArray(busta.clienti) ? busta.clienti[0] : busta.clienti
-        const materiali = (Array.isArray(busta.materiali) ? busta.materiali : [busta.materiali]) as Array<{
-          tipo?: string | null
-          primo_acquisto_lac?: boolean | null
-        }>
         const infoPagamenti = Array.isArray(busta.info_pagamenti) ? busta.info_pagamenti[0] : busta.info_pagamenti
         const ordiniMateriali = (Array.isArray(busta.ordini_materiali)
           ? busta.ordini_materiali
           : (busta.ordini_materiali ? [busta.ordini_materiali] : [])) as Array<{
           descrizione_prodotto?: string | null
         }>
-
-        const hasPrimoAcquistoLAC = materiali?.some(m =>
-          m?.tipo === 'LAC' && m?.primo_acquisto_lac === true
-        ) || false
 
         const prezzoFinale = infoPagamenti?.prezzo_finale || 0
 
@@ -182,8 +172,7 @@ export async function POST() {
 
         const priorita = calcolaPriorità(
           prezzoFinale,
-          busta.tipo_lavorazione,
-          hasPrimoAcquistoLAC
+          busta.tipo_lavorazione
         )
         const dataConsegna = new Date(busta.data_completamento_consegna || busta.updated_at || Date.now())
         const giorniTrascorsi = Math.floor((Date.now() - dataConsegna.getTime()) / (1000 * 60 * 60 * 24))
@@ -224,14 +213,57 @@ export async function POST() {
         origine: 'post_vendita'
       }))
 
-      const { error: insertError } = await supabase
-        .from('follow_up_chiamate')
-        .insert(insertsData)
+      let insertedCount = 0
+      let skippedDuplicateCount = 0
+      let insertMode: 'upsert' | 'fallback' | 'error' = 'upsert'
 
-      if (insertError) {
-        console.error('Errore inserimento follow-up:', insertError)
-        // Non blocchiamo, restituiamo comunque i dati
+      const { data: upsertedRows, error: upsertError } = await supabase
+        .from('follow_up_chiamate')
+        .upsert(insertsData, {
+          onConflict: 'busta_id',
+          ignoreDuplicates: true
+        })
+        .select('id')
+
+      if (!upsertError) {
+        insertedCount = upsertedRows?.length || 0
+      } else {
+        const errorCode = upsertError.code || ''
+        const shouldFallback = errorCode === '42P10' || errorCode === '23505'
+
+        if (!shouldFallback) {
+          insertMode = 'error'
+          console.error('Errore upsert follow-up:', upsertError)
+        } else {
+          insertMode = 'fallback'
+          console.warn('Upsert non disponibile, fallback a insert controllata:', upsertError)
+
+          for (const row of insertsData) {
+            const { error: rowError } = await supabase
+              .from('follow_up_chiamate')
+              .insert(row)
+
+            if (!rowError) {
+              insertedCount += 1
+              continue
+            }
+
+            if (rowError.code === '23505') {
+              skippedDuplicateCount += 1
+              continue
+            }
+
+            console.error('Errore insert singola follow-up:', rowError)
+          }
+        }
       }
+
+      console.log('📥 DEBUG: Insert result', {
+        attempted: insertsData.length,
+        inserted: insertedCount,
+        skippedDuplicate: skippedDuplicateCount,
+        mode: insertMode
+      })
     }
 
     console.log('🎯 DEBUG: Final processed data count:', processedData.length)
@@ -262,8 +294,7 @@ export async function POST() {
 // Funzioni helper
 function calcolaPriorità(
   prezzoFinale: number,
-  tipoLavorazione: string | null,
-  haPrimoAcquistoLAC: boolean
+  tipoLavorazione: string | null
 ): 'alta' | 'normale' | 'bassa' {
   if (!tipoLavorazione) return 'bassa'
   const tipo = tipoLavorazione === 'TALAC' ? 'LAC' : tipoLavorazione

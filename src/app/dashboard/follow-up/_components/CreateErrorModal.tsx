@@ -40,9 +40,11 @@ export function CreateErrorModal({
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState({
     error_description: '',
+    error_type: 'post_vendita',
+    error_category: 'medio',
     // ET2.0 Fields - pre-filled for follow-up context
     step_workflow: 'follow_up', // Pre-filled since this comes from follow-up
-    intercettato_da: 'cliente', // Pre-filled since customer reported during follow-up
+    intercettato_da: 'ob_follow_up', // Fixed for FU2 flow
     procedura_flag: '',
     impatto_cliente: 'alto', // Pre-filled as alto since customer is dissatisfied
     causa_errore: 'non_identificabile',
@@ -79,6 +81,8 @@ export function CreateErrorModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          error_type: formData.error_type,
+          error_category: formData.error_category,
           error_description: formData.error_description,
           step_workflow: formData.step_workflow,
           intercettato_da: formData.intercettato_da,
@@ -129,11 +133,48 @@ export function CreateErrorModal({
             <div className="text-sm text-blue-800 space-y-1">
               <div>Cliente: <strong>{clienteCognome} {clienteNome}</strong></div>
               <div>Busta: <strong>{readableId}</strong></div>
+              <div className="text-xs text-blue-700">ID interno: {bustaId}</div>
               <div>Soddisfazione: <strong className="text-red-600">{livelloSoddisfazione}</strong></div>
             </div>
           </div>
 
           {/* Error Description */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tipo Errore <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.error_type}
+                onChange={(e) => setFormData(prev => ({ ...prev, error_type: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="post_vendita">Post-Vendita</option>
+                <option value="comunicazione_cliente">Comunicazione Cliente</option>
+                <option value="controllo_qualita">Controllo Qualita</option>
+                <option value="consegna_prodotto">Consegna Prodotto</option>
+                <option value="altro">Altro</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Gravita <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={formData.error_category}
+                onChange={(e) => setFormData(prev => ({ ...prev, error_category: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              >
+                <option value="basso">Basso</option>
+                <option value="medio">Medio</option>
+                <option value="critico">Critico</option>
+              </select>
+            </div>
+          </div>
+
           <div>
             <label htmlFor="error-description" className="block text-sm font-medium text-gray-700 mb-2">
               Descrizione del Problema Segnalato dal Cliente *
@@ -156,50 +197,38 @@ export function CreateErrorModal({
             </h3>
 
             <div className="grid grid-cols-2 gap-4">
-              {/* Step Workflow - Pre-filled but editable */}
+              {/* Step Workflow - Fixed for FU2 flow */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Fase Workflow <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={formData.step_workflow}
-                  onChange={(e) => setFormData({ ...formData, step_workflow: e.target.value })}
+                  disabled
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 >
-                  <option value="accoglienza">Accoglienza</option>
-                  <option value="pre_controllo">Pre-Controllo</option>
-                  <option value="sala_controllo">Sala Controllo</option>
-                  <option value="preventivo_vendita">Preventivo/Vendita</option>
-                  <option value="ordine_materiali">Ordine Materiali</option>
-                  <option value="lavorazione">Lavorazione</option>
-                  <option value="controllo_qualita">Controllo Qualità</option>
-                  <option value="consegna">Consegna</option>
-                  <option value="post_vendita">Post-Vendita</option>
                   <option value="follow_up">Follow-Up</option>
                 </select>
                 <p className="text-xs text-blue-600 mt-1">
-                  Pre-impostato su "Follow-Up" (modificabile)
+                  Valore fisso per errori creati da follow-up
                 </p>
               </div>
 
-              {/* Intercettato Da - Pre-filled but editable */}
+              {/* Intercettato Da - Fixed for FU2 flow */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Intercettato Da
                 </label>
                 <select
                   value={formData.intercettato_da}
-                  onChange={(e) => setFormData({ ...formData, intercettato_da: e.target.value })}
+                  disabled
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="cliente">Cliente</option>
-                  <option value="ob_controllo_qualita">OB - Controllo Qualità</option>
-                  <option value="ob_processo">OB - Durante Processo</option>
                   <option value="ob_follow_up">OB - Follow-Up</option>
                 </select>
                 <p className="text-xs text-blue-600 mt-1">
-                  Pre-impostato su "Cliente" (modificabile)
+                  Valore fisso per errori generati in contesto FU2
                 </p>
               </div>
 
@@ -236,7 +265,7 @@ export function CreateErrorModal({
                   <option value="alto">🔴 Alto</option>
                 </select>
                 <p className="text-xs text-blue-600 mt-1">
-                  Pre-impostato su "Alto" per clienti insoddisfatti
+                  Pre-impostato su &quot;Alto&quot; per clienti insoddisfatti
                 </p>
               </div>
 
@@ -279,7 +308,7 @@ export function CreateErrorModal({
           <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
             <p className="text-sm text-yellow-800">
               ℹ️ Questo errore sarà automaticamente collegato alla chiamata di follow-up e alla busta del cliente.
-              I campi ET2.0 sono pre-compilati in base al contesto del follow-up ma possono essere modificati.
+              I campi ET2.0 principali sono pre-impostati in base al contesto FU2; puoi completare classificazione e causa.
             </p>
           </div>
 

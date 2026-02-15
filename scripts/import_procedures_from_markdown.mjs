@@ -287,14 +287,43 @@ function extractMiniHelp(content) {
   }
 }
 
-function extractLastReviewedAt(content) {
-  const dateMatch = content.match(/Ultima\s+revisione:\s*(\d{2})\/(\d{2})\/(\d{4})/i)
-  if (!dateMatch) {
-    return new Date().toISOString().split('T')[0]
+function toIsoDate(year, month, day) {
+  const y = Number(year)
+  const m = Number(month)
+  const d = Number(day)
+
+  if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) {
+    return null
   }
 
-  const [, day, month, year] = dateMatch
-  return `${year}-${month}-${day}`
+  const date = new Date(Date.UTC(y, m - 1, d))
+  if (
+    date.getUTCFullYear() !== y ||
+    date.getUTCMonth() !== m - 1 ||
+    date.getUTCDate() !== d
+  ) {
+    return null
+  }
+
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+function extractLastReviewedAt(content, fallback = null) {
+  const dmyMatch = content.match(/Ultima\s+revisione:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/i)
+  if (dmyMatch) {
+    const [, day, month, year] = dmyMatch
+    const parsed = toIsoDate(year, month, day)
+    if (parsed) return parsed
+  }
+
+  const ymdMatch = content.match(/Ultima\s+revisione:\s*(\d{4})-(\d{2})-(\d{2})/i)
+  if (ymdMatch) {
+    const [, year, month, day] = ymdMatch
+    const parsed = toIsoDate(year, month, day)
+    if (parsed) return parsed
+  }
+
+  return fallback
 }
 
 function buildSearchTags(slug, tags, title) {
@@ -355,7 +384,7 @@ function extractMetadata(content) {
 async function loadExistingProcedures() {
   const { data, error } = await supabase
     .from('procedures')
-    .select('id, slug, content')
+    .select('id, slug, content, last_reviewed_at')
 
   if (error) {
     throw new Error(`Failed to load existing procedures: ${error.message}`)
@@ -363,7 +392,11 @@ async function loadExistingProcedures() {
 
   const map = new Map()
   data.forEach((row) => {
-    map.set(row.slug, { id: row.id, content: row.content })
+    map.set(row.slug, {
+      id: row.id,
+      content: row.content,
+      last_reviewed_at: row.last_reviewed_at ?? null
+    })
   })
   return map
 }
@@ -421,7 +454,7 @@ async function main() {
     const target_roles = pickRoles(tags)
     const description = extractDescription(content)
     const { mini_help_title, mini_help_summary, mini_help_action } = extractMiniHelp(content)
-    const last_reviewed_at = extractLastReviewedAt(content)
+    const last_reviewed_at = extractLastReviewedAt(content, existing?.last_reviewed_at ?? null)
     const search_tags = buildSearchTags(slug, tags, title)
     const metadata = extractMetadata(content)
 

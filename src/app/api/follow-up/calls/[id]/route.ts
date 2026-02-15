@@ -103,6 +103,7 @@ export async function PATCH(
     if (updateData.stato_chiamata && [
       'chiamato_completato',
       'non_vuole_essere_contattato',
+      'cellulare_staccato',
       'numero_sbagliato'
     ].includes(updateData.stato_chiamata)) {
       patch.data_chiamata = now
@@ -111,6 +112,11 @@ export async function PATCH(
       // ✅ AUTO-ADD NOTES for specific states
       if (updateData.stato_chiamata === 'non_vuole_essere_contattato') {
         const autoNote = 'Il cliente chiede di non essere disturbato.'
+        patch.note_chiamata = updateData.note_chiamata
+          ? `${updateData.note_chiamata}\n${autoNote}`
+          : autoNote
+      } else if (updateData.stato_chiamata === 'cellulare_staccato') {
+        const autoNote = 'Cellulare spento o irraggiungibile durante il tentativo di contatto.'
         patch.note_chiamata = updateData.note_chiamata
           ? `${updateData.note_chiamata}\n${autoNote}`
           : autoNote
@@ -135,7 +141,7 @@ export async function PATCH(
     // Categorize if:
     // 1. Satisfaction level is being set (for completed calls)
     // 2. OR stato_chiamata indicates a terminal state (perso, non_risponde, etc.)
-    const terminalStates = ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato'];
+    const terminalStates = ['chiamato_completato', 'non_vuole_essere_contattato', 'cellulare_staccato', 'numero_sbagliato'];
     const shouldCategorize =
       (updateData.livello_soddisfazione && finalStato === 'chiamato_completato') ||
       (updateData.stato_chiamata && terminalStates.includes(updateData.stato_chiamata));
@@ -315,7 +321,7 @@ export async function PATCH(
       }
     }
 
-    const completedStates = ['chiamato_completato', 'non_vuole_essere_contattato', 'numero_sbagliato']
+    const completedStates = ['chiamato_completato', 'non_vuole_essere_contattato', 'cellulare_staccato', 'numero_sbagliato']
     if (finalOrigine === 'tecnico' && completedStates.includes(finalStato)) {
       try {
         const completedAt = patch.data_chiamata || now

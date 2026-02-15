@@ -222,11 +222,18 @@ function LoginForm() {
 
         <div className="mt-6 border-t border-slate-200 pt-6">
           <div className="mb-2 text-center text-xs text-slate-400">
-            Versione 4.3.6
+            Versione 4.3.7
           </div>
           <div className="text-xs text-slate-500">
             <div className="text-center font-medium text-slate-600">Ultimi aggiornamenti</div>
             <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+              <div className="font-semibold text-slate-700">v4.3.7 - Febbraio 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>Fix Anagrafica: il tipo lavorazione VC ora è salvabile correttamente</li>
+                <li>Gestione telefono in Anagrafica migliorata: non blocca più il salvataggio di campi non correlati</li>
+                <li>Protezione qualità dati: impedita la rimozione totale di un numero già presente</li>
+                <li>API Anagrafica con errori più diagnostici per individuare rapidamente vincoli DB</li>
+              </ul>
               <div className="font-semibold text-slate-700">v4.3.6 - Febbraio 2026</div>
               <ul className="ml-2 list-disc list-inside space-y-1">
                 <li>ET2.0: aggiunto campo obbligatorio "Causa errore" (cliente, interno, esterno, non identificabile)</li>

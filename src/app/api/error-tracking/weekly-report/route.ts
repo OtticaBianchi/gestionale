@@ -1,12 +1,11 @@
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { Database } from '@/types/database.types'
 
 // POST - Genera report settimanale errori
-export async function POST(request: NextRequest) {
+export async function POST() {
   try {
     const supabase = await createServerSupabaseClient()
 
@@ -16,7 +15,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
 
-    // Profile check (tutti i ruoli possono generare il report)
+    // Profile check (solo manager/admin)
     const { data: profile } = await supabase
       .from('profiles')
       .select('role, full_name')
@@ -25,6 +24,9 @@ export async function POST(request: NextRequest) {
 
     if (!profile) {
       return NextResponse.json({ error: 'Profilo non trovato' }, { status: 404 })
+    }
+    if (!['admin', 'manager'].includes(profile.role)) {
+      return NextResponse.json({ error: 'Accesso non autorizzato' }, { status: 403 })
     }
 
     // Use service role per query dati

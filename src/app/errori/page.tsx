@@ -299,7 +299,7 @@ export default function ErroriPage() {
             </div>
 
             <div className="flex items-center space-x-3">
-              {/* Dropdown Report - Tutti possono generare */}
+              {/* Dropdown Report - accessibile solo in pagina admin */}
               <div className="relative">
                 <button
                   onClick={() => setShowReportDropdown(!showReportDropdown)}

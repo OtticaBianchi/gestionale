@@ -64,6 +64,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.3.7', date: '15/02/2026', description: 'Anagrafica: fix tipo lavorazione VC in salvataggio/modifica, migliorata gestione telefono (niente blocco salvataggio su campi non correlati) e messaggi errore API più diagnostici.' },
     { version: '4.3.6', date: '11/02/2026', description: 'ET2.0: nuovo campo obbligatorio "Causa errore" (cliente/interno/esterno/non identificabile), separazione netta da "Intercettato da", supporto autore sconosciuto/a e fix creazione ordini Materiali con categoria sempre trasmessa al backend.' },
     { version: '4.3.5', date: '07/02/2026', description: 'Survey: import CSV in Governance > Import Clienti, deduplicazione ortografica con controllo auto-merge, ricerca avanzata con estrazione diretta partecipanti e follow-up live sempre attivo per casi attenzione/critico.' },
     { version: '4.3.4', date: '05/02/2026', description: 'Controllo qualità: storico per ciclo + timeline stati, riapertura buste archiviate, follow-up tecnici con urgenza/pianificazione e checklist sagomatura.' },
@@ -202,7 +203,7 @@ export default function WelcomePage() {
               </div>
 
               <div className="mt-5 rounded-2xl bg-[var(--paper)] px-4 py-3 text-xs text-slate-500">
-                Supporto clienti e formazione inclusi. Versione attuale: <strong>4.3.6</strong>
+                Supporto clienti e formazione inclusi. Versione attuale: <strong>4.3.7</strong>
               </div>
             </div>
           </aside>

@@ -499,6 +499,8 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
               icon={AlertTriangle}
               label="Segnala Errore"
               isCollapsed={isCollapsed}
+              disabled={!userRole || !['admin', 'manager'].includes(userRole)}
+              disabledTooltip="Solo manager o admin"
               onClick={() => setIsErrorFormOpen(true)}
             />
           </AccordionSection>

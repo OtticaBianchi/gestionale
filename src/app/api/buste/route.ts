@@ -26,8 +26,51 @@ const admin = createClient(supabaseUrl, serviceRoleKey, {
 
 const VALID_WORK_TYPES = [
   'OCV', 'OV', 'OS', 'LV', 'LS', 'LAC', 'TALAC', 'ACC', 'RIC', 'LAB',
-  'SA', 'SG', 'CT', 'BR', 'ES', 'REL', 'FT', 'SPRT', 'VFT'
+  'SA', 'SG', 'CT', 'BR', 'ES', 'REL', 'FT', 'SPRT', 'VFT', 'VC'
 ]
+
+const WORK_TYPE_DESCRIPTIONS: Record<string, string> = {
+  OCV: 'Occhiale da vista completo',
+  OV: 'Montatura',
+  OS: 'Occhiale da sole',
+  LV: 'Lenti da vista',
+  LS: 'Lenti da sole',
+  LAC: 'Lenti a contatto',
+  TALAC: 'Training Applicativo LAC',
+  ACC: 'Accessori',
+  RIC: 'Ricambio',
+  LAB: 'Laboratorio',
+  SA: 'Sostituzione Anticipata',
+  SG: 'Sostituzione in Garanzia',
+  CT: 'Controllo tecnico',
+  BR: 'Buono Regalo',
+  ES: 'Esercizi oculari',
+  REL: 'Relazione',
+  FT: 'Fattura',
+  SPRT: 'Sport',
+  VFT: 'Verifica Fattibilità Tecnica',
+  VC: 'Visita Controllo'
+}
+
+const ensureWorkTypeCatalogEntry = async (
+  adminClient: typeof admin,
+  workType: string
+) => {
+  const codice = workType.trim().toUpperCase()
+  if (!codice) return
+
+  const descrizione = WORK_TYPE_DESCRIPTIONS[codice] || codice
+  const { error } = await adminClient
+    .from('tipi_lavorazione')
+    .upsert(
+      { codice, descrizione },
+      { onConflict: 'codice', ignoreDuplicates: false }
+    )
+
+  if (error) {
+    console.error('WORK_TYPE_CATALOG_UPSERT_FAILED', { codice, error })
+  }
+}
 
 // ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
 const capitalizeNameProperly = (name: string): string => {
@@ -90,6 +133,10 @@ export async function POST(request: NextRequest) {
     const tipoLavorazione = tipoLavorazioneRaw && VALID_WORK_TYPES.includes(tipoLavorazioneRaw)
       ? (tipoLavorazioneRaw as Database['public']['Enums']['work_type'])
       : null
+
+    if (tipoLavorazione) {
+      await ensureWorkTypeCatalogEntry(admin, tipoLavorazione)
+    }
 
     const normalizedPhone = normalizePhone(clienteInput.telefono)
     if (!normalizedPhone) {

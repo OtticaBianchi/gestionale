@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import {
   calculateAssegnazioneColpa,
+  validateErrorClassification,
   type StepWorkflow,
   type IntercettatoDa,
   type ProceduraFlag,
@@ -313,6 +314,32 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       error: 'Seleziona il dipendente responsabile oppure imposta autore sconosciuto'
     }, { status: 400 })
+  }
+
+  if (
+    step_workflow ||
+    procedura_flag ||
+    causa_errore ||
+    intercettato_da ||
+    impatto_cliente ||
+    operatore_coinvolto
+  ) {
+    const validation = validateErrorClassification({
+      step_workflow,
+      intercettato_da,
+      procedura_flag,
+      impatto_cliente,
+      causa_errore,
+      operatore_coinvolto,
+      creato_da_followup: false,
+    })
+
+    if (!validation.valid) {
+      return NextResponse.json({
+        error: 'Validazione ET2.0 fallita',
+        details: validation.errors
+      }, { status: 400 })
+    }
   }
 
   if (cost_type === 'real') {
