@@ -66,7 +66,10 @@ export async function PATCH(
   try {
     const auth = await authenticate()
     if ('response' in auth) return auth.response
-    const { supabase, userId, role } = auth
+    const { userId, role } = auth
+    if (role !== 'admin' && role !== 'manager') {
+      return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 })
+    }
 
     const { id } = await params
     if (!id) {

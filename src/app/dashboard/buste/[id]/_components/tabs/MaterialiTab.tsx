@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
 import { mutate } from 'swr';
@@ -68,6 +68,7 @@ type OrdineMateriale = Database['public']['Tables']['ordini_materiali']['Row'] &
   fornitori_montature?: { nome: string } | null;
   fornitori_lab_esterno?: { nome: string } | null;
   fornitori_sport?: { nome: string } | null;
+  fornitori_accessori?: { nome: string } | null;
   tipi_lenti?: { nome: string; giorni_consegna_stimati: number | null } | null;
   classificazione_lenti?: { nome: string } | null;
   tipi_ordine?: { nome: string } | null;
@@ -240,6 +241,43 @@ const buildNoteLine = (message: string, author: string) =>
 const appendNoteLine = (existing: string | null | undefined, line: string) =>
   existing ? `${existing}\n${line}` : line;
 
+const parseAccontoInput = (value: string): number | null => {
+  const cleaned = value.trim();
+  const parsed = cleaned === '' ? 0 : Number.parseFloat(cleaned);
+  if (Number.isNaN(parsed) || parsed < 0) return null;
+  return parsed;
+};
+
+type ParsedNoteEntry = {
+  timestamp: string | null;
+  author: string | null;
+  message: string;
+};
+
+const NOTE_LINE_REGEX = /^(\d{4}-\d{2}-\d{2}\s\d{2}:\d{2})\s-\s([^:]+):\s?(.*)$/;
+
+const parseNoteEntries = (note: string): ParsedNoteEntry[] =>
+  note
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(NOTE_LINE_REGEX);
+      if (!match) {
+        return {
+          timestamp: null,
+          author: null,
+          message: line
+        };
+      }
+
+      return {
+        timestamp: match[1] || null,
+        author: match[2] || null,
+        message: (match[3] || '').trim()
+      };
+    });
+
 const resolveWorkflowState = (state: string): WorkflowState =>
   (WORKFLOW_STATES.includes(state as WorkflowState) ? (state as WorkflowState) : 'nuove');
 
@@ -290,6 +328,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     ha_acconto: false,
     currentAcconto: null as number | null
   });
+  const [isSavingAcconto, setIsSavingAcconto] = useState(false);
+  const [accontoError, setAccontoError] = useState<string | null>(null);
+  const accontoSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const accontoLastSavedRef = useRef<number | null>(null);
+  const accontoSaveRequestRef = useRef(0);
+  const [expandedNotesByOrder, setExpandedNotesByOrder] = useState<Record<string, boolean>>({});
 
   // ✅ NUOVO: State per editing descrizione prodotto
   const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
@@ -324,6 +368,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     busta.sospesa_followup_done_at ?? null
   );
   const [noteGenerali, setNoteGenerali] = useState<string | null>(busta.note_generali ?? null);
+  const autoInArrivoSignature = useMemo(
+    () => ordiniMateriali.map(ordine => `${ordine.id}|${ordine.stato || ''}|${ordine.data_ordine || ''}`).join(';'),
+    [ordiniMateriali]
+  );
+  const autoInRitardoSignature = useMemo(
+    () => ordiniMateriali.map(ordine => `${ordine.id}|${ordine.stato || ''}|${ordine.data_consegna_prevista || ''}`).join(';'),
+    [ordiniMateriali]
+  );
 
   const disponibilitaStats = useMemo<{
     counts: Record<typeof DISPONIBILITA_STATES[number], number>;
@@ -608,6 +660,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
   // ===== EFFECTS =====
   useEffect(() => {
+    if (accontoSaveTimeoutRef.current) {
+      clearTimeout(accontoSaveTimeoutRef.current);
+      accontoSaveTimeoutRef.current = null;
+    }
+    accontoSaveRequestRef.current += 1;
+    accontoLastSavedRef.current = null;
+    setAccontoError(null);
+    setIsSavingAcconto(false);
     loadMaterialiData();
     loadAccontoInfo(); // ✅ CARICA INFO ACCONTO
   }, [busta.id]);
@@ -617,29 +677,37 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     setNoteGenerali(busta.note_generali ?? null);
   }, [busta.id, busta.sospesa_followup_done_at, busta.note_generali]);
 
+  useEffect(() => {
+    return () => {
+      if (accontoSaveTimeoutRef.current) {
+        clearTimeout(accontoSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // ✅ NUOVO EFFECT: Auto-aggiornamento ordini "in arrivo"
   useEffect(() => {
-    if (ordiniMateriali.length > 0 && canEdit) {
-      // Controlla se ci sono ordini che dovrebbero essere in arrivo prima di chiamare l'aggiornamento
-      const ordiniDaAggiornare = ordiniMateriali.filter(dovrebbeEssereInArrivo);
-      if (ordiniDaAggiornare.length > 0) {
-        console.log(`🔍 Controllo automatico: ${ordiniDaAggiornare.length} ordini pronti per "in_arrivo"`);
-        aggiornaOrdiniInArrivo();
-      }
+    if (!canEdit || ordiniMateriali.length === 0) {
+      return;
     }
-  }, [ordiniMateriali.length, canEdit]); // Trigger quando cambiano ordini o permessi
+    const ordiniDaAggiornare = ordiniMateriali.filter(dovrebbeEssereInArrivo);
+    if (ordiniDaAggiornare.length > 0) {
+      console.log(`🔍 Controllo automatico: ${ordiniDaAggiornare.length} ordini pronti per "in_arrivo"`);
+      aggiornaOrdiniInArrivo();
+    }
+  }, [autoInArrivoSignature, canEdit]); // Trigger quando cambiano dati rilevanti o permessi
 
   // ✅ NUOVO EFFECT: Auto-aggiornamento ordini "in ritardo"
   useEffect(() => {
-    if (ordiniMateriali.length > 0 && canEdit) {
-      // Controlla se ci sono ordini che dovrebbero essere in ritardo
-      const ordiniDaAggiornare = ordiniMateriali.filter(dovrebbeEssereInRitardo);
-      if (ordiniDaAggiornare.length > 0) {
-        console.log(`⚠️ Controllo automatico: ${ordiniDaAggiornare.length} ordini in ritardo`);
-        aggiornaOrdiniInRitardo();
-      }
+    if (!canEdit || ordiniMateriali.length === 0) {
+      return;
     }
-  }, [ordiniMateriali.length, canEdit]); // Trigger quando cambiano ordini o permessi
+    const ordiniDaAggiornare = ordiniMateriali.filter(dovrebbeEssereInRitardo);
+    if (ordiniDaAggiornare.length > 0) {
+      console.log(`⚠️ Controllo automatico: ${ordiniDaAggiornare.length} ordini in ritardo`);
+      aggiornaOrdiniInRitardo();
+    }
+  }, [autoInRitardoSignature, canEdit]); // Trigger quando cambiano dati rilevanti o permessi
 
 
   // ===== LOAD MATERIALI DATA =====
@@ -647,6 +715,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     setIsLoadingOrdini(true);
     try {
       console.log('🔍 Loading ordini materiali per busta:', busta.id);
+
+      try {
+        await fetch('/api/ordini/auto-sync', { method: 'POST' });
+      } catch (syncError) {
+        console.warn('⚠️ Auto-sync ordini non disponibile durante il caricamento materiali:', syncError);
+      }
       
       // 🔥 QUERY AGGIORNATA: Include da_ordinare
       const { data: ordiniData, error: ordiniError } = await supabase
@@ -658,6 +732,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           fornitori_montature:fornitori_montature(nome),
           fornitori_lab_esterno:fornitori_lab_esterno(nome),
           fornitori_sport:fornitori_sport(nome),
+          fornitori_accessori:fornitori_accessori(nome),
           tipi_lenti:tipi_lenti(nome, giorni_consegna_stimati),
           classificazione_lenti:classificazione_lenti(nome),
           tipi_ordine:tipi_ordine(nome)
@@ -703,6 +778,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           : null,
         fornitori_sport: ordine.fornitori_sport && typeof ordine.fornitori_sport === 'object' && 'nome' in ordine.fornitori_sport
           ? ordine.fornitori_sport
+          : null,
+        fornitori_accessori: ordine.fornitori_accessori && typeof ordine.fornitori_accessori === 'object' && 'nome' in ordine.fornitori_accessori
+          ? ordine.fornitori_accessori
           : null,
         classificazione_lenti: ordine.classificazione_lenti && typeof ordine.classificazione_lenti === 'object' && 'nome' in ordine.classificazione_lenti
           ? ordine.classificazione_lenti
@@ -1139,6 +1217,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       }
 
       if (result.acconto) {
+        const savedValue = result.acconto?.importo_acconto ?? 0;
+        accontoLastSavedRef.current = savedValue;
         setAccontoInfo(prev => ({
           ...prev,
           currentAcconto: result.acconto?.importo_acconto ?? null,
@@ -1151,15 +1231,24 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     }
   };
 
-  // ===== SAVE ACCONTO INFO - IMMEDIATO COME IL RESTO DEL SISTEMA =====
+  // ===== SAVE ACCONTO INFO - DEBOUNCE + FLUSH ON BLUR =====
   const saveAccontoInfo = async (importoString: string) => {
     if (!canEdit) return;
 
-    const cleaned = importoString.trim();
-    const importo = cleaned === '' ? 0 : Number.parseFloat(cleaned);
-    if (Number.isNaN(importo) || importo < 0) {
-      return; // Ignora valori non validi
+    const importo = parseAccontoInput(importoString);
+    if (importo === null) {
+      setAccontoError('Inserisci un importo valido (numero >= 0).');
+      return;
     }
+
+    if (accontoLastSavedRef.current !== null && importo === accontoLastSavedRef.current) {
+      return;
+    }
+
+    const requestId = accontoSaveRequestRef.current + 1;
+    accontoSaveRequestRef.current = requestId;
+    setIsSavingAcconto(true);
+    setAccontoError(null);
 
     try {
       console.log(`💰 Salvando acconto: €${importo} per busta ${busta.id}`);
@@ -1176,10 +1265,19 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
       if (!response.ok || !result?.success) {
         const details = result?.details ? ` (${result.details})` : '';
+        if (requestId === accontoSaveRequestRef.current) {
+          setAccontoError(result?.error ? `${result.error}${details}` : `Errore salvataggio${details}`);
+          setIsSavingAcconto(false);
+        }
         console.error(`❌ Errore salvataggio acconto: ${result?.error || 'Errore'}${details}`);
         return;
       }
 
+      if (requestId !== accontoSaveRequestRef.current) {
+        return;
+      }
+
+      accontoLastSavedRef.current = importo;
       setAccontoInfo(prev => ({
         ...prev,
         currentAcconto: importo > 0 ? importo : null,
@@ -1192,17 +1290,39 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       await mutate('/api/buste');
 
     } catch (error: any) {
+      if (requestId === accontoSaveRequestRef.current) {
+        setAccontoError(error?.message || 'Errore salvataggio acconto.');
+      }
       console.error('❌ Errore salvataggio acconto:', error);
+    } finally {
+      if (requestId === accontoSaveRequestRef.current) {
+        setIsSavingAcconto(false);
+      }
     }
   };
 
-  // ===== HANDLE ACCONTO CHANGE - SALVA IMMEDIATAMENTE =====
-  const handleAccontoChange = (value: string) => {
-    // Aggiorna il valore immediatamente nell'UI
-    setAccontoInfo(prev => ({ ...prev, importo_acconto: value }));
+  const scheduleAccontoSave = (value: string) => {
+    if (accontoSaveTimeoutRef.current) {
+      clearTimeout(accontoSaveTimeoutRef.current);
+    }
+    accontoSaveTimeoutRef.current = setTimeout(() => {
+      void saveAccontoInfo(value);
+    }, 500);
+  };
 
-    // Salva immediatamente come fa il resto del sistema
-    saveAccontoInfo(value);
+  const flushAccontoSave = (value: string) => {
+    if (accontoSaveTimeoutRef.current) {
+      clearTimeout(accontoSaveTimeoutRef.current);
+      accontoSaveTimeoutRef.current = null;
+    }
+    void saveAccontoInfo(value);
+  };
+
+  // ===== HANDLE ACCONTO CHANGE - SALVATAGGIO DEBOUNCED =====
+  const handleAccontoChange = (value: string) => {
+    setAccontoInfo(prev => ({ ...prev, importo_acconto: value }));
+    setAccontoError(null);
+    scheduleAccontoSave(value);
   };
 
   // ===== HANDLE NUOVO ORDINE - ✅ AGGIORNATO CON da_ordinare =====
@@ -1412,6 +1532,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         : null,
       fornitori_sport: ordineCreato.fornitori_sport && typeof ordineCreato.fornitori_sport === 'object' && 'nome' in ordineCreato.fornitori_sport
         ? ordineCreato.fornitori_sport
+        : null,
+      fornitori_accessori: ordineCreato.fornitori_accessori && typeof ordineCreato.fornitori_accessori === 'object' && 'nome' in ordineCreato.fornitori_accessori
+        ? ordineCreato.fornitori_accessori
         : null,
       classificazione_lenti: ordineCreato.classificazione_lenti && typeof ordineCreato.classificazione_lenti === 'object' && 'nome' in ordineCreato.classificazione_lenti
         ? ordineCreato.classificazione_lenti
@@ -1703,6 +1826,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
             fornitori_sport: updates.fornitore_sport_id
               ? { nome: fornitoriSport.find(f => f.id === updates.fornitore_sport_id)?.nome || '' }
               : null,
+            fornitori_accessori: updates.fornitore_accessori_id
+              ? { nome: fornitoriAccessori.find(f => f.id === updates.fornitore_accessori_id)?.nome || '' }
+              : null,
             tipi_lenti: updates.tipo_lenti_id
               ? {
                   nome: tipiLenti.find(t => t.id === updates.tipo_lenti_id)?.nome || '',
@@ -1963,11 +2089,13 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       };
 
       if (actionRequired) {
-        updates.needs_action_due_date = dueDate;
         if (!hasOpenAction) {
           updates.needs_action = true;
           updates.needs_action_done = false;
           updates.needs_action_type = 'CALL_CLIENT';
+          updates.needs_action_due_date = dueDate;
+        } else if (!corrente.needs_action_due_date) {
+          updates.needs_action_due_date = dueDate;
         }
       }
 
@@ -3167,12 +3295,27 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                   min="0"
                   value={accontoInfo.importo_acconto}
                   onChange={(e) => handleAccontoChange(e.target.value)}
+                  onBlur={() => flushAccontoSave(accontoInfo.importo_acconto)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      flushAccontoSave(accontoInfo.importo_acconto);
+                    }
+                  }}
                   className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:ring-yellow-500 focus:border-yellow-500"
                   placeholder="0.00"
                 />
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <span className="text-gray-500 text-sm">€</span>
                 </div>
+              </div>
+              <div className="mt-1 min-h-[18px] text-xs">
+                {isSavingAcconto && (
+                  <span className="text-yellow-700">Salvataggio acconto in corso...</span>
+                )}
+                {!isSavingAcconto && accontoError && (
+                  <span className="text-red-600">{accontoError}</span>
+                )}
               </div>
             </div>
 
@@ -3319,6 +3462,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               const hasOpenAction = Boolean(ordine.needs_action && !ordine.needs_action_done);
               const actionType = (ordine.needs_action_type || 'OTHER') as NeedsActionType;
               const actionDueDate = formatDateForInput(ordine.needs_action_due_date);
+              const noteEntries = ordine.note ? parseNoteEntries(ordine.note) : [];
+              const isNotesExpanded = Boolean(expandedNotesByOrder[ordine.id]);
+              const visibleNoteEntries = isNotesExpanded ? noteEntries : noteEntries.slice(-3);
 
               let nomeFornitore = 'Non specificato';
               if (ordine.fornitori_lenti?.nome) nomeFornitore = ordine.fornitori_lenti.nome;
@@ -3326,6 +3472,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               else if (ordine.fornitori_montature?.nome) nomeFornitore = ordine.fornitori_montature.nome;
               else if (ordine.fornitori_lab_esterno?.nome) nomeFornitore = ordine.fornitori_lab_esterno.nome;
               else if (ordine.fornitori_sport?.nome) nomeFornitore = ordine.fornitori_sport.nome;
+              else if (ordine.fornitori_accessori?.nome) nomeFornitore = ordine.fornitori_accessori.nome;
               const nomeClassificazione = ordine.classificazione_lenti?.nome
                 || (ordine.classificazione_lenti_id
                   ? classificazioneLenti.find(c => c.id === ordine.classificazione_lenti_id)?.nome || null
@@ -3660,9 +3807,43 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
                       {ordine.note && (
                         <div className={`mt-4 rounded-lg border p-3 ${isAnnullato ? 'bg-slate-100 border-slate-200' : 'bg-slate-50 border-slate-100'}`}>
-                          <p className={`text-sm whitespace-pre-line ${isAnnullato ? 'text-slate-500' : 'text-slate-700'}`}>
-                            <strong>Note:</strong> {ordine.note}
-                          </p>
+                          <div className="flex items-center justify-between">
+                            <strong className={`text-sm ${isAnnullato ? 'text-slate-500' : 'text-slate-700'}`}>Note</strong>
+                            <span className="text-xs text-slate-500">{noteEntries.length}</span>
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {visibleNoteEntries.map((entry, index) => (
+                              <div
+                                key={`${entry.timestamp || 'note'}-${index}`}
+                                className={`rounded-md border p-2 ${isAnnullato ? 'border-slate-200 bg-white/70' : 'border-slate-200 bg-white'}`}
+                              >
+                                {(entry.timestamp || entry.author) && (
+                                  <div className="text-[11px] text-slate-500 mb-1">
+                                    {entry.timestamp || ''}
+                                    {entry.timestamp && entry.author ? ' · ' : ''}
+                                    {entry.author || ''}
+                                  </div>
+                                )}
+                                <p className={`text-sm whitespace-pre-line ${isAnnullato ? 'text-slate-500' : 'text-slate-700'}`}>
+                                  {entry.message || '(nessun dettaglio)'}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                          {noteEntries.length > 3 && (
+                            <button
+                              type="button"
+                              className="mt-2 text-xs text-blue-600 hover:text-blue-700"
+                              onClick={() =>
+                                setExpandedNotesByOrder(prev => ({
+                                  ...prev,
+                                  [ordine.id]: !isNotesExpanded
+                                }))
+                              }
+                            >
+                              {isNotesExpanded ? 'Mostra meno' : `Mostra tutte (${noteEntries.length})`}
+                            </button>
+                          )}
                         </div>
                       )}
 

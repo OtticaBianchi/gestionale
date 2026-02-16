@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
       .single()
 
     const userRole = profile?.role ?? null
+    if (userRole !== 'admin' && userRole !== 'manager') {
+      return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 })
+    }
 
     const body = await request.json().catch(() => null)
     const bustaId = body?.busta_id

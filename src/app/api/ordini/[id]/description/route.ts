@@ -22,6 +22,17 @@ export async function PATCH(
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const role = profile?.role ?? null
+    if (role !== 'admin' && role !== 'manager') {
+      return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 })
+    }
+
     const body = await request.json().catch(() => null)
     const newDescription = typeof body?.descrizione_prodotto === 'string'
       ? body.descrizione_prodotto.trim()
@@ -50,12 +61,6 @@ export async function PATCH(
       })
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
     const { data: updated, error: updateError } = await supabase
       .from('ordini_materiali')
       .update({
@@ -80,7 +85,7 @@ export async function PATCH(
       { descrizione_prodotto: newDescription },
       'Aggiornamento descrizione ordine',
       { bustaId: existing.busta_id },
-      profile?.role ?? null
+      role
     )
 
     if (!audit.success) {

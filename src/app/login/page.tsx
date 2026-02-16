@@ -222,11 +222,17 @@ function LoginForm() {
 
         <div className="mt-6 border-t border-slate-200 pt-6">
           <div className="mb-2 text-center text-xs text-slate-400">
-            Versione 4.3.7
+            Versione 4.3.8
           </div>
           <div className="text-xs text-slate-500">
             <div className="text-center font-medium text-slate-600">Ultimi aggiornamenti</div>
             <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+              <div className="font-semibold text-slate-700">v4.3.8 - Febbraio 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>Materiali: aggiunto il trattamento lenti "Indurimento" nella selezione trattamenti</li>
+                <li>Documentazione MaterialiTab consolidata in un riferimento tecnico unico e aggiornato</li>
+                <li>Pulizia documentale: rimossi i file legacy sovrapposti su MaterialiTab</li>
+              </ul>
               <div className="font-semibold text-slate-700">v4.3.7 - Febbraio 2026</div>
               <ul className="ml-2 list-disc list-inside space-y-1">
                 <li>Fix Anagrafica: il tipo lavorazione VC ora è salvabile correttamente</li>

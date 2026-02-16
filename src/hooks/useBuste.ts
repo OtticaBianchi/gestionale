@@ -5,6 +5,8 @@ import { BustaWithCliente } from '@/types/shared.types';
 import { shouldArchiveBusta } from '@/lib/buste/archiveRules';
 
 const SWR_KEY = '/api/buste';
+const ORDER_AUTO_SYNC_KEY = 'lastOrderAutoSyncCheck';
+const ORDER_AUTO_SYNC_INTERVAL_MS = 60 * 1000;
 
 // Funzione helper per determinare se una busta è archiviata
 const isArchived = (busta: any): boolean => shouldArchiveBusta(busta);
@@ -46,10 +48,30 @@ const normalizePaymentPlanRelation = (busta: any) => {
   };
 };
 
+const shouldRunOrderAutoSync = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const now = Date.now();
+  const rawLastRun = window.localStorage.getItem(ORDER_AUTO_SYNC_KEY);
+  const lastRun = rawLastRun ? Number.parseInt(rawLastRun, 10) : 0;
+  if (Number.isNaN(lastRun) || now - lastRun >= ORDER_AUTO_SYNC_INTERVAL_MS) {
+    window.localStorage.setItem(ORDER_AUTO_SYNC_KEY, String(now));
+    return true;
+  }
+  return false;
+};
+
 const fetcher = async (): Promise<BustaWithCliente[]> => {
   const supabase = createClient();
   
   console.log('🔍 SWR Fetcher - Starting buste fetch...');
+
+  if (shouldRunOrderAutoSync()) {
+    try {
+      await fetch('/api/ordini/auto-sync', { method: 'POST' });
+    } catch (syncError) {
+      console.warn('⚠️ SWR Fetcher - Auto-sync ordini non disponibile:', syncError);
+    }
+  }
 
   const { data, error } = await supabase
     .from('buste')

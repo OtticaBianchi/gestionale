@@ -149,6 +149,17 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const role = profile?.role ?? null
+    if (role !== 'admin' && role !== 'manager') {
+      return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 })
+    }
+
     const body = await request.json().catch(() => null)
     if (!body) {
       return NextResponse.json({ error: 'Payload non valido' }, { status: 400 })
@@ -179,12 +190,6 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString()
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
     const { data: ordine, error } = await supabase
       .from('ordini_materiali')
       .insert(orderData)
@@ -195,6 +200,7 @@ export async function POST(request: NextRequest) {
         fornitori_montature:fornitori_montature(nome),
         fornitori_lab_esterno:fornitori_lab_esterno(nome),
         fornitori_sport:fornitori_sport(nome),
+        fornitori_accessori:fornitori_accessori(nome),
         tipi_lenti:tipi_lenti(nome, giorni_consegna_stimati),
         tipi_ordine:tipi_ordine(nome)
       `)
@@ -217,7 +223,7 @@ export async function POST(request: NextRequest) {
       },
       'Creazione ordine materiale',
       { bustaId: ordine.busta_id },
-      profile?.role ?? null
+      role
     )
 
     if (!audit.success) {

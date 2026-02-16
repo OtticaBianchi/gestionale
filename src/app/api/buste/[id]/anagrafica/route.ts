@@ -110,6 +110,9 @@ export async function PATCH(
       .single()
 
     const userRole = profile?.role ?? null
+    if (userRole !== 'admin' && userRole !== 'manager') {
+      return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 })
+    }
 
     const { id } = await params
     if (!id) {
