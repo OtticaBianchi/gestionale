@@ -108,6 +108,36 @@ export async function GET(request: NextRequest) {
       return tipo === 'TALAC' ? 'LAC' : tipo;
     };
 
+    const normalizeTextKey = (value: string): string =>
+      value
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[_-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase();
+
+    const treatmentCanonicalMap = new Map(
+      Object.values(LENS_TREATMENTS).map(treatment => [normalizeTextKey(treatment), treatment])
+    );
+
+    const treatmentAliasMap = new Map<string, string>([
+      ['antiriflesso', LENS_TREATMENTS.ANTIR],
+      ['antiriflesso premium', LENS_TREATMENTS.ANTIR_PREMIUM],
+      ['anti luce blu', LENS_TREATMENTS.ANTI_LUCE_BLU],
+      ['anti luceblu', LENS_TREATMENTS.ANTI_LUCE_BLU],
+      ['antiappannante', LENS_TREATMENTS.ANTI_APPANNANTE],
+    ]);
+
+    const normalizeTreatment = (value: unknown): string | null => {
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+
+      const key = normalizeTextKey(trimmed);
+      return treatmentCanonicalMap.get(key) || treatmentAliasMap.get(key) || trimmed;
+    };
+
     // Fetch all ordini_materiali with related data
     const deliveredStates = ['consegnato', 'accettato_con_riserva', 'rifiutato'] as const;
     const isDeliveredState = (value: string | null | undefined): value is typeof deliveredStates[number] =>
@@ -196,7 +226,13 @@ export async function GET(request: NextRequest) {
     filteredOrdini.forEach(ordine => {
       const trattamenti = ordine.trattamenti as string[] | null;
       if (trattamenti && Array.isArray(trattamenti) && trattamenti.length > 0) {
-        const normalized = trattamenti.filter(Boolean);
+        const normalized = Array.from(
+          new Set(
+            trattamenti
+              .map(trattamento => normalizeTreatment(trattamento))
+              .filter((trattamento): trattamento is string => Boolean(trattamento))
+          )
+        );
         if (normalized.length === 0) return;
 
         const hasNone = normalized.includes(NONE_TREATMENT);
@@ -227,7 +263,13 @@ export async function GET(request: NextRequest) {
         if (!trattamentiByTipoLenti[tipoLente]) {
           trattamentiByTipoLenti[tipoLente] = {};
         }
-        const normalized = trattamenti.filter(Boolean);
+        const normalized = Array.from(
+          new Set(
+            trattamenti
+              .map(trattamento => normalizeTreatment(trattamento))
+              .filter((trattamento): trattamento is string => Boolean(trattamento))
+          )
+        );
         const effective = normalized.includes(NONE_TREATMENT)
           ? normalized.filter(t => t !== NONE_TREATMENT)
           : normalized;

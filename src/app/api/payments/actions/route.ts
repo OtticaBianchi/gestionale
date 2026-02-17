@@ -500,6 +500,7 @@ async function handleUpdateSaldoUnico(payload: any, userId: string, userRole: st
 
   const now = new Date().toISOString()
   const incassato = !!isIncassato
+  const shouldCreateLacReorder = createLacReorder === true
 
   await upsertInfoPagamenti(
     {
@@ -552,7 +553,7 @@ async function handleUpdateSaldoUnico(payload: any, userId: string, userRole: st
   const shouldAutoCloseBusta = incassato
   let reorderResult: LacReorderResult | null = null
 
-  if (shouldAutoCloseBusta && createLacReorder) {
+  if (shouldAutoCloseBusta && shouldCreateLacReorder) {
     reorderResult = await createImmediateLacReorderBusta(
       bustaId,
       userId,
@@ -567,7 +568,12 @@ async function handleUpdateSaldoUnico(payload: any, userId: string, userRole: st
       userRole,
       reorderResult
         ? 'Chiusura automatica da saldo unico incassato con riordino LAC'
-        : 'Chiusura automatica da saldo unico incassato'
+        : 'Chiusura automatica da saldo unico incassato',
+      {
+        close_origin: 'saldo_unico_incassato',
+        lac_reorder_requested: shouldCreateLacReorder,
+        lac_reorder_created: Boolean(reorderResult)
+      }
     )
   }
 
@@ -582,10 +588,11 @@ async function handleUpdateSaldoUnico(payload: any, userId: string, userRole: st
 async function handleCloseBusta(payload: any, userId: string, userRole: string | null) {
   const { bustaId, createLacReorder } = payload || {}
   if (!bustaId) throw new Error('bustaId mancante')
+  const shouldCreateLacReorder = createLacReorder === true
 
   let reorderResult: LacReorderResult | null = null
 
-  if (createLacReorder) {
+  if (shouldCreateLacReorder) {
     reorderResult = await createImmediateLacReorderBusta(
       bustaId,
       userId,
@@ -599,7 +606,12 @@ async function handleCloseBusta(payload: any, userId: string, userRole: string |
     userRole,
     reorderResult
       ? 'Busta segnata come consegnato pagato con riordino LAC automatico'
-      : 'Busta segnata come consegnato pagato'
+      : 'Busta segnata come consegnato pagato',
+    {
+      close_origin: 'manual_close',
+      lac_reorder_requested: shouldCreateLacReorder,
+      lac_reorder_created: Boolean(reorderResult)
+    }
   )
 
   return reorderResult
@@ -614,7 +626,8 @@ async function markBustaAsConsegnatoPagato(
   bustaId: string,
   userId: string,
   userRole: string | null,
-  reason: string
+  reason: string,
+  metadata?: Record<string, any>
 ) {
   const { data: existingBusta } = await admin
     .from('buste')
@@ -648,7 +661,7 @@ async function markBustaAsConsegnatoPagato(
     existingBusta,
     updatedBusta,
     reason,
-    { bustaId },
+    { bustaId, ...(metadata || {}) },
     userRole
   )
   return updatedBusta

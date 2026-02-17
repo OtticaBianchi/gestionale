@@ -200,7 +200,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   });
   const [isSavingTotal, setIsSavingTotal] = useState(false);
   const [ongoingAction, setOngoingAction] = useState<string | null>(null);
-  const [createLacReorder, setCreateLacReorder] = useState(busta.tipo_lavorazione === 'LAC');
+  const [createLacReorder, setCreateLacReorder] = useState(false);
 
   // Partial payment restructure state
   const [restructureModal, setRestructureModal] = useState<{
@@ -244,8 +244,8 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   }, [infoPagamento?.modalita_saldo, infoPagamento?.note_pagamento, infoPagamento?.is_saldato, paymentPlan?.is_completed]);
 
   useEffect(() => {
-    setCreateLacReorder(busta.tipo_lavorazione === 'LAC');
-  }, [busta.id, busta.tipo_lavorazione]);
+    setCreateLacReorder(false);
+  }, [busta.id]);
 
   const fetchPaymentPlan = async () => {
     const { data: planData, error: planError } = await supabase
@@ -620,12 +620,23 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     if (!canEdit) return;
     setOngoingAction('update-saldo-unico');
     try {
+      let shouldCreateLacReorder = incassato && createLacReorder && isLacOnlyWorkflow;
+      if (shouldCreateLacReorder) {
+        const confirmed = window.confirm(
+          'Confermi anche la creazione automatica del riordino LAC alla chiusura della busta?'
+        );
+        if (!confirmed) {
+          shouldCreateLacReorder = false;
+          setCreateLacReorder(false);
+        }
+      }
+
       const result = await callPaymentsAction('update_saldo_unico', {
         bustaId: busta.id,
         paymentPlanId: paymentPlan?.id,
         modalitaSaldo: method,
         isIncassato: incassato,
-        createLacReorder: incassato && createLacReorder && isLacOnlyWorkflow
+        createLacReorder: shouldCreateLacReorder
       });
       await loadPaymentContext();
       await mutate('/api/buste');
