@@ -7,6 +7,7 @@ import PaymentPlanSetup from '../PaymentPlanSetup';
 import { mutate } from 'swr';
 import { useUser } from '@/context/UserContext';
 import { resolveSaldoUnicoMethod, type SaldoUnicoMethod } from '@/lib/payments/saldoMethod';
+import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
   AlertTriangle,
@@ -168,6 +169,7 @@ const getInstallmentStatus = (installment: PaymentInstallmentRecord) => {
 const mapReminderPreferenceToBoolean = (preference: string | null) => preference === 'automatic';
 
 export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTabProps) {
+  const router = useRouter();
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -198,6 +200,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   });
   const [isSavingTotal, setIsSavingTotal] = useState(false);
   const [ongoingAction, setOngoingAction] = useState<string | null>(null);
+  const [createLacReorder, setCreateLacReorder] = useState(busta.tipo_lavorazione === 'LAC');
 
   // Partial payment restructure state
   const [restructureModal, setRestructureModal] = useState<{
@@ -224,6 +227,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     ? reminderPreferenceLabels[paymentPlan.reminder_preference || 'disabled']
     : null;
   const noPaymentRequired = useMemo(() => infoPagamento?.note_pagamento === 'NESSUN_INCASSO', [infoPagamento?.note_pagamento]);
+  const isLacOnlyWorkflow = busta.tipo_lavorazione === 'LAC';
 
   useEffect(() => {
     loadPaymentContext();
@@ -238,6 +242,10 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     const incassato = paymentPlan?.is_completed ?? infoPagamento?.is_saldato ?? false;
     setBonificoIncassato(incassato);
   }, [infoPagamento?.modalita_saldo, infoPagamento?.note_pagamento, infoPagamento?.is_saldato, paymentPlan?.is_completed]);
+
+  useEffect(() => {
+    setCreateLacReorder(busta.tipo_lavorazione === 'LAC');
+  }, [busta.id, busta.tipo_lavorazione]);
 
   const fetchPaymentPlan = async () => {
     const { data: planData, error: planError } = await supabase
@@ -612,14 +620,19 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
     if (!canEdit) return;
     setOngoingAction('update-saldo-unico');
     try {
-      await callPaymentsAction('update_saldo_unico', {
+      const result = await callPaymentsAction('update_saldo_unico', {
         bustaId: busta.id,
         paymentPlanId: paymentPlan?.id,
         modalitaSaldo: method,
-        isIncassato: incassato
+        isIncassato: incassato,
+        createLacReorder: incassato && createLacReorder && isLacOnlyWorkflow
       });
       await loadPaymentContext();
       await mutate('/api/buste');
+
+      if (result?.newBustaId) {
+        router.push(`/dashboard/buste/${result.newBustaId}?tab=materiali`);
+      }
     } catch (error: any) {
       console.error('❌ Error updating saldo unico:', error);
       alert(`Errore aggiornamento saldo unico: ${error.message}`);
@@ -630,17 +643,53 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
 
   const handleCloseBusta = async () => {
     if (!canEdit) return;
-    if (!confirm('Segnare la busta come consegnata e pagata?')) return;
+
+    const closeMessage = createLacReorder && isLacOnlyWorkflow
+      ? 'Segnare la busta come consegnata e pagata e creare subito una nuova busta LAC con riordine identico?'
+      : 'Segnare la busta come consegnata e pagata?';
+    if (!confirm(closeMessage)) return;
 
     setOngoingAction('close-busta');
     try {
-      await callPaymentsAction('close_busta', { bustaId: busta.id });
+      const result = await callPaymentsAction('close_busta', {
+        bustaId: busta.id,
+        createLacReorder: createLacReorder && isLacOnlyWorkflow
+      });
 
       await mutate('/api/buste');
       await loadPaymentContext();
+
+      if (result?.newBustaId) {
+        router.push(`/dashboard/buste/${result.newBustaId}?tab=materiali`);
+      }
     } catch (error: any) {
       console.error('❌ Error closing busta:', error);
       alert(`Errore aggiornamento busta: ${error.message}`);
+    } finally {
+      setOngoingAction(null);
+    }
+  };
+
+  const handleCreateLacReorderFromClosed = async () => {
+    if (!canEdit || !isLacOnlyWorkflow) return;
+    if (!confirm('Creare una nuova busta LAC con riordine identico?')) return;
+
+    setOngoingAction('create-lac-reorder');
+    try {
+      const result = await callPaymentsAction('close_busta', {
+        bustaId: busta.id,
+        createLacReorder: true
+      });
+
+      await mutate('/api/buste');
+      await loadPaymentContext();
+
+      if (result?.newBustaId) {
+        router.push(`/dashboard/buste/${result.newBustaId}?tab=materiali`);
+      }
+    } catch (error: any) {
+      console.error('❌ Error creating lac reorder:', error);
+      alert(`Errore creazione riordino LAC: ${error.message}`);
     } finally {
       setOngoingAction(null);
     }
@@ -950,6 +999,18 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                     Incassato
                   </label>
                 )}
+                {isLacOnlyWorkflow && (
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={createLacReorder}
+                      onChange={(event) => setCreateLacReorder(event.target.checked)}
+                      disabled={!canEdit || ongoingAction === 'update-saldo-unico' || ongoingAction === 'close-busta'}
+                      className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    Crea nuova busta LAC con riordine alla chiusura
+                  </label>
+                )}
               </div>
               <p className="mt-2 text-xs text-gray-500">
                 Seleziona Bonifico o Pagherò per tenere la busta aperta finché non è incassato.
@@ -1137,11 +1198,25 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
       )}
 
       {canEdit && outstandingZero && (paymentPlan?.is_completed || noPaymentRequired) && busta.stato_attuale !== 'consegnato_pagato' && (
-        <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg px-5 py-4 flex items-center justify-between">
-          <div className="text-sm font-medium">
-            {noPaymentRequired
-              ? 'Nessun incasso previsto: la busta può essere spostata su "Consegnato & Pagato".'
-              : 'Pagamenti in regola. La busta può essere spostata su "Consegnato & Pagato".'}
+        <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm font-medium space-y-2">
+            <p>
+              {noPaymentRequired
+                ? 'Nessun incasso previsto: la busta può essere spostata su "Consegnato & Pagato".'
+                : 'Pagamenti in regola. La busta può essere spostata su "Consegnato & Pagato".'}
+            </p>
+            {isLacOnlyWorkflow && (
+              <label className="inline-flex items-center gap-2 text-sm text-green-900 font-normal">
+                <input
+                  type="checkbox"
+                  className="rounded border-green-300 text-green-700 focus:ring-green-500"
+                  checked={createLacReorder}
+                  onChange={(event) => setCreateLacReorder(event.target.checked)}
+                  disabled={ongoingAction === 'close-busta'}
+                />
+                <span>Crea subito una nuova busta LAC con riordine identico</span>
+              </label>
+            )}
           </div>
           <button
             onClick={handleCloseBusta}
@@ -1149,6 +1224,21 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
             className="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             Chiudi busta
+          </button>
+        </div>
+      )}
+
+      {canEdit && isLacOnlyWorkflow && busta.stato_attuale === 'consegnato_pagato' && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm">
+            Busta già chiusa. Puoi ancora creare una nuova busta LAC con riordine identico.
+          </div>
+          <button
+            onClick={handleCreateLacReorderFromClosed}
+            disabled={ongoingAction === 'create-lac-reorder'}
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            Crea riordino LAC
           </button>
         </div>
       )}

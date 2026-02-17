@@ -17,6 +17,27 @@ type ActionRequest = {
   payload?: any
 }
 
+type LacReorderSourceOrder = Pick<
+  Database['public']['Tables']['ordini_materiali']['Row'],
+  | 'id'
+  | 'categoria_fornitore'
+  | 'classificazione_lenti_id'
+  | 'descrizione_prodotto'
+  | 'fornitore_lac_id'
+  | 'giorni_consegna_medi'
+  | 'prezzo_prodotto'
+  | 'tipo_lenti_id'
+  | 'tipo_ordine_id'
+  | 'trattamenti'
+  | 'stato'
+>
+
+type LacReorderResult = {
+  newBustaId: string
+  newReadableId: string | null
+  copiedOrders: number
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
@@ -472,7 +493,7 @@ async function handleCompletePlan(payload: any, userId: string, userRole: string
 }
 
 async function handleUpdateSaldoUnico(payload: any, userId: string, userRole: string | null) {
-  const { bustaId, paymentPlanId, modalitaSaldo, isIncassato } = payload || {}
+  const { bustaId, paymentPlanId, modalitaSaldo, isIncassato, createLacReorder } = payload || {}
   if (!bustaId || !modalitaSaldo) {
     throw new Error('Parametri saldo unico mancanti')
   }
@@ -529,30 +550,64 @@ async function handleUpdateSaldoUnico(payload: any, userId: string, userRole: st
   }
 
   const shouldAutoCloseBusta = incassato
+  let reorderResult: LacReorderResult | null = null
+
+  if (shouldAutoCloseBusta && createLacReorder) {
+    reorderResult = await createImmediateLacReorderBusta(
+      bustaId,
+      userId,
+      userRole
+    )
+  }
+
   if (shouldAutoCloseBusta) {
     await markBustaAsConsegnatoPagato(
       bustaId,
       userId,
       userRole,
-      'Chiusura automatica da saldo unico incassato'
+      reorderResult
+        ? 'Chiusura automatica da saldo unico incassato con riordino LAC'
+        : 'Chiusura automatica da saldo unico incassato'
     )
   }
 
-  return { message: 'Saldo unico aggiornato' }
+  return reorderResult
+    ? {
+        message: 'Saldo unico aggiornato e riordino LAC creato',
+        ...reorderResult
+      }
+    : { message: 'Saldo unico aggiornato' }
 }
 
 async function handleCloseBusta(payload: any, userId: string, userRole: string | null) {
-  const { bustaId } = payload || {}
+  const { bustaId, createLacReorder } = payload || {}
   if (!bustaId) throw new Error('bustaId mancante')
+
+  let reorderResult: LacReorderResult | null = null
+
+  if (createLacReorder) {
+    reorderResult = await createImmediateLacReorderBusta(
+      bustaId,
+      userId,
+      userRole
+    )
+  }
 
   await markBustaAsConsegnatoPagato(
     bustaId,
     userId,
     userRole,
-    'Busta segnata come consegnato pagato'
+    reorderResult
+      ? 'Busta segnata come consegnato pagato con riordino LAC automatico'
+      : 'Busta segnata come consegnato pagato'
   )
 
-  return { message: 'Busta aggiornata' }
+  return reorderResult
+    ? {
+        message: 'Busta aggiornata e riordino LAC creato',
+        ...reorderResult
+      }
+    : { message: 'Busta aggiornata' }
 }
 
 async function markBustaAsConsegnatoPagato(
@@ -597,6 +652,224 @@ async function markBustaAsConsegnatoPagato(
     userRole
   )
   return updatedBusta
+}
+
+async function createImmediateLacReorderBusta(
+  sourceBustaId: string,
+  userId: string,
+  userRole: string | null
+): Promise<LacReorderResult> {
+  const now = new Date().toISOString()
+
+  const { data: sourceBusta, error: sourceBustaError } = await admin
+    .from('buste')
+    .select('id, cliente_id, tipo_lavorazione, priorita, readable_id')
+    .eq('id', sourceBustaId)
+    .single()
+
+  if (sourceBustaError || !sourceBusta) {
+    throw new Error('Busta sorgente non trovata per riordino LAC')
+  }
+
+  if (!sourceBusta.cliente_id) {
+    throw new Error('Cliente non associato alla busta: impossibile creare il riordino LAC')
+  }
+
+  if (sourceBusta.tipo_lavorazione !== 'LAC') {
+    throw new Error('Riordino automatico disponibile solo per buste LAC')
+  }
+
+  const { data: sourceOrders, error: sourceOrdersError } = await admin
+    .from('ordini_materiali')
+    .select(`
+      id,
+      categoria_fornitore,
+      classificazione_lenti_id,
+      descrizione_prodotto,
+      fornitore_lac_id,
+      giorni_consegna_medi,
+      prezzo_prodotto,
+      tipo_lenti_id,
+      tipo_ordine_id,
+      trattamenti,
+      stato
+    `)
+    .eq('busta_id', sourceBustaId)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: true })
+
+  if (sourceOrdersError) {
+    throw new Error('Errore lettura ordini LAC della busta sorgente')
+  }
+
+  const activeOrders = (sourceOrders || []).filter(order => order.stato !== 'annullato')
+  const nonLacOrders = activeOrders.filter(order => !order.fornitore_lac_id)
+  if (nonLacOrders.length > 0) {
+    throw new Error('Riordino automatico consentito solo per buste con ordini esclusivamente LAC')
+  }
+
+  const lacOrders = activeOrders.filter((order): order is LacReorderSourceOrder & { fornitore_lac_id: string } =>
+    Boolean(order.fornitore_lac_id)
+  )
+
+  if (lacOrders.length === 0) {
+    throw new Error('Nessun ordine LAC valido da riordinare')
+  }
+
+  const sourceReadableId = sourceBusta.readable_id || sourceBusta.id
+  const reorderNote = `Riordino automatico LAC da busta ${sourceReadableId}`
+
+  const { data: newBusta, error: newBustaError } = await admin
+    .from('buste')
+    .insert({
+      cliente_id: sourceBusta.cliente_id,
+      tipo_lavorazione: sourceBusta.tipo_lavorazione || null,
+      priorita: sourceBusta.priorita || 'normale',
+      note_generali: reorderNote,
+      creato_da: userId,
+      updated_by: userId
+    })
+    .select('id, readable_id, cliente_id, priorita, tipo_lavorazione, stato_attuale')
+    .single()
+
+  if (newBustaError || !newBusta) {
+    const detail = newBustaError?.message || newBustaError?.details || newBustaError?.hint || 'errore sconosciuto'
+    throw new Error(`Errore creazione nuova busta per riordino LAC: ${detail}`)
+  }
+
+  await logInsert(
+    'buste',
+    newBusta.id,
+    userId,
+    {
+      cliente_id: newBusta.cliente_id,
+      priorita: newBusta.priorita,
+      tipo_lavorazione: newBusta.tipo_lavorazione,
+      stato_attuale: newBusta.stato_attuale
+    },
+    'Creazione busta da riordino automatico LAC',
+    { sourceBustaId, sourceReadableId },
+    userRole
+  )
+
+  const { error: statusHistoryError } = await admin
+    .from('status_history')
+    .insert({
+      busta_id: newBusta.id,
+      stato: 'nuove',
+      data_ingresso: now,
+      operatore_id: userId,
+      note_stato: reorderNote
+    })
+
+  if (statusHistoryError) {
+    console.error('STATUS_HISTORY_REORDER_LAC_FAILED', {
+      sourceBustaId,
+      newBustaId: newBusta.id,
+      error: statusHistoryError
+    })
+  }
+
+  const ordersToInsert: Database['public']['Tables']['ordini_materiali']['Insert'][] = lacOrders.map(order => ({
+    busta_id: newBusta.id,
+    categoria_fornitore: order.categoria_fornitore || 'lac',
+    classificazione_lenti_id: order.classificazione_lenti_id,
+    descrizione_prodotto: order.descrizione_prodotto,
+    fornitore_lac_id: order.fornitore_lac_id,
+    giorni_consegna_medi: order.giorni_consegna_medi,
+    prezzo_prodotto: order.prezzo_prodotto,
+    tipo_lenti_id: order.tipo_lenti_id,
+    tipo_ordine_id: order.tipo_ordine_id,
+    trattamenti: order.trattamenti,
+    stato: 'da_ordinare',
+    da_ordinare: true,
+    data_ordine: null,
+    data_consegna_prevista: null,
+    data_consegna_effettiva: null,
+    alert_ritardo_inviato: false,
+    comunicazione_automatica_inviata: false,
+    giorni_ritardo: null,
+    cancel_reason: null,
+    needs_action: false,
+    needs_action_type: null,
+    needs_action_done: false,
+    needs_action_due_date: null,
+    note: reorderNote,
+    promemoria_disponibilita: null,
+    creato_da: userId,
+    updated_by: userId,
+    updated_at: now,
+    deleted_at: null,
+    deleted_by: null
+  }))
+
+  const { data: insertedOrders, error: insertOrdersError } = await admin
+    .from('ordini_materiali')
+    .insert(ordersToInsert)
+    .select('id, busta_id, descrizione_prodotto, stato, da_ordinare')
+
+  if (insertOrdersError || !insertedOrders) {
+    throw new Error('Errore creazione ordini LAC di riordino')
+  }
+
+  for (const order of insertedOrders) {
+    await logInsert(
+      'ordini_materiali',
+      order.id,
+      userId,
+      {
+        busta_id: order.busta_id,
+        descrizione_prodotto: order.descrizione_prodotto,
+        stato: order.stato,
+        da_ordinare: order.da_ordinare
+      },
+      'Creazione ordine materiale da riordino automatico LAC',
+      { bustaId: order.busta_id, sourceBustaId },
+      userRole
+    )
+  }
+
+  const { data: materialeLac, error: materialeLacError } = await admin
+    .from('materiali')
+    .insert({
+      busta_id: newBusta.id,
+      tipo: 'LAC',
+      primo_acquisto_lac: false,
+      note: reorderNote,
+      stato: 'attivo',
+      updated_at: now
+    })
+    .select('id, busta_id, tipo, primo_acquisto_lac, stato')
+    .single()
+
+  if (materialeLacError) {
+    console.error('CREATE_MATERIALI_LAC_REORDER_FAILED', {
+      sourceBustaId,
+      newBustaId: newBusta.id,
+      error: materialeLacError
+    })
+  } else if (materialeLac) {
+    await logInsert(
+      'materiali',
+      materialeLac.id,
+      userId,
+      {
+        busta_id: materialeLac.busta_id,
+        tipo: materialeLac.tipo,
+        primo_acquisto_lac: materialeLac.primo_acquisto_lac,
+        stato: materialeLac.stato
+      },
+      'Creazione entry materiali LAC da riordino automatico',
+      { bustaId: materialeLac.busta_id, sourceBustaId },
+      userRole
+    )
+  }
+
+  return {
+    newBustaId: newBusta.id,
+    newReadableId: newBusta.readable_id ?? null,
+    copiedOrders: insertedOrders.length
+  }
 }
 
 async function handleSyncPlanAcconto(payload: any, userId: string, userRole: string | null) {

@@ -222,11 +222,17 @@ function LoginForm() {
 
         <div className="mt-6 border-t border-slate-200 pt-6">
           <div className="mb-2 text-center text-xs text-slate-400">
-            Versione 4.3.8
+            Versione 4.3.9
           </div>
           <div className="text-xs text-slate-500">
             <div className="text-center font-medium text-slate-600">Ultimi aggiornamenti</div>
             <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+              <div className="font-semibold text-slate-700">v4.3.9 - Febbraio 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>Pagamento/LAC: nuova opzione di riordino a fine vita busta con scelta utente</li>
+                <li>Duplicazione disponibile in chiusura manuale, auto-chiusura da saldo unico incassato e su busta già chiusa</li>
+                <li>Nuova busta LAC creata con ordini duplicati in stato "da ordinare"</li>
+              </ul>
               <div className="font-semibold text-slate-700">v4.3.8 - Febbraio 2026</div>
               <ul className="ml-2 list-disc list-inside space-y-1">
                 <li>Materiali: aggiunto il trattamento lenti "Indurimento" nella selezione trattamenti</li>

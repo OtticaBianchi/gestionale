@@ -209,7 +209,7 @@ export default function UserProfileHeader() {
             />
             <h1 className="kiasma-hero text-lg text-[var(--ink)]">Kiasma</h1>
             <span className="text-sm text-slate-500">Dashboard</span>
-            <span className="text-sm text-slate-400">v4.3.8</span>
+            <span className="text-sm text-slate-400">v4.3.9</span>
           </div>
 
           <div className="flex items-center space-x-2 text-slate-500">
@@ -234,7 +234,7 @@ export default function UserProfileHeader() {
             />
             <h1 className="kiasma-hero text-lg text-[var(--ink)]">Kiasma</h1>
             <span className="text-sm text-slate-500">Dashboard</span>
-            <span className="text-sm text-slate-400">v4.3.8</span>
+            <span className="text-sm text-slate-400">v4.3.9</span>
           </div>
 
           <div className="flex items-center space-x-3">
@@ -278,7 +278,7 @@ export default function UserProfileHeader() {
           />
           <h1 className="kiasma-hero text-lg text-[var(--ink)]">Kiasma</h1>
           <span className="text-sm text-slate-500">Dashboard</span>
-          <span className="text-sm text-slate-400">v4.3.8</span>
+          <span className="text-sm text-slate-400">v4.3.9</span>
         </div>
 
         {/* Profilo Utente */}
