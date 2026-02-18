@@ -1,10 +1,10 @@
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createServerSupabaseClient()
 
@@ -88,8 +88,8 @@ export async function GET(request: NextRequest) {
 
       return {
         user_id: user.id,
-        full_name: user.full_name,
-        role: user.role,
+        full_name: user.full_name || null,
+        role: user.role || 'operatore',
         read_count: readCount,
         unread_count: unreadCount,
         total_procedures: totalProcedures || 0,

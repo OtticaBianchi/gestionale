@@ -8,7 +8,7 @@ import { Eye, Search, Users, BookOpen, CheckCircle, AlertCircle, ChevronDown, Ch
 
 interface UserCompliance {
   user_id: string
-  full_name: string
+  full_name: string | null
   role: string
   read_count: number
   unread_count: number
@@ -80,8 +80,11 @@ export default function ProcedureCompliancePage() {
 
   // Filter users by search term and role
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.full_name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter
+    const normalizedSearch = searchTerm.toLowerCase()
+    const normalizedName = (user.full_name ?? '').toLowerCase()
+    const normalizedRole = (user.role ?? '').toLowerCase()
+    const matchesSearch = normalizedName.includes(normalizedSearch)
+    const matchesRole = roleFilter === 'all' || normalizedRole === roleFilter.toLowerCase()
 
     return matchesSearch && matchesRole
   })
@@ -93,12 +96,12 @@ export default function ProcedureCompliancePage() {
     return 'text-red-600 bg-red-50'
   }
 
-  function getRoleLabel(role: string) {
+  function getRoleLabel(role: string | null | undefined) {
     switch (role) {
       case 'admin': return 'Admin'
       case 'manager': return 'Manager'
       case 'operatore': return 'Operatore'
-      default: return role
+      default: return 'Non assegnato'
     }
   }
 
@@ -278,7 +281,7 @@ export default function ProcedureCompliancePage() {
                 <Fragment key={user.user_id}>
                   <tr className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900">{user.full_name}</div>
+                      <div className="font-medium text-gray-900">{user.full_name || 'Utente senza nome'}</div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
