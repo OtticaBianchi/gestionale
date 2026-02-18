@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 const supabaseAdmin = (() => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,6 +21,26 @@ const supabaseAdmin = (() => {
 
 export async function POST() {
   try {
+    const supabase = await createServerSupabaseClient();
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser();
+
+    if (!user || authError) {
+      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+      return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 });
+    }
+
     const existing = await supabaseAdmin
       .from('tipi_montaggio')
       .select('id, created_at, nome')

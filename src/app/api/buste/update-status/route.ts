@@ -17,12 +17,24 @@ interface UpdateStatusPayload {
   oldStatus?: WorkflowState
   newStatus?: WorkflowState
   tipoLavorazione?: string | null
+  markQualityControlComplete?: boolean
+  qualityControlCompletedAt?: string | null
 }
 
-const pickBustaAuditFields = (row: { stato_attuale?: WorkflowState | null; updated_at?: string | null; updated_by?: string | null } | null) => ({
+const pickBustaAuditFields = (row: {
+  stato_attuale?: WorkflowState | null
+  updated_at?: string | null
+  updated_by?: string | null
+  controllo_completato?: boolean | null
+  controllo_completato_da?: string | null
+  controllo_completato_at?: string | null
+} | null) => ({
   stato_attuale: row?.stato_attuale ?? null,
   updated_at: row?.updated_at ?? null,
-  updated_by: row?.updated_by ?? null
+  updated_by: row?.updated_by ?? null,
+  controllo_completato: row?.controllo_completato ?? null,
+  controllo_completato_da: row?.controllo_completato_da ?? null,
+  controllo_completato_at: row?.controllo_completato_at ?? null
 })
 
 const pickHistoryAuditFields = (row: {
@@ -180,7 +192,14 @@ export async function POST(request: NextRequest) {
     )
 
     const body: UpdateStatusPayload = await request.json()
-    const { bustaId, oldStatus, newStatus, tipoLavorazione = null } = body
+    const {
+      bustaId,
+      oldStatus,
+      newStatus,
+      tipoLavorazione = null,
+      markQualityControlComplete = false,
+      qualityControlCompletedAt = null
+    } = body
     diagnosticBustaId = bustaId || null
     diagnosticOldStatus = oldStatus || null
     diagnosticNewStatus = newStatus || null
@@ -204,12 +223,27 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    if (markQualityControlComplete) {
+      if (newStatus !== 'pronto_ritiro' || oldStatus !== 'in_lavorazione') {
+        return NextResponse.json({
+          error: 'markQualityControlComplete consentito solo per transizione in_lavorazione -> pronto_ritiro'
+        }, { status: 400 })
+      }
+
+      if (userRole !== 'admin' && userRole !== 'manager') {
+        return NextResponse.json({
+          error: 'Permessi insufficienti per completare il controllo qualità'
+        }, { status: 403 })
+      }
+    }
+
     console.info('KANBAN_UPDATE_REQUEST', {
       userId: user.id,
       bustaId,
       from: oldStatus,
       to: newStatus,
       tipoLavorazione,
+      markQualityControlComplete,
       timestamp: new Date().toISOString(),
     })
 
@@ -271,7 +305,7 @@ export async function POST(request: NextRequest) {
 
     const { data: existingBusta, error: fetchError } = await admin
       .from('buste')
-      .select('id, readable_id, stato_attuale, updated_at, updated_by')
+      .select('id, readable_id, stato_attuale, updated_at, updated_by, controllo_completato, controllo_completato_da, controllo_completato_at')
       .eq('id', bustaId)
       .single()
 
@@ -313,12 +347,18 @@ export async function POST(request: NextRequest) {
       updatePayload.data_completamento_consegna = null
     }
 
+    if (markQualityControlComplete) {
+      updatePayload.controllo_completato = true
+      updatePayload.controllo_completato_da = user.id
+      updatePayload.controllo_completato_at = qualityControlCompletedAt || now
+    }
+
     const { data: updatedBuste, error: updateError } = await admin
       .from('buste')
       .update(updatePayload)
       .eq('id', bustaId)
       .eq('stato_attuale', oldStatus) // optimistic concurrency control
-      .select('id, readable_id, stato_attuale, updated_at, updated_by')
+      .select('id, readable_id, stato_attuale, updated_at, updated_by, controllo_completato, controllo_completato_da, controllo_completato_at')
 
     if (updateError) {
       console.error('KANBAN_UPDATE_DB_ERROR', {

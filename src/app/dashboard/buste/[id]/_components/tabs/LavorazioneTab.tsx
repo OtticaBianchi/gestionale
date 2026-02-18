@@ -1133,18 +1133,6 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
 
       const now = new Date().toISOString();
 
-      // First, update the quality control fields
-      const { error: controlloError } = await supabase
-        .from('buste')
-        .update({
-          controllo_completato: true,
-          controllo_completato_da: user.id,
-          controllo_completato_at: now
-        })
-        .eq('id', busta.id);
-
-      if (controlloError) throw controlloError;
-
       // Then update busta status via API
       const response = await fetch('/api/buste/update-status', {
         method: 'POST',
@@ -1155,7 +1143,9 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
           bustaId: busta.id,
           oldStatus: busta.stato_attuale,
           newStatus: 'pronto_ritiro',
-          tipoLavorazione: busta.tipo_lavorazione
+          tipoLavorazione: busta.tipo_lavorazione,
+          markQualityControlComplete: true,
+          qualityControlCompletedAt: now
         }),
       });
 
@@ -1208,9 +1198,9 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
         ...busta,
         stato_attuale: 'pronto_ritiro' as const,
         updated_at: data.busta.updated_at,
-        controllo_completato: true,
-        controllo_completato_da: user.id,
-        controllo_completato_at: now
+        controllo_completato: data.busta.controllo_completato ?? true,
+        controllo_completato_da: data.busta.controllo_completato_da ?? user.id,
+        controllo_completato_at: data.busta.controllo_completato_at ?? now
       };
 
       // Call the parent callback to update the busta
