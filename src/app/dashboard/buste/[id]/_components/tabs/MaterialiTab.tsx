@@ -377,6 +377,22 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     [ordiniMateriali]
   );
 
+  const classificazioneLentiOptions = useMemo(() => {
+    const bifocali: ClassificazioneLenti[] = [];
+    const others: ClassificazioneLenti[] = [];
+
+    classificazioneLenti.forEach((item) => {
+      const normalized = (item.nome || '').trim().toLowerCase();
+      if (normalized === 'bifocali') {
+        bifocali.push(item);
+        return;
+      }
+      others.push(item);
+    });
+
+    return [...others, ...bifocali];
+  }, [classificazioneLenti]);
+
   const disponibilitaStats = useMemo<{
     counts: Record<typeof DISPONIBILITA_STATES[number], number>;
     worstStatus: typeof DISPONIBILITA_STATES[number];
@@ -2945,7 +2961,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">-- Seleziona classificazione --</option>
-              {classificazioneLenti.map(cl => (
+              {classificazioneLentiOptions.map(cl => (
                 <option key={cl.id} value={cl.id}>{cl.nome}</option>
               ))}
             </select>

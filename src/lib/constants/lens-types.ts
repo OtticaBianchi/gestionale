@@ -13,6 +13,7 @@ export const CLASSIFICAZIONE_LENTI = {
   OFFICE: 'Office',
   SUPPORTO_ACCOMODATIVO: 'A supporto accomodativo',
   PREVENZIONE_MIOPIA: 'Prevenzione Miopia',
+  BIFOCALI: 'Bifocali',
 } as const;
 
 export type ClassificazioneLente = typeof CLASSIFICAZIONE_LENTI[keyof typeof CLASSIFICAZIONE_LENTI];
