@@ -629,6 +629,8 @@ async function markBustaAsConsegnatoPagato(
   reason: string,
   metadata?: Record<string, any>
 ) {
+  const now = new Date().toISOString()
+
   const { data: existingBusta } = await admin
     .from('buste')
     .select('id, stato_attuale')
@@ -645,7 +647,7 @@ async function markBustaAsConsegnatoPagato(
 
   const { data: updatedBusta, error } = await admin
     .from('buste')
-    .update({ stato_attuale: 'consegnato_pagato', updated_at: new Date().toISOString(), updated_by: userId })
+    .update({ stato_attuale: 'consegnato_pagato', updated_at: now, updated_by: userId })
     .eq('id', bustaId)
     .select('id, stato_attuale, updated_at')
     .single()
@@ -664,6 +666,48 @@ async function markBustaAsConsegnatoPagato(
     { bustaId, ...(metadata || {}) },
     userRole
   )
+
+  const { data: historyRow, error: historyError } = await admin
+    .from('status_history')
+    .insert({
+      busta_id: bustaId,
+      stato: 'consegnato_pagato',
+      data_ingresso: now,
+      operatore_id: userId,
+      note_stato: reason
+    })
+    .select('id, busta_id, stato, data_ingresso, operatore_id, note_stato')
+    .single()
+
+  if (historyError) {
+    console.error('STATUS_HISTORY_CLOSE_BUSTA_FAILED', {
+      bustaId,
+      from: existingBusta.stato_attuale,
+      to: 'consegnato_pagato',
+      error: historyError
+    })
+  } else if (historyRow) {
+    const auditHistory = await logInsert(
+      'status_history',
+      String(historyRow.id),
+      userId,
+      historyRow,
+      'Nuovo stato da chiusura pagamenti',
+      {
+        source: 'api/payments/actions',
+        bustaId,
+        from: existingBusta.stato_attuale,
+        to: 'consegnato_pagato',
+        ...(metadata || {})
+      },
+      userRole
+    )
+
+    if (!auditHistory.success) {
+      console.error('AUDIT_INSERT_STATUS_HISTORY_CLOSE_FAILED', auditHistory.error)
+    }
+  }
+
   return updatedBusta
 }
 

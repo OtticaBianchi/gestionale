@@ -222,11 +222,17 @@ function LoginForm() {
 
         <div className="mt-6 border-t border-slate-200 pt-6">
           <div className="mb-2 text-center text-xs text-slate-400">
-            Versione 4.3.9
+            Versione 4.3.10
           </div>
           <div className="text-xs text-slate-500">
             <div className="text-center font-medium text-slate-600">Ultimi aggiornamenti</div>
             <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+              <div className="font-semibold text-slate-700">v4.3.10 - Febbraio 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>Anagrafica: nuovo cambio intestatario solo per questa busta, senza toccare le altre collegate al cliente</li>
+                <li>Supporto ricerca cliente esistente o creazione nuovo intestatario con validazioni telefono e audit</li>
+                <li>Materiali: aggiunta correzione da "Arrivato" a "In Arrivo" per arrivi segnati per errore</li>
+              </ul>
               <div className="font-semibold text-slate-700">v4.3.9 - Febbraio 2026</div>
               <ul className="ml-2 list-disc list-inside space-y-1">
                 <li>Pagamento/LAC: nuova opzione di riordino a fine vita busta con scelta utente</li>

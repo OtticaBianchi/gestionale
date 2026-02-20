@@ -184,6 +184,8 @@ const EVENT_LABELS: Record<EventType, string> = EVENT_TYPES.reduce((acc, item) =
   return acc;
 }, {} as Record<EventType, string>);
 
+const ARRIVAL_ROLLBACK_ALLOWED_FROM = ['consegnato', 'accettato_con_riserva'] as const;
+
 const formatDateForInput = (value: string | null | undefined) => {
   if (!value) return '';
   try {
@@ -1988,6 +1990,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         return;
       }
 
+      const statoCorrente = (ordineCorrente.stato || 'ordinato') as string;
+      if (statoCorrente === nuovoStato) {
+        return;
+      }
+
       if (nuovoStato === 'annullato') {
         setCancelOrderId(ordineId);
         setCancelReason('');
@@ -2012,32 +2019,54 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         return;
       }
       
-      const updateData: any = {
+      const updateData: Record<string, any> = {
         stato: nuovoStato,
         updated_at: new Date().toISOString()
       };
 
-      if (nuovoStato === 'consegnato') {
+      if (nuovoStato === 'in_arrivo') {
+        const canRollback = ARRIVAL_ROLLBACK_ALLOWED_FROM.includes(
+          statoCorrente as typeof ARRIVAL_ROLLBACK_ALLOWED_FROM[number]
+        );
+
+        if (!canRollback) {
+          alert('Puoi riportare in "In Arrivo" solo ordini marcati come "Arrivato" o "Con Riserva".');
+          return;
+        }
+
+        const confirmed = window.confirm(
+          'Confermi la correzione? L\'ordine tornerà a "In Arrivo" e la data arrivo effettiva verrà rimossa.'
+        );
+        if (!confirmed) {
+          return;
+        }
+
+        const rollbackLine = buildNoteLine(
+          `Correzione stato: da ${statoCorrente.replace(/_/g, ' ')} a in_arrivo (arrivo segnato per errore).`,
+          currentUserLabel
+        );
+        updateData.data_consegna_effettiva = null;
+        updateData.note = appendNoteLine(ordineCorrente.note, rollbackLine);
+      } else if (nuovoStato === 'consegnato') {
         updateData.data_consegna_effettiva = ordineCorrente.data_consegna_effettiva
           || new Date().toISOString().split('T')[0];
       } else if (nuovoStato === 'sbagliato') {
         updateData.data_consegna_effettiva = null;
       }
 
-      const resp = await fetch(`/api/ordini/${ordineId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateData)
-      })
-      const data = await resp.json()
-      if (!resp.ok) throw new Error(data.error || 'Errore aggiornamento')
+      const updated = await patchOrdine(ordineId, updateData);
 
       console.log('✅ Stato ordine aggiornato nel database');
 
       // Aggiorna stato locale
       const ordiniAggiornati = ordiniMateriali.map(ordine =>
         ordine.id === ordineId
-          ? { ...ordine, ...updateData }
+          ? {
+              ...ordine,
+              ...updateData,
+              updated_at: updated?.updated_at ?? ordine.updated_at,
+              updated_by: updated?.updated_by ?? ordine.updated_by
+            }
           : ordine
       );
       setOrdiniMateriali(ordiniAggiornati);
@@ -2045,6 +2074,13 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       // ✅ SWR: Invalidate cache after order status update
       await mutate('/api/buste');
       await syncBustaWorkflowWithOrdini(ordiniAggiornati, 'aggiornamento stato ordine');
+
+      const isManagedWorkflow = MANAGED_WORKFLOW_STATES.includes(workflowStatus as AutoAdvanceState);
+      if (nuovoStato === 'in_arrivo' && !isManagedWorkflow) {
+        alert(
+          'Ordine riportato a "In Arrivo". Verifica anche lo stato busta in Kanban: potrebbe richiedere un aggiornamento manuale.'
+        );
+      }
 
       if (shouldCreateDraft) {
         await createAutoErrorDraft(ordineCorrente);
@@ -3450,6 +3486,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               const statoOrdine = (ordine.stato || 'ordinato') as string;
               const isAnnullato = statoOrdine === 'annullato';
               const isArrivato = statoOrdine === 'consegnato';
+              const canRollbackToInArrivo = ARRIVAL_ROLLBACK_ALLOWED_FROM.includes(
+                statoOrdine as typeof ARRIVAL_ROLLBACK_ALLOWED_FROM[number]
+              );
               const isSbagliato = statoOrdine === 'sbagliato';
               const dataConsegnaPrevista = ordine.data_consegna_prevista
                 ? new Date(ordine.data_consegna_prevista)
@@ -4003,6 +4042,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                                   {statoOrdine === 'in_arrivo' && '🚚 In Arrivo (auto)'}
                                   {statoOrdine === 'in_ritardo' && '⏰ In Ritardo (auto)'}
                                 </option>
+                              )}
+                              {canRollbackToInArrivo && (
+                                <option value="in_arrivo">↩️ Correggi: In Arrivo</option>
                               )}
                               {/* Stati manuali selezionabili */}
                               <option value="consegnato">✅ Arrivato</option>

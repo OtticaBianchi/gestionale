@@ -64,6 +64,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.3.10', date: '20/02/2026', description: 'Anagrafica: introdotto cambio intestatario solo per la busta corrente (cliente esistente o nuovo) con audit dedicato. Materiali: aggiunta correzione rapida da "Arrivato" a "In Arrivo" quando l\'arrivo e segnato per errore.' },
     { version: '4.3.9', date: '17/02/2026', description: 'Pagamento/LAC: introdotto riordino a fine vita busta con scelta utente in chiusura manuale, chiusura automatica da saldo unico incassato e anche su busta già chiusa, con creazione nuova busta e ordini LAC pronti da ordinare.' },
     { version: '4.3.8', date: '16/02/2026', description: 'Materiali: aggiunto trattamento lenti "Indurimento" e consolidata la documentazione tecnica di MaterialiTab con riferimento unico aggiornato.' },
     { version: '4.3.7', date: '15/02/2026', description: 'Anagrafica: fix tipo lavorazione VC in salvataggio/modifica, migliorata gestione telefono (niente blocco salvataggio su campi non correlati) e messaggi errore API più diagnostici.' },
@@ -205,7 +206,7 @@ export default function WelcomePage() {
               </div>
 
               <div className="mt-5 rounded-2xl bg-[var(--paper)] px-4 py-3 text-xs text-slate-500">
-                Supporto clienti e formazione inclusi. Versione attuale: <strong>4.3.9</strong>
+                Supporto clienti e formazione inclusi. Versione attuale: <strong>4.3.10</strong>
               </div>
             </div>
           </aside>

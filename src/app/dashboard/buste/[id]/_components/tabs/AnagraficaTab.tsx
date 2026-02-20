@@ -13,6 +13,7 @@ import {
   Edit3,
   Save,
   X,
+  Search,
   Phone,
   Mail,
   AlertTriangle,
@@ -21,7 +22,6 @@ import {
   Eye // ✅ AGGIUNTO per banner read-only
 } from 'lucide-react';
 import PrintBustaButton from 'src/app/dashboard/_components/PrintBustaButton'; // ✅ IMPORT AGGIUNTO
-import { useUser } from '@/context/UserContext';
 import UnifiedNotesDisplay from '../UnifiedNotesDisplay';
 
 // ===== TYPES LOCALI =====
@@ -64,6 +64,26 @@ type SurveyClientSummary = {
     submitted_at: string | null;
     created_at: string | null;
   }>;
+};
+
+type ClienteSearchOption = Pick<
+  Database['public']['Tables']['clienti']['Row'],
+  'id' | 'nome' | 'cognome' | 'genere' | 'telefono' | 'email' | 'note_cliente'
+>;
+
+type ClienteSearchResult = {
+  cliente: ClienteSearchOption;
+  buste: Array<
+    Pick<Database['public']['Tables']['buste']['Row'], 'id' | 'readable_id' | 'stato_attuale'>
+  >;
+};
+
+type ReassignIntestatarioResponse = {
+  success?: boolean;
+  busta?: Partial<BustaDettagliata>;
+  cliente?: Partial<BustaDettagliata['clienti']> | null;
+  error?: string;
+  noop?: boolean;
 };
 
 // ===== UTILITY FUNCTION FOR NAME CAPITALIZATION =====
@@ -173,6 +193,15 @@ const normalizeSurveySectionEntries = (sectionScores: Record<string, number> | n
   return [...ordered, ...extra];
 };
 
+const createEmptyReassignClientDraft = () => ({
+  nome: '',
+  cognome: '',
+  genere: null as GenereCliente,
+  telefono: '',
+  email: '',
+  note_cliente: ''
+});
+
 // Tipi props
 interface AnagraficaTabProps {
   busta: BustaDettagliata;
@@ -196,11 +225,19 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
     ? Number((latestHistoryScore - previousHistoryScore).toFixed(2))
     : null;
   
-  // User context for role checking
-  const { profile } = useUser();
-  
   // ✅ AGGIUNTO: Helper per controlli
   const canEdit = !isReadOnly;
+
+  const [isReassignPanelOpen, setIsReassignPanelOpen] = useState(false);
+  const [reassignMode, setReassignMode] = useState<'existing' | 'new'>('existing');
+  const [reassignSearch, setReassignSearch] = useState('');
+  const [isSearchingReassignClient, setIsSearchingReassignClient] = useState(false);
+  const [reassignSearchResults, setReassignSearchResults] = useState<ClienteSearchResult[]>([]);
+  const [selectedReassignClient, setSelectedReassignClient] = useState<ClienteSearchResult | null>(null);
+  const [isApplyingReassign, setIsApplyingReassign] = useState(false);
+  const [reassignError, setReassignError] = useState<string | null>(null);
+  const [reassignSuccess, setReassignSuccess] = useState<string | null>(null);
+  const [newReassignClientDraft, setNewReassignClientDraft] = useState(createEmptyReassignClientDraft);
 
   useEffect(() => {
     const clienteId = busta.clienti?.id;
@@ -255,6 +292,18 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
       isCancelled = true;
     };
   }, [busta.clienti?.id]);
+
+  useEffect(() => {
+    if (!reassignSuccess) return;
+    const timer = setTimeout(() => setReassignSuccess(null), 4000);
+    return () => clearTimeout(timer);
+  }, [reassignSuccess]);
+
+  useEffect(() => {
+    if (!isEditing) return;
+    setIsReassignPanelOpen(false);
+    setReassignError(null);
+  }, [isEditing]);
   
   const [editForm, setEditForm] = useState({
     // ✅ Dati busta
@@ -272,12 +321,6 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
     cliente_email: busta.clienti?.email || '',
     cliente_note: busta.clienti?.note_cliente || '',
   });
-
-  // ===== UTILITY FUNCTIONS =====
-  const shouldShowTipoLenti = () => {
-    const tipoLav = editForm.tipo_lavorazione || busta.tipo_lavorazione;
-    return tipoLav === 'OCV' || tipoLav === 'LV';
-  };
 
   // ===== VALIDATION FUNCTIONS =====
   const validateFormData = () => {
@@ -308,6 +351,19 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
     busta?: Partial<BustaDettagliata>;
     cliente?: Partial<BustaDettagliata['clienti']> | null;
     error?: string;
+  };
+
+  const applyClientToForm = (cliente: Partial<BustaDettagliata['clienti']> | null | undefined) => {
+    if (!cliente) return;
+    setEditForm((prev) => ({
+      ...prev,
+      cliente_nome: cliente.nome || '',
+      cliente_cognome: cliente.cognome || '',
+      cliente_genere: (cliente.genere as GenereCliente) ?? null,
+      cliente_telefono: cliente.telefono || '',
+      cliente_email: cliente.email || '',
+      cliente_note: cliente.note_cliente || ''
+    }));
   };
 
   const updateLocalState = (
@@ -456,6 +512,154 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
     setSaveSuccess(false);
   };
 
+  const resetReassignState = () => {
+    setReassignError(null);
+    setReassignSearch('');
+    setReassignSearchResults([]);
+    setSelectedReassignClient(null);
+    setReassignMode('existing');
+    setNewReassignClientDraft(createEmptyReassignClientDraft());
+  };
+
+  const openReassignPanel = () => {
+    setReassignError(null);
+    setReassignSuccess(null);
+    setIsReassignPanelOpen(true);
+  };
+
+  const closeReassignPanel = () => {
+    setIsReassignPanelOpen(false);
+    resetReassignState();
+  };
+
+  const handleSearchReassignClient = async () => {
+    const query = reassignSearch.trim();
+    if (query.length < 2) {
+      setReassignError('Inserisci almeno 2 caratteri per cercare un cliente');
+      return;
+    }
+
+    setReassignError(null);
+    setIsSearchingReassignClient(true);
+
+    try {
+      const response = await fetch(`/api/clienti/search?q=${encodeURIComponent(query)}`, {
+        method: 'GET',
+        cache: 'no-store'
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Errore ricerca clienti');
+      }
+
+      const results = Array.isArray(payload?.results)
+        ? (payload.results as ClienteSearchResult[])
+        : [];
+
+      const filtered = results.filter((result) => result?.cliente?.id !== busta.clienti?.id);
+      setReassignSearchResults(filtered);
+      setSelectedReassignClient(null);
+
+      if (filtered.length === 0) {
+        setReassignError('Nessun cliente trovato diverso dall’intestatario attuale');
+      }
+    } catch (error: any) {
+      setReassignSearchResults([]);
+      setReassignError(error?.message || 'Errore ricerca clienti');
+    } finally {
+      setIsSearchingReassignClient(false);
+    }
+  };
+
+  const handleApplyReassign = async () => {
+    setIsApplyingReassign(true);
+    setReassignError(null);
+    setReassignSuccess(null);
+
+    try {
+      let payload: Record<string, any>;
+
+      if (reassignMode === 'existing') {
+        const targetId = selectedReassignClient?.cliente?.id;
+        if (!targetId) {
+          throw new Error('Seleziona il cliente da collegare a questa busta');
+        }
+
+        if (targetId === busta.clienti?.id) {
+          throw new Error('La busta è già collegata al cliente selezionato');
+        }
+
+        payload = { targetClienteId: targetId };
+      } else {
+        const nome = newReassignClientDraft.nome.trim();
+        const cognome = newReassignClientDraft.cognome.trim();
+        const telefono = newReassignClientDraft.telefono.trim();
+
+        if (!nome || !cognome) {
+          throw new Error('Nome e cognome sono obbligatori per creare un nuovo intestatario');
+        }
+
+        if (!telefono) {
+          throw new Error('Telefono obbligatorio (usa 0000000 se non disponibile)');
+        }
+
+        payload = {
+          createCliente: {
+            nome,
+            cognome,
+            genere: newReassignClientDraft.genere,
+            telefono,
+            email: newReassignClientDraft.email.trim() || null,
+            note_cliente: newReassignClientDraft.note_cliente.trim() || null
+          }
+        };
+      }
+
+      const response = await fetch(`/api/buste/${busta.id}/intestatario`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result: ReassignIntestatarioResponse = await response
+        .json()
+        .catch(() => ({} as ReassignIntestatarioResponse));
+
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Errore cambio intestatario');
+      }
+
+      const mergedCliente = result?.cliente
+        ? ({ ...(busta.clienti || {}), ...result.cliente } as BustaDettagliata['clienti'])
+        : busta.clienti;
+
+      const updatedBusta = {
+        ...busta,
+        ...result?.busta,
+        cliente_id: result?.busta?.cliente_id ?? busta.cliente_id,
+        updated_at: result?.busta?.updated_at ?? new Date().toISOString(),
+        clienti: mergedCliente
+      } as BustaDettagliata;
+
+      onBustaUpdate(updatedBusta);
+      applyClientToForm(mergedCliente);
+      await mutate('/api/buste');
+
+      if (result.noop) {
+        setReassignSuccess('Nessuna modifica: la busta era già collegata al cliente selezionato');
+      } else {
+        setReassignSuccess('Intestatario aggiornato solo per questa busta');
+      }
+
+      closeReassignPanel();
+    } catch (error: any) {
+      setReassignError(error?.message || 'Errore cambio intestatario');
+    } finally {
+      setIsApplyingReassign(false);
+    }
+  };
+
   // ===== RENDER =====
   return (
     <div className="space-y-6">
@@ -507,6 +711,16 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
                 size="sm"
               />
             )}
+
+            {canEdit && !isEditing && (
+              <button
+                onClick={openReassignPanel}
+                className="flex items-center space-x-1 px-3 py-1 text-sm bg-amber-50 text-amber-700 rounded-md hover:bg-amber-100 transition-colors"
+              >
+                <User className="h-4 w-4" />
+                <span>Cambia intestatario (solo busta)</span>
+              </button>
+            )}
             
             {/* ✅ MODIFICA: Indicatore modalità editing - SOLO SE canEdit */}
             {canEdit && isEditing && (
@@ -514,6 +728,218 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
             )}
           </div>
         </div>
+
+        {reassignSuccess && (
+          <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            {reassignSuccess}
+          </div>
+        )}
+
+        {canEdit && !isEditing && isReassignPanelOpen && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-amber-900">
+                  Cambio intestatario solo per questa busta
+                </p>
+                <p className="text-xs text-amber-800">
+                  Questa azione cambia solo il collegamento cliente della busta corrente e non modifica i dati delle altre buste.
+                </p>
+              </div>
+              <button
+                onClick={closeReassignPanel}
+                className="text-xs px-2 py-1 rounded border border-amber-300 text-amber-800 hover:bg-amber-100"
+              >
+                Chiudi
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  setReassignMode('existing');
+                  setReassignError(null);
+                }}
+                className={`px-3 py-1.5 text-sm rounded-md border ${
+                  reassignMode === 'existing'
+                    ? 'bg-white border-amber-300 text-amber-900'
+                    : 'bg-amber-100 border-amber-200 text-amber-800'
+                }`}
+              >
+                Seleziona cliente esistente
+              </button>
+              <button
+                onClick={() => {
+                  setReassignMode('new');
+                  setReassignError(null);
+                }}
+                className={`px-3 py-1.5 text-sm rounded-md border ${
+                  reassignMode === 'new'
+                    ? 'bg-white border-amber-300 text-amber-900'
+                    : 'bg-amber-100 border-amber-200 text-amber-800'
+                }`}
+              >
+                Crea nuovo cliente
+              </button>
+            </div>
+
+            {reassignMode === 'existing' ? (
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={reassignSearch}
+                    onChange={(e) => setReassignSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        void handleSearchReassignClient();
+                      }
+                    }}
+                    placeholder="Cerca cliente per nome o cognome..."
+                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                  />
+                  <button
+                    onClick={() => void handleSearchReassignClient()}
+                    disabled={isSearchingReassignClient}
+                    className="inline-flex items-center gap-1 px-3 py-2 text-sm rounded-md border border-amber-300 bg-white text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                  >
+                    {isSearchingReassignClient ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                    <span>Cerca</span>
+                  </button>
+                </div>
+
+                {reassignSearchResults.length > 0 && (
+                  <div className="max-h-56 overflow-y-auto space-y-2 rounded-md border border-amber-200 bg-white p-2">
+                    {reassignSearchResults.map((result) => {
+                      const isSelected = selectedReassignClient?.cliente?.id === result.cliente.id;
+                      return (
+                        <button
+                          key={result.cliente.id}
+                          onClick={() => setSelectedReassignClient(result)}
+                          className={`w-full text-left rounded-md border px-3 py-2 transition-colors ${
+                            isSelected
+                              ? 'border-amber-400 bg-amber-50'
+                              : 'border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <p className="text-sm font-medium text-gray-900">
+                            {result.cliente.cognome} {result.cliente.nome}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            Tel: {result.cliente.telefono ? formatPhoneDisplay(result.cliente.telefono) : 'non disponibile'} · Buste collegate: {result.buste.length}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {selectedReassignClient && (
+                  <div className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-amber-900">
+                    Selezionato: <strong>{selectedReassignClient.cliente.cognome} {selectedReassignClient.cliente.nome}</strong>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-amber-900">Nome *</label>
+                  <input
+                    type="text"
+                    value={newReassignClientDraft.nome}
+                    onChange={(e) => setNewReassignClientDraft((prev) => ({ ...prev, nome: capitalizeNameProperly(e.target.value) }))}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-amber-900">Cognome *</label>
+                  <input
+                    type="text"
+                    value={newReassignClientDraft.cognome}
+                    onChange={(e) => setNewReassignClientDraft((prev) => ({ ...prev, cognome: capitalizeNameProperly(e.target.value) }))}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-amber-900">Genere</label>
+                  <select
+                    value={newReassignClientDraft.genere || ''}
+                    onChange={(e) =>
+                      setNewReassignClientDraft((prev) => ({
+                        ...prev,
+                        genere: e.target.value === '' ? null : (e.target.value as GenereCliente)
+                      }))
+                    }
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                  >
+                    <option value="">Non specificato</option>
+                    <option value="M">Maschio</option>
+                    <option value="F">Femmina</option>
+                    <option value="P.Giuridica">P.Giuridica</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-amber-900">Telefono *</label>
+                  <input
+                    type="text"
+                    value={newReassignClientDraft.telefono}
+                    onChange={(e) => setNewReassignClientDraft((prev) => ({ ...prev, telefono: e.target.value }))}
+                    placeholder="Usa 0000000 se non disponibile"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-amber-900">Email</label>
+                  <input
+                    type="email"
+                    value={newReassignClientDraft.email}
+                    onChange={(e) => setNewReassignClientDraft((prev) => ({ ...prev, email: e.target.value }))}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-amber-900">Note cliente</label>
+                  <textarea
+                    rows={2}
+                    value={newReassignClientDraft.note_cliente}
+                    onChange={(e) => setNewReassignClientDraft((prev) => ({ ...prev, note_cliente: e.target.value }))}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+            )}
+
+            {reassignError && (
+              <p className="text-sm text-rose-700">{reassignError}</p>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={closeReassignPanel}
+                className="px-3 py-1.5 text-sm rounded-md bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={() => void handleApplyReassign()}
+                disabled={isApplyingReassign || (reassignMode === 'existing' && !selectedReassignClient)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+              >
+                {isApplyingReassign ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                <span>Conferma cambio intestatario</span>
+              </button>
+            </div>
+          </div>
+        )}
         
         {busta.clienti ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
