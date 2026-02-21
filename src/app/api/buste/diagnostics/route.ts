@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { logAuditChange } from '@/lib/audit/auditLog'
+import { buildRequestTraceContext, getRequestId } from '@/lib/audit/requestTrace'
 
 type ClientDiagnosticPayload = {
   code?: string
@@ -18,23 +19,20 @@ type ClientDiagnosticPayload = {
   context?: Record<string, unknown>
 }
 
-const getRequestIp = (request: NextRequest): string | undefined => {
-  const forwarded = request.headers.get('x-forwarded-for')
-  if (forwarded) {
-    const first = forwarded.split(',')[0]?.trim()
-    if (first) return first
-  }
-  const realIp = request.headers.get('x-real-ip')?.trim()
-  return realIp || undefined
-}
-
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request)
+  const jsonWithRequestId = (payload: Record<string, unknown>, status = 200) => {
+    const response = NextResponse.json(payload, { status })
+    response.headers.set('x-request-id', requestId)
+    return response
+  }
+
   try {
     const supabase = await createServerSupabaseClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return jsonWithRequestId({ error: 'Unauthorized' }, 401)
     }
 
     const { data: profile } = await supabase
@@ -42,6 +40,11 @@ export async function POST(request: NextRequest) {
       .select('role')
       .eq('id', user.id)
       .single()
+
+    const trace = buildRequestTraceContext(request, {
+      requestId,
+      userId: user.id
+    })
 
     const payload = (await request.json().catch(() => ({}))) as ClientDiagnosticPayload
     const code = (payload.code || 'KANBAN_CLIENT_DIAGNOSTIC').toString().slice(0, 120)
@@ -70,18 +73,23 @@ export async function POST(request: NextRequest) {
       },
       {
         logToConsole: false,
-        ipAddress: getRequestIp(request),
-        userAgent: request.headers.get('user-agent') || undefined,
+        ipAddress: trace.ip_address || undefined,
+        userAgent: trace.user_agent || undefined,
+        requireUserId: true,
+        trace: {
+          ...trace,
+          audit_event: 'kanban_client_diagnostic'
+        },
       }
     )
 
     if (!result.success) {
-      return NextResponse.json({ error: result.error || 'Log failed' }, { status: 500 })
+      return jsonWithRequestId({ error: result.error || 'Log failed' }, 500)
     }
 
-    return NextResponse.json({ success: true })
+    return jsonWithRequestId({ success: true })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unexpected error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return jsonWithRequestId({ error: message }, 500)
   }
 }

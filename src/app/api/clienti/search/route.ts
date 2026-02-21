@@ -4,7 +4,13 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
-const normalizeSearchValue = (value: string) => value.normalize('NFKD').replace(/\s+/g, ' ').trim();
+const normalizeSearchValue = (value: string) =>
+  value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -15,6 +21,26 @@ const matchesWordStart = (value: string | null | undefined, term: string) => {
   if (!normalizedValue || !normalizedTerm) return false;
   const regex = new RegExp(`(^|[\\s\\-'/,\\.])${escapeRegex(normalizedTerm)}`, 'i');
   return regex.test(normalizedValue);
+};
+
+const getClientSearchScore = (
+  cliente: { nome?: string | null; cognome?: string | null },
+  term: string
+) => {
+  const normalizedTerm = normalizeSearchValue(term);
+  const normalizedNome = normalizeSearchValue(cliente.nome || '');
+  const normalizedCognome = normalizeSearchValue(cliente.cognome || '');
+
+  if (!normalizedTerm) return 99;
+  if (normalizedCognome === normalizedTerm) return 0;
+  if (normalizedNome === normalizedTerm) return 1;
+  if (normalizedCognome.startsWith(normalizedTerm)) return 2;
+  if (normalizedNome.startsWith(normalizedTerm)) return 3;
+  if (matchesWordStart(cliente.cognome, term)) return 4;
+  if (matchesWordStart(cliente.nome, term)) return 5;
+  if (normalizedCognome.includes(normalizedTerm)) return 6;
+  if (normalizedNome.includes(normalizedTerm)) return 7;
+  return 99;
 };
 
 export async function GET(request: NextRequest) {
@@ -31,24 +57,20 @@ export async function GET(request: NextRequest) {
     console.log('🔍 Searching for clients with term:', searchTerm);
 
     // Search for clients by cognome or nome
-    const selectFields = 'id, nome, cognome, telefono, email';
+    const selectFields = 'id, nome, cognome, telefono, email, updated_at';
     const [cognomeRes, nomeRes] = await Promise.all([
       supabase
         .from('clienti')
         .select(selectFields)
         .is('deleted_at', null)
         .ilike('cognome', `%${searchTerm}%`)
-        .order('cognome')
-        .order('nome')
-        .limit(100),
+        .limit(200),
       supabase
         .from('clienti')
         .select(selectFields)
         .is('deleted_at', null)
         .ilike('nome', `%${searchTerm}%`)
-        .order('cognome')
-        .order('nome')
-        .limit(100),
+        .limit(200),
     ]);
 
     if (cognomeRes.error || nomeRes.error) {
@@ -64,20 +86,21 @@ export async function GET(request: NextRequest) {
       }, new Map<string, any>()).values()
     );
     const filteredClienti = uniqueClienti
-      .map(cliente => {
-        const cognomeMatch = matchesWordStart(cliente.cognome, searchTerm);
-        const nomeMatch = matchesWordStart(cliente.nome, searchTerm);
-        return { cliente, cognomeMatch, nomeMatch };
-      })
-      .filter(({ cognomeMatch, nomeMatch }) => cognomeMatch || nomeMatch)
+      .map((cliente) => ({
+        cliente,
+        score: getClientSearchScore(cliente, searchTerm),
+        updatedAtMs: cliente.updated_at ? new Date(cliente.updated_at).getTime() : 0,
+      }))
+      .filter(({ score }) => score < 99)
       .sort((a, b) => {
-        if (a.cognomeMatch !== b.cognomeMatch) return a.cognomeMatch ? -1 : 1;
+        if (a.score !== b.score) return a.score - b.score;
+        if (a.updatedAtMs !== b.updatedAtMs) return b.updatedAtMs - a.updatedAtMs;
         const cognomeA = (a.cliente.cognome || '').toLowerCase();
         const cognomeB = (b.cliente.cognome || '').toLowerCase();
         if (cognomeA !== cognomeB) return cognomeA.localeCompare(cognomeB);
         return (a.cliente.nome || '').toLowerCase().localeCompare((b.cliente.nome || '').toLowerCase());
       })
-      .slice(0, 10)
+      .slice(0, 30)
       .map(({ cliente }) => cliente);
 
     if (filteredClienti.length === 0) {

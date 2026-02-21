@@ -177,18 +177,20 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     setFormError(null);
 
     try {
-      let query = supabase.from('clienti').select('*');
+      const term = searchValue.trim();
+      let query = supabase.from('clienti').select('*').is('deleted_at', null);
 
       if (searchType === 'cognome') {
-        // Search by last name (case-insensitive, starts with)
-        query = query.ilike('cognome', `${searchValue}%`);
+        // Search by surname/name (contains) to reduce false "not found" on partial queries
+        const safeTerm = term.replace(/,/g, ' ');
+        query = query.or(`cognome.ilike.%${safeTerm}%,nome.ilike.%${safeTerm}%`);
       } else {
         // Search by phone (exact match, removing spaces/dashes)
-        const cleanPhone = searchValue.replace(/[\s\-]/g, '');
+        const cleanPhone = term.replace(/[\s\-]/g, '');
         query = query.ilike('telefono', `%${cleanPhone}%`);
       }
 
-      const { data, error } = await query.order('cognome').order('nome').limit(20);
+      const { data, error } = await query.order('updated_at', { ascending: false }).order('cognome').order('nome').limit(30);
 
       if (error) throw error;
 

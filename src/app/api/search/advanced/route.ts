@@ -35,7 +35,13 @@ const CATEGORY_MAP: Record<string, string[]> = {
   sport: ['SPORT'],
 }
 
-const normalizeSearchValue = (value: string) => value.normalize('NFKD').replace(/\s+/g, ' ').trim()
+const normalizeSearchValue = (value: string) =>
+  value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
@@ -46,6 +52,26 @@ const matchesWordStart = (value: string | null | undefined, term: string) => {
   if (!normalizedValue || !normalizedTerm) return false
   const regex = new RegExp(`(^|[\\s\\-'/,\\.])${escapeRegex(normalizedTerm)}`, 'i')
   return regex.test(normalizedValue)
+}
+
+const getClientSearchScore = (
+  cliente: { nome?: string | null; cognome?: string | null },
+  term: string
+) => {
+  const normalizedTerm = normalizeSearchValue(term)
+  const normalizedNome = normalizeSearchValue(cliente.nome || '')
+  const normalizedCognome = normalizeSearchValue(cliente.cognome || '')
+
+  if (!normalizedTerm) return 99
+  if (normalizedCognome === normalizedTerm) return 0
+  if (normalizedNome === normalizedTerm) return 1
+  if (normalizedCognome.startsWith(normalizedTerm)) return 2
+  if (normalizedNome.startsWith(normalizedTerm)) return 3
+  if (matchesWordStart(cliente.cognome, term)) return 4
+  if (matchesWordStart(cliente.nome, term)) return 5
+  if (normalizedCognome.includes(normalizedTerm)) return 6
+  if (normalizedNome.includes(normalizedTerm)) return 7
+  return 99
 }
 
 const BUSTA_ARCHIVE_FIELDS = `
@@ -82,7 +108,7 @@ async function searchClients(ctx: SearchContext, forceIncludeEmpty = false): Pro
   const { supabase, searchTerm, includeArchived, isBustaArchived } = ctx
   const normalizedTerm = searchTerm.trim()
   const selectFields = `
-    id, nome, cognome, telefono, email, genere, note_cliente,
+    id, nome, cognome, telefono, email, genere, note_cliente, updated_at,
     buste (
       ${BUSTA_ARCHIVE_FIELDS}
     )
@@ -113,21 +139,22 @@ async function searchClients(ctx: SearchContext, forceIncludeEmpty = false): Pro
     }, new Map<string, any>()).values()
   )
   const filteredClienti = uniqueClienti
-    .map((cliente: any) => {
-      const cognomeMatch = matchesWordStart(cliente.cognome, normalizedTerm)
-      const nomeMatch = matchesWordStart(cliente.nome, normalizedTerm)
-      return { cliente, cognomeMatch, nomeMatch }
-    })
-    .filter(({ cognomeMatch, nomeMatch }) => cognomeMatch || nomeMatch)
+    .map((cliente: any) => ({
+      cliente,
+      score: getClientSearchScore(cliente, normalizedTerm),
+      updatedAtMs: cliente.updated_at ? new Date(cliente.updated_at).getTime() : 0,
+    }))
+    .filter(({ score }) => score < 99)
     .sort((a: any, b: any) => {
-      if (a.cognomeMatch !== b.cognomeMatch) return a.cognomeMatch ? -1 : 1
+      if (a.score !== b.score) return a.score - b.score
+      if (a.updatedAtMs !== b.updatedAtMs) return b.updatedAtMs - a.updatedAtMs
       const cognomeA = (a.cliente.cognome || '').toLowerCase()
       const cognomeB = (b.cliente.cognome || '').toLowerCase()
       if (cognomeA !== cognomeB) return cognomeA.localeCompare(cognomeB)
       return (a.cliente.nome || '').toLowerCase().localeCompare((b.cliente.nome || '').toLowerCase())
     })
-    .slice(0, 20)
-    .map(({ cliente }) => cliente)
+    .slice(0, 50)
+    .map(({ cliente }: any) => cliente)
 
   return filteredClienti.reduce<SearchResult[]>((acc, cliente) => {
     const buste = cliente.buste?.filter((busta: any) => {

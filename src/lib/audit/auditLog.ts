@@ -6,6 +6,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
+import { mergeTraceIntoMetadata } from '@/lib/audit/requestTrace';
 
 // ============================================================================
 // Types
@@ -42,6 +43,10 @@ export interface AuditLogOptions {
   ipAddress?: string;
   // Include user agent (from request headers)
   userAgent?: string;
+  // Require an authenticated user id for this audit write
+  requireUserId?: boolean;
+  // Structured request trace context (request_id, method, path, fingerprint)
+  trace?: Record<string, any> | null;
 }
 
 // ============================================================================
@@ -74,10 +79,23 @@ export async function logAuditChange(
     logToConsole = true,
     consolePrefix = 'AUDIT',
     ipAddress,
-    userAgent
+    userAgent,
+    requireUserId = false,
+    trace = null
   } = options;
 
   try {
+    if (requireUserId && !entry.userId) {
+      const error = 'Audit write blocked: userId is required but missing';
+      console.error('❌ AUDIT_LOG_BLOCKED_MISSING_USER', {
+        table: entry.tableName,
+        recordId: entry.recordId,
+        action: entry.action,
+        reason: entry.reason ?? null
+      });
+      return { success: false, error };
+    }
+
     // Use service role client to bypass RLS for audit logging
     const supabase = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -101,6 +119,8 @@ export async function logAuditChange(
       userRole = profile?.role ?? null;
     }
 
+    const metadataWithTrace = mergeTraceIntoMetadata(entry.metadata, trace);
+
     // Insert audit log
     const { data, error } = await supabase
       .from('audit_log')
@@ -112,7 +132,7 @@ export async function logAuditChange(
         user_role: userRole ?? null,
         changed_fields: (entry.changedFields || null) as any,
         reason: entry.reason || null,
-        metadata: (entry.metadata || null) as any,
+        metadata: (metadataWithTrace || null) as any,
         ip_address: ipAddress || null,
         user_agent: userAgent || null,
         created_at: new Date().toISOString()
@@ -139,6 +159,7 @@ export async function logAuditChange(
         role: userRole ?? null,
         fields: entry.changedFields ? Object.keys(entry.changedFields) : [],
         reason: entry.reason,
+        requestId: trace?.request_id ?? null,
         auditId: data?.id,
         timestamp: new Date().toISOString()
       });
@@ -171,7 +192,8 @@ export async function logUpdate(
   newValues: Record<string, any>,
   reason?: string,
   metadata?: Record<string, any>,
-  userRole?: string | null
+  userRole?: string | null,
+  options?: AuditLogOptions
 ): Promise<{ success: boolean; auditId?: string; error?: string }> {
   // Build changed_fields object by comparing old and new
   const changedFields: ChangedFields = {};
@@ -204,7 +226,7 @@ export async function logUpdate(
     changedFields,
     reason,
     metadata
-  });
+  }, options);
 }
 
 /**
@@ -217,7 +239,8 @@ export async function logInsert(
   newValues: Record<string, any>,
   reason?: string,
   metadata?: Record<string, any>,
-  userRole?: string | null
+  userRole?: string | null,
+  options?: AuditLogOptions
 ): Promise<{ success: boolean; auditId?: string; error?: string }> {
   return logAuditChange({
     tableName,
@@ -233,7 +256,7 @@ export async function logInsert(
     },
     reason,
     metadata
-  });
+  }, options);
 }
 
 /**
@@ -246,7 +269,8 @@ export async function logDelete(
   deletedValues: Record<string, any>,
   reason?: string,
   metadata?: Record<string, any>,
-  userRole?: string | null
+  userRole?: string | null,
+  options?: AuditLogOptions
 ): Promise<{ success: boolean; auditId?: string; error?: string }> {
   return logAuditChange({
     tableName,
@@ -262,7 +286,7 @@ export async function logDelete(
     },
     reason,
     metadata
-  });
+  }, options);
 }
 
 // ============================================================================

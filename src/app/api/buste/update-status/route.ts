@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { logAuditChange, logInsert, logUpdate } from '@/lib/audit/auditLog'
+import { buildRequestTraceContext, getRequestId } from '@/lib/audit/requestTrace'
 import {
   WorkflowState,
   isTransitionAllowed,
@@ -87,16 +88,6 @@ const removeFollowUpMarker = (note?: string | null): string | null => {
   return cleaned || null
 }
 
-const getRequestIp = (request: NextRequest): string | undefined => {
-  const forwarded = request.headers.get('x-forwarded-for')
-  if (forwarded) {
-    const first = forwarded.split(',')[0]?.trim()
-    if (first) return first
-  }
-  const realIp = request.headers.get('x-real-ip')?.trim()
-  return realIp || undefined
-}
-
 type KanbanDiagnosticInput = {
   code: string
   httpStatus: number
@@ -110,7 +101,19 @@ type KanbanDiagnosticInput = {
   extra?: Record<string, unknown>
 }
 
-const logKanbanDiagnostic = async (request: NextRequest, input: KanbanDiagnosticInput) => {
+type AuditTracePayload = ReturnType<typeof buildRequestTraceContext> & {
+  audit_event?: string
+  audit_sequence?: number
+}
+
+type TraceBuilder = (userId?: string | null, auditEvent?: string) => AuditTracePayload
+
+const logKanbanDiagnostic = async (
+  input: KanbanDiagnosticInput,
+  buildTrace: TraceBuilder
+) => {
+  const trace = buildTrace(input.userId ?? null, `kanban_diagnostic_${input.code.toLowerCase()}`)
+
   const result = await logAuditChange(
     {
       tableName: 'kanban_diagnostics',
@@ -133,8 +136,10 @@ const logKanbanDiagnostic = async (request: NextRequest, input: KanbanDiagnostic
     },
     {
       logToConsole: false,
-      ipAddress: getRequestIp(request),
-      userAgent: request.headers.get('user-agent') || undefined,
+      ipAddress: trace.ip_address || undefined,
+      userAgent: trace.user_agent || undefined,
+      requireUserId: Boolean(input.userId),
+      trace
     }
   )
 
@@ -148,6 +153,27 @@ const logKanbanDiagnostic = async (request: NextRequest, input: KanbanDiagnostic
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = getRequestId(request)
+  const jsonWithRequestId = (payload: Record<string, unknown>, status = 200) => {
+    const response = NextResponse.json(payload, { status })
+    response.headers.set('x-request-id', requestId)
+    return response
+  }
+
+  let auditSequence = 0
+  const buildTrace: TraceBuilder = (userId = null, auditEvent = 'kanban_update_status') => ({
+    ...buildRequestTraceContext(request, { requestId, userId }),
+    audit_event: auditEvent,
+    audit_sequence: ++auditSequence
+  })
+
+  const toAuditOptions = (trace: AuditTracePayload, requireUserId = true) => ({
+    ipAddress: trace.ip_address || undefined,
+    userAgent: trace.user_agent || undefined,
+    requireUserId,
+    trace
+  })
+
   let diagnosticUserId: string | null = null
   let diagnosticUserRole: string | null = null
   let diagnosticBustaId: string | null = null
@@ -165,13 +191,13 @@ export async function POST(request: NextRequest) {
         timestamp: new Date().toISOString(),
       })
 
-      await logKanbanDiagnostic(request, {
+      await logKanbanDiagnostic({
         code: 'KANBAN_AUTH_FAILURE',
         httpStatus: 401,
         message: authError?.message || 'Unauthorized',
-      })
+      }, buildTrace)
 
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return jsonWithRequestId({ error: 'Unauthorized' }, 401)
     }
 
     diagnosticUserId = user.id
@@ -206,7 +232,7 @@ export async function POST(request: NextRequest) {
     diagnosticTipoLavorazione = tipoLavorazione
 
     if (!bustaId || !oldStatus || !newStatus) {
-      await logKanbanDiagnostic(request, {
+      await logKanbanDiagnostic({
         code: 'KANBAN_MISSING_REQUIRED_FIELDS',
         httpStatus: 400,
         message: 'Missing required fields',
@@ -216,24 +242,24 @@ export async function POST(request: NextRequest) {
         oldStatus: oldStatus || null,
         newStatus: newStatus || null,
         tipoLavorazione,
-      })
+      }, buildTrace)
 
-      return NextResponse.json({
+      return jsonWithRequestId({
         error: 'Missing required fields',
-      }, { status: 400 })
+      }, 400)
     }
 
     if (markQualityControlComplete) {
       if (newStatus !== 'pronto_ritiro' || oldStatus !== 'in_lavorazione') {
-        return NextResponse.json({
+        return jsonWithRequestId({
           error: 'markQualityControlComplete consentito solo per transizione in_lavorazione -> pronto_ritiro'
-        }, { status: 400 })
+        }, 400)
       }
 
       if (userRole !== 'admin' && userRole !== 'manager') {
-        return NextResponse.json({
+        return jsonWithRequestId({
           error: 'Permessi insufficienti per completare il controllo qualità'
-        }, { status: 403 })
+        }, 403)
       }
     }
 
@@ -256,7 +282,7 @@ export async function POST(request: NextRequest) {
         tipoLavorazione,
       })
 
-      await logKanbanDiagnostic(request, {
+      await logKanbanDiagnostic({
         code: 'KANBAN_TRANSITION_NOT_ALLOWED',
         httpStatus: 400,
         message: 'Transition not allowed',
@@ -266,12 +292,12 @@ export async function POST(request: NextRequest) {
         oldStatus,
         newStatus,
         tipoLavorazione,
-      })
+      }, buildTrace)
 
-      return NextResponse.json({
+      return jsonWithRequestId({
         error: 'Transition not allowed',
         reason: getTransitionReason(oldStatus, newStatus, tipoLavorazione),
-      }, { status: 400 })
+      }, 400)
     }
 
     if (isAdminOnlyTransition(oldStatus, newStatus) && !isAdmin) {
@@ -283,7 +309,7 @@ export async function POST(request: NextRequest) {
         userRole
       })
 
-      await logKanbanDiagnostic(request, {
+      await logKanbanDiagnostic({
         code: 'KANBAN_FORBIDDEN_ROLE',
         httpStatus: 403,
         message: 'Solo admin può eseguire questa transizione',
@@ -293,12 +319,12 @@ export async function POST(request: NextRequest) {
         oldStatus,
         newStatus,
         tipoLavorazione,
-      })
+      }, buildTrace)
 
-      return NextResponse.json({
+      return jsonWithRequestId({
         error: 'Solo admin può eseguire questa transizione',
         reason: 'Permesso insufficiente'
-      }, { status: 403 })
+      }, 403)
     }
 
     const now = new Date().toISOString()
@@ -315,7 +341,7 @@ export async function POST(request: NextRequest) {
         error: fetchError?.message
       })
 
-      await logKanbanDiagnostic(request, {
+      await logKanbanDiagnostic({
         code: 'KANBAN_BUSTA_NOT_FOUND',
         httpStatus: 404,
         message: fetchError?.message || 'Busta non trovata',
@@ -325,9 +351,9 @@ export async function POST(request: NextRequest) {
         oldStatus,
         newStatus,
         tipoLavorazione,
-      })
+      }, buildTrace)
 
-      return NextResponse.json({ error: 'Busta non trovata' }, { status: 404 })
+      return jsonWithRequestId({ error: 'Busta non trovata' }, 404)
     }
 
     const updatePayload: Record<string, any> = {
@@ -369,7 +395,7 @@ export async function POST(request: NextRequest) {
         error: updateError.message,
       })
 
-      await logKanbanDiagnostic(request, {
+      await logKanbanDiagnostic({
         code: 'KANBAN_DB_UPDATE_ERROR',
         httpStatus: 500,
         message: updateError.message,
@@ -379,9 +405,9 @@ export async function POST(request: NextRequest) {
         oldStatus,
         newStatus,
         tipoLavorazione,
-      })
+      }, buildTrace)
 
-      return NextResponse.json({ error: updateError.message }, { status: 500 })
+      return jsonWithRequestId({ error: updateError.message }, 500)
     }
 
     if (!updatedBuste || updatedBuste.length === 0) {
@@ -392,7 +418,7 @@ export async function POST(request: NextRequest) {
         to: newStatus,
       })
 
-      await logKanbanDiagnostic(request, {
+      await logKanbanDiagnostic({
         code: 'KANBAN_STATUS_CONFLICT',
         httpStatus: 409,
         message: 'Conflict: stato aggiornato da un altro utente',
@@ -402,15 +428,16 @@ export async function POST(request: NextRequest) {
         oldStatus,
         newStatus,
         tipoLavorazione,
-      })
+      }, buildTrace)
 
-      return NextResponse.json({
+      return jsonWithRequestId({
         error: 'Conflict: stato aggiornato da un altro utente',
-      }, { status: 409 })
+      }, 409)
     }
 
     const updatedBusta = updatedBuste[0]
 
+    const bustaAuditTrace = buildTrace(user.id, 'kanban_audit_update_buste')
     const auditBusta = await logUpdate(
       'buste',
       bustaId,
@@ -423,7 +450,8 @@ export async function POST(request: NextRequest) {
         from: oldStatus,
         to: newStatus
       },
-      userRole
+      userRole,
+      toAuditOptions(bustaAuditTrace)
     )
 
     if (!auditBusta.success) {
@@ -449,6 +477,7 @@ export async function POST(request: NextRequest) {
         error: historyError.message,
       })
     } else if (historyRow) {
+      const historyAuditTrace = buildTrace(user.id, 'kanban_audit_insert_status_history')
       const auditHistory = await logInsert(
         'status_history',
         historyRow.id,
@@ -461,7 +490,8 @@ export async function POST(request: NextRequest) {
           from: oldStatus,
           to: newStatus
         },
-        userRole
+        userRole,
+        toAuditOptions(historyAuditTrace)
       )
 
       if (!auditHistory.success) {
@@ -512,6 +542,7 @@ export async function POST(request: NextRequest) {
             continue
           }
 
+          const archiveFollowUpTrace = buildTrace(user.id, 'kanban_audit_archive_followup')
           const audit = await logUpdate(
             'follow_up_chiamate',
             row.id,
@@ -524,7 +555,8 @@ export async function POST(request: NextRequest) {
               action: 'archive_followup_on_undo',
               bustaId
             },
-            userRole
+            userRole,
+            toAuditOptions(archiveFollowUpTrace)
           )
 
           if (!audit.success) {
@@ -577,6 +609,7 @@ export async function POST(request: NextRequest) {
           })
           followUpWarning = restoreUpdateError.message
         } else {
+          const restoreFollowUpTrace = buildTrace(user.id, 'kanban_audit_restore_followup')
           const audit = await logUpdate(
             'follow_up_chiamate',
             row.id,
@@ -589,7 +622,8 @@ export async function POST(request: NextRequest) {
               action: 'restore_followup_on_reclose',
               bustaId
             },
-            userRole
+            userRole,
+            toAuditOptions(restoreFollowUpTrace)
           )
 
           if (!audit.success) {
@@ -599,6 +633,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const kanbanUpdateLogTrace = buildTrace(user.id, 'kanban_update_log_insert')
     const kanbanLogInsert = await admin
       .from('kanban_update_logs')
       .insert({
@@ -610,6 +645,7 @@ export async function POST(request: NextRequest) {
         metadata: {
           readable_id: updatedBusta.readable_id,
           history_warning: historyError?.message ?? null,
+          trace: kanbanUpdateLogTrace
         },
       })
 
@@ -629,7 +665,7 @@ export async function POST(request: NextRequest) {
       updatedAt: now,
     })
 
-    return NextResponse.json({
+    return jsonWithRequestId({
       success: true,
       busta: updatedBusta,
       historyWarning: historyError?.message,
@@ -641,7 +677,7 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     })
 
-    await logKanbanDiagnostic(request, {
+    await logKanbanDiagnostic({
       code: 'KANBAN_UNEXPECTED_EXCEPTION',
       httpStatus: 500,
       message: error?.message || 'Unexpected error updating busta',
@@ -651,10 +687,10 @@ export async function POST(request: NextRequest) {
       oldStatus: diagnosticOldStatus,
       newStatus: diagnosticNewStatus,
       tipoLavorazione: diagnosticTipoLavorazione,
-    })
+    }, buildTrace)
 
-    return NextResponse.json({
+    return jsonWithRequestId({
       error: 'Unexpected error updating busta',
-    }, { status: 500 })
+    }, 500)
   }
 }
