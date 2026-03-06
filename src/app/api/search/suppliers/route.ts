@@ -8,6 +8,10 @@ export const runtime = 'nodejs'
 export async function GET() {
   try {
     const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+    }
 
     // Fetch all supplier tables in parallel
     const [lentiRes, lacRes, montaturaRes, labRes, sportRes] = await Promise.all([

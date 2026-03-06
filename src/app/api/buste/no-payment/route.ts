@@ -15,12 +15,28 @@ const adminClient = createClient(url, serviceRoleKey, {
   },
 });
 
+const isManagerOrAdmin = (role: string | null | undefined) =>
+  role === 'admin' || role === 'manager';
+
 export async function POST(request: Request) {
   try {
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!isManagerOrAdmin(profile?.role)) {
+      return NextResponse.json(
+        { error: 'Permessi insufficienti: solo admin e manager possono modificare i pagamenti' },
+        { status: 403 }
+      );
     }
 
     const { bustaId } = await request.json();
@@ -64,6 +80,19 @@ export async function DELETE(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!isManagerOrAdmin(profile?.role)) {
+      return NextResponse.json(
+        { error: 'Permessi insufficienti: solo admin e manager possono modificare i pagamenti' },
+        { status: 403 }
+      );
     }
 
     const { searchParams } = new URL(request.url);

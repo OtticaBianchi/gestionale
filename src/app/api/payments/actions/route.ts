@@ -49,6 +49,71 @@ const admin = createClient<Database>(supabaseUrl, serviceRoleKey, {
   auth: { persistSession: false }
 })
 
+const isManagerOrAdmin = (role: string | null | undefined) => role === 'admin' || role === 'manager'
+const isOperator = (role: string | null | undefined) => role === 'operatore'
+
+const operatorAllowedActions = new Set<string>([
+  'create_plan',
+  'delete_plan',
+  'update_total',
+  'update_installment',
+  'toggle_reminder',
+  'complete_plan',
+  'update_saldo_unico',
+  'sync_plan_acconto',
+  'restructure_installments'
+])
+
+async function getBustaIdFromPaymentPlan(paymentPlanId: string | null | undefined) {
+  if (!paymentPlanId) return null
+  const { data: plan } = await admin
+    .from('payment_plans')
+    .select('busta_id')
+    .eq('id', paymentPlanId)
+    .maybeSingle()
+
+  return plan?.busta_id ?? null
+}
+
+async function getBustaIdFromInstallment(installmentId: string | null | undefined) {
+  if (!installmentId) return null
+
+  const { data: installment } = await admin
+    .from('payment_installments')
+    .select('payment_plan_id')
+    .eq('id', installmentId)
+    .maybeSingle()
+
+  if (!installment?.payment_plan_id) return null
+  return getBustaIdFromPaymentPlan(installment.payment_plan_id)
+}
+
+async function resolveBustaIdForAction(action: string, payload: any) {
+  const safePayload = payload || {}
+
+  switch (action) {
+    case 'create_plan':
+    case 'update_total':
+    case 'complete_plan':
+    case 'update_saldo_unico':
+    case 'close_busta':
+      return typeof safePayload.bustaId === 'string' ? safePayload.bustaId : null
+    case 'delete_plan':
+    case 'toggle_reminder':
+    case 'sync_plan_acconto':
+      return getBustaIdFromPaymentPlan(
+        typeof safePayload.paymentPlanId === 'string' ? safePayload.paymentPlanId : null
+      )
+    case 'update_installment':
+    case 'restructure_installments':
+      return getBustaIdFromInstallment(
+        typeof safePayload.installmentId === 'string' ? safePayload.installmentId : null
+      )
+    default:
+      return null
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
@@ -64,10 +129,52 @@ export async function POST(request: NextRequest) {
       .single()
 
     const userRole = profile?.role ?? null
-
     const body: ActionRequest = await request.json().catch(() => ({ action: '' }))
     if (!body.action) {
       return NextResponse.json({ error: 'Azione mancante' }, { status: 400 })
+    }
+
+    if (isManagerOrAdmin(userRole)) {
+      // full access
+    } else if (isOperator(userRole)) {
+      if (!operatorAllowedActions.has(body.action)) {
+        return NextResponse.json(
+          { error: 'Permessi insufficienti: gli operatori non possono eseguire questa azione' },
+          { status: 403 }
+        )
+      }
+
+      const bustaId = await resolveBustaIdForAction(body.action, body.payload)
+      if (!bustaId) {
+        return NextResponse.json(
+          { error: 'Impossibile determinare la busta associata all\'azione richiesta' },
+          { status: 400 }
+        )
+      }
+
+      const { data: busta } = await admin
+        .from('buste')
+        .select('id, stato_attuale')
+        .eq('id', bustaId)
+        .maybeSingle()
+
+      if (!busta) {
+        return NextResponse.json({ error: 'Busta non trovata' }, { status: 404 })
+      }
+
+      if (busta.stato_attuale !== 'consegnato_pagato') {
+        return NextResponse.json(
+          {
+            error: 'Permessi insufficienti: per gli operatori i pagamenti sono modificabili solo su buste in stato Consegnato & Pagato'
+          },
+          { status: 403 }
+        )
+      }
+    } else {
+      return NextResponse.json(
+        { error: 'Permessi insufficienti per modificare i pagamenti' },
+        { status: 403 }
+      )
     }
 
     let result: Record<string, any> | null = null
@@ -500,7 +607,8 @@ async function handleUpdateSaldoUnico(payload: any, userId: string, userRole: st
 
   const now = new Date().toISOString()
   const incassato = !!isIncassato
-  const shouldCreateLacReorder = createLacReorder === true
+  const canCreateLacReorder = userRole === 'admin' || userRole === 'manager'
+  const shouldCreateLacReorder = canCreateLacReorder && createLacReorder === true
 
   await upsertInfoPagamenti(
     {

@@ -491,7 +491,7 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
             {activeTab === 'pagamento' && (
               <PagamentoTab 
                 busta={busta}
-                isReadOnly={userRole === 'operatore'} // ✅ AGGIUNTO
+                isReadOnly={userRole === 'operatore' && busta.stato_attuale !== 'consegnato_pagato'}
               />
             )}
           </div>

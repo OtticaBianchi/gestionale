@@ -210,6 +210,20 @@ export async function POST(request: NextRequest) {
 
     const userRole = profile?.role ?? null
     diagnosticUserRole = userRole
+    if (userRole !== 'admin' && userRole !== 'manager') {
+      await logKanbanDiagnostic({
+        code: 'KANBAN_FORBIDDEN_ROLE',
+        httpStatus: 403,
+        message: 'Permessi insufficienti',
+        userId: user.id,
+        userRole,
+      }, buildTrace)
+
+      return jsonWithRequestId({
+        error: 'Permessi insufficienti: solo admin e manager possono aggiornare lo stato delle buste',
+      }, 403)
+    }
+
     const isAdmin = userRole === 'admin'
 
     const admin = createClient(

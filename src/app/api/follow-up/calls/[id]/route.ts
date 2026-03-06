@@ -58,6 +58,8 @@ export async function PATCH(
       .select('role')
       .eq('id', user.id)
       .single()
+    const userRole = profile?.role ?? null
+    const canMutateBusteClienti = userRole === 'admin' || userRole === 'manager'
 
     const { data: existingCall, error: fetchError } = await supabase
       .from('follow_up_chiamate')
@@ -262,7 +264,7 @@ export async function PATCH(
 
     // Ambassador nomination logic
     let ambassadorResult: { activated?: boolean; code?: string; alreadyAmbassador?: boolean } = {}
-    if (updateData.potenziale_ambassador === true && data) {
+    if (updateData.potenziale_ambassador === true && data && canMutateBusteClienti) {
       try {
         const adminClient = createClient(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -322,7 +324,7 @@ export async function PATCH(
     }
 
     const completedStates = ['chiamato_completato', 'non_vuole_essere_contattato', 'cellulare_staccato', 'numero_sbagliato']
-    if (finalOrigine === 'tecnico' && completedStates.includes(finalStato)) {
+    if (finalOrigine === 'tecnico' && completedStates.includes(finalStato) && canMutateBusteClienti) {
       try {
         const completedAt = patch.data_chiamata || now
         const { error: bustaUpdateError } = await supabase

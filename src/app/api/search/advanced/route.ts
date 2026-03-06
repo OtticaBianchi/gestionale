@@ -502,6 +502,11 @@ const mapClientRowsToResults = (
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
 
     const query = searchParams.get('q')

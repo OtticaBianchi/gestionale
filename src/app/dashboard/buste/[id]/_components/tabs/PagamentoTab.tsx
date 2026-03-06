@@ -176,7 +176,12 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   );
 
   const { profile } = useUser();
-  const canEdit = !isReadOnly && profile?.role !== 'operatore';
+  const isOperator = profile?.role === 'operatore';
+  const isManagerOrAdmin = profile?.role === 'admin' || profile?.role === 'manager';
+  const operatorCanEditPayments = isOperator && busta.stato_attuale === 'consegnato_pagato';
+  const canEditPayments = !isReadOnly && (isManagerOrAdmin || operatorCanEditPayments);
+  const canManageNoPayment = !isReadOnly && isManagerOrAdmin;
+  const canManageBustaClosure = !isReadOnly && isManagerOrAdmin;
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
@@ -366,7 +371,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const validateTotalAmount = (draft: string) => {
-    if (!canEdit || draft === '') return null;
+    if (!canEditPayments || draft === '') return null;
 
     const parsed = Number.parseFloat(draft);
     if (!Number.isFinite(parsed) || parsed < 0) {
@@ -399,7 +404,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const handleMarkNoPayment = async () => {
-    if (!canEdit) return;
+    if (!canManageNoPayment) return;
     if (!confirm('Segnare questa busta come senza incasso? Verrà registrata come lavorazione gratuita.')) {
       return;
     }
@@ -435,7 +440,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const handleClearNoPayment = async () => {
-    if (!canEdit || !noPaymentRequired) return;
+    if (!canManageNoPayment || !noPaymentRequired) return;
     if (!confirm('Ripristinare la gestione pagamenti standard per questa busta?')) {
       return;
     }
@@ -485,7 +490,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const handleRegisterInstallmentPayment = async (installment: PaymentInstallmentRecord) => {
-    if (!canEdit) return;
+    if (!canEditPayments) return;
 
     const paymentAmount = promptForPaymentAmount(installment);
     if (!paymentAmount) return;
@@ -561,7 +566,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const handleUndoInstallmentPayment = async (installment: PaymentInstallmentRecord) => {
-    if (!canEdit) return;
+    if (!canEditPayments) return;
     if (!confirm('Segnare questa rata come non pagata?')) return;
 
     setOngoingAction(`undo-${installment.id}`);
@@ -578,7 +583,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const handleToggleReminderPreference = async (preference: 'automatic' | 'manual' | 'disabled') => {
-    if (!canEdit || !paymentPlan) return;
+    if (!canEditPayments || !paymentPlan) return;
 
     setOngoingAction('toggle-reminders');
     try {
@@ -597,7 +602,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const handleMarkPlanAsCompleted = async () => {
-    if (!canEdit || !paymentPlan) return;
+    if (!canEditPayments || !paymentPlan) return;
 
     setOngoingAction('complete-plan');
     try {
@@ -617,7 +622,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const handleUpdateSaldoUnico = async (method: SaldoUnicoMethod, incassato: boolean) => {
-    if (!canEdit) return;
+    if (!canEditPayments) return;
     setOngoingAction('update-saldo-unico');
     try {
       let shouldCreateLacReorder = incassato && createLacReorder && isLacOnlyWorkflow;
@@ -653,7 +658,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const handleCloseBusta = async () => {
-    if (!canEdit) return;
+    if (!canManageBustaClosure) return;
 
     const closeMessage = createLacReorder && isLacOnlyWorkflow
       ? 'Segnare la busta come consegnata e pagata e creare subito una nuova busta LAC con riordine identico?'
@@ -682,7 +687,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const handleCreateLacReorderFromClosed = async () => {
-    if (!canEdit || !isLacOnlyWorkflow) return;
+    if (!canManageBustaClosure || !isLacOnlyWorkflow) return;
     if (!confirm('Creare una nuova busta LAC con riordine identico?')) return;
 
     setOngoingAction('create-lac-reorder');
@@ -717,6 +722,12 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
 
   return (
     <div className="space-y-6">
+      {isOperator && !operatorCanEditPayments && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-5 py-3 text-sm">
+          Per gli operatori la modifica pagamenti è disponibile solo quando la busta è nello stato &quot;Consegnato &amp; Pagato&quot;.
+        </div>
+      )}
+
       {isSetupOpen && (
         <PaymentPlanSetup
           busta={busta}
@@ -817,7 +828,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
               <p className="text-sm text-gray-500">Gestione incassi per la busta #{busta.readable_id}</p>
             </div>
           </div>
-          {canEdit && (
+          {canEditPayments && (
             <div className="flex items-center space-x-2">
               {paymentPlan ? (
                 <button
@@ -857,7 +868,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
               <div className="flex items-baseline space-x-2 mt-2">
                 <span className="text-xl font-semibold text-gray-900">{formatCurrency(financeSnapshot.totalAmount)}</span>
               </div>
-              {canEdit && (
+              {canEditPayments && (
                 <div className="mt-3 space-y-2">
                   <input
                     type="number"
@@ -950,7 +961,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                     ? 'Saldo pronto per chiusura'
                     : 'Saldo in corso'}
               </div>
-              {canEdit && !paymentPlan.is_completed && paymentPlan.payment_type !== 'installments' && paymentPlan.payment_type !== 'saldo_unico' && (
+              {canEditPayments && !paymentPlan.is_completed && paymentPlan.payment_type !== 'installments' && paymentPlan.payment_type !== 'saldo_unico' && (
                 <button
                   onClick={handleMarkPlanAsCompleted}
                   disabled={ongoingAction === 'complete-plan'}
@@ -984,7 +995,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                     setBonificoIncassato(nextIncassato);
                     void handleUpdateSaldoUnico(value, nextIncassato);
                   }}
-                  disabled={!canEdit || ongoingAction === 'update-saldo-unico'}
+                  disabled={!canEditPayments || ongoingAction === 'update-saldo-unico'}
                   className="w-full sm:max-w-xs border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60 disabled:bg-gray-100"
                 >
                   <option value="">-- Seleziona modalità --</option>
@@ -1004,19 +1015,19 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                         setBonificoIncassato(nextValue);
                         void handleUpdateSaldoUnico(saldoUnicoMethod, nextValue);
                       }}
-                      disabled={!canEdit || ongoingAction === 'update-saldo-unico'}
+                      disabled={!canEditPayments || ongoingAction === 'update-saldo-unico'}
                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                     />
                     Incassato
                   </label>
                 )}
-                {isLacOnlyWorkflow && (
+                {isLacOnlyWorkflow && canManageBustaClosure && (
                   <label className="flex items-center gap-2 text-sm text-gray-700">
                     <input
                       type="checkbox"
                       checked={createLacReorder}
                       onChange={(event) => setCreateLacReorder(event.target.checked)}
-                      disabled={!canEdit || ongoingAction === 'update-saldo-unico' || ongoingAction === 'close-busta'}
+                      disabled={!canManageBustaClosure || ongoingAction === 'update-saldo-unico' || ongoingAction === 'close-busta'}
                       className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                     />
                     Crea nuova busta LAC con riordine alla chiusura
@@ -1042,7 +1053,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                   </p>
                 </div>
 
-                {canEdit && (
+                {canEditPayments && (
                   <div className="flex items-center space-x-2">
                     {(['automatic', 'manual', 'disabled'] as const).map(option => (
                       <button
@@ -1111,7 +1122,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                       )}
                     </div>
 
-                    {canEdit && (
+                    {canEditPayments && (
                       <div className="flex items-center space-x-2">
                         {installment.is_completed ? (
                           <button
@@ -1154,7 +1165,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                   È stata registrata come lavorazione gratuita. Puoi chiudere la pratica senza inserire pagamenti.
                 </p>
               </div>
-              {canEdit && (
+              {canManageNoPayment && (
                 <button
                   onClick={handleClearNoPayment}
                   disabled={ongoingAction === 'clear-no-payment'}
@@ -1170,7 +1181,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
               <p className="text-sm">
                 Nessun piano pagamenti configurato. Imposta il totale del lavoro e scegli la modalità di incasso per attivare promemoria e stato in kanban.
               </p>
-              {canEdit && (
+              {canEditPayments && (
                 <div className="flex flex-col sm:flex-row gap-2 mt-2 justify-center">
                   <button
                     onClick={() => setIsSetupOpen(true)}
@@ -1179,13 +1190,15 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                     <Sparkles className="w-4 h-4 mr-2" />
                     Crea nuovo piano
                   </button>
-                  <button
-                    onClick={handleMarkNoPayment}
-                    disabled={ongoingAction === 'mark-no-payment'}
-                    className="inline-flex items-center justify-center px-4 py-2 border border-blue-200 text-blue-700 rounded-md text-sm hover:bg-blue-50 transition-colors disabled:opacity-50"
-                  >
-                    Segna come senza incasso
-                  </button>
+                  {canManageNoPayment && (
+                    <button
+                      onClick={handleMarkNoPayment}
+                      disabled={ongoingAction === 'mark-no-payment'}
+                      className="inline-flex items-center justify-center px-4 py-2 border border-blue-200 text-blue-700 rounded-md text-sm hover:bg-blue-50 transition-colors disabled:opacity-50"
+                    >
+                      Segna come senza incasso
+                    </button>
+                  )}
                 </div>
               )}
             </>
@@ -1193,7 +1206,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
         </div>
       )}
 
-      {canEdit && outstandingZero && paymentPlan && !paymentPlan.is_completed && paymentPlan.payment_type === 'installments' && (
+      {canEditPayments && outstandingZero && paymentPlan && !paymentPlan.is_completed && paymentPlan.payment_type === 'installments' && (
         <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg px-5 py-4 flex items-center justify-between">
           <div className="text-sm">
             Tutte le rate risultano pagate. Vuoi segnare il piano come completato e aggiornare le statistiche?
@@ -1208,7 +1221,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
         </div>
       )}
 
-      {canEdit && outstandingZero && (paymentPlan?.is_completed || noPaymentRequired) && busta.stato_attuale !== 'consegnato_pagato' && (
+      {canManageBustaClosure && outstandingZero && (paymentPlan?.is_completed || noPaymentRequired) && busta.stato_attuale !== 'consegnato_pagato' && (
         <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm font-medium space-y-2">
             <p>
@@ -1239,7 +1252,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
         </div>
       )}
 
-      {canEdit && isLacOnlyWorkflow && busta.stato_attuale === 'consegnato_pagato' && (
+      {canManageBustaClosure && isLacOnlyWorkflow && busta.stato_attuale === 'consegnato_pagato' && (
         <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm">
             Busta già chiusa. Puoi ancora creare una nuova busta LAC con riordine identico.
