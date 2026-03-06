@@ -3,10 +3,17 @@ import useSWR from 'swr';
 import { createClient } from '@/lib/supabase/client';
 import { BustaWithCliente } from '@/types/shared.types';
 import { shouldArchiveBusta } from '@/lib/buste/archiveRules';
+import { DASHBOARD_BUSTE_SELECT } from '@/lib/buste/dashboardSelect';
 
 const SWR_KEY = '/api/buste';
 const ORDER_AUTO_SYNC_KEY = 'lastOrderAutoSyncCheck';
-const ORDER_AUTO_SYNC_INTERVAL_MS = 60 * 1000;
+const ORDER_AUTO_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+const BUSTE_REFRESH_VISIBLE_MS = 90 * 1000;
+
+type UseBusteOptions = {
+  enableAutoRefresh?: boolean;
+  refreshIntervalMs?: number;
+};
 
 // Funzione helper per determinare se una busta è archiviata
 const isArchived = (busta: any): boolean => shouldArchiveBusta(busta);
@@ -75,62 +82,7 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
 
   const { data, error } = await supabase
     .from('buste')
-    .select(`
-      *,
-      clienti:cliente_id (
-        nome,
-        cognome,
-        telefono,
-        email,
-        data_nascita,
-        genere
-      ),
-      ordini_materiali (
-        id,
-        descrizione_prodotto,
-        stato,
-        stato_disponibilita,
-        promemoria_disponibilita,
-        da_ordinare,
-        note,
-        needs_action,
-        needs_action_done,
-        needs_action_type,
-        deleted_at
-      ),
-      payment_plan:payment_plans (
-        id,
-        total_amount,
-        acconto,
-        payment_type,
-        auto_reminders_enabled,
-        reminder_preference,
-        is_completed,
-        created_at,
-        updated_at,
-        payment_installments (
-          id,
-          installment_number,
-          due_date,
-          expected_amount,
-          paid_amount,
-          is_completed,
-          updated_at,
-          reminder_3_days_sent,
-          reminder_10_days_sent
-        )
-      ),
-      info_pagamenti (
-        is_saldato,
-        modalita_saldo,
-        note_pagamento,
-        importo_acconto,
-        ha_acconto,
-        prezzo_finale,
-        data_saldo,
-        updated_at
-      )
-    `)
+    .select(DASHBOARD_BUSTE_SELECT)
     .is('deleted_at', null)
     .order('data_apertura', { ascending: false })
     .order('updated_at', { ascending: false });
@@ -171,15 +123,30 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
   return cachedFilteredBuste;
 };
 
-export function useBuste() {
+export function useBuste(initialData?: BustaWithCliente[], options: UseBusteOptions = {}) {
+  const hasInitialData = Array.isArray(initialData);
+  const enableAutoRefresh = options.enableAutoRefresh ?? true;
+  const refreshIntervalMs = options.refreshIntervalMs ?? BUSTE_REFRESH_VISIBLE_MS;
+
   return useSWR<BustaWithCliente[]>(SWR_KEY, fetcher, {
-    refreshInterval: 30000, // 30s polling fallback
-    revalidateOnFocus: true,
-    revalidateOnReconnect: true,
-    revalidateOnMount: true,
-    dedupingInterval: 2000, // 2s deduping - reduced for better responsiveness
+    fallbackData: initialData,
+    refreshInterval: () => {
+      if (!enableAutoRefresh) return 0;
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+        return 0;
+      }
+      return refreshIntervalMs;
+    },
+    refreshWhenHidden: false,
+    refreshWhenOffline: false,
+    revalidateOnFocus: enableAutoRefresh,
+    revalidateOnReconnect: enableAutoRefresh,
+    revalidateOnMount: enableAutoRefresh && !hasInitialData,
+    revalidateIfStale: enableAutoRefresh && !hasInitialData,
+    dedupingInterval: 60 * 1000,
+    focusThrottleInterval: 45 * 1000,
     errorRetryCount: 3,
-    errorRetryInterval: 2000,
+    errorRetryInterval: 4000,
     // ✅ Improved error handling
     onError: (error) => {
       console.error('🔥 SWR Error:', error);

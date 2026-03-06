@@ -78,7 +78,7 @@ interface BustaDetailClientProps {
 
 export default function BustaDetailClient({ busta: initialBusta }: BustaDetailClientProps) {
   // ===== SWR INTEGRATION =====
-  const { data: busteData } = useBuste();
+  const { data: busteData } = useBuste(undefined, { refreshIntervalMs: 10 * 60 * 1000 });
   const searchParams = useSearchParams();
   
   // ✅ Find current busta from SWR data and update only stato_attuale
@@ -491,7 +491,7 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
             {activeTab === 'pagamento' && (
               <PagamentoTab 
                 busta={busta}
-                isReadOnly={userRole === 'operatore' && busta.stato_attuale !== 'consegnato_pagato'}
+                isReadOnly={userRole === 'operatore' && !['pronto_ritiro', 'consegnato_pagato'].includes(busta.stato_attuale || '')}
               />
             )}
           </div>

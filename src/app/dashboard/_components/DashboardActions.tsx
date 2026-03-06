@@ -13,7 +13,7 @@ interface DashboardActionsProps {
 }
 
 export default function DashboardActions({ totalBuste }: DashboardActionsProps) {
-  const { mutate: revalidate, isLoading } = useBuste();
+  const { mutate: revalidate, isLoading } = useBuste(undefined, { enableAutoRefresh: false });
   const [userRole, setUserRole] = useState<string | null>(null);
   
   const supabase = createBrowserClient<Database>(

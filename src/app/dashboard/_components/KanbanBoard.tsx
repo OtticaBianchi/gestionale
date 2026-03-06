@@ -304,7 +304,7 @@ function DroppableColumn({
 
 export default function KanbanBoard({ buste: initialBuste }: KanbanBoardProps) {
   // ✅ SWR Integration - Replace useState with SWR
-  const { data: buste, error: swrError, isLoading: swrLoading, mutate: revalidate } = useBuste();
+  const { data: buste, error: swrError, isLoading: swrLoading, mutate: revalidate } = useBuste(initialBuste);
   
   // Use SWR data if available, fallback to initial data
   const currentBuste = buste || initialBuste || [];

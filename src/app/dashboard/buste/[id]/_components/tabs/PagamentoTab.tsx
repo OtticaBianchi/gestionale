@@ -178,10 +178,13 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   const { profile } = useUser();
   const isOperator = profile?.role === 'operatore';
   const isManagerOrAdmin = profile?.role === 'admin' || profile?.role === 'manager';
-  const operatorCanEditPayments = isOperator && busta.stato_attuale === 'consegnato_pagato';
-  const canEditPayments = !isReadOnly && (isManagerOrAdmin || operatorCanEditPayments);
+  const operatorCanOperatePayments =
+    isOperator && (busta.stato_attuale === 'pronto_ritiro' || busta.stato_attuale === 'consegnato_pagato');
+  const operatorCanCloseBusta = isOperator && busta.stato_attuale === 'pronto_ritiro';
+  const canEditPayments = !isReadOnly && (isManagerOrAdmin || operatorCanOperatePayments);
   const canManageNoPayment = !isReadOnly && isManagerOrAdmin;
-  const canManageBustaClosure = !isReadOnly && isManagerOrAdmin;
+  const canCloseBusta = !isReadOnly && (isManagerOrAdmin || operatorCanCloseBusta);
+  const canManageLacReorder = !isReadOnly && isManagerOrAdmin;
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSetupOpen, setIsSetupOpen] = useState(false);
@@ -658,7 +661,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const handleCloseBusta = async () => {
-    if (!canManageBustaClosure) return;
+    if (!canCloseBusta) return;
 
     const closeMessage = createLacReorder && isLacOnlyWorkflow
       ? 'Segnare la busta come consegnata e pagata e creare subito una nuova busta LAC con riordine identico?'
@@ -687,7 +690,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
   };
 
   const handleCreateLacReorderFromClosed = async () => {
-    if (!canManageBustaClosure || !isLacOnlyWorkflow) return;
+    if (!canManageLacReorder || !isLacOnlyWorkflow) return;
     if (!confirm('Creare una nuova busta LAC con riordine identico?')) return;
 
     setOngoingAction('create-lac-reorder');
@@ -722,9 +725,9 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
 
   return (
     <div className="space-y-6">
-      {isOperator && !operatorCanEditPayments && (
+      {isOperator && !operatorCanOperatePayments && (
         <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-5 py-3 text-sm">
-          Per gli operatori la modifica pagamenti è disponibile solo quando la busta è nello stato &quot;Consegnato &amp; Pagato&quot;.
+          Per gli operatori la gestione pagamenti/chiusura è disponibile quando la busta è in stato &quot;Pronto Ritiro&quot; o &quot;Consegnato &amp; Pagato&quot;.
         </div>
       )}
 
@@ -1021,13 +1024,13 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
                     Incassato
                   </label>
                 )}
-                {isLacOnlyWorkflow && canManageBustaClosure && (
+                {isLacOnlyWorkflow && canManageLacReorder && (
                   <label className="flex items-center gap-2 text-sm text-gray-700">
                     <input
                       type="checkbox"
                       checked={createLacReorder}
                       onChange={(event) => setCreateLacReorder(event.target.checked)}
-                      disabled={!canManageBustaClosure || ongoingAction === 'update-saldo-unico' || ongoingAction === 'close-busta'}
+                      disabled={!canManageLacReorder || ongoingAction === 'update-saldo-unico' || ongoingAction === 'close-busta'}
                       className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                     />
                     Crea nuova busta LAC con riordine alla chiusura
@@ -1221,7 +1224,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
         </div>
       )}
 
-      {canManageBustaClosure && outstandingZero && (paymentPlan?.is_completed || noPaymentRequired) && busta.stato_attuale !== 'consegnato_pagato' && (
+      {canCloseBusta && outstandingZero && (paymentPlan?.is_completed || noPaymentRequired) && busta.stato_attuale !== 'consegnato_pagato' && (
         <div className="bg-green-50 border border-green-200 text-green-800 rounded-lg px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm font-medium space-y-2">
             <p>
@@ -1252,7 +1255,7 @@ export default function PagamentoTab({ busta, isReadOnly = false }: PagamentoTab
         </div>
       )}
 
-      {canManageBustaClosure && isLacOnlyWorkflow && busta.stato_attuale === 'consegnato_pagato' && (
+      {canManageLacReorder && isLacOnlyWorkflow && busta.stato_attuale === 'consegnato_pagato' && (
         <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-lg px-5 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm">
             Busta già chiusa. Puoi ancora creare una nuova busta LAC con riordine identico.

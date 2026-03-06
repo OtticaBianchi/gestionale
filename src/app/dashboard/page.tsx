@@ -10,6 +10,7 @@ import ErrorActions from './_components/ErrorActions';
 import SuspensionReminder from './_components/SuspensionReminder';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { shouldArchiveBusta } from '@/lib/buste/archiveRules';
+import { DASHBOARD_BUSTE_SELECT } from '@/lib/buste/dashboardSelect';
 
 // ✅ FIX: Forza il dynamic rendering e disabilita la cache
 export const dynamic = 'force-dynamic';
@@ -57,62 +58,8 @@ export default async function DashboardPage() {
   console.log('🔍 Dashboard - Fetching buste...');
   const { data: buste, error } = await supabase
     .from('buste')
-    .select(`
-      *,
-      clienti:cliente_id (
-        nome,
-        cognome,
-        telefono,
-        email,
-        data_nascita,
-        genere
-      ),
-      ordini_materiali (
-        id,
-        descrizione_prodotto,
-        stato,
-        stato_disponibilita,
-        promemoria_disponibilita,
-        da_ordinare,
-        note,
-        needs_action,
-        needs_action_done,
-        needs_action_type,
-        deleted_at
-      ),
-      payment_plan:payment_plans (
-        id,
-        total_amount,
-        acconto,
-        payment_type,
-        auto_reminders_enabled,
-        reminder_preference,
-        is_completed,
-        created_at,
-        updated_at,
-        payment_installments (
-          id,
-          installment_number,
-          due_date,
-          expected_amount,
-          paid_amount,
-          is_completed,
-          updated_at,
-          reminder_3_days_sent,
-          reminder_10_days_sent
-        )
-      ),
-      info_pagamenti (
-        is_saldato,
-        modalita_saldo,
-        note_pagamento,
-        importo_acconto,
-        ha_acconto,
-        prezzo_finale,
-        data_saldo,
-        updated_at
-      )
-    `)
+    .select(DASHBOARD_BUSTE_SELECT)
+    .is('deleted_at', null)
     .order('data_apertura', { ascending: false })
     .order('updated_at', { ascending: false }); // ✅ Ordinamento anche per updated_at
 

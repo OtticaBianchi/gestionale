@@ -60,9 +60,12 @@ const operatorAllowedActions = new Set<string>([
   'toggle_reminder',
   'complete_plan',
   'update_saldo_unico',
+  'close_busta',
   'sync_plan_acconto',
   'restructure_installments'
 ])
+
+const operatorAllowedBustaStates = new Set(['pronto_ritiro', 'consegnato_pagato'])
 
 async function getBustaIdFromPaymentPlan(paymentPlanId: string | null | undefined) {
   if (!paymentPlanId) return null
@@ -162,10 +165,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Busta non trovata' }, { status: 404 })
       }
 
-      if (busta.stato_attuale !== 'consegnato_pagato') {
+      if (!operatorAllowedBustaStates.has(busta.stato_attuale)) {
         return NextResponse.json(
           {
-            error: 'Permessi insufficienti: per gli operatori i pagamenti sono modificabili solo su buste in stato Consegnato & Pagato'
+            error: 'Permessi insufficienti: per gli operatori le azioni pagamento/chiusura sono disponibili solo su buste in stato Pronto Ritiro o Consegnato & Pagato'
           },
           { status: 403 }
         )

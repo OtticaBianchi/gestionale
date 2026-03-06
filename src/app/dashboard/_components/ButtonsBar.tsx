@@ -9,7 +9,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
 
 export default function ButtonsBar() {
-  const { mutate: revalidate, isLoading } = useBuste();
+  const { mutate: revalidate, isLoading } = useBuste(undefined, { enableAutoRefresh: false });
   const [userRole, setUserRole] = useState<string | null>(null);
 
   const supabase = createBrowserClient<Database>(
