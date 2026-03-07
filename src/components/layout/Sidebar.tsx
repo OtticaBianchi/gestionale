@@ -158,7 +158,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     procedureUnreadFetchLock.current = true;
 
     try {
-      const response = await fetch('/api/procedures?summary=unread_count', { cache: 'no-store' });
+      const response = await fetch('/api/procedures/unread-count', { cache: 'no-store' });
       if (!response.ok) {
         if (!background) {
           console.error('Error fetching procedure unread count:', response.statusText);
@@ -168,7 +168,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
 
       const data = await response.json();
       if (!isMountedRef.current) return;
-      const metaCount = typeof data?.meta?.unread_count === 'number' ? data.meta.unread_count : 0;
+      const metaCount = typeof data?.count === 'number' ? data.count : 0;
       setProcedureUnreadCount(metaCount);
     } catch (error) {
       if (!background) {
@@ -214,7 +214,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     const interval = setInterval(() => {
       if (document.visibilityState === 'hidden') return;
       fetchVoiceNotesCount(true);
-    }, 60000);
+    }, 3 * 60 * 1000); // 3 minutes
 
     fetchVoiceNotesCount();
 
@@ -236,7 +236,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     const interval = setInterval(() => {
       if (document.visibilityState === 'hidden') return;
       fetchProcedureUnreadCount(true);
-    }, 120000);
+    }, 5 * 60 * 1000); // 5 minutes
 
     fetchProcedureUnreadCount();
 
@@ -263,7 +263,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     const interval = setInterval(() => {
       if (document.visibilityState === 'hidden') return;
       fetchTelegramRequestsCount(true);
-    }, 60000);
+    }, 5 * 60 * 1000); // 5 minutes
 
     fetchTelegramRequestsCount();
 
@@ -326,7 +326,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     const interval = setInterval(() => {
       if (document.visibilityState === 'hidden') return;
       fetchSuggestionsCount(true);
-    }, 90000);
+    }, 10 * 60 * 1000); // 10 minutes
 
     fetchSuggestionsCount();
 
@@ -353,7 +353,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
     const interval = setInterval(() => {
       if (document.visibilityState === 'hidden') return;
       fetchErrorDraftCount(true);
-    }, 60000);
+    }, 5 * 60 * 1000); // 5 minutes
 
     fetchErrorDraftCount();
 

@@ -8,7 +8,7 @@ import { DASHBOARD_BUSTE_SELECT } from '@/lib/buste/dashboardSelect';
 const SWR_KEY = '/api/buste';
 const ORDER_AUTO_SYNC_KEY = 'lastOrderAutoSyncCheck';
 const ORDER_AUTO_SYNC_INTERVAL_MS = 15 * 60 * 1000;
-const BUSTE_REFRESH_VISIBLE_MS = 90 * 1000;
+const BUSTE_REFRESH_VISIBLE_MS = 5 * 60 * 1000; // 5 minutes
 
 type UseBusteOptions = {
   enableAutoRefresh?: boolean;
@@ -139,12 +139,12 @@ export function useBuste(initialData?: BustaWithCliente[], options: UseBusteOpti
     },
     refreshWhenHidden: false,
     refreshWhenOffline: false,
-    revalidateOnFocus: enableAutoRefresh,
+    revalidateOnFocus: false,
     revalidateOnReconnect: enableAutoRefresh,
     revalidateOnMount: enableAutoRefresh && !hasInitialData,
     revalidateIfStale: enableAutoRefresh && !hasInitialData,
-    dedupingInterval: 60 * 1000,
-    focusThrottleInterval: 45 * 1000,
+    dedupingInterval: 2 * 60 * 1000,
+    focusThrottleInterval: 5 * 60 * 1000,
     errorRetryCount: 3,
     errorRetryInterval: 4000,
     // ✅ Improved error handling
