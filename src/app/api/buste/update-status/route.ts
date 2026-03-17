@@ -210,18 +210,29 @@ export async function POST(request: NextRequest) {
 
     const userRole = profile?.role ?? null
     diagnosticUserRole = userRole
-    if (userRole !== 'admin' && userRole !== 'manager') {
-      await logKanbanDiagnostic({
-        code: 'KANBAN_FORBIDDEN_ROLE',
-        httpStatus: 403,
-        message: 'Permessi insufficienti',
-        userId: user.id,
-        userRole,
-      }, buildTrace)
 
-      return jsonWithRequestId({
-        error: 'Permessi insufficienti: solo admin e manager possono aggiornare lo stato delle buste',
-      }, 403)
+    // Operatori can only perform specific transitions (QC completion and delivery confirmation)
+    const OPERATORE_ALLOWED_TRANSITIONS = [
+      { from: 'in_lavorazione', to: 'pronto_ritiro' },
+      { from: 'pronto_ritiro', to: 'consegnato_pagato' },
+    ]
+
+    if (userRole !== 'admin' && userRole !== 'manager') {
+      if (userRole !== 'operatore') {
+        await logKanbanDiagnostic({
+          code: 'KANBAN_FORBIDDEN_ROLE',
+          httpStatus: 403,
+          message: 'Permessi insufficienti',
+          userId: user.id,
+          userRole,
+        }, buildTrace)
+
+        return jsonWithRequestId({
+          error: 'Permessi insufficienti: solo admin e manager possono aggiornare lo stato delle buste',
+        }, 403)
+      }
+
+      // For operatori, defer transition check until after body is parsed
     }
 
     const isAdmin = userRole === 'admin'
@@ -263,17 +274,33 @@ export async function POST(request: NextRequest) {
       }, 400)
     }
 
+    // Validate operatore transition after body is parsed
+    if (userRole === 'operatore') {
+      const allowed = OPERATORE_ALLOWED_TRANSITIONS.some(
+        t => t.from === oldStatus && t.to === newStatus
+      )
+      if (!allowed) {
+        await logKanbanDiagnostic({
+          code: 'KANBAN_FORBIDDEN_ROLE',
+          httpStatus: 403,
+          message: 'Transizione non consentita per operatore',
+          userId: user.id,
+          userRole,
+          bustaId,
+          oldStatus,
+          newStatus,
+        }, buildTrace)
+        return jsonWithRequestId({
+          error: 'Permessi insufficienti: transizione non consentita per operatore',
+        }, 403)
+      }
+    }
+
     if (markQualityControlComplete) {
       if (newStatus !== 'pronto_ritiro' || oldStatus !== 'in_lavorazione') {
         return jsonWithRequestId({
           error: 'markQualityControlComplete consentito solo per transizione in_lavorazione -> pronto_ritiro'
         }, 400)
-      }
-
-      if (userRole !== 'admin' && userRole !== 'manager') {
-        return jsonWithRequestId({
-          error: 'Permessi insufficienti per completare il controllo qualità'
-        }, 403)
       }
     }
 

@@ -35,10 +35,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Profilo utente non trovato' }, { status: 403 })
     }
 
-    if (profile.role === 'operatore') {
-      return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 })
-    }
-
     const body = (await request.json()) as RequestPayload
 
     if (!body.bustaId) {

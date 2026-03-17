@@ -94,8 +94,10 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
   // User context for role checking
   const { profile } = useUser();
 
-  // ✅ AGGIORNATO: Helper per controlli - solo le azioni sono limitate
-  const canEdit = !isReadOnly && profile?.role !== 'operatore';
+  // Operatori possono gestire notifiche e consegna quando la busta è in pronto_ritiro
+  const canEdit = !isReadOnly && (profile?.role !== 'operatore' || busta.stato_attuale === 'pronto_ritiro');
+  // Cancellazione note interne: solo manager/admin
+  const canDeleteComunicazioni = !isReadOnly && profile?.role !== 'operatore';
   const canUndoDelivery = !isReadOnly && profile?.role === 'admin';
 
   // Stato per editing messaggi
@@ -730,7 +732,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
               Notifiche & Ritiro
             </h2>
             <p className="text-gray-600 text-sm mt-1">
-              {canEdit 
+              {canEdit
                 ? 'Comunicazioni con il cliente per ritiro prodotti (e note interne)'
                 : 'Visualizza storico comunicazioni con il cliente'
               }
@@ -1508,7 +1510,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
                       </span>
                     </div>
                   </div>
-                  {canEdit && comunicazione.tipo_messaggio === 'nota_comunicazione_cliente' && !isPhoneCallCommunication(comunicazione) && (
+                  {canDeleteComunicazioni && comunicazione.tipo_messaggio === 'nota_comunicazione_cliente' && !isPhoneCallCommunication(comunicazione) && (
                     <button
                       type="button"
                       onClick={() => handleDeleteCommunication(comunicazione)}

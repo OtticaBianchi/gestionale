@@ -257,6 +257,8 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
 
   // ✅ AGGIORNATO: Helper per controlli - solo le azioni di modifica sono limitate
   const canEdit = !isReadOnly && profile?.role !== 'operatore';
+  // Operatori possono completare pulizia e controllo qualità
+  const canEditQC = !isReadOnly;
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -303,12 +305,12 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
   useEffect(() => {
     // Show if: in lavorazione OR already moved to pronto_ritiro with completed check
     const shouldShow = isMounted && lavorazioni.length > 0 && (
-      (canEdit && busta.stato_attuale === 'in_lavorazione') ||
+      (canEditQC && busta.stato_attuale === 'in_lavorazione') ||
       (busta.stato_attuale === 'pronto_ritiro' && (busta.controllo_completato ?? false))
     );
 
     setShowCheckboxSection(shouldShow);
-  }, [busta.stato_attuale, busta.controllo_completato, lavorazioni.length, isMounted, canEdit]);
+  }, [busta.stato_attuale, busta.controllo_completato, lavorazioni.length, isMounted, canEditQC]);
 
   // Form per nuova lavorazione
   const [nuovaLavorazioneForm, setNuovaLavorazioneForm] = useState({
@@ -1914,7 +1916,7 @@ export default function LavorazioneTab({ busta, isReadOnly = false, onBustaUpdat
               id="pulizia-prodotto"
               checked={puliziaCompletata}
               onChange={(e) => setPuliziaCompletata(e.target.checked)}
-              disabled={!canEdit || !allLavorazioniCompleted}
+              disabled={!canEditQC || !allLavorazioniCompleted}
               className="mt-1 h-6 w-6 text-sky-600 focus:ring-sky-500 border-gray-300 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <div className="flex-1">
