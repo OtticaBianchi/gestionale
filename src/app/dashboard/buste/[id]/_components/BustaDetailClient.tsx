@@ -473,7 +473,7 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
             {activeTab === 'lavorazione' && (
               <LavorazioneTab
                 busta={busta}
-                isReadOnly={userRole === 'operatore'} // ✅ AGGIUNTO
+                isReadOnly={userRole === 'operatore' && busta.stato_attuale !== 'in_lavorazione'}
                 onBustaUpdate={(updatedBusta) => {
                   setBusta(updatedBusta);
                   // SWR cache will be updated by the tab component
@@ -482,9 +482,9 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
             )}
 
             {activeTab === 'notifiche' && (
-              <NotificheTab 
+              <NotificheTab
                 busta={busta}
-                isReadOnly={userRole === 'operatore'} // ✅ AGGIUNTO
+                isReadOnly={userRole === 'operatore' && busta.stato_attuale !== 'pronto_ritiro'}
               />
             )}
 
