@@ -222,11 +222,17 @@ function LoginForm() {
 
         <div className="mt-6 border-t border-slate-200 pt-6">
           <div className="mb-2 text-center text-xs text-slate-400">
-            Versione 4.3.10
+            Versione 4.3.11
           </div>
           <div className="text-xs text-slate-500">
             <div className="text-center font-medium text-slate-600">Ultimi aggiornamenti</div>
             <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+              <div className="font-semibold text-slate-700">v4.3.11 - Marzo 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>Operatore: può completare pulizia e controllo qualità in lavorazione (occhiali e LAC/TALAC)</li>
+                <li>Operatore: può contattare il cliente in pronto ritiro tramite telefonata o SMS</li>
+                <li>Operatore: può chiudere la busta a consegnato pagato dopo conferma ritiro</li>
+              </ul>
               <div className="font-semibold text-slate-700">v4.3.10 - Febbraio 2026</div>
               <ul className="ml-2 list-disc list-inside space-y-1">
                 <li>Anagrafica: nuovo cambio intestatario solo per questa busta, senza toccare le altre collegate al cliente</li>
