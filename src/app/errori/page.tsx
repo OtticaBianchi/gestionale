@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AlertTriangle, Plus, FileText, Download, Eye, Filter, ChevronDown, ArrowLeft } from 'lucide-react'
+import { AlertTriangle, Plus, FileText, Download, Eye, Filter, ChevronDown, ArrowLeft, BarChart3 } from 'lucide-react'
 import { useUser } from '@/context/UserContext'
 import QuickAddErrorForm from '@/components/error-tracking/QuickAddErrorForm'
 import LetteraRichiamoModal from '@/components/error-tracking/LetteraRichiamoModal'
@@ -299,6 +299,14 @@ export default function ErroriPage() {
             </div>
 
             <div className="flex items-center space-x-3">
+              <Link
+                href="/errori/analytics"
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <BarChart3 className="w-4 h-4" />
+                Analytics
+              </Link>
+
               {/* Dropdown Report - accessibile solo in pagina admin */}
               <div className="relative">
                 <button
