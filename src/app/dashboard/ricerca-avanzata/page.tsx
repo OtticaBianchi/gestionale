@@ -3,6 +3,35 @@
 import { useState, useEffect } from 'react';
 import { Search, Filter, User, Package, Truck, ArrowLeft, Eye, ExternalLink, Archive, Clock, FileText, ChevronDown, ChevronUp, Calendar, AlertCircle, Phone, DollarSign, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
+import { resolvePaymentBadge } from '@/lib/payments/paymentBadge';
+
+interface BustaSearchEntry {
+  id: string;
+  readable_id: string;
+  stato_attuale: string;
+  data_apertura: string;
+  isArchived?: boolean;
+  info_pagamenti?: {
+    is_saldato?: boolean | null;
+    modalita_saldo?: string | null;
+    note_pagamento?: string | null;
+    prezzo_finale?: number | null;
+    importo_acconto?: number | null;
+    data_saldo?: string | null;
+  } | null;
+  payment_plan?: {
+    id?: string | null;
+    total_amount?: number | null;
+    acconto?: number | null;
+    payment_type?: string | null;
+    is_completed?: boolean | null;
+    payment_installments?: Array<{
+      id?: string | null;
+      paid_amount?: number | null;
+      is_completed?: boolean | null;
+    }> | null;
+  } | null;
+}
 
 interface SearchResult {
   type: 'cliente' | 'prodotto' | 'fornitore' | 'categoria' | 'note';
@@ -15,20 +44,8 @@ interface SearchResult {
     genere?: string | null;
     note_cliente?: string | null;
   };
-  buste?: Array<{
-    id: string;
-    readable_id: string;
-    stato_attuale: string;
-    data_apertura: string;
-    isArchived?: boolean;
-  }>;
-  busta?: {
-    id: string;
-    readable_id: string;
-    stato_attuale: string;
-    data_apertura: string;
-    isArchived?: boolean;
-  };
+  buste?: Array<BustaSearchEntry>;
+  busta?: BustaSearchEntry;
   prodotto?: {
     id: string;
     descrizione: string;
@@ -792,17 +809,27 @@ export default function RicercaAvanzataPage() {
                     <div className="mt-3">
                       <p className="text-sm font-medium text-gray-700 mb-2">Buste ({result.buste.length}):</p>
                       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                        {result.buste.slice(0, 6).map((busta) => (
+                        {result.buste.slice(0, 6).map((busta) => {
+                          const paymentBadge = resolvePaymentBadge(busta);
+                          return (
                           <div key={busta.id} className="flex items-center justify-between bg-gray-50 rounded p-2">
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-sm">{busta.readable_id}</span>
                                 {busta.isArchived && <Archive className="w-3 h-3 text-gray-500" />}
                               </div>
-                              <div className="flex items-center gap-2">
-                                <span className={`text-xs px-2 py-1 rounded ${getBustaStatusColor(busta.stato_attuale, busta.isArchived)}`}>
+                              <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                <span className={`text-xs px-2 py-0.5 rounded ${getBustaStatusColor(busta.stato_attuale, busta.isArchived)}`}>
                                   {getBustaStatusText(busta.stato_attuale)}
                                 </span>
+                                {paymentBadge && (
+                                  <span className={`text-xs px-2 py-0.5 rounded border font-medium ${paymentBadge.className}`}>
+                                    {paymentBadge.label}
+                                    {paymentBadge.sublabel && (
+                                      <span className="font-normal opacity-80 ml-1">· {paymentBadge.sublabel}</span>
+                                    )}
+                                  </span>
+                                )}
                               </div>
                             </div>
                             <Link
@@ -813,7 +840,8 @@ export default function RicercaAvanzataPage() {
                               <ExternalLink className="w-3 h-3" />
                             </Link>
                           </div>
-                        ))}
+                        );
+                        })}
                       </div>
                       {result.buste.length > 6 && (
                         <p className="text-xs text-gray-500 mt-2">

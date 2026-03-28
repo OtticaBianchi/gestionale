@@ -44,6 +44,7 @@ export const LENS_TREATMENTS = {
   GUIDA: 'Guida',
   SPECCHIO: 'Specchio',
   ANTI_APPANNANTE: 'Anti Appannante',
+  COLORATE: 'Colorate',
 } as const;
 
 export type LensTreatment = typeof LENS_TREATMENTS[keyof typeof LENS_TREATMENTS];
@@ -63,6 +64,7 @@ export const LENS_TREATMENTS_OPTIONS: Array<{ value: LensTreatment; label: strin
   { value: LENS_TREATMENTS.GUIDA, label: 'Guida', description: 'Ottimizzate per la guida' },
   { value: LENS_TREATMENTS.SPECCHIO, label: 'Specchio', description: 'Trattamento a specchio' },
   { value: LENS_TREATMENTS.ANTI_APPANNANTE, label: 'Anti Appannante', description: 'Previene l\'appannamento' },
+  { value: LENS_TREATMENTS.COLORATE, label: 'Colorate', description: 'Lenti con tinta colorata' },
 ];
 
 /**

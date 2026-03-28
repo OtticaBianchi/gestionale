@@ -384,10 +384,10 @@ body { print-color-adjust: exact; }
 <div class="busta-info">
 <div>
   <div class="busta-numero">#${bustaData.readable_id || 'NUOVA'}</div>
+  <div class="cliente-nome">${bustaData.cliente_cognome.toUpperCase()} ${bustaData.cliente_nome.toUpperCase()}</div>
   <div class="data-apertura">Apertura: ${bustaData.data_apertura ? new Date(bustaData.data_apertura).toLocaleDateString('it-IT') : new Date().toLocaleDateString('it-IT')}</div>
 </div>
 <div style="text-align: right;">
-  <div class="cliente-nome">${bustaData.cliente_cognome.toUpperCase()} ${bustaData.cliente_nome.toUpperCase()}</div>
   <div class="lavorazione">${getTipoLavorazioneFull(bustaData.tipo_lavorazione)}</div>
   ${bustaData.cliente_telefono
     ? `<div class="cliente-telefono">${escapeHtml(formatPhoneDisplay(bustaData.cliente_telefono))}</div>`

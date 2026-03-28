@@ -64,6 +64,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.3.12', date: '28/03/2026', description: 'Ricerca: badge pagamento (Bonifico, Pagherò, Rate) visibili direttamente nei risultati buste senza chiamate aggiuntive. Report giornaliero admin con selezione data, anteprima tabella e stampa PDF. Stampa busta: nome cliente spostato sotto il numero busta.' },
     { version: '4.3.11', date: '22/03/2026', description: 'Operatore: abilitato a completare pulizia e controllo qualità in lavorazione (occhiali e LAC/TALAC), contattare il cliente in pronto ritiro tramite telefonata/SMS e chiudere la busta a consegnato pagato.' },
     { version: '4.3.10', date: '20/02/2026', description: 'Anagrafica: introdotto cambio intestatario solo per la busta corrente (cliente esistente o nuovo) con audit dedicato. Materiali: aggiunta correzione rapida da "Arrivato" a "In Arrivo" quando l\'arrivo e segnato per errore.' },
     { version: '4.3.9', date: '17/02/2026', description: 'Pagamento/LAC: introdotto riordino a fine vita busta con scelta utente in chiusura manuale, chiusura automatica da saldo unico incassato e anche su busta già chiusa, con creazione nuova busta e ordini LAC pronti da ordinare.' },
