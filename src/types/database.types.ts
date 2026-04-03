@@ -298,6 +298,7 @@ export type Database = {
           sospesa_followup_note: string | null
           id: string
           is_suspended: boolean
+          pinned_to_kanban: boolean
           metodo_consegna:
             | Database["public"]["Enums"]["metodo_consegna_enum"]
             | null
@@ -342,6 +343,7 @@ export type Database = {
           sospesa_followup_note?: string | null
           id?: string
           is_suspended?: boolean
+          pinned_to_kanban?: boolean
           metodo_consegna?:
             | Database["public"]["Enums"]["metodo_consegna_enum"]
             | null
@@ -386,6 +388,7 @@ export type Database = {
           sospesa_followup_note?: string | null
           id?: string
           is_suspended?: boolean
+          pinned_to_kanban?: boolean
           metodo_consegna?:
             | Database["public"]["Enums"]["metodo_consegna_enum"]
             | null

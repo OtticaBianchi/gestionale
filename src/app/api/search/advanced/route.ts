@@ -76,7 +76,7 @@ const getClientSearchScore = (
 
 const BUSTA_ARCHIVE_FIELDS = `
   id, readable_id, stato_attuale, data_apertura, updated_at, deleted_at,
-  tipo_lavorazione, priorita, note_generali,
+  tipo_lavorazione, priorita, note_generali, pinned_to_kanban,
   info_pagamenti (
     is_saldato,
     modalita_saldo,

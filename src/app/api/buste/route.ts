@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     const userRole = profile?.role ?? null
-    if (!profile || !['admin', 'manager'].includes(profile.role)) {
+    if (!profile || !['admin', 'manager', 'operatore'].includes(profile.role)) {
       return NextResponse.json({ error: 'Permessi insufficienti' }, { status: 403 })
     }
 

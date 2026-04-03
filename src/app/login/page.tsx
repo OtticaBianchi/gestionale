@@ -222,10 +222,23 @@ function LoginForm() {
 
         <div className="mt-6 border-t border-slate-200 pt-6">
           <div className="mb-2 text-center text-xs text-slate-400">
-            Versione 4.3.12
+            Versione 4.3.14
           </div>
           <div className="text-xs text-slate-500">
             <div className="text-center font-medium text-slate-600">Ultimi aggiornamenti</div>
+            <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+              <div className="font-semibold text-slate-700">v4.3.14 - Aprile 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>Operatore può creare nuove buste (anagrafica + tipo lavorazione)</li>
+              </ul>
+            </div>
+            <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
+              <div className="font-semibold text-slate-700">v4.3.13 - Aprile 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>Fix: buste attive con più di 1000 righe DB non spariscono più dalla Kanban</li>
+                <li>Nuovo: flag "Mostra in Kanban" (📍) nella ricerca avanzata</li>
+              </ul>
+            </div>
             <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
               <div className="font-semibold text-slate-700">v4.3.12 - Marzo 2026</div>
               <ul className="ml-2 list-disc list-inside space-y-1">

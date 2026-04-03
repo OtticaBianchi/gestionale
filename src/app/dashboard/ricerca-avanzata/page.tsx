@@ -11,6 +11,7 @@ interface BustaSearchEntry {
   stato_attuale: string;
   data_apertura: string;
   isArchived?: boolean;
+  pinned_to_kanban?: boolean | null;
   info_pagamenti?: {
     is_saldato?: boolean | null;
     modalita_saldo?: string | null;
@@ -98,6 +99,7 @@ export default function RicercaAvanzataPage() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [totalResults, setTotalResults] = useState(0);
+  const [pinningBustaId, setPinningBustaId] = useState<string | null>(null);
 
   // ===== NEW FILTERS =====
   const [showFilters, setShowFilters] = useState(false);
@@ -233,6 +235,29 @@ export default function RicercaAvanzataPage() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       searchAdvanced();
+    }
+  };
+
+  const handlePinToggle = async (busta: BustaSearchEntry) => {
+    setPinningBustaId(busta.id);
+    const newPinned = !busta.pinned_to_kanban;
+    try {
+      const res = await fetch(`/api/buste/${busta.id}/pin`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pinned_to_kanban: newPinned }),
+      });
+      if (res.ok) {
+        setResults(prev => prev.map(result => ({
+          ...result,
+          buste: result.buste?.map(b => b.id === busta.id ? { ...b, pinned_to_kanban: newPinned } : b),
+          busta: result.busta?.id === busta.id ? { ...result.busta, pinned_to_kanban: newPinned } : result.busta,
+        })));
+      }
+    } catch (e) {
+      console.error('Errore pin kanban:', e);
+    } finally {
+      setPinningBustaId(null);
     }
   };
 
@@ -832,13 +857,27 @@ export default function RicercaAvanzataPage() {
                                 )}
                               </div>
                             </div>
-                            <Link
-                              href={`/dashboard/buste/${busta.id}`}
-                              className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
-                              title="Visualizza busta"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                            </Link>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => handlePinToggle(busta)}
+                                disabled={pinningBustaId === busta.id}
+                                title={busta.pinned_to_kanban ? 'Rimuovi dalla Kanban' : 'Mostra in Kanban'}
+                                className={`p-1 rounded transition-colors ${busta.pinned_to_kanban ? 'text-amber-500 hover:text-amber-700' : 'text-gray-400 hover:text-amber-500'}`}
+                              >
+                                {pinningBustaId === busta.id ? (
+                                  <span className="block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <span className="text-xs font-bold">{busta.pinned_to_kanban ? '📌' : '📍'}</span>
+                                )}
+                              </button>
+                              <Link
+                                href={`/dashboard/buste/${busta.id}`}
+                                className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
+                                title="Visualizza busta"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                              </Link>
+                            </div>
                           </div>
                         );
                         })}
@@ -889,13 +928,27 @@ export default function RicercaAvanzataPage() {
                             {getBustaStatusText(result.busta.stato_attuale)}
                           </span>
                         </div>
-                        <Link
-                          href={`/dashboard/buste/${result.busta.id}`}
-                          className="p-2 text-blue-600 hover:text-blue-800 transition-colors"
-                          title="Visualizza busta"
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </Link>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handlePinToggle(result.busta!)}
+                            disabled={pinningBustaId === result.busta.id}
+                            title={result.busta.pinned_to_kanban ? 'Rimuovi dalla Kanban' : 'Mostra in Kanban'}
+                            className={`p-1 rounded transition-colors ${result.busta.pinned_to_kanban ? 'text-amber-500 hover:text-amber-700' : 'text-gray-400 hover:text-amber-500'}`}
+                          >
+                            {pinningBustaId === result.busta.id ? (
+                              <span className="block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <span className="text-xs font-bold">{result.busta.pinned_to_kanban ? '📌' : '📍'}</span>
+                            )}
+                          </button>
+                          <Link
+                            href={`/dashboard/buste/${result.busta.id}`}
+                            className="p-2 text-blue-600 hover:text-blue-800 transition-colors"
+                            title="Visualizza busta"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   )}

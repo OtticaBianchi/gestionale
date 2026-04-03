@@ -55,6 +55,7 @@ export default function ButtonsBar() {
   };
 
   const showOpsButtons = Boolean(userRole && userRole !== 'operatore');
+  const showNuovaBusta = Boolean(userRole);
   const isAdmin = userRole === 'admin';
 
   return (
@@ -62,8 +63,8 @@ export default function ButtonsBar() {
     {showReport && <ReportGiornalieroModal onClose={() => setShowReport(false)} />}
     <div className="border-b border-slate-200/70 bg-white/80 px-6 py-3 backdrop-blur">
       <div className="flex flex-wrap items-center justify-center gap-2">
-        {/* Nuova Busta button - only for non-operators */}
-        {showOpsButtons && (
+        {/* Nuova Busta button - all authenticated users including operatori */}
+        {showNuovaBusta && (
           <Link
             href="/dashboard/buste/new"
             className="flex items-center gap-1.5 rounded-lg bg-[var(--ink)] px-3 py-2 text-sm text-[var(--paper)] transition-colors hover:bg-black"

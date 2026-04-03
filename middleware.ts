@@ -93,7 +93,6 @@ export async function middleware(request: NextRequest) {
     '/modules/archive',
     '/modules/operations',
     '/modules/voice-triage',
-    '/dashboard/buste/new'
   ]
   const isManagerPath = managerPaths.some(path => pathname.startsWith(path))
 

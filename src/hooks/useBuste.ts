@@ -80,10 +80,12 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
     }
   }
 
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from('buste')
     .select(DASHBOARD_BUSTE_SELECT)
     .is('deleted_at', null)
+    .or(`stato_attuale.neq.consegnato_pagato,updated_at.gte.${sevenDaysAgo},pinned_to_kanban.eq.true`)
     .order('data_apertura', { ascending: false })
     .order('updated_at', { ascending: false });
 
@@ -108,18 +110,18 @@ const fetcher = async (): Promise<BustaWithCliente[]> => {
   if (shouldCheckArchiving()) {
     const activeBuste = normalizedBuste.filter(busta => !isArchived(busta));
     const archivedCount = normalizedBuste.length - activeBuste.length;
-    
+
     if (archivedCount > 0) {
       console.log('📁 ARCHIVING CHECK - Nascondendo', archivedCount, 'buste archiviate dalla Kanban (controllo giornaliero)');
     }
-    
+
     return activeBuste;
   }
 
   // ✅ CONTROLLO GIÀ FATTO OGGI - Usa cache locale per performance
   const cachedFilteredBuste = normalizedBuste.filter(busta => !isArchived(busta));
   console.log('✅ SWR Fetcher - Success:', cachedFilteredBuste.length, 'active buste (archiving già controllato oggi)');
-  
+
   return cachedFilteredBuste;
 };
 

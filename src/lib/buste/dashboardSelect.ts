@@ -8,6 +8,7 @@ export const DASHBOARD_BUSTE_SELECT = `
   data_apertura,
   updated_at,
   is_suspended,
+  pinned_to_kanban,
   data_sospensione,
   data_riesame_sospensione,
   richiede_telefonata,

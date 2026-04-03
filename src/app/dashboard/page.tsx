@@ -56,10 +56,12 @@ export default async function DashboardPage() {
 
   // ✅ FIX: Fetch delle buste con TUTTI i campi cliente necessari
   console.log('🔍 Dashboard - Fetching buste...');
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: buste, error } = await supabase
     .from('buste')
     .select(DASHBOARD_BUSTE_SELECT)
     .is('deleted_at', null)
+    .or(`stato_attuale.neq.consegnato_pagato,updated_at.gte.${sevenDaysAgo},pinned_to_kanban.eq.true`)
     .order('data_apertura', { ascending: false })
     .order('updated_at', { ascending: false }); // ✅ Ordinamento anche per updated_at
 

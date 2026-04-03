@@ -64,6 +64,8 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.3.14', date: '03/04/2026', description: 'RBAC: operatore può ora creare nuove buste (anagrafica cliente + tipo lavorazione + priorità + note). Rimosso blocco middleware e API sul percorso /buste/new per il ruolo operatore.' },
+    { version: '4.3.13', date: '03/04/2026', description: 'Fix: buste con più di 1000 righe nel DB non scompaiono più dalla Kanban — la query esclude solo le consegnato_pagato più vecchie di 7 giorni. Nuovo: flag "Mostra in Kanban" (📍) nella ricerca avanzata per riportare qualsiasi busta nella dashboard senza modificarne lo stato.' },
     { version: '4.3.12', date: '28/03/2026', description: 'Ricerca: badge pagamento (Bonifico, Pagherò, Rate) visibili direttamente nei risultati buste senza chiamate aggiuntive. Report giornaliero admin con selezione data, anteprima tabella e stampa PDF. Stampa busta: nome cliente spostato sotto il numero busta.' },
     { version: '4.3.11', date: '22/03/2026', description: 'Operatore: abilitato a completare pulizia e controllo qualità in lavorazione (occhiali e LAC/TALAC), contattare il cliente in pronto ritiro tramite telefonata/SMS e chiudere la busta a consegnato pagato.' },
     { version: '4.3.10', date: '20/02/2026', description: 'Anagrafica: introdotto cambio intestatario solo per la busta corrente (cliente esistente o nuovo) con audit dedicato. Materiali: aggiunta correzione rapida da "Arrivato" a "In Arrivo" quando l\'arrivo e segnato per errore.' },
