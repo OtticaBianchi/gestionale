@@ -10,6 +10,7 @@ interface BustaSearchEntry {
   readable_id: string;
   stato_attuale: string;
   data_apertura: string;
+  updated_at?: string | null;
   isArchived?: boolean;
   pinned_to_kanban?: boolean | null;
   info_pagamenti?: {
@@ -259,6 +260,13 @@ export default function RicercaAvanzataPage() {
     } finally {
       setPinningBustaId(null);
     }
+  };
+
+  const isExcludedFromDashboard = (busta: BustaSearchEntry): boolean => {
+    if (busta.stato_attuale !== 'consegnato_pagato') return false;
+    if (!busta.updated_at) return false;
+    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return new Date(busta.updated_at).getTime() < sevenDaysAgo;
   };
 
   const getBustaStatusText = (stato: string) => {
@@ -858,6 +866,7 @@ export default function RicercaAvanzataPage() {
                               </div>
                             </div>
                             <div className="flex items-center gap-1">
+                              {(isExcludedFromDashboard(busta) || busta.pinned_to_kanban) && (
                               <button
                                 onClick={() => handlePinToggle(busta)}
                                 disabled={pinningBustaId === busta.id}
@@ -870,6 +879,7 @@ export default function RicercaAvanzataPage() {
                                   <span className="text-xs font-bold">{busta.pinned_to_kanban ? '📌' : '📍'}</span>
                                 )}
                               </button>
+                              )}
                               <Link
                                 href={`/dashboard/buste/${busta.id}`}
                                 className="p-1 text-blue-600 hover:text-blue-800 transition-colors"
@@ -929,6 +939,7 @@ export default function RicercaAvanzataPage() {
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
+                          {(isExcludedFromDashboard(result.busta) || result.busta.pinned_to_kanban) && (
                           <button
                             onClick={() => handlePinToggle(result.busta!)}
                             disabled={pinningBustaId === result.busta.id}
@@ -941,6 +952,7 @@ export default function RicercaAvanzataPage() {
                               <span className="text-xs font-bold">{result.busta.pinned_to_kanban ? '📌' : '📍'}</span>
                             )}
                           </button>
+                          )}
                           <Link
                             href={`/dashboard/buste/${result.busta.id}`}
                             className="p-2 text-blue-600 hover:text-blue-800 transition-colors"
