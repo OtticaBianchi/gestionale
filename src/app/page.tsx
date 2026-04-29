@@ -64,6 +64,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.3.15', date: '29/04/2026', description: 'Notifiche: aggiunto controllo qualità pre-ritiro in NotificheTab. Checklist dipendente dal tipo lavorazione (vista, sole, LAC) visibile in pronto_ritiro finché la telefonata non è completata. Chi spunta la lista è responsabile della verifica. Rimosso getCurrentUser() ridondante (−2 query DB per apertura tab).' },
     { version: '4.3.14', date: '03/04/2026', description: 'RBAC: operatore può ora creare nuove buste (anagrafica cliente + tipo lavorazione + priorità + note). Rimosso blocco middleware e API sul percorso /buste/new per il ruolo operatore.' },
     { version: '4.3.13', date: '03/04/2026', description: 'Fix: buste con più di 1000 righe nel DB non scompaiono più dalla Kanban — la query esclude solo le consegnato_pagato più vecchie di 7 giorni. Nuovo: flag "Mostra in Kanban" (📍) nella ricerca avanzata per riportare qualsiasi busta nella dashboard senza modificarne lo stato.' },
     { version: '4.3.12', date: '28/03/2026', description: 'Ricerca: badge pagamento (Bonifico, Pagherò, Rate) visibili direttamente nei risultati buste senza chiamate aggiuntive. Report giornaliero admin con selezione data, anteprima tabella e stampa PDF. Stampa busta: nome cliente spostato sotto il numero busta.' },

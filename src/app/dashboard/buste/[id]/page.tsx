@@ -8,6 +8,11 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
+  // Controllo ritiro pre-consegna (migration 20260429 — not yet in generated types)
+  controllo_ritiro_checklist?: Record<string, boolean> | null;
+  controllo_ritiro_completato?: boolean | null;
+  controllo_ritiro_completato_da?: string | null;
+  controllo_ritiro_completato_at?: string | null;
   clienti: Database['public']['Tables']['clienti']['Row'] | null;
   profiles: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
   controllo_profile: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;

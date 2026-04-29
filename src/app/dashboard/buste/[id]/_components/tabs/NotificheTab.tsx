@@ -23,12 +23,74 @@ import {
   Package,
   Check,
   X,
+  ClipboardCheck,
+  ShieldCheck,
 } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 import { useRouter } from 'next/navigation';
 
+// ===== CHECKLIST DEFINITIONS =====
+const CHECKLIST_VISTA = [
+  { key: 'lenti_pulite',         label: 'Lenti pulite con panno nuovo' },
+  { key: 'montatura_pulita',     label: 'Montatura pulita esternamente (naselli, aste)' },
+  { key: 'aspetto_estetico',     label: 'Aspetto estetico generale ok' },
+  { key: 'corrispondenza_ordine',label: 'Corrispondenza con ordine cliente (modello, colore)' },
+  { key: 'astuccio_corretto',    label: 'Occhiali in astuccio corretto con panno incluso' },
+  { key: 'busta_compilata',      label: 'Busta compilata e leggibile' },
+];
+
+const CHECKLIST_SOLE = [
+  { key: 'modello_colore_taglia',label: "Modello, colore e taglia corrispondono all'ordine" },
+  { key: 'lenti_integre',        label: 'Lenti integre, prive di graffi o difetti' },
+  { key: 'assetto_meccanico',    label: 'Assetto meccanico ok (aste, cerniere, naselli)' },
+  { key: 'protezione_uv',        label: 'Protezione UV verificata / certificazione presente' },
+  { key: 'lenti_pulite',         label: 'Lenti pulite con panno nuovo' },
+  { key: 'astuccio_corretto',    label: 'Occhiali in astuccio corretto con panno incluso' },
+  { key: 'busta_compilata',      label: 'Busta compilata e leggibile' },
+];
+
+const CHECKLIST_LAC = [
+  { key: 'parametri',            label: "Brand, potere, raggio base e diametro corrispondono all'ordine" },
+  { key: 'data_scadenza',        label: 'Data di scadenza verificata (non scadute, margine adeguato)' },
+  { key: 'integrita_confezioni', label: 'Integrità confezioni (sigilli intatti, nessun blister danneggiato)' },
+  { key: 'quantita_corretta',    label: 'Quantità corretta (numero scatole/blister)' },
+  { key: 'soluzione_accessori',  label: "Soluzione e accessori inclusi se previsti nell'ordine" },
+  { key: 'istruzioni_uso',       label: "Istruzioni d'uso incluse (obbligatorio per nuovi portatori)" },
+  { key: 'busta_compilata',      label: 'Busta compilata e leggibile' },
+];
+
+type ChecklistType = 'VISTA' | 'SOLE' | 'LAC';
+const CHECKLISTS: Record<ChecklistType, { key: string; label: string }[]> = {
+  VISTA: CHECKLIST_VISTA,
+  SOLE:  CHECKLIST_SOLE,
+  LAC:   CHECKLIST_LAC,
+};
+const CHECKLIST_LABELS: Record<ChecklistType, string> = {
+  VISTA: 'Occhiali da vista',
+  SOLE:  'Occhiali da sole',
+  LAC:   'Lenti a contatto',
+};
+
+function getChecklistType(tipoLavorazione: string | null): ChecklistType | null {
+  switch (tipoLavorazione) {
+    case 'OCV': case 'OV': case 'LV': case 'SA': case 'SG': case 'LAB':
+      return 'VISTA';
+    case 'OS': case 'LS':
+      return 'SOLE';
+    case 'LAC': case 'TALAC':
+      return 'LAC';
+    default:
+      return null;
+  }
+}
+
 // ===== TYPES =====
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
+  // Controllo ritiro (columns added in migration 20260429 — not yet in generated types)
+  controllo_ritiro_checklist?: Record<string, boolean> | null;
+  controllo_ritiro_completato?: boolean | null;
+  controllo_ritiro_completato_da?: string | null;
+  controllo_ritiro_completato_at?: string | null;
   clienti: Database['public']['Tables']['clienti']['Row'] | null;
   profiles: Pick<Database['public']['Tables']['profiles']['Row'], 'full_name'> | null;
   status_history: Array<
@@ -89,9 +151,8 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
   const [comunicazioni, setComunicazioni] = useState<Comunicazione[]>([]);
   const [isLoadingComunicazioni, setIsLoadingComunicazioni] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{ id: string; full_name: string } | null>(null);
-  
-  // User context for role checking
+
+  // User context — provides id, full_name, role without extra DB calls
   const { profile } = useUser();
 
   // Operatori possono gestire notifiche e consegna quando la busta è in pronto_ritiro
@@ -115,6 +176,50 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
   const [numeroTracking, setNumeroTracking] = useState<string>(busta.numero_tracking || '');
   const [noteSpedizione, setNoteSpedizione] = useState<string>(busta.note_spedizione || '');
 
+  // Controllo qualità pre-ritiro
+  const checklistType = getChecklistType(busta.tipo_lavorazione ?? null);
+  const checklistItems = checklistType ? CHECKLISTS[checklistType] : [];
+  const [checklistState, setChecklistState] = useState<Record<string, boolean>>(
+    () => (busta.controllo_ritiro_checklist as Record<string, boolean> | null) ?? {}
+  );
+  const [controlloCompletato, setControlloCompletato] = useState<boolean>(
+    busta.controllo_ritiro_completato ?? false
+  );
+  const [isSavingChecklist, setIsSavingChecklist] = useState(false);
+
+  const allItemsChecked =
+    checklistItems.length > 0 &&
+    checklistItems.every((item) => checklistState[item.key] === true);
+
+  const handleToggleChecklistItem = (key: string) => {
+    if (controlloCompletato) return;
+    setChecklistState((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSaveChecklist = async (completato: boolean) => {
+    setIsSavingChecklist(true);
+    try {
+      const response = await fetch(`/api/buste/${busta.id}/controllo-ritiro`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ checklist: checklistState, completato }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error || 'Errore salvataggio controllo');
+      }
+      setControlloCompletato(completato);
+      if (!completato) {
+        setChecklistState({});
+      }
+      // no router.refresh() — local state is already updated; avoid re-fetching the full busta page
+    } catch (error: any) {
+      alert(`Errore: ${error.message}`);
+    } finally {
+      setIsSavingChecklist(false);
+    }
+  };
+
   // Phone contact request state
   const [richiedeTelefonata, setRichiedeTelefonata] = useState<boolean>(busta.richiede_telefonata || false);
   const [telefonataAssegnataA, setTelefonataAssegnataA] = useState<string>(busta.telefonata_assegnata_a || '');
@@ -131,10 +236,9 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // Carica comunicazioni e utente all'avvio/cambio busta
+  // Carica comunicazioni all'avvio/cambio busta
   useEffect(() => {
     loadComunicazioni();
-    getCurrentUser();
   }, [busta.id]);
 
   useEffect(() => {
@@ -152,25 +256,6 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
     setTelefonataCompletata(busta.telefonata_completata || false);
     setTelefonataCompletataData(busta.telefonata_completata_data || null);
   }, [busta.metodo_consegna, busta.data_selezione_consegna, busta.numero_tracking, busta.note_spedizione, busta.id, busta.richiede_telefonata, busta.telefonata_assegnata_a, busta.telefonata_completata, busta.telefonata_completata_data]);
-
-  // Carica dati operatore corrente
-  const getCurrentUser = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .single();
-        if (profile?.full_name) {
-          setCurrentUser({ id: user.id, full_name: profile.full_name });
-        }
-      }
-    } catch (error) {
-      setCurrentUser(null);
-    }
-  };
 
   // Carica le comunicazioni di questa busta
   const loadComunicazioni = async () => {
@@ -193,7 +278,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
   // Genera messaggio predefinito
   const generaMessaggio = (tipo: 'ordine_pronto' | 'sollecito_ritiro') => {
     const nomeCliente = busta.clienti?.nome || 'Cliente';
-    const nomeOperatore = currentUser?.full_name?.split(' ').slice(1).join(' ') || 'Operatore';
+    const nomeOperatore = profile?.full_name?.split(' ').slice(1).join(' ') || 'Operatore';
     if (tipo === 'ordine_pronto') {
       return `Ciao ${nomeCliente}, sono ${nomeOperatore} di Ottica Bianchi. Il tuo acquisto è pronto e puoi passare a ritirarlo quando vuoi. Ti aspettiamo!`;
     } else {
@@ -219,7 +304,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
 
   // ===== VALIDATION FUNCTIONS =====
   const validateMessageInput = (tipo: 'ordine_pronto' | 'sollecito_ritiro' | 'nota_comunicazione_cliente') => {
-    if (!currentUser) {
+    if (!profile) {
       throw new Error('Dati operatore mancanti.');
     }
     if (tipo !== 'nota_comunicazione_cliente' && !busta.clienti) {
@@ -602,7 +687,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
         .update({
           telefonata_completata: true,
           telefonata_completata_data: completedAt,
-          telefonata_completata_da: currentUser?.id || null
+          telefonata_completata_da: profile?.id || null
         })
         .eq('id', busta.id);
 
@@ -612,7 +697,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
       setTelefonataCompletataData(completedAt);
       setShowingCallOutcome(false);
       try {
-        const callerName = currentUser?.full_name || 'Operatore';
+        const callerName = profile?.full_name || 'Operatore';
         const nuovaComunicazione = await createCommunicationRecord(
           'nota_comunicazione_cliente',
           `Telefonata al cliente: andata a buon fine. Effettuata da: ${callerName}.`
@@ -637,7 +722,7 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
       const attemptAt = new Date();
       const formattedDate = attemptAt.toLocaleDateString('it-IT');
       const formattedTime = attemptAt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-      const callerName = currentUser?.full_name || 'Operatore';
+      const callerName = profile?.full_name || 'Operatore';
 
       // Record the attempt in communications but DON'T mark as completed
       try {
@@ -748,6 +833,96 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
         </div>
       </div>
 
+      {/* ===== CONTROLLO QUALITÀ PRE-RITIRO ===== */}
+      {canEdit && isBustaReadyForNotification && checklistType && !telefonataCompletata && (
+        <div className={`rounded-lg shadow-sm border p-6 ${
+          controlloCompletato
+            ? 'bg-green-50 border-green-300'
+            : 'bg-white border-gray-200'
+        }`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <ClipboardCheck className={`w-5 h-5 ${controlloCompletato ? 'text-green-600' : 'text-gray-500'}`} />
+              Controllo Qualità — {CHECKLIST_LABELS[checklistType]}
+            </h3>
+            {controlloCompletato && (
+              <span className="flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                <ShieldCheck className="w-4 h-4" />
+                Superato
+              </span>
+            )}
+          </div>
+
+          {controlloCompletato ? (
+            <div className="space-y-3">
+              <ul className="space-y-1.5">
+                {checklistItems.map((item) => (
+                  <li key={item.key} className="flex items-center gap-2 text-sm text-green-800">
+                    <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+                    {item.label}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-green-700 mt-3">
+                Controllo eseguito da chi effettuerà la chiamata al cliente.
+              </p>
+              <button
+                onClick={() => handleSaveChecklist(false)}
+                disabled={isSavingChecklist}
+                className="mt-2 px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50 transition-colors"
+              >
+                {isSavingChecklist ? <Loader2 className="w-3 h-3 animate-spin inline mr-1" /> : null}
+                Annulla controllo
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600 mb-3">
+                Spunta ogni punto prima di chiamare il cliente. Sarai responsabile di questo controllo.
+              </p>
+              <ul className="space-y-2">
+                {checklistItems.map((item) => (
+                  <li key={item.key}>
+                    <label className="flex items-start gap-3 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={checklistState[item.key] ?? false}
+                        onChange={() => handleToggleChecklistItem(item.key)}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                      <span className={`text-sm transition-colors ${
+                        checklistState[item.key] ? 'text-gray-500 line-through' : 'text-gray-800'
+                      }`}>
+                        {item.label}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <div className="pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => handleSaveChecklist(true)}
+                  disabled={!allItemsChecked || isSavingChecklist}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium text-sm"
+                >
+                  {isSavingChecklist ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="w-4 h-4" />
+                  )}
+                  Confermo il controllo — procedo con la chiamata
+                </button>
+                {!allItemsChecked && (
+                  <p className="text-xs text-amber-700 mt-2 text-center">
+                    Spunta tutti i punti per sbloccare le azioni di notifica
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ✅ MODIFICA: Azioni Invio Messaggi - Solo per chi può editare */}
       {canEdit && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -765,6 +940,13 @@ export default function NotificheTab({ busta, isReadOnly = false }: NotificheTab
               </div>
               <p className="text-yellow-700 text-sm mt-2">
                 Trascina prima la busta nella colonna "Pronto Ritiro" nel Kanban
+              </p>
+            </div>
+          ) : checklistType && !controlloCompletato && !telefonataCompletata ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3">
+              <ClipboardCheck className="w-5 h-5 text-amber-600 flex-shrink-0" />
+              <p className="text-amber-800 text-sm font-medium">
+                Completa il controllo qualità qui sopra prima di inviare notifiche al cliente
               </p>
             </div>
           ) : editingMessageType ? (
