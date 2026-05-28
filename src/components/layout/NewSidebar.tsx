@@ -546,6 +546,12 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
                 isCollapsed={isCollapsed}
               />
               <SidebarItem
+                href="/dashboard/briefing"
+                icon={ClipboardList}
+                label="Briefing Operativo"
+                isCollapsed={isCollapsed}
+              />
+              <SidebarItem
                 href="/errori"
                 icon={AlertTriangle}
                 label="Tracciamento Errori"

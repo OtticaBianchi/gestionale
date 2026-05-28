@@ -119,10 +119,10 @@ export async function GET(request: NextRequest) {
           `metadata->>bustaReadableId.ilike.*${recordSearch}*`,
           `metadata->>cliente.ilike.*${recordSearch}*`,
           `metadata->>cliente_nome.ilike.*${recordSearch}*`,
-          `changed_fields::text.ilike.*${recordSearch}*`
+          `metadata->>recordLabel.ilike.*${recordSearch}*`
         ];
 
-        // Also search for clients by name and include their UUIDs
+        // Search by client name → include matching UUIDs in record_id lookup
         const { data: matchingClients } = await serviceClient
           .from('clienti')
           .select('id')
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
 
         if (matchingClients && matchingClients.length > 0) {
           for (const client of matchingClients) {
-            filters.push(`changed_fields::text.ilike.*${client.id}*`);
+            filters.push(`record_id.eq.${client.id}`);
           }
         }
 
@@ -160,18 +160,16 @@ export async function GET(request: NextRequest) {
       if (sanitized) {
         const likePattern = `*${sanitized.replace(/\s+/g, '%').replace(/\*/g, '').toLowerCase()}*`;
 
-        // Build base search filters
         const searchFilters = [
           `record_id.ilike.${likePattern}`,
           `reason.ilike.${likePattern}`,
           `user_role.ilike.${likePattern}`,
           `metadata->>cliente.ilike.${likePattern}`,
           `metadata->>recordLabel.ilike.${likePattern}`,
-          `metadata->>bustaReadableId.ilike.${likePattern}`,
-          `changed_fields::text.ilike.${likePattern}`
+          `metadata->>bustaReadableId.ilike.${likePattern}`
         ];
 
-        // Also search for clients by name and include their UUIDs
+        // Search by client name → include matching client UUIDs
         const { data: matchingClients } = await serviceClient
           .from('clienti')
           .select('id')
@@ -180,7 +178,7 @@ export async function GET(request: NextRequest) {
 
         if (matchingClients && matchingClients.length > 0) {
           for (const client of matchingClients) {
-            searchFilters.push(`changed_fields::text.ilike.*${client.id}*`);
+            searchFilters.push(`record_id.eq.${client.id}`);
           }
         }
 

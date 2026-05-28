@@ -49,6 +49,7 @@ export async function middleware(request: NextRequest) {
     '/admin',
     '/dashboard/audit',
     '/dashboard/analytics',
+    '/dashboard/briefing',
     '/dashboard/cestino',
     '/dashboard/admin',
     '/dashboard/governance',

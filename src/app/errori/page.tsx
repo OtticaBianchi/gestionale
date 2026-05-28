@@ -37,6 +37,10 @@ type ErrorData = {
     full_name: string
     role: string
   } | null
+  reported_by_profile: {
+    id: string
+    full_name: string
+  } | null
   busta?: {
     readable_id: string
     stato_attuale: string
@@ -540,6 +544,7 @@ export default function ErroriPage() {
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dipendente</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Segnalato da</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo/Gravità</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Busta/Cliente</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descrizione</th>
@@ -578,6 +583,12 @@ export default function ErroriPage() {
                       </div>
                       <div className="text-sm text-gray-500 capitalize">
                         {error.employee?.role || 'non attribuito'}
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {error.reported_by_profile?.full_name || '—'}
                       </div>
                     </td>
 

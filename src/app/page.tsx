@@ -64,6 +64,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.4.0', date: '07/05/2026', description: 'Briefing Operativo: nuova pagina admin-only (/dashboard/briefing) che analizza ogni mattina le buste critiche, inceppate e con materiali in ritardo. Permette di assegnare compiti, aggiungere note e stampare un foglio per persona. Storico dei briefing con verifica serale (flag "risolto" per task).' },
     { version: '4.3.15', date: '29/04/2026', description: 'Notifiche: aggiunto controllo qualità pre-ritiro in NotificheTab. Checklist dipendente dal tipo lavorazione (vista, sole, LAC) visibile in pronto_ritiro finché la telefonata non è completata. Chi spunta la lista è responsabile della verifica. Rimosso getCurrentUser() ridondante (−2 query DB per apertura tab).' },
     { version: '4.3.14', date: '03/04/2026', description: 'RBAC: operatore può ora creare nuove buste (anagrafica cliente + tipo lavorazione + priorità + note). Rimosso blocco middleware e API sul percorso /buste/new per il ruolo operatore.' },
     { version: '4.3.13', date: '03/04/2026', description: 'Fix: buste con più di 1000 righe nel DB non scompaiono più dalla Kanban — la query esclude solo le consegnato_pagato più vecchie di 7 giorni. Nuovo: flag "Mostra in Kanban" (📍) nella ricerca avanzata per riportare qualsiasi busta nella dashboard senza modificarne lo stato.' },
