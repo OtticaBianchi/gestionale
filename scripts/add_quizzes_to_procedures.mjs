@@ -807,7 +807,9 @@ QUIZ_DATA['ricontatto-clienti-posizioni-amministrative-aperte'] =
 
 // Procedures that don't require quizzes (reference/general)
 export const NO_QUIZ_PROCEDURES = [
-  'elenco_procedure_client_side'
+  'elenco_procedure_client_side',
+  'gestione-della-malattia',
+  'verbale-riunione-straordinaria-2026-06-23'
 ];
 
 /**
