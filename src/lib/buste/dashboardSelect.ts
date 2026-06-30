@@ -7,6 +7,7 @@ export const DASHBOARD_BUSTE_SELECT = `
   tipo_lavorazione,
   data_apertura,
   updated_at,
+  note_generali,
   is_suspended,
   pinned_to_kanban,
   data_sospensione,

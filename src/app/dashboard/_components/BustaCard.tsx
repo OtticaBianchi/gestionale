@@ -1,7 +1,7 @@
 // app/dashboard/_components/BustaCard.tsx
 
 import type { ReactNode } from 'react';
-import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins, Receipt, Bell, Phone, PhoneOff } from 'lucide-react';
+import { Clock, AlertTriangle, Euro, Banknote, Landmark, ListOrdered, Coins, Receipt, Bell, Phone, PhoneOff, StickyNote } from 'lucide-react';
 import Link from 'next/link';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
 import { isOtticaBianchiName, isRealCustomerPhone, isShopPhone } from '@/lib/clients/phoneRules';
@@ -492,6 +492,21 @@ export default function BustaCard({ busta }: BustaCardProps) {
     ? 'bg-yellow-50 border border-yellow-200'
     : 'bg-white/90 border border-slate-200/80';
 
+  // Nastro urgenza in evidenza (solo urgente/critica)
+  const priorityRibbon =
+    busta.priorita === 'critica'
+      ? { label: 'CRITICA', className: 'bg-red-100 text-red-700' }
+      : busta.priorita === 'urgente'
+        ? { label: 'URGENTE', className: 'bg-orange-100 text-orange-700' }
+        : null;
+
+  // Nota generale della busta (cap a 240 char: il testo completo è nel dettaglio)
+  const noteGenerali = (busta.note_generali || '').trim();
+  const hasNoteGenerali = noteGenerali.length > 0;
+  const noteGeneraliPreview = noteGenerali.length > 240
+    ? `${noteGenerali.slice(0, 240).trimEnd()}…`
+    : noteGenerali;
+
   const showBellReminder = hasOpenActions || busta.is_suspended;
   const bellReminderReasons: string[] = [];
   if (busta.is_suspended) bellReminderReasons.push('Busta sospesa: follow-up richiesto');
@@ -504,11 +519,20 @@ export default function BustaCard({ busta }: BustaCardProps) {
       <div
         data-busta-id={busta.id}
         className={`
-          ${suspendedClasses} rounded-xl shadow-[0_14px_32px_-26px_rgba(15,23,42,0.6)] p-4 mb-3 border-l-4
+          ${suspendedClasses} rounded-xl shadow-[0_14px_32px_-26px_rgba(15,23,42,0.6)] p-4 mb-3 border-l-4 overflow-hidden
           hover:shadow-[0_20px_45px_-30px_rgba(15,23,42,0.7)] hover:-translate-y-1 hover:border-[var(--teal)]/60 transition-all cursor-pointer
           ${priorityStyles[busta.priorita]}
         `}
       >
+        {/* Nastro urgenza in evidenza */}
+        {priorityRibbon && (
+          <div className={`-mt-4 -mx-4 mb-3 px-4 py-1.5 flex items-center gap-2 text-xs font-bold tracking-wide ${priorityRibbon.className}`}>
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+            <span>{priorityRibbon.label}</span>
+            <span className="font-semibold opacity-80">· {daysOpen} giorni aperti</span>
+          </div>
+        )}
+
         {/* Row 1: ID + Nome completo + Tipo Lavorazione */}
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -521,6 +545,14 @@ export default function BustaCard({ busta }: BustaCardProps) {
             {getTipoLavorazioneSigla(busta.tipo_lavorazione)}
           </span>
         </div>
+
+        {/* Nota generale della busta */}
+        {hasNoteGenerali && (
+          <div className="mb-3 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-2">
+            <StickyNote className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <p className="text-xs leading-relaxed text-amber-900 whitespace-pre-wrap">{noteGeneraliPreview}</p>
+          </div>
+        )}
 
         {/* Row 2: Badge stato materiali/sospensione/rate */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">

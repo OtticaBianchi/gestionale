@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { isServiceAccount } from '@/lib/constants/serviceAccounts'
 
 export async function GET() {
   try {
@@ -32,7 +33,7 @@ export async function GET() {
       .eq('is_active', true)
 
     // Get all users with their roles
-    const { data: users, error: usersError } = await supabase
+    const { data: allUsers, error: usersError } = await supabase
       .from('profiles')
       .select('id, full_name, role')
       .order('full_name', { ascending: true })
@@ -41,6 +42,10 @@ export async function GET() {
       console.error('Error fetching users:', usersError)
       return NextResponse.json({ error: 'Errore recupero utenti' }, { status: 500 })
     }
+
+    // Escludi gli account di servizio (es. bot Telegram): non sono persone reali
+    // e non hanno motivo di comparire nel controllo letture.
+    const users = (allUsers || []).filter((u) => !isServiceAccount(u.id))
 
     // Get all active procedures for reference
     const { data: allProcedures, error: proceduresError } = await supabase

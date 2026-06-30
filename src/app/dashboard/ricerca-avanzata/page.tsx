@@ -13,6 +13,8 @@ interface BustaSearchEntry {
   updated_at?: string | null;
   isArchived?: boolean;
   pinned_to_kanban?: boolean | null;
+  note_generali?: string | null;
+  tipo_lavorazione?: string | null;
   info_pagamenti?: {
     is_saldato?: boolean | null;
     modalita_saldo?: string | null;
@@ -864,6 +866,19 @@ export default function RicercaAvanzataPage() {
                                   </span>
                                 )}
                               </div>
+                              {busta.note_generali && busta.note_generali.trim() && (
+                                <p
+                                  className="flex items-start gap-1 text-[11px] text-amber-800 mt-1 break-words"
+                                  title={busta.note_generali}
+                                >
+                                  <FileText className="w-3 h-3 mt-0.5 flex-shrink-0 text-amber-600" />
+                                  <span>
+                                    {busta.note_generali.trim().length > 140
+                                      ? `${busta.note_generali.trim().slice(0, 140)}…`
+                                      : busta.note_generali.trim()}
+                                  </span>
+                                </p>
+                              )}
                             </div>
                             <div className="flex items-center gap-1">
                               {(isExcludedFromDashboard(busta) || busta.pinned_to_kanban) && (
@@ -937,6 +952,19 @@ export default function RicercaAvanzataPage() {
                           <span className={`text-xs px-2 py-1 rounded ${getBustaStatusColor(result.busta.stato_attuale, result.busta.isArchived)}`}>
                             {getBustaStatusText(result.busta.stato_attuale)}
                           </span>
+                          {result.busta.note_generali && result.busta.note_generali.trim() && (
+                            <p
+                              className="flex items-start gap-1 text-xs text-amber-800 mt-1 break-words"
+                              title={result.busta.note_generali}
+                            >
+                              <FileText className="w-3 h-3 mt-0.5 flex-shrink-0 text-amber-600" />
+                              <span>
+                                {result.busta.note_generali.trim().length > 160
+                                  ? `${result.busta.note_generali.trim().slice(0, 160)}…`
+                                  : result.busta.note_generali.trim()}
+                              </span>
+                            </p>
+                          )}
                         </div>
                         <div className="flex items-center gap-1">
                           {(isExcludedFromDashboard(result.busta) || result.busta.pinned_to_kanban) && (
@@ -999,6 +1027,19 @@ export default function RicercaAvanzataPage() {
                           <span className={`text-xs px-2 py-1 rounded ${getBustaStatusColor(result.busta.stato_attuale, result.busta.isArchived)}`}>
                             {getBustaStatusText(result.busta.stato_attuale)}
                           </span>
+                          {result.busta.note_generali && result.busta.note_generali.trim() && (
+                            <p
+                              className="flex items-start gap-1 text-xs text-amber-800 mt-1 break-words"
+                              title={result.busta.note_generali}
+                            >
+                              <FileText className="w-3 h-3 mt-0.5 flex-shrink-0 text-amber-600" />
+                              <span>
+                                {result.busta.note_generali.trim().length > 160
+                                  ? `${result.busta.note_generali.trim().slice(0, 160)}…`
+                                  : result.busta.note_generali.trim()}
+                              </span>
+                            </p>
+                          )}
                         </div>
                         <Link
                           href={`/dashboard/buste/${result.busta.id}`}
@@ -1078,6 +1119,19 @@ export default function RicercaAvanzataPage() {
                           <span className={`text-xs px-2 py-1 rounded ${getBustaStatusColor(result.busta.stato_attuale, result.busta.isArchived)}`}>
                             {getBustaStatusText(result.busta.stato_attuale)}
                           </span>
+                          {result.busta.note_generali && result.busta.note_generali.trim() && (
+                            <p
+                              className="flex items-start gap-1 text-xs text-amber-800 mt-1 break-words"
+                              title={result.busta.note_generali}
+                            >
+                              <FileText className="w-3 h-3 mt-0.5 flex-shrink-0 text-amber-600" />
+                              <span>
+                                {result.busta.note_generali.trim().length > 160
+                                  ? `${result.busta.note_generali.trim().slice(0, 160)}…`
+                                  : result.busta.note_generali.trim()}
+                              </span>
+                            </p>
+                          )}
                         </div>
                         <Link
                           href={`/dashboard/buste/${result.busta.id}`}

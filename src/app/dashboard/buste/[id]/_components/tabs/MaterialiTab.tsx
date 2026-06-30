@@ -2504,6 +2504,15 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     try {
       await patchOrdine(eventOrderId, updates);
 
+      // ✅ Propaga l'evento anche nelle note generali della busta: così resta
+      // visibile sulla card (dashboard) e nella ricerca, senza perdersi nei
+      // passaggi di consegna tra operatori.
+      try {
+        await appendBustaNote(`${noteMessage} [${ordine.descrizione_prodotto}]`, currentUserLabel);
+      } catch (noteErr) {
+        console.warn('⚠️ Evento salvato sull\'ordine ma non propagato in note_generali:', noteErr);
+      }
+
       let ordiniAggiornati: OrdineMateriale[] = [];
       setOrdiniMateriali(prev => {
         const next = prev.map(item =>

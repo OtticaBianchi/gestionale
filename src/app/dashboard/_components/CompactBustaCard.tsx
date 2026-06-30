@@ -1,6 +1,6 @@
 // app/dashboard/_components/CompactBustaCard.tsx
 
-import { Clock, Bell, Phone, PhoneOff } from 'lucide-react';
+import { Clock, Bell, Phone, PhoneOff, AlertTriangle, StickyNote } from 'lucide-react';
 import { BustaWithCliente, OrdineMaterialeEssenziale } from '@/types/shared.types';
 import { isOtticaBianchiName, isRealCustomerPhone, isShopPhone } from '@/lib/clients/phoneRules';
 import { resolveSaldoUnicoMethod } from '@/lib/payments/saldoMethod';
@@ -137,16 +137,39 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
     ? 'bg-yellow-50 border border-yellow-200'
     : 'bg-white/90 border border-slate-200/80';
 
+  // Nastro urgenza (solo per urgente/critica: ~10 buste su centinaia → spicca)
+  const priorityRibbon =
+    busta.priorita === 'critica'
+      ? { label: 'CRITICA', className: 'bg-red-100 text-red-700' }
+      : busta.priorita === 'urgente'
+        ? { label: 'URGENTE', className: 'bg-orange-100 text-orange-700' }
+        : null;
+
+  // Anteprima nota generale: box evidenziato se lunga, riga discreta se breve
+  const note = (busta.note_generali || '').trim();
+  const hasNote = note.length > 0;
+  const isLongNote = note.length > 80;
+  const notePreview = isLongNote ? `${note.slice(0, 90).trimEnd()}…` : note;
+
   return (
     <div
       onClick={onClick}
       data-busta-id={busta.id}
       className={`
-        ${suspendedClasses} rounded-lg shadow-[0_12px_28px_-24px_rgba(15,23,42,0.6)] p-2.5 mb-2 border-l-4
+        ${suspendedClasses} rounded-lg shadow-[0_12px_28px_-24px_rgba(15,23,42,0.6)] p-2.5 mb-2 border-l-4 overflow-hidden
         hover:shadow-[0_18px_36px_-26px_rgba(15,23,42,0.7)] hover:-translate-y-0.5 transition-all cursor-pointer
         ${priorityStyles[busta.priorita]}
       `}
     >
+      {/* Nastro urgenza in evidenza */}
+      {priorityRibbon && (
+        <div className={`-mt-2.5 -mx-2.5 mb-2 px-2.5 py-1 flex items-center gap-1.5 text-[10px] font-bold tracking-wide ${priorityRibbon.className}`}>
+          <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+          <span>{priorityRibbon.label}</span>
+          <span className="font-semibold opacity-80">· {daysOpen} giorni aperti</span>
+        </div>
+      )}
+
       {/* Row 1: ID + Nome abbreviato + Tipo Lavorazione */}
       <div className="flex justify-between items-center mb-1.5">
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -231,11 +254,28 @@ export default function CompactBustaCard({ busta, onClick }: CompactBustaCardPro
         </div>
       </div>
 
-      {/* Row 3: Giorni apertura */}
-      <div className="flex items-center gap-1 text-[11px] text-slate-500">
-        <Clock className="h-3 w-3" />
-        <span>{daysOpen} giorni</span>
-      </div>
+      {/* Anteprima nota generale */}
+      {hasNote && (
+        isLongNote ? (
+          <div className="mb-2 flex items-start gap-1.5 rounded bg-amber-50 border border-amber-100 px-1.5 py-1">
+            <StickyNote className="h-3 w-3 text-amber-600 flex-shrink-0 mt-0.5" />
+            <span className="text-[10px] leading-snug text-amber-800">{notePreview}</span>
+          </div>
+        ) : (
+          <div className="mb-2 flex items-center gap-1 text-[10px] text-amber-700 min-w-0">
+            <StickyNote className="h-3 w-3 flex-shrink-0" />
+            <span className="truncate">{note}</span>
+          </div>
+        )
+      )}
+
+      {/* Row 3: Giorni apertura (nascosta se già nel nastro urgenza) */}
+      {!priorityRibbon && (
+        <div className="flex items-center gap-1 text-[11px] text-slate-500">
+          <Clock className="h-3 w-3" />
+          <span>{daysOpen} giorni</span>
+        </div>
+      )}
     </div>
   );
 }
