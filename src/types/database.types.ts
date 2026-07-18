@@ -2605,6 +2605,61 @@ export type Database = {
           },
         ]
       }
+      resi: {
+        Row: {
+          busta_id: string
+          created_at: string
+          error_tracking_id: string | null
+          id: string
+          motivo: string
+          nota: string | null
+          registrato_at: string
+          registrato_da: string
+        }
+        Insert: {
+          busta_id: string
+          created_at?: string
+          error_tracking_id?: string | null
+          id?: string
+          motivo: string
+          nota?: string | null
+          registrato_at?: string
+          registrato_da: string
+        }
+        Update: {
+          busta_id?: string
+          created_at?: string
+          error_tracking_id?: string | null
+          id?: string
+          motivo?: string
+          nota?: string | null
+          registrato_at?: string
+          registrato_da?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resi_busta_id_fkey"
+            columns: ["busta_id"]
+            isOneToOne: false
+            referencedRelation: "buste"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resi_error_tracking_id_fkey"
+            columns: ["error_tracking_id"]
+            isOneToOne: false
+            referencedRelation: "error_tracking"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resi_registrato_da_fkey"
+            columns: ["registrato_da"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       statistiche_follow_up: {
         Row: {
           cellulari_staccati: number | null

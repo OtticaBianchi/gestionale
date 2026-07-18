@@ -798,6 +798,35 @@ export const QUIZ_DATA = {
         { text: 'Spiegare il limite e proporre un\'alternativa in offerta o simile', correct: true }
       ]
     }
+  ],
+  'gestione-resi-cambi-rimborsi': [
+    {
+      number: 1,
+      text: 'Un cliente riporta una montatura acquistata in negozio con la cerniera rotta dopo 4 mesi. Cosa si applica?',
+      options: [
+        { text: 'La policy dei 7 giorni per ripensamento, essendo scaduta il cambio va rifiutato', correct: false },
+        { text: 'Il diritto di recesso di 14 giorni previsto per legge', correct: false },
+        { text: 'La garanzia legale di conformità (24 mesi): riparazione, sostituzione, riduzione prezzo o rimborso', correct: true }
+      ]
+    },
+    {
+      number: 2,
+      text: 'Un cliente, dopo 3 giorni, chiede di cambiare occhiale da sole non graduato solo perché ha cambiato idea sul colore. Cosa serve per concedere il cambio senza autorizzazione?',
+      options: [
+        { text: 'Basta lo scontrino, non contano le condizioni del prodotto', correct: false },
+        { text: 'Richiesta entro 7 giorni, prodotto integro e con accessori originali, scontrino verificato', correct: true },
+        { text: 'Nessuna condizione: il cambio è sempre dovuto entro 30 giorni', correct: false }
+      ]
+    },
+    {
+      number: 3,
+      text: 'Un cliente si lamenta che gli occhiali progressivi appena ritirati "non li vede bene". Come si procede?',
+      options: [
+        { text: 'Si applica questa procedura: è un reso su un acquisto in negozio', correct: false },
+        { text: 'Si esce da questa procedura: si indirizza a Consegna Lenti Progressive / Ricontatto Lenti Varifocali', correct: true },
+        { text: 'Si registra comunque una nota [RESO] e si tratta come ripensamento', correct: false }
+      ]
+    }
   ]
 };
 

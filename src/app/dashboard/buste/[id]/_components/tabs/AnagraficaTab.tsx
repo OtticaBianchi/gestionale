@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Database } from '@/types/database.types';
 import { mutate } from 'swr';
 import { formatPhoneDisplay } from '@/utils/formatPhone'; // ✅ IMPORT PHONE FORMATTER
@@ -1378,8 +1378,262 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
         </div>
       </div>
 
+      {/* Resi - sezione completamente auto-contenuta, indipendente dal ciclo isEditing/editForm.
+          Decisione di prodotto: qualunque ruolo autenticato può registrare un reso,
+          quindi qui NON viene rispettato isReadOnly/canEdit. */}
+      <ResiSection bustaId={busta.id} />
+
       {/* ===== UNIFIED NOTES DISPLAY ===== */}
       <UnifiedNotesDisplay bustaId={busta.id} />
+    </div>
+  );
+}
+
+// ===== RESI: tipi, costanti e componente auto-contenuto =====
+type ResoMotivo = 'difetto_fabbricazione' | 'ripensamento' | 'incompatibilita' | 'altro';
+
+type ResoItem = {
+  id: string;
+  motivo: ResoMotivo;
+  nota: string | null;
+  error_tracking_id: string | null;
+  registrato_at: string;
+  registrato_da: { full_name: string | null } | null;
+};
+
+const RESO_MOTIVO_LABELS: Record<ResoMotivo, string> = {
+  difetto_fabbricazione: 'Difetto di fabbricazione / qualità del prodotto',
+  ripensamento: 'Ripensamento (gusto, comfort, taglia)',
+  incompatibilita: 'Incompatibilità con altro oggetto (es. casco)',
+  altro: 'Altro'
+};
+
+function ResiSection({ bustaId }: { bustaId: string }) {
+  const [resi, setResi] = useState<ResoItem[]>([]);
+  const [isLoadingResi, setIsLoadingResi] = useState(true);
+  const [resiLoadError, setResiLoadError] = useState<string | null>(null);
+
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [resoMotivo, setResoMotivo] = useState<ResoMotivo>('difetto_fabbricazione');
+  const [resoNota, setResoNota] = useState('');
+  const [resoValidationError, setResoValidationError] = useState<string | null>(null);
+  const [isSavingReso, setIsSavingReso] = useState(false);
+  const [resoSubmitError, setResoSubmitError] = useState<string | null>(null);
+  const [resoSuccessMessage, setResoSuccessMessage] = useState<string | null>(null);
+
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const fetchResi = async () => {
+    setIsLoadingResi(true);
+    setResiLoadError(null);
+    try {
+      const response = await fetch(`/api/buste/${bustaId}/resi`, {
+        method: 'GET',
+        cache: 'no-store'
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || payload?.success !== true) {
+        throw new Error(payload?.error || 'Errore caricamento resi');
+      }
+
+      if (isMountedRef.current) {
+        setResi(Array.isArray(payload?.resi) ? payload.resi : []);
+      }
+    } catch (error: any) {
+      if (isMountedRef.current) {
+        setResi([]);
+        setResiLoadError(error?.message || 'Errore caricamento resi');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoadingResi(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    fetchResi();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bustaId]);
+
+  const handleSubmitReso = async () => {
+    setResoValidationError(null);
+    setResoSubmitError(null);
+
+    if (resoMotivo === 'altro' && !resoNota.trim()) {
+      setResoValidationError("La nota è obbligatoria quando il motivo è 'Altro'");
+      return;
+    }
+
+    setIsSavingReso(true);
+    try {
+      const response = await fetch(`/api/buste/${bustaId}/resi`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          motivo: resoMotivo,
+          ...(resoNota.trim() ? { nota: resoNota.trim() } : {})
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok || payload?.success !== true) {
+        throw new Error(payload?.error || 'Errore salvataggio reso');
+      }
+
+      setResoSuccessMessage(
+        payload?.errorDraftCreated
+          ? "Reso registrato. È stata aperta automaticamente una bozza di segnalazione errore, completabile dalla sezione Errori."
+          : 'Reso registrato.'
+      );
+      setResoNota('');
+      setResoMotivo('difetto_fabbricazione');
+      setIsFormOpen(false);
+      await fetchResi();
+      setTimeout(() => setResoSuccessMessage(null), 6000);
+    } catch (error: any) {
+      setResoSubmitError(error?.message || 'Errore salvataggio reso');
+    } finally {
+      setIsSavingReso(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+          <AlertTriangle className="h-5 w-5 mr-2 text-gray-500" />
+          Resi
+        </h2>
+      </div>
+
+      {isLoadingResi ? (
+        <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Caricamento resi...</span>
+        </div>
+      ) : resiLoadError ? (
+        <p className="text-sm text-rose-600 mb-4">{resiLoadError}</p>
+      ) : resi.length > 0 ? (
+        <div className="space-y-2 mb-4">
+          {resi.map((reso) => (
+            <div key={reso.id} className="p-3 rounded-md bg-gray-50 border border-gray-200">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <p className="text-sm font-medium text-gray-900">
+                  {RESO_MOTIVO_LABELS[reso.motivo] || reso.motivo}
+                </p>
+                <span className="text-xs text-gray-500">{formatDateTimeDisplay(reso.registrato_at)}</span>
+              </div>
+              {reso.nota && (
+                <p className="text-sm text-gray-700 mt-1 whitespace-pre-wrap">{reso.nota}</p>
+              )}
+              <div className="flex items-center justify-between mt-2 flex-wrap gap-2">
+                <p className="text-xs text-gray-500">
+                  Registrato da: {reso.registrato_da?.full_name || 'Utente'}
+                </p>
+                {reso.error_tracking_id && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                    🔧 Bozza segnalazione errore aperta
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-gray-600 mb-4">Nessun reso registrato per questa busta.</p>
+      )}
+
+      <label className="flex items-center space-x-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={isFormOpen}
+          onChange={(e) => {
+            setIsFormOpen(e.target.checked);
+            setResoValidationError(null);
+            setResoSubmitError(null);
+          }}
+          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+        />
+        <span className="text-sm font-medium text-gray-700">Registra un reso per questa busta</span>
+      </label>
+
+      {isFormOpen && (
+        <div className="mt-3 space-y-3 border-t border-gray-200 pt-4">
+          <div>
+            <label htmlFor="reso-motivo" className="block text-sm font-medium text-gray-500">Motivo</label>
+            <select
+              id="reso-motivo"
+              value={resoMotivo}
+              onChange={(e) => {
+                setResoMotivo(e.target.value as ResoMotivo);
+                setResoValidationError(null);
+              }}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            >
+              <option value="difetto_fabbricazione">Difetto di fabbricazione / qualità del prodotto</option>
+              <option value="ripensamento">Ripensamento (gusto, comfort, taglia)</option>
+              <option value="incompatibilita">Incompatibilità con altro oggetto (es. casco)</option>
+              <option value="altro">Altro</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="reso-nota" className="block text-sm font-medium text-gray-500">Nota</label>
+            <textarea
+              id="reso-nota"
+              value={resoNota}
+              onChange={(e) => {
+                setResoNota(e.target.value);
+                if (resoValidationError) setResoValidationError(null);
+              }}
+              rows={2}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              placeholder="Dettagli aggiuntivi (facoltativo, tranne per 'Altro')"
+            />
+            {resoValidationError && (
+              <p className="text-xs text-rose-600 mt-1">{resoValidationError}</p>
+            )}
+          </div>
+
+          {resoSubmitError && (
+            <p className="text-sm text-rose-600">{resoSubmitError}</p>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              onClick={() => void handleSubmitReso()}
+              disabled={isSavingReso}
+              className="flex items-center space-x-1 px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors disabled:opacity-50"
+            >
+              {isSavingReso ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Salvataggio...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4" />
+                  <span>Salva reso</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {resoSuccessMessage && (
+        <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          {resoSuccessMessage}
+        </div>
+      )}
     </div>
   );
 }
