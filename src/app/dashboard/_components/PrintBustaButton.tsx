@@ -272,6 +272,8 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
       const noteSectionHtml = notesHtml || Array.from({ length: 12 }, () => '<div class="note-line"></div>').join('');
 
       // ✅ CONTENUTO HTML PULITO E SICURO
+      // Layout: intestazione + note nella metà SINISTRA del foglio A4 orizzontale
+      // (dal bordo al centro pagina, dove si piega), checklist libera nella metà destra.
       const printContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -280,70 +282,91 @@ const PrintBustaButton: React.FC<PrintBustaButtonProps> = ({
 <style>
 @page { margin: 10mm; size: A4 landscape; }
 * { box-sizing: border-box; }
-body { 
-font-family: Arial, sans-serif; 
-font-size: 12px; 
+html, body {
+width: 277mm;
+height: 190mm;
+}
+body {
+font-family: Arial, sans-serif;
+font-size: 12px;
 line-height: 1.3;
 margin: 0;
 padding: 0;
 background: white;
 }
+.page-grid {
+display: grid;
+grid-template-columns: 138.5mm 1fr;
+height: 100%;
+}
+.left-col {
+padding-right: 8mm;
+border-right: 1px dashed #999;
+}
+.right-col {
+padding-left: 8mm;
+}
+.fold-hint {
+font-size: 8px;
+color: #999;
+text-align: right;
+padding-right: 2px;
+margin-bottom: 4px;
+}
 .busta-info {
 background: #f8f9fa;
-padding: 15px;
+padding: 10px;
 border: 2px solid #333;
-margin-bottom: 20px;
-display: grid;
-grid-template-columns: 1fr 1fr;
-gap: 20px;
+margin-bottom: 10px;
 }
 .busta-numero {
-font-size: 48px;
+font-size: 32px;
 font-weight: bold;
-margin: 0 0 8px 0;
+margin: 0 0 4px 0;
 }
 .cliente-nome {
-font-size: 36px;
+font-size: 22px;
 font-weight: bold;
 margin: 0 0 6px 0;
 }
+.header-row {
+display: flex;
+align-items: baseline;
+gap: 10px;
+flex-wrap: wrap;
+}
 .lavorazione {
-font-size: 18px;
+font-size: 14px;
 font-weight: bold;
 color: #0066cc;
 }
 .cliente-telefono {
-font-size: 28px;
+font-size: 16px;
 font-weight: bold;
 color: #111;
-margin-top: 6px;
-letter-spacing: 0.5px;
+letter-spacing: 0.3px;
 }
 .data-apertura {
-font-size: 20px;
+font-size: 11px;
 color: #666;
 margin: 4px 0 0 0;
 }
-.content-grid {
-display: grid;
-grid-template-columns: 1.2fr 0.8fr;
-gap: 20px;
-}
 .note-section, .checklist {
-padding: 15px;
+padding: 10px;
 border: 1px solid #ddd;
+margin-bottom: 10px;
 }
 .note-section h3, .checklist h3 {
-font-size: 14px;
+font-size: 13px;
 font-weight: bold;
-margin: 0 0 12px 0;
+margin: 0 0 8px 0;
 border-bottom: 1px solid #ddd;
 padding-bottom: 4px;
 }
 .note-line {
 border-bottom: 1px solid #ccc;
-min-height: 18px;
-margin-bottom: 4px;
+min-height: 16px;
+margin-bottom: 3px;
 padding-bottom: 2px;
 }
 .note-label {
@@ -357,8 +380,8 @@ white-space: pre-wrap;
 display: flex;
 align-items: center;
 gap: 8px;
-font-size: 11px;
-margin-bottom: 8px;
+font-size: 12px;
+margin-bottom: 10px;
 }
 .checkbox {
 width: 14px;
@@ -367,52 +390,54 @@ border: 2px solid #000;
 flex-shrink: 0;
 }
 .footer {
-margin-top: 15px;
-padding-top: 10px;
+padding-top: 6px;
 border-top: 1px solid #ccc;
 text-align: center;
-font-size: 9px;
+font-size: 8px;
 color: #666;
 }
-@media print { 
+@media print {
 body { print-color-adjust: exact; }
 .no-print { display: none; }
 }
 </style>
 </head>
 <body>
-<div class="busta-info">
-<div>
-  <div class="busta-numero">#${bustaData.readable_id || 'NUOVA'}</div>
-  <div class="cliente-nome">${bustaData.cliente_cognome.toUpperCase()} ${bustaData.cliente_nome.toUpperCase()}</div>
-  <div class="data-apertura">Apertura: ${bustaData.data_apertura ? new Date(bustaData.data_apertura).toLocaleDateString('it-IT') : new Date().toLocaleDateString('it-IT')}</div>
+<div class="page-grid">
+<div class="left-col">
+  <div class="fold-hint">✂ piega qui →</div>
+  <div class="busta-info">
+    <div class="busta-numero">#${bustaData.readable_id || 'NUOVA'}</div>
+    <div class="cliente-nome">${bustaData.cliente_cognome.toUpperCase()} ${bustaData.cliente_nome.toUpperCase()}</div>
+    <div class="header-row">
+      <span class="lavorazione">${getTipoLavorazioneFull(bustaData.tipo_lavorazione)}</span>
+      ${bustaData.cliente_telefono
+        ? `<span class="cliente-telefono">${escapeHtml(formatPhoneDisplay(bustaData.cliente_telefono))}</span>`
+        : ''}
+    </div>
+    <div class="data-apertura">Apertura: ${bustaData.data_apertura ? new Date(bustaData.data_apertura).toLocaleDateString('it-IT') : new Date().toLocaleDateString('it-IT')}</div>
+  </div>
+  <div class="note-section">
+    <h3>NOTE E APPUNTI</h3>
+    ${noteSectionHtml}
+  </div>
+  <div class="footer">
+    <p>Documento interno - Stampato il ${new Date().toLocaleString('it-IT')}</p>
+  </div>
 </div>
-<div style="text-align: right;">
-  <div class="lavorazione">${getTipoLavorazioneFull(bustaData.tipo_lavorazione)}</div>
-  ${bustaData.cliente_telefono
-    ? `<div class="cliente-telefono">${escapeHtml(formatPhoneDisplay(bustaData.cliente_telefono))}</div>`
-    : ''}
+<div class="right-col">
+  <div class="checklist">
+    <h3>CHECKLIST</h3>
+    <div class="checklist-item"><div class="checkbox"></div><span>Prescrizione medica</span></div>
+    <div class="checklist-item"><div class="checkbox"></div><span>Montatura scelta</span></div>
+    <div class="checklist-item"><div class="checkbox"></div><span>Lenti ordinate</span></div>
+    <div class="checklist-item"><div class="checkbox"></div><span>Misure prese</span></div>
+    <div class="checklist-item"><div class="checkbox"></div><span>Acconto versato</span></div>
+    <div class="checklist-item"><div class="checkbox"></div><span>Documenti allegati</span></div>
+    <div class="checklist-item"><div class="checkbox"></div><span>Data consegna</span></div>
+    <div class="checklist-item"><div class="checkbox"></div><span>Controllo finale</span></div>
+  </div>
 </div>
-</div>
-<div class="content-grid">
-<div class="note-section">
-  <h3>NOTE E APPUNTI</h3>
-  ${noteSectionHtml}
-</div>
-<div class="checklist">
-  <h3>CHECKLIST</h3>
-  <div class="checklist-item"><div class="checkbox"></div><span>Prescrizione medica</span></div>
-  <div class="checklist-item"><div class="checkbox"></div><span>Montatura scelta</span></div>
-  <div class="checklist-item"><div class="checkbox"></div><span>Lenti ordinate</span></div>
-  <div class="checklist-item"><div class="checkbox"></div><span>Misure prese</span></div>
-  <div class="checklist-item"><div class="checkbox"></div><span>Acconto versato</span></div>
-  <div class="checklist-item"><div class="checkbox"></div><span>Documenti allegati</span></div>
-  <div class="checklist-item"><div class="checkbox"></div><span>Data consegna</span></div>
-  <div class="checklist-item"><div class="checkbox"></div><span>Controllo finale</span></div>
-</div>
-</div>
-<div class="footer">
-<p>Documento interno - Stampato il ${new Date().toLocaleString('it-IT')}</p>
 </div>
 </body>
 </html>`;

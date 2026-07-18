@@ -64,6 +64,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.5.0', date: '18/07/2026', description: 'Resi: nuova tabella dedicata per tracciare resi/cambi su busta (anche archiviata), con checklist motivazioni e apertura automatica di una segnalazione errore quando il motivo è "difetto di fabbricazione". Sicurezza: risolto un bug per cui il middleware di autenticazione non veniva mai caricato (file nella cartella sbagliata rispetto a src/) — impattava il controllo accessi su più pagine riservate agli admin; aggiornate le dipendenze critiche (Next.js, jspdf, nodemailer). Stampa busta: intestazione e note ora tutte nella metà sinistra del foglio, per la corretta piegatura. Fix: bottone "Salva nota" invisibile in Materiali & Ordini. Dashboard/ricerca: evidenza urgenze e anteprima note sulle card, esclusione account di servizio dalle statistiche.' },
     { version: '4.4.0', date: '07/05/2026', description: 'Briefing Operativo: nuova pagina admin-only (/dashboard/briefing) che analizza ogni mattina le buste critiche, inceppate e con materiali in ritardo. Permette di assegnare compiti, aggiungere note e stampare un foglio per persona. Storico dei briefing con verifica serale (flag "risolto" per task).' },
     { version: '4.3.15', date: '29/04/2026', description: 'Notifiche: aggiunto controllo qualità pre-ritiro in NotificheTab. Checklist dipendente dal tipo lavorazione (vista, sole, LAC) visibile in pronto_ritiro finché la telefonata non è completata. Chi spunta la lista è responsabile della verifica. Rimosso getCurrentUser() ridondante (−2 query DB per apertura tab).' },
     { version: '4.3.14', date: '03/04/2026', description: 'RBAC: operatore può ora creare nuove buste (anagrafica cliente + tipo lavorazione + priorità + note). Rimosso blocco middleware e API sul percorso /buste/new per il ruolo operatore.' },
@@ -212,7 +213,7 @@ export default function WelcomePage() {
               </div>
 
               <div className="mt-5 rounded-2xl bg-[var(--paper)] px-4 py-3 text-xs text-slate-500">
-                Supporto clienti e formazione inclusi. Versione attuale: <strong>4.3.10</strong>
+                Supporto clienti e formazione inclusi. Versione attuale: <strong>4.5.0</strong>
               </div>
             </div>
           </aside>

@@ -255,7 +255,15 @@ export default function BustaDetailClient({ busta: initialBusta }: BustaDetailCl
   // ===== RENDER =====
   return (
     <div className="min-h-screen bg-[var(--paper)] p-4 kiasma-body">
-      
+      <style jsx global>{`
+        :root {
+          --paper: #f6f1e9;
+          --ink: #1b1f24;
+          --teal: #0f6a6e;
+          --copper: #b2734b;
+        }
+      `}</style>
+
       {/* ===== DELETE MODAL - SOLO PER ADMIN ===== */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
