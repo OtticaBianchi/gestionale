@@ -2,7 +2,7 @@ import { Database } from '@/types/database.types'
 
 type BustaRow = Database['public']['Tables']['buste']['Row']
 type OrdineRow = Pick<Database['public']['Tables']['ordini_materiali']['Row'], 'stato'>
-type InfoPagamenti = {
+export type InfoPagamenti = {
   is_saldato?: boolean | null
   modalita_saldo?: string | null
   note_pagamento?: string | null
@@ -11,11 +11,11 @@ type InfoPagamenti = {
   data_saldo?: string | null
   updated_at?: string | null
 }
-type PaymentInstallment = Partial<Pick<
+export type PaymentInstallment = Partial<Pick<
   Database['public']['Tables']['payment_installments']['Row'],
   'paid_amount' | 'is_completed' | 'updated_at'
 >>
-type PaymentPlan = Partial<Pick<
+export type PaymentPlan = Partial<Pick<
   Database['public']['Tables']['payment_plans']['Row'],
   'total_amount' | 'acconto' | 'payment_type' | 'is_completed' | 'updated_at' | 'created_at'
 >> & {
@@ -65,7 +65,34 @@ const maxDate = (dates: (Date | null | undefined)[]): Date | null => {
   return valid.reduce((max, current) => (current > max ? current : max))
 }
 
-const getPaymentCompletedAt = (params: {
+export type PaymentPlanType = 'saldo_unico' | 'installments' | 'finanziamento_bancario' | 'no_payment' | 'none'
+
+// Estrae solo la modalità di pagamento (senza calcolare la data di completamento),
+// riusando la stessa logica di getPaymentCompletedAt — utile per report/raggruppamenti
+// dove serve sapere "come" è stato pagato, non "quando".
+export const resolvePaymentPlanType = (params: {
+  payment_plan?: PaymentPlan | null
+  info_pagamenti?: InfoPagamenti | null
+}): PaymentPlanType => {
+  const paymentPlan = params.payment_plan ?? null
+  const legacyInfo = params.info_pagamenti ?? null
+  const totalAmount = paymentPlan?.total_amount ?? legacyInfo?.prezzo_finale ?? 0
+
+  let planType = paymentPlan
+    ? normalizePlanType(paymentPlan.payment_type)
+    : mapLegacyPaymentType(legacyInfo?.modalita_saldo)
+
+  const noteMarksNoPayment = legacyInfo?.note_pagamento === 'NESSUN_INCASSO'
+  const zeroBalanceClosed = !paymentPlan && (legacyInfo?.is_saldato ?? false) && (totalAmount ?? 0) <= 0.5
+
+  if (!paymentPlan && (noteMarksNoPayment || zeroBalanceClosed)) {
+    planType = 'no_payment'
+  }
+
+  return planType
+}
+
+export const getPaymentCompletedAt = (params: {
   payment_plan?: PaymentPlan | null
   info_pagamenti?: InfoPagamenti | null
 }): Date | null => {

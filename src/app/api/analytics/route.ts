@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { Database } from '@/types/database.types';
 import { LENS_TREATMENTS } from '@/lib/constants/lens-types';
+import { getPaymentCompletedAt, resolvePaymentPlanType } from '@/lib/buste/archiveRules';
 
 export async function GET(request: NextRequest) {
   try {
@@ -61,6 +62,34 @@ export async function GET(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // ✅ Supabase/PostgREST ritorna al massimo 1000 righe per query se non si
+    // specifica esplicitamente .range(). Diverse query di questa route
+    // superano abbondantemente 1000 righe (ordini_materiali ~2500,
+    // status_history ~2350, buste ~3000): senza paginazione le righe più
+    // recenti (in fondo, per data) restano semplicemente non recuperate,
+    // svuotando silenziosamente marche/modelli/tipo lavorazione/trend/
+    // acconti per i periodi "Mese"/"Trimestre". Questo helper pagina
+    // qualunque query fino ad esaurimento.
+    const PAGE_SIZE = 1000;
+    async function fetchAllRows<T>(
+      buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>
+    ): Promise<T[]> {
+      const allRows: T[] = [];
+      let from = 0;
+      while (true) {
+        const { data, error } = await buildQuery(from, from + PAGE_SIZE - 1);
+        if (error) {
+          console.error('Analytics: errore paginazione query', error);
+          break;
+        }
+        if (!data || data.length === 0) break;
+        allRows.push(...data);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
+      }
+      return allRows;
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const startDate = searchParams.get('start_date');
     const endDate = searchParams.get('end_date');
@@ -68,20 +97,29 @@ export async function GET(request: NextRequest) {
 
     const now = new Date();
     let dateFilterFn: (date: string | null) => boolean;
+    // Confini espliciti del periodo selezionato, usati anche dalla sezione
+    // incassi (scope per data di pagamento, non per data ordine).
+    let periodStart: Date | null = null;
+    let periodEnd: Date = now;
 
     if (period === 'month') {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+      periodStart = firstDay;
       dateFilterFn = (date) => date ? new Date(date) >= firstDay : false;
     } else if (period === 'quarter') {
       const quarter = Math.floor(now.getMonth() / 3);
       const firstDay = new Date(now.getFullYear(), quarter * 3, 1);
+      periodStart = firstDay;
       dateFilterFn = (date) => date ? new Date(date) >= firstDay : false;
     } else if (period === 'year') {
       const firstDay = new Date(now.getFullYear(), 0, 1);
+      periodStart = firstDay;
       dateFilterFn = (date) => date ? new Date(date) >= firstDay : false;
     } else if (period === 'custom' && startDate && endDate) {
       const start = new Date(startDate);
       const end = new Date(endDate);
+      periodStart = start;
+      periodEnd = end;
       dateFilterFn = (date) => date ? new Date(date) >= start && new Date(date) <= end : false;
     } else {
       dateFilterFn = () => true;
@@ -143,31 +181,32 @@ export async function GET(request: NextRequest) {
     const isDeliveredState = (value: string | null | undefined): value is typeof deliveredStates[number] =>
       Boolean(value) && deliveredStates.includes(value as typeof deliveredStates[number]);
 
-    const { data: ordiniAll, error: ordiniError } = await supabase
-      .from('ordini_materiali')
-      .select(`
-        id,
-        stato,
-        created_at,
-        busta_id,
-        data_ordine,
-        data_consegna_effettiva,
-        tipo_lenti_id,
-        classificazione_lenti_id,
-        trattamenti,
-        tipi_lenti:tipo_lenti_id(nome),
-        classificazione_lenti:classificazione_lenti_id(nome),
-        fornitori_montature:fornitore_montature_id(nome),
-        fornitori_sport:fornitore_sport_id(nome),
-        fornitori_lenti:fornitore_lenti_id(nome),
-        fornitori_lac:fornitore_lac_id(nome),
-        buste:busta_id(tipo_lavorazione, cliente_id, deleted_at, data_apertura, archived_mode)
-      `)
-      .is('deleted_at', null)
-      .in('stato', deliveredStates)
-      .is('buste.deleted_at', null);
-
-    if (ordiniError) throw ordiniError;
+    const ordiniAll = await fetchAllRows((from, to) =>
+      supabase
+        .from('ordini_materiali')
+        .select(`
+          id,
+          stato,
+          created_at,
+          busta_id,
+          data_ordine,
+          data_consegna_effettiva,
+          tipo_lenti_id,
+          classificazione_lenti_id,
+          trattamenti,
+          tipi_lenti:tipo_lenti_id(nome),
+          classificazione_lenti:classificazione_lenti_id(nome),
+          fornitori_montature:fornitore_montature_id(nome),
+          fornitori_sport:fornitore_sport_id(nome),
+          fornitori_lenti:fornitore_lenti_id(nome),
+          fornitori_lac:fornitore_lac_id(nome),
+          buste:busta_id(tipo_lavorazione, cliente_id, deleted_at, data_apertura, archived_mode)
+        `)
+        .is('deleted_at', null)
+        .in('stato', deliveredStates)
+        .is('buste.deleted_at', null)
+        .range(from, to)
+    );
 
     const filteredOrdini = (ordiniAll || []).filter(o => {
       const archivedMode = (o.buste as any)?.archived_mode;
@@ -374,39 +413,59 @@ export async function GET(request: NextRequest) {
     // 5. WARRANTY REPLACEMENTS
     const warrantyReplacements = [...bustaToTipoMap.values()].filter(tipo => tipo === 'SG').length;
 
-    // 6. MONTHLY TREND (last 12 months) - using all ordini not just filtered
-    const { data: allOrdiniForTrend } = await supabase
-      .from('ordini_materiali')
-      .select('created_at, stato, buste:busta_id(tipo_lavorazione, deleted_at)')
-      .is('deleted_at', null)
-      .in('stato', deliveredStates)
-      .is('buste.deleted_at', null);
+    // 6. MONTHLY TREND (last 12 months)
+    // Conta le buste che sono REALMENTE arrivate a "consegnato_pagato" nel
+    // mese (stesso evento usato dal Kanban/dall'archiviazione automatica),
+    // non le buste che hanno avuto un ordine materiale consegnato — le due
+    // cose sono diverse: un ordine (lenti, montatura) può arrivare dal
+    // fornitore molto prima che la busta venga chiusa e pagata.
+    const statusHistoryRows = await fetchAllRows((from, to) =>
+      supabase
+        .from('status_history')
+        .select('busta_id, data_ingresso, buste!inner(id, tipo_lavorazione, data_apertura, archived_mode, deleted_at)')
+        .eq('stato', 'consegnato_pagato')
+        .is('buste.deleted_at', null)
+        .range(from, to)
+    );
+
+    // Prima volta (più antica) in cui ciascuna busta è entrata in
+    // consegnato_pagato — non filtrata per periodo: serve sia al trend
+    // (sempre "ultimi 12 mesi") sia al lead time (sezione 8, che applica
+    // il proprio filtro periodo più sotto).
+    const bustaConsegnatoPagatoAt = new Map<string, { openDate: string; closeDate: string; tipo: string }>();
+    (statusHistoryRows || []).forEach((row: any) => {
+      const busta = row.buste;
+      if (!busta || busta.archived_mode === 'ANNULLATA') return;
+      const dataIngresso = row.data_ingresso;
+      if (!dataIngresso) return;
+
+      const existing = bustaConsegnatoPagatoAt.get(row.busta_id);
+      if (!existing || new Date(dataIngresso) < new Date(existing.closeDate)) {
+        bustaConsegnatoPagatoAt.set(row.busta_id, {
+          openDate: busta.data_apertura,
+          closeDate: dataIngresso,
+          tipo: normalizeTipoLavorazione(busta.tipo_lavorazione) || 'Non specificato'
+        });
+      }
+    });
 
     const monthlyTrend = [];
     for (let i = 11; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
 
-      const monthData = allOrdiniForTrend?.filter(o => {
-        if (!o.created_at) return false;
-        const ordineDate = new Date(o.created_at);
-        return ordineDate >= date && ordineDate < nextMonth;
-      }) || [];
-
-      const uniqueBustas = new Map<string, string>();
-      monthData.forEach(o => {
-        const tipo = normalizeTipoLavorazione((o.buste as any)?.tipo_lavorazione);
-        if (tipo) uniqueBustas.set((o as any).busta_id, tipo);
-      });
-
       const tipoCount: Record<string, number> = {};
-      uniqueBustas.forEach(tipo => {
+      let total = 0;
+      bustaConsegnatoPagatoAt.forEach(({ closeDate, tipo }) => {
+        const chiusuraDate = new Date(closeDate);
+        if (chiusuraDate < date || chiusuraDate >= nextMonth) return;
+        total += 1;
         tipoCount[tipo] = (tipoCount[tipo] || 0) + 1;
       });
 
       monthlyTrend.push({
         month: date.toLocaleDateString('it-IT', { month: 'short', year: 'numeric' }),
-        total: uniqueBustas.size,
+        total,
         OCV: tipoCount['OCV'] || 0,
         OV: tipoCount['OV'] || 0,
         LAC: tipoCount['LAC'] || 0,
@@ -415,59 +474,120 @@ export async function GET(request: NextRequest) {
     }
 
     // 7. REVENUE BY TIPO LAVORAZIONE
-    const { data: paymentsData } = await supabase
-      .from('info_pagamenti')
-      .select('prezzo_finale, importo_acconto, is_saldato, busta_id, buste:busta_id(tipo_lavorazione)')
-      .not('prezzo_finale', 'is', null)
-      .in('busta_id', bustaIds);
+    // Scope: buste il cui INCASSO (data di completamento pagamento) ricade
+    // nel periodo selezionato — non le buste con un ordine creato nel
+    // periodo (bustaIds, sezione 6). Un ordine piazzato a giugno e incassato
+    // a luglio è un incasso di luglio: filtrarlo per data ordine lo faceva
+    // sparire dal periodo "Mese"/"Trimestre" (spesso a zero) e lo mostrava
+    // solo scegliendo "Anno".
+    //
+    // Fonte dati: payment_plans (sistema attuale) con fallback a info_pagamenti
+    // (sistema legacy) per le buste che non hanno ancora un payment_plan.
+    //
+    // ✅ Le query .in('busta_id', ids) vanno spezzate in lotti: con liste
+    // ampie l'URL della richiesta GET supera il limite del server, con
+    // errore silenzioso (data: null, error non controllato) che azzerava
+    // gli incassi senza nessun avviso.
+    const REVENUE_CHUNK_SIZE = 300;
+    const chunkArray = <T,>(arr: T[], size: number): T[][] => {
+      const out: T[][] = [];
+      for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+      return out;
+    };
+
+    const revenueRangeStartIso = (periodStart ?? new Date('2020-01-01')).toISOString();
+    const revenueRangeEndIso = periodEnd.toISOString();
+
+    const [{ data: planCandidates }, { data: infoCandidates }, { data: installmentCandidates }] = await Promise.all([
+      supabase.from('payment_plans').select('busta_id')
+        .gte('updated_at', revenueRangeStartIso).lte('updated_at', revenueRangeEndIso),
+      supabase.from('info_pagamenti').select('busta_id')
+        .not('prezzo_finale', 'is', null)
+        .gte('updated_at', revenueRangeStartIso).lte('updated_at', revenueRangeEndIso),
+      supabase.from('payment_installments').select('payment_plan_id')
+        .eq('is_completed', true)
+        .gte('updated_at', revenueRangeStartIso).lte('updated_at', revenueRangeEndIso)
+    ]);
+
+    const revenueCandidateIds = new Set<string>();
+    (planCandidates || []).forEach((r: any) => revenueCandidateIds.add(r.busta_id));
+    (infoCandidates || []).forEach((r: any) => revenueCandidateIds.add(r.busta_id));
+
+    const installmentPlanIds = [...new Set((installmentCandidates || []).map((r: any) => r.payment_plan_id).filter(Boolean))];
+    for (const idsChunk of chunkArray(installmentPlanIds, REVENUE_CHUNK_SIZE)) {
+      const { data: plansForInstallments } = await supabase
+        .from('payment_plans').select('id, busta_id').in('id', idsChunk);
+      (plansForInstallments || []).forEach((r: any) => revenueCandidateIds.add(r.busta_id));
+    }
+
+    const revenueBustaIdList = [...revenueCandidateIds];
+    const planByBustaId = new Map<string, any>();
+    const infoByBustaId = new Map<string, any>();
+
+    for (const idsChunk of chunkArray(revenueBustaIdList, REVENUE_CHUNK_SIZE)) {
+      const [{ data: planChunk, error: planChunkError }, { data: infoChunk, error: infoChunkError }] = await Promise.all([
+        supabase.from('payment_plans')
+          .select('busta_id, total_amount, acconto, payment_type, is_completed, created_at, updated_at, payment_installments(paid_amount, is_completed, updated_at), buste:busta_id(tipo_lavorazione)')
+          .in('busta_id', idsChunk),
+        supabase.from('info_pagamenti')
+          .select('busta_id, prezzo_finale, importo_acconto, is_saldato, modalita_saldo, note_pagamento, data_saldo, updated_at, buste:busta_id(tipo_lavorazione)')
+          .not('prezzo_finale', 'is', null)
+          .in('busta_id', idsChunk)
+      ]);
+      if (planChunkError) console.error('Analytics revenue: errore lettura payment_plans (chunk)', planChunkError);
+      if (infoChunkError) console.error('Analytics revenue: errore lettura info_pagamenti (chunk)', infoChunkError);
+      (planChunk || []).forEach((p: any) => planByBustaId.set(p.busta_id, p));
+      (infoChunk || []).forEach((i: any) => infoByBustaId.set(i.busta_id, i));
+    }
 
     const revenueByTipo: Record<string, { total: number; count: number; avg: number }> = {};
     let totalRevenue = 0;
     let totalAcconti = 0;
     let saldateCount = 0;
+    let revenueBustaCount = 0;
+    const periodStartMs = periodStart ? periodStart.getTime() : Number.NEGATIVE_INFINITY;
+    const periodEndMs = periodEnd.getTime();
 
-    paymentsData?.forEach(p => {
-      const tipo = normalizeTipoLavorazione((p.buste as any)?.tipo_lavorazione) || 'Non specificato';
+    revenueBustaIdList.forEach(bustaId => {
+      const plan = planByBustaId.get(bustaId) ?? null;
+      const info = infoByBustaId.get(bustaId) ?? null;
+
+      const completedAt = getPaymentCompletedAt({ payment_plan: plan, info_pagamenti: info });
+      if (!completedAt) return;
+      const completedMs = completedAt.getTime();
+      if (completedMs < periodStartMs || completedMs > periodEndMs) return;
+
+      const planType = resolvePaymentPlanType({ payment_plan: plan, info_pagamenti: info });
+      const totalAmount = plan?.total_amount ?? info?.prezzo_finale ?? 0;
+      // Buste chiuse senza incasso reale (omaggi, garanzie, NESSUN_INCASSO)
+      // non sono un incasso: non contano nel fatturato.
+      if (planType === 'no_payment' || planType === 'none' || !totalAmount) return;
+
+      const acconto = plan?.acconto ?? info?.importo_acconto ?? 0;
+      const isSaldato = plan ? plan.is_completed === true : info?.is_saldato === true;
+      const tipoLavorazione = (plan?.buste as any)?.tipo_lavorazione ?? (info?.buste as any)?.tipo_lavorazione;
+      const tipo = normalizeTipoLavorazione(tipoLavorazione) || 'Non specificato';
+
       if (!revenueByTipo[tipo]) {
         revenueByTipo[tipo] = { total: 0, count: 0, avg: 0 };
       }
-      revenueByTipo[tipo].total += p.prezzo_finale || 0;
+      revenueByTipo[tipo].total += totalAmount;
       revenueByTipo[tipo].count += 1;
       revenueByTipo[tipo].avg = revenueByTipo[tipo].total / revenueByTipo[tipo].count;
 
-      totalRevenue += p.prezzo_finale || 0;
-      totalAcconti += p.importo_acconto || 0;
-      if (p.is_saldato) saldateCount += 1;
+      totalRevenue += totalAmount;
+      totalAcconti += acconto;
+      revenueBustaCount += 1;
+      if (isSaldato) saldateCount += 1;
     });
 
     // 8. LEAD TIME BUSTA PER TIPO LAVORAZIONE
-    const { data: statusHistoryRows } = await supabase
-      .from('status_history')
-      .select('busta_id, data_ingresso, buste!inner(id, tipo_lavorazione, data_apertura, archived_mode, deleted_at)')
-      .eq('stato', 'consegnato_pagato')
-      .is('buste.deleted_at', null);
-
-    const leadByBusta = new Map<string, { openDate: string; closeDate: string; tipo: string }>();
-    (statusHistoryRows || []).forEach((row: any) => {
-      const busta = row.buste;
-      if (!busta || busta.archived_mode === 'ANNULLATA') return;
-      const dataApertura = busta.data_apertura;
-      if (!leadDateFilter(dataApertura)) return;
-      const dataIngresso = row.data_ingresso;
-      if (!dataIngresso) return;
-
-      const existing = leadByBusta.get(row.busta_id);
-      if (!existing || new Date(dataIngresso) < new Date(existing.closeDate)) {
-        leadByBusta.set(row.busta_id, {
-          openDate: dataApertura,
-          closeDate: dataIngresso,
-          tipo: normalizeTipoLavorazione(busta.tipo_lavorazione) || 'Non specificato'
-        });
-      }
-    });
-
+    // Riusa bustaConsegnatoPagatoAt (sezione 6), applicando qui il filtro
+    // periodo specifico del lead time (leadDateFilter, con la propria data
+    // di inizio dati '2026-01-02').
     const leadTimeByTipo: Record<string, { totalDays: number; count: number }> = {};
-    leadByBusta.forEach((value) => {
+    bustaConsegnatoPagatoAt.forEach((value) => {
+      if (!leadDateFilter(value.openDate)) return;
       const days = diffDays(value.openDate, value.closeDate);
       if (days === null || days < 0) return;
       if (!leadTimeByTipo[value.tipo]) {
@@ -486,10 +606,13 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => (b.count - a.count) || a.tipo.localeCompare(b.tipo));
 
     // 9. PAYMENT TYPE DISTRIBUTION + ACCONTO
-    const { data: bustePayments } = await supabase
-      .from('buste')
-      .select('id, data_apertura, archived_mode, deleted_at, payment_plan:payment_plans(payment_type), info_pagamenti(importo_acconto, ha_acconto, modalita_saldo)')
-      .is('deleted_at', null);
+    const bustePayments = await fetchAllRows((from, to) =>
+      supabase
+        .from('buste')
+        .select('id, data_apertura, archived_mode, deleted_at, payment_plan:payment_plans(payment_type), info_pagamenti(importo_acconto, ha_acconto, modalita_saldo)')
+        .is('deleted_at', null)
+        .range(from, to)
+    );
 
     const paymentTypeStats: Record<string, number> = {
       saldo_unico: 0,
@@ -606,7 +729,7 @@ export async function GET(request: NextRequest) {
         total: totalRevenue,
         acconti: totalAcconti,
         saldati: saldateCount,
-        average: paymentsData && paymentsData.length > 0 ? totalRevenue / paymentsData.length : 0,
+        average: revenueBustaCount > 0 ? totalRevenue / revenueBustaCount : 0,
         by_tipo: revenueByTipo,
       },
       busta_lead_times: {

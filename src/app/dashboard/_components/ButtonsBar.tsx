@@ -1,6 +1,6 @@
 'use client';
 
-import { RefreshCw, Plus, Package, Search, Mic, FileText } from 'lucide-react';
+import { RefreshCw, Plus, Package, Search, Mic, FileText, Euro } from 'lucide-react';
 import Link from 'next/link';
 import { useBuste } from '@/hooks/useBuste';
 import { toast } from 'sonner';
@@ -14,10 +14,16 @@ const ReportGiornalieroModal = dynamic(
   { ssr: false }
 );
 
+const ReportIncassiModal = dynamic(
+  () => import('./ReportIncassiModal'),
+  { ssr: false }
+);
+
 export default function ButtonsBar() {
   const { mutate: revalidate, isLoading } = useBuste(undefined, { enableAutoRefresh: false });
   const [userRole, setUserRole] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
+  const [showReportIncassi, setShowReportIncassi] = useState(false);
 
   const supabase = createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -61,6 +67,7 @@ export default function ButtonsBar() {
   return (
     <>
     {showReport && <ReportGiornalieroModal onClose={() => setShowReport(false)} />}
+    {showReportIncassi && <ReportIncassiModal onClose={() => setShowReportIncassi(false)} />}
     <div className="border-b border-slate-200/70 bg-white/80 px-6 py-3 backdrop-blur">
       <div className="flex flex-wrap items-center justify-center gap-2">
         {/* Nuova Busta button - all authenticated users including operatori */}
@@ -82,6 +89,17 @@ export default function ButtonsBar() {
           >
             <FileText className="h-3.5 w-3.5" />
             <span>Report</span>
+          </button>
+        )}
+
+        {/* Report Incassi - admin only */}
+        {isAdmin && (
+          <button
+            onClick={() => setShowReportIncassi(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"
+          >
+            <Euro className="h-3.5 w-3.5" />
+            <span>Incassi</span>
           </button>
         )}
 
