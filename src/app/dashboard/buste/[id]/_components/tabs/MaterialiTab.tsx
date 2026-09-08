@@ -29,7 +29,7 @@ import {
   MoreVertical
 } from 'lucide-react';
 import type { WorkflowState } from '@/app/dashboard/_components/WorkflowLogic';
-import { areAllOrdersCancelled } from '@/lib/buste/archiveRules';
+import { areAllOrdersCancelled, filterOrdiniAttivi } from '@/lib/buste/archiveRules';
 import { useUser } from '@/context/UserContext';
 import { LENS_TREATMENTS, LENS_TREATMENTS_OPTIONS, getTreatmentLabel } from '@/lib/constants/lens-types';
 
@@ -575,7 +575,8 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       return;
     }
 
-    const tuttiPronti = ordini.every(ordinePronto);
+    const ordiniAttivi = filterOrdiniAttivi(ordini);
+    const tuttiPronti = ordiniAttivi.length > 0 && ordiniAttivi.every(ordinePronto);
     const desiredStatus: AutoAdvanceTarget = tuttiPronti ? 'materiali_arrivati' : 'materiali_ordinati';
 
     const currentWorkflow = workflowStatus;

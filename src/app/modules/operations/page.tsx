@@ -29,6 +29,7 @@ import Link from 'next/link'
 import { Database } from '@/types/database.types'
 import { createBrowserClient } from '@supabase/ssr'
 import { getTreatmentLabel } from '@/lib/constants/lens-types'
+import { resolveFornitoreAttivo, CategoriaFornitoreKey } from '@/lib/fornitori/categorie'
 
 // ===== TYPES =====
 type Cliente = {
@@ -66,7 +67,7 @@ type OrdineEnhanced = {
 
   // Enhanced fornitore data
   fornitore_nome: string | null
-  fornitore_tipo: 'lenti' | 'lac' | 'montature' | 'sport' | 'lab_esterno' | null
+  fornitore_tipo: CategoriaFornitoreKey | null
   fornitore_telefono: string | null
   fornitore_email: string | null
   fornitore_web_address: string | null
@@ -80,7 +81,7 @@ type OrdineEnhanced = {
 
 type FornitoreGroup = {
   nome: string
-  tipo: 'lenti' | 'lac' | 'montature' | 'sport' | 'lab_esterno'
+  tipo: CategoriaFornitoreKey
   telefono: string | null
   email: string | null
   web_address: string | null
@@ -158,6 +159,7 @@ export default function GestioneOrdiniPage() {
           fornitori_montature(nome, telefono, email, web_address, note, tempi_consegna_medi),
           fornitori_sport(nome, telefono, email, web_address, note, tempi_consegna_medi),
           fornitori_lab_esterno(nome, telefono, email, web_address, note, tempi_consegna_medi),
+          fornitori_accessori(nome, telefono, email, web_address, note, tempi_consegna_medi),
           tipi_lenti:tipi_lenti(nome),
           classificazione_lenti:classificazione_lenti(nome),
           tipi_ordine:tipi_ordine(nome)
@@ -187,35 +189,15 @@ export default function GestioneOrdiniPage() {
 
       // Normalize supplier data and calculate fields
       const ordiniEnhanced: OrdineEnhanced[] = (data || []).map(ordine => {
-        // Determine active supplier
-        let fornitore_nome: string | null = null
-        let fornitore_tipo: 'lenti' | 'lac' | 'montature' | 'sport' | 'lab_esterno' | null = null
-        let fornitore_telefono: string | null = null
-        let fornitore_email: string | null = null
-        let fornitore_web_address: string | null = null
-        let fornitore_note: string | null = null
-        let fornitore_tempi_medi: number | null = null
-
-        const suppliers = [
-          { data: ordine.fornitori_lenti, type: 'lenti' as const },
-          { data: ordine.fornitori_lac, type: 'lac' as const },
-          { data: ordine.fornitori_montature, type: 'montature' as const },
-          { data: ordine.fornitori_sport, type: 'sport' as const },
-          { data: ordine.fornitori_lab_esterno, type: 'lab_esterno' as const },
-        ]
-
-        for (const supplier of suppliers) {
-          if (supplier.data?.nome) {
-            fornitore_nome = supplier.data.nome
-            fornitore_tipo = supplier.type
-            fornitore_telefono = supplier.data.telefono
-            fornitore_email = supplier.data.email
-            fornitore_web_address = supplier.data.web_address
-            fornitore_note = supplier.data.note
-            fornitore_tempi_medi = supplier.data.tempi_consegna_medi
-            break
-          }
-        }
+        // Determine active supplier (first non-null across the 6 categories)
+        const fornitoreAttivo = resolveFornitoreAttivo(ordine)
+        const fornitore_nome = fornitoreAttivo?.nome ?? null
+        const fornitore_tipo = fornitoreAttivo?.tipo ?? null
+        const fornitore_telefono = fornitoreAttivo?.telefono ?? null
+        const fornitore_email = fornitoreAttivo?.email ?? null
+        const fornitore_web_address = fornitoreAttivo?.web_address ?? null
+        const fornitore_note = fornitoreAttivo?.note ?? null
+        const fornitore_tempi_medi = fornitoreAttivo?.tempi_medi ?? null
 
         // Calculate days since creation
         const giorniAperti = ordine.created_at
@@ -292,7 +274,8 @@ export default function GestioneOrdiniPage() {
       lac: 3,
       montature: 4,
       sport: 5,
-      lab_esterno: 5
+      lab_esterno: 5,
+      accessori: 5
     }
 
     return fallbackByType[ordine.fornitore_tipo || 'lenti'] || 5

@@ -172,6 +172,12 @@ export const hasActiveOrders = (orders?: (OrdineRow | null)[] | null): boolean =
   return orders.some(order => normalizeState(order?.stato) !== CANCELLED_STATE)
 }
 
+export const isOrdineAnnullato = (order?: Pick<OrdineRow, 'stato'> | null): boolean =>
+  normalizeState(order?.stato) === CANCELLED_STATE
+
+export const filterOrdiniAttivi = <T extends Pick<OrdineRow, 'stato'>>(orders: T[]): T[] =>
+  orders.filter(order => !isOrdineAnnullato(order))
+
 export const shouldArchiveBusta = (
   busta: Pick<BustaRow, 'stato_attuale' | 'updated_at'> & {
     ordini_materiali?: (OrdineRow | null)[] | null
