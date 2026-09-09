@@ -26,7 +26,8 @@ import {
   Save,
   Edit3,
   FileText,
-  MoreVertical
+  MoreVertical,
+  User
 } from 'lucide-react';
 import type { WorkflowState } from '@/app/dashboard/_components/WorkflowLogic';
 import { areAllOrdersCancelled, filterOrdiniAttivi } from '@/lib/buste/archiveRules';
@@ -317,7 +318,11 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const [fornitoriAccessori, setFornitoriAccessori] = useState<Fornitore[]>([]); // ✅ Accessori e Liquidi
   const [fornitoriAssistenza, setFornitoriAssistenza] = useState<Fornitore[]>([]); // ✅ NUOVO: Assistenza (combined list)
   const [fornitoriRicambi, setFornitoriRicambi] = useState<Fornitore[]>([]); // ✅ NUOVO: Ricambi (filtered list)
-  
+
+  // ✅ NUOVO: Utenti autorizzati (admin/manager, gli unici che possono piazzare ordini)
+  // per la correzione admin-only "ordinato realmente da"
+  const [utentiOrdinabili, setUtentiOrdinabili] = useState<{ id: string; full_name: string | null }[]>([]);
+
   const [showNuovoOrdineForm, setShowNuovoOrdineForm] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [isLoadingOrdini, setIsLoadingOrdini] = useState(false);
@@ -378,6 +383,12 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     () => ordiniMateriali.map(ordine => `${ordine.id}|${ordine.stato || ''}|${ordine.data_consegna_prevista || ''}`).join(';'),
     [ordiniMateriali]
   );
+
+  const utentiOrdinabiliById = useMemo(() => {
+    const map = new Map<string, string>();
+    utentiOrdinabili.forEach(u => map.set(u.id, u.full_name || 'Utente'));
+    return map;
+  }, [utentiOrdinabili]);
 
   const classificazioneLentiOptions = useMemo(() => {
     const bifocali: ClassificazioneLenti[] = [];
@@ -822,6 +833,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         if (tipiOrdineData.data) setTipiOrdine(tipiOrdineData.data);
         if (tipiLentiData.data) setTipiLenti(tipiLentiData.data);
         if (classificazioneLentiData.data) setClassificazioneLenti(classificazioneLentiData.data);
+
+        // ✅ Utenti autorizzati (admin/manager) per il display e la correzione "ordinato realmente da"
+        const { data: utentiOrdinabiliData } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('role', ['admin', 'manager'])
+          .order('full_name');
+        if (utentiOrdinabiliData) setUtentiOrdinabili(utentiOrdinabiliData);
 
         // ===== CARICA FORNITORI DALLE TABELLE SPECIALIZZATE =====
         const [fornitoriLentiData, fornitoriLacData, fornitoriMontaturaData, fornitoriLabEsternoData, fornitoriSportData, fornitoriAccessoriData] = await Promise.all([
@@ -2174,6 +2193,31 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     } catch (error: any) {
       console.error('❌ Errore aggiornamento disponibilità:', error);
       alert(`Errore aggiornamento disponibilità: ${error.message}`);
+    }
+  };
+
+  // ✅ NUOVO: correzione admin-only "ordinato realmente da" (add-on, non tocca updated_by)
+  const handleAggiornaOrdinatoDaEffettivo = async (ordineId: string, profileId: string) => {
+    if (!canEditOrder) return;
+    try {
+      const updates = { ordinato_da_effettivo: profileId || null };
+      const ordineAggiornato = await patchOrdine(ordineId, updates);
+
+      setOrdiniMateriali(prev =>
+        prev.map(o =>
+          o.id === ordineId
+            ? {
+                ...o,
+                ordinato_da_effettivo: ordineAggiornato?.ordinato_da_effettivo ?? updates.ordinato_da_effettivo,
+                ordinato_da_effettivo_impostato_da: ordineAggiornato?.ordinato_da_effettivo_impostato_da ?? o.ordinato_da_effettivo_impostato_da,
+                ordinato_da_effettivo_impostato_at: ordineAggiornato?.ordinato_da_effettivo_impostato_at ?? o.ordinato_da_effettivo_impostato_at
+              }
+            : o
+        )
+      );
+    } catch (error: any) {
+      console.error('❌ Errore aggiornamento ordinato_da_effettivo:', error);
+      alert(`Errore aggiornamento: ${error.message}`);
     }
   };
 
@@ -3833,7 +3877,18 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             </span>
                           </div>
                         )}
-                        
+
+                        {ordine.ordinato_da_effettivo && (
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4 text-purple-400" />
+                            <span>
+                              <strong>Ordinato realmente da:</strong>{' '}
+                              {utentiOrdinabiliById.get(ordine.ordinato_da_effettivo) || 'Utente'}
+                              <span className="text-xs text-slate-400"> (correzione admin)</span>
+                            </span>
+                          </div>
+                        )}
+
                         {ordine.data_consegna_prevista && (
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4 text-slate-400" />
@@ -4006,6 +4061,29 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                               Usa queste opzioni solo se comunicate dal fornitore.
                             </div>
                           </div>
+
+                          {canEditOrder && !ordine.da_ordinare && (
+                            <div className="rounded-lg border border-purple-200 bg-purple-50/60 p-2">
+                              <label className="block text-[11px] text-purple-700 mb-1">
+                                Ordinato realmente da (correzione)
+                              </label>
+                              <select
+                                value={ordine.ordinato_da_effettivo || ''}
+                                onChange={(e) => handleAggiornaOrdinatoDaEffettivo(ordine.id, e.target.value)}
+                                className="w-full px-2 py-1 text-xs rounded border border-purple-300 focus:border-purple-500"
+                                disabled={isAnnullato}
+                                title="Solo per admin: correggi chi ha davvero piazzato l'ordine, se diverso da chi lo ha registrato a sistema"
+                              >
+                                <option value="">— Nessuna correzione —</option>
+                                {utentiOrdinabili.map(u => (
+                                  <option key={u.id} value={u.id}>{u.full_name || 'Utente'}</option>
+                                ))}
+                              </select>
+                              <div className="text-[10px] text-purple-500 mt-1">
+                                Usa solo se chi ha registrato l&apos;ordine a sistema non è chi lo ha davvero piazzato.
+                              </div>
+                            </div>
+                          )}
 
                           <div className="rounded-lg border border-slate-200 bg-white p-2">
                             <label className="block text-[11px] text-slate-500 mb-1">

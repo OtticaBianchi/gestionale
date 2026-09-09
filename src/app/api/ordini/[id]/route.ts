@@ -21,6 +21,10 @@ const FORBIDDEN_FIELDS = [
   'giorni_consegna_medi',
   'giorni_ritardo',
   'creato_da',
+  'ordinato_da_effettivo',
+  // Stamped server-side only (see below), never accepted directly from a client payload
+  'ordinato_da_effettivo_impostato_da',
+  'ordinato_da_effettivo_impostato_at',
 ] as const
 
 const BASE_FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
@@ -51,6 +55,10 @@ const ADMIN_FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
   tipo_ordine_id: (value) => (value === null || value === '' ? null : Number(value)),
   descrizione_prodotto: (value) => (typeof value === 'string' ? value.trim() : value),
   giorni_consegna_medi: (value) => (value === null || value === '' ? null : Number(value)),
+  // Correzione admin-only di "chi ha realmente piazzato l'ordine" (add-on, non
+  // sostituisce updated_by). Il valore arriva dal client, ma chi/quando lo ha
+  // impostato viene sempre stampato lato server, mai fidandosi del payload.
+  ordinato_da_effettivo: (value) => value || null,
 }
 
 type AllowedPayload = Record<string, unknown>
@@ -153,6 +161,14 @@ export async function PATCH(
         return NextResponse.json({ error: 'La descrizione del prodotto è obbligatoria' }, { status: 400 })
       }
       allowed.descrizione_prodotto = value
+    }
+
+    // Chi/quando ha impostato (o rimosso) la correzione "ordinato_da_effettivo"
+    // è sempre determinato lato server, mai accettato dal payload del client.
+    if (Object.prototype.hasOwnProperty.call(allowed, 'ordinato_da_effettivo')) {
+      const isClearing = !allowed.ordinato_da_effettivo
+      allowed.ordinato_da_effettivo_impostato_da = isClearing ? null : userId
+      allowed.ordinato_da_effettivo_impostato_at = isClearing ? null : new Date().toISOString()
     }
 
     // Write with service role after server-side check

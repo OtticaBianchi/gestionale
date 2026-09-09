@@ -1782,6 +1782,9 @@ export type Database = {
           needs_action_done: boolean | null
           needs_action_due_date: string | null
           note: string | null
+          ordinato_da_effettivo: string | null
+          ordinato_da_effettivo_impostato_da: string | null
+          ordinato_da_effettivo_impostato_at: string | null
           prezzo_prodotto: number | null
           promemoria_disponibilita: string | null
           stato: Database["public"]["Enums"]["ordine_status"] | null
@@ -1823,6 +1826,9 @@ export type Database = {
           needs_action_done?: boolean | null
           needs_action_due_date?: string | null
           note?: string | null
+          ordinato_da_effettivo?: string | null
+          ordinato_da_effettivo_impostato_da?: string | null
+          ordinato_da_effettivo_impostato_at?: string | null
           prezzo_prodotto?: number | null
           promemoria_disponibilita?: string | null
           stato?: Database["public"]["Enums"]["ordine_status"] | null
@@ -1864,6 +1870,9 @@ export type Database = {
           needs_action_done?: boolean | null
           needs_action_due_date?: string | null
           note?: string | null
+          ordinato_da_effettivo?: string | null
+          ordinato_da_effettivo_impostato_da?: string | null
+          ordinato_da_effettivo_impostato_at?: string | null
           prezzo_prodotto?: number | null
           promemoria_disponibilita?: string | null
           stato?: Database["public"]["Enums"]["ordine_status"] | null
@@ -1945,6 +1954,20 @@ export type Database = {
             columns: ["tipo_ordine_id"]
             isOneToOne: false
             referencedRelation: "tipi_ordine"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_ordinato_da_effettivo_fkey"
+            columns: ["ordinato_da_effettivo"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ordini_materiali_ordinato_da_effettivo_impostato_da_fkey"
+            columns: ["ordinato_da_effettivo_impostato_da"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
