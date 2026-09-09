@@ -11,6 +11,7 @@ import { cookies } from 'next/headers';
 import { Database } from '@/types/database.types';
 import { LENS_TREATMENTS } from '@/lib/constants/lens-types';
 import { getPaymentCompletedAt, resolvePaymentPlanType } from '@/lib/buste/archiveRules';
+import { resolveFornitoreAttivo } from '@/lib/fornitori/categorie';
 
 export async function GET(request: NextRequest) {
   try {
@@ -200,6 +201,8 @@ export async function GET(request: NextRequest) {
           fornitori_sport:fornitore_sport_id(nome),
           fornitori_lenti:fornitore_lenti_id(nome),
           fornitori_lac:fornitore_lac_id(nome),
+          fornitori_lab_esterno:fornitore_lab_esterno_id(nome),
+          fornitori_accessori:fornitore_accessori_id(nome),
           buste:busta_id(tipo_lavorazione, cliente_id, deleted_at, data_apertura, archived_mode)
         `)
         .is('deleted_at', null)
@@ -388,11 +391,7 @@ export async function GET(request: NextRequest) {
     // 3. BRAND ANALYTICS
     const brandStats: Record<string, number> = {};
     filteredOrdini.forEach(ordine => {
-      const fornitore =
-        (ordine.fornitori_montature as any)?.nome ||
-        (ordine.fornitori_sport as any)?.nome ||
-        (ordine.fornitori_lenti as any)?.nome ||
-        (ordine.fornitori_lac as any)?.nome;
+      const fornitore = resolveFornitoreAttivo(ordine as any)?.nome;
 
       if (fornitore) {
         brandStats[fornitore] = (brandStats[fornitore] || 0) + 1;

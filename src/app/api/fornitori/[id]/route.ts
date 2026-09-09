@@ -10,6 +10,7 @@ const TABLES: Record<string, string> = {
   lac: 'fornitori_lac',
   sport: 'fornitori_sport',
   lab_esterno: 'fornitori_lab_esterno',
+  accessori: 'fornitori_accessori',
 }
 
 const selectable = 'id, nome, referente_nome, telefono, email, web_address, tempi_consegna_medi, note'
@@ -18,6 +19,7 @@ const TABLES_WITH_UPDATED_AT = new Set([
   'fornitori_montature',
   'fornitori_lac',
   'fornitori_sport',
+  'fornitori_accessori',
 ])
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

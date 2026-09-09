@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/check-fornitori-categories.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
+    "check:fornitori-categories": "node scripts/check-fornitori-categories.mjs",
     "admin:prune-users": "node scripts/prune-users.js",
     "survey:import": "node scripts/import_customer_survey_csv.mjs",
     "survey:auto-resolve": "node scripts/auto_resolve_survey_matches.mjs",

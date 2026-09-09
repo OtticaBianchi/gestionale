@@ -14,12 +14,13 @@ export async function GET() {
     }
 
     // Fetch all supplier tables in parallel
-    const [lentiRes, lacRes, montaturaRes, labRes, sportRes] = await Promise.all([
+    const [lentiRes, lacRes, montaturaRes, labRes, sportRes, accessoriRes] = await Promise.all([
       supabase.from('fornitori_lenti').select('id, nome').order('nome'),
       supabase.from('fornitori_lac').select('id, nome').order('nome'),
       supabase.from('fornitori_montature').select('id, nome').order('nome'),
       supabase.from('fornitori_lab_esterno').select('id, nome').order('nome'),
       supabase.from('fornitori_sport').select('id, nome').order('nome'),
+      supabase.from('fornitori_accessori').select('id, nome').order('nome'),
     ])
 
     // Combine all suppliers with their category
@@ -29,6 +30,7 @@ export async function GET() {
       ...(montaturaRes.data || []).map(s => ({ ...s, category: 'montature', categoryLabel: 'Montature' })),
       ...(labRes.data || []).map(s => ({ ...s, category: 'lab_esterno', categoryLabel: 'Laboratorio' })),
       ...(sportRes.data || []).map(s => ({ ...s, category: 'sport', categoryLabel: 'Sport' })),
+      ...(accessoriRes.data || []).map(s => ({ ...s, category: 'accessori', categoryLabel: 'Accessori' })),
     ]
 
     return NextResponse.json({ suppliers })

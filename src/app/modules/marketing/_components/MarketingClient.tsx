@@ -49,12 +49,13 @@ export default function MarketingClient() {
   const loadBrands = async () => {
     try {
       // Load brands from all supplier tables
-      const [montatureRes, lentiRes, lacRes, sportRes, labRes] = await Promise.all([
+      const [montatureRes, lentiRes, lacRes, sportRes, labRes, accessoriRes] = await Promise.all([
         supabase.from('fornitori_montature').select('nome'),
         supabase.from('fornitori_lenti').select('nome'),
         supabase.from('fornitori_lac').select('nome'),
         supabase.from('fornitori_sport').select('nome'),
-        supabase.from('fornitori_lab_esterno').select('nome')
+        supabase.from('fornitori_lab_esterno').select('nome'),
+        supabase.from('fornitori_accessori').select('nome')
       ])
 
       // Check for errors
@@ -63,6 +64,7 @@ export default function MarketingClient() {
       if (lacRes.error) throw lacRes.error
       if (sportRes.error) throw sportRes.error
       if (labRes.error) throw labRes.error
+      if (accessoriRes.error) throw accessoriRes.error
 
       // Combine all supplier names
       const allSuppliers = [
@@ -70,7 +72,8 @@ export default function MarketingClient() {
         ...(lentiRes.data || []),
         ...(lacRes.data || []),
         ...(sportRes.data || []),
-        ...(labRes.data || [])
+        ...(labRes.data || []),
+        ...(accessoriRes.data || [])
       ]
 
       // Get unique brand names
@@ -109,11 +112,13 @@ export default function MarketingClient() {
             fornitore_lac_id,
             fornitore_sport_id,
             fornitore_lab_esterno_id,
+            fornitore_accessori_id,
             fornitori_montature(nome),
             fornitori_lenti(nome),
             fornitori_lac(nome),
             fornitori_sport(nome),
-            fornitori_lab_esterno(nome)
+            fornitori_lab_esterno(nome),
+            fornitori_accessori(nome)
           ),
           info_pagamenti(
             prezzo_finale
@@ -150,7 +155,8 @@ export default function MarketingClient() {
               ordine.fornitori_lenti?.nome,
               ordine.fornitori_lac?.nome,
               ordine.fornitori_sport?.nome,
-              ordine.fornitori_lab_esterno?.nome
+              ordine.fornitori_lab_esterno?.nome,
+              ordine.fornitori_accessori?.nome
             ].filter(Boolean)
 
             return supplierNames.some(nome => nome === filters.brand)

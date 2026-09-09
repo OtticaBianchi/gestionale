@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shouldArchiveBusta } from '@/lib/buste/archiveRules'
+import { logger } from '@/lib/logger'
 
 type SearchType = 'all' | 'cliente' | 'prodotto' | 'fornitore'
 
@@ -291,6 +292,7 @@ async function searchSuppliers(ctx: SearchContext): Promise<SearchResult[]> {
     { table: 'fornitori_montature', key: 'fornitore_montature_id', label: 'montature' },
     { table: 'fornitori_sport', key: 'fornitore_sport_id', label: 'sport' },
     { table: 'fornitori_lab_esterno', key: 'fornitore_lab_esterno_id', label: 'lab_esterno' },
+    { table: 'fornitori_accessori', key: 'fornitore_accessori_id', label: 'accessori' },
   ] as const
 
   const supplierPromises = supplierTables.map(async ({ table, key, label }) => {
@@ -564,8 +566,8 @@ export async function GET(request: NextRequest) {
     }
 
     const searchTerm = query?.trim() || ''
-    console.log('🔍 Advanced search:', {
-      searchTerm,
+    logger.debug('🔍 Advanced search:', {
+      hasSearchTerm: searchTerm.length > 0,
       type,
       includeArchived,
       bustaId,
@@ -575,7 +577,7 @@ export async function GET(request: NextRequest) {
       categoria,
       dateFrom,
       dateTo,
-      telefono,
+      hasTelefonoFilter: Boolean(telefono),
       statoPagamento,
       statoOrdine,
       surveyParticipation,

@@ -12,6 +12,7 @@ import {
   type ImpattoCliente,
   type CausaErrore
 } from '@/lib/et2/assegnazioneColpa'
+import { resolveFornitoreAttivo } from '@/lib/fornitori/categorie'
 
 type AuthContext = {
   userId: string
@@ -138,6 +139,7 @@ export async function POST(request: NextRequest) {
       fornitori_lac:fornitori_lac(nome),
       fornitori_lab_esterno:fornitori_lab_esterno(nome),
       fornitori_sport:fornitori_sport(nome),
+      fornitori_accessori:fornitori_accessori(nome),
       busta:buste(
         id,
         readable_id,
@@ -194,13 +196,7 @@ export async function POST(request: NextRequest) {
   const clienteId = clienteRecord?.id ?? null
   const readableId = bustaInfo?.readable_id ?? ordineData.busta_id
   const prodotto = ordineData.descrizione_prodotto
-  const fornitore =
-    ordineData.fornitori_lenti?.nome ||
-    ordineData.fornitori_montature?.nome ||
-    ordineData.fornitori_lac?.nome ||
-    ordineData.fornitori_lab_esterno?.nome ||
-    ordineData.fornitori_sport?.nome ||
-    'Non specificato'
+  const fornitore = resolveFornitoreAttivo(ordineData)?.nome || 'Non specificato'
 
   const descrizione = [
     `Ordine contrassegnato come “Sbagliato” per la busta ${readableId}.`,
