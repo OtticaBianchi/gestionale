@@ -4,7 +4,6 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shouldArchiveBusta } from '@/lib/buste/archiveRules'
-import { logger } from '@/lib/logger'
 
 type SearchType = 'all' | 'cliente' | 'prodotto' | 'fornitore'
 
@@ -566,8 +565,8 @@ export async function GET(request: NextRequest) {
     }
 
     const searchTerm = query?.trim() || ''
-    logger.debug('🔍 Advanced search:', {
-      hasSearchTerm: searchTerm.length > 0,
+    console.log('🔍 Advanced search:', {
+      searchTerm,
       type,
       includeArchived,
       bustaId,
@@ -577,7 +576,7 @@ export async function GET(request: NextRequest) {
       categoria,
       dateFrom,
       dateTo,
-      hasTelefonoFilter: Boolean(telefono),
+      telefono,
       statoPagamento,
       statoOrdine,
       surveyParticipation,
