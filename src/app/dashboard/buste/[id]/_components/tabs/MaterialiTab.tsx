@@ -30,7 +30,12 @@ import {
   User
 } from 'lucide-react';
 import type { WorkflowState } from '@/app/dashboard/_components/WorkflowLogic';
-import { areAllOrdersCancelled, filterOrdiniAttivi } from '@/lib/buste/archiveRules';
+import {
+  areAllOrdersCancelled,
+  computeMaterialiWorkflowTarget,
+  MANAGED_MATERIALI_WORKFLOW_STATES,
+  type MaterialiAutoAdvanceState
+} from '@/lib/buste/archiveRules';
 import { isServiceAccount } from '@/lib/constants/serviceAccounts';
 import { useUser } from '@/context/UserContext';
 import { LENS_TREATMENTS, LENS_TREATMENTS_OPTIONS, getTreatmentLabel } from '@/lib/constants/lens-types';
@@ -86,9 +91,9 @@ type Fornitore = {
 type TipoOrdine = Database['public']['Tables']['tipi_ordine']['Row'];
 type TipoLenti = Database['public']['Tables']['tipi_lenti']['Row'];
 type ClassificazioneLenti = Database['public']['Tables']['classificazione_lenti']['Row'];
-type AutoAdvanceState = 'nuove' | 'materiali_ordinati' | 'materiali_arrivati';
+type AutoAdvanceState = MaterialiAutoAdvanceState;
 type AutoAdvanceTarget = 'materiali_ordinati' | 'materiali_arrivati';
-const MANAGED_WORKFLOW_STATES: readonly AutoAdvanceState[] = ['nuove', 'materiali_ordinati', 'materiali_arrivati'] as const;
+const MANAGED_WORKFLOW_STATES: readonly AutoAdvanceState[] = MANAGED_MATERIALI_WORKFLOW_STATES;
 const WORKFLOW_STATES: readonly WorkflowState[] = [
   'nuove',
   'materiali_ordinati',
@@ -594,9 +599,10 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
       return;
     }
 
-    const ordiniAttivi = filterOrdiniAttivi(ordini);
-    const tuttiPronti = ordiniAttivi.length > 0 && ordiniAttivi.every(ordinePronto);
-    const desiredStatus: AutoAdvanceTarget = tuttiPronti ? 'materiali_arrivati' : 'materiali_ordinati';
+    // Difensivo: computeMaterialiWorkflowTarget ritorna null solo se non ci sono ordini
+    // attivi, condizione già intercettata sopra da areAllOrdersCancelled — non dovrebbe
+    // mai verificarsi qui, ma in quel caso manteniamo lo stesso fallback di prima.
+    const desiredStatus: AutoAdvanceTarget = computeMaterialiWorkflowTarget(ordini) ?? 'materiali_ordinati';
 
     const currentWorkflow = workflowStatus;
     const isManagedCurrent = MANAGED_WORKFLOW_STATES.includes(currentWorkflow as AutoAdvanceState);
@@ -680,18 +686,6 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   };
 
   // ===== HELPER FUNCTIONS =====
-
-  // Check se ordine è "da negozio" (già in stock)
-  const isDaNegozio = (ordine: OrdineMateriale): boolean => {
-    return ordine.tipi_ordine?.nome?.toLowerCase() === 'negozio';
-  };
-
-  // Check se ordine è "pronto" per avanzamento busta
-  const ordinePronto = (ordine: OrdineMateriale): boolean => {
-    return isDaNegozio(ordine) ||  // Prodotto già a negozio
-           ordine.stato === 'consegnato' ||
-           ordine.stato === 'accettato_con_riserva';
-  };
 
   // ✅ REMOVED: No more automatic price calculation
   // Price is now manually entered in PagamentoTab

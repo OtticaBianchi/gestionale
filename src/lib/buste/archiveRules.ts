@@ -178,6 +178,37 @@ export const isOrdineAnnullato = (order?: Pick<OrdineRow, 'stato'> | null): bool
 export const filterOrdiniAttivi = <T extends Pick<OrdineRow, 'stato'>>(orders: T[]): T[] =>
   orders.filter(order => !isOrdineAnnullato(order))
 
+// I 3 stati Kanban che l'auto-advance basato sugli ordini materiali può leggere/scrivere.
+// Una busta già oltre materiali_arrivati (in_lavorazione, pronto_ritiro, consegnato_pagato)
+// non va mai toccata da qui, anche se uno dei suoi ordini viene modificato più tardi.
+export type MaterialiAutoAdvanceState = 'nuove' | 'materiali_ordinati' | 'materiali_arrivati'
+export const MANAGED_MATERIALI_WORKFLOW_STATES: readonly MaterialiAutoAdvanceState[] =
+  ['nuove', 'materiali_ordinati', 'materiali_arrivati'] as const
+
+export type OrdineProntoInput = Pick<OrdineRow, 'stato'> & {
+  tipi_ordine?: { nome?: string | null } | null
+}
+
+// Stessa definizione di "pronto" usata in MaterialiTab.tsx (ordinePronto): un ordine
+// "da negozio" è già disponibile, altrimenti serve stato consegnato/accettato con riserva.
+export const isOrdinePronto = (order: OrdineProntoInput): boolean => {
+  const isDaNegozio = (order.tipi_ordine?.nome ?? '').toLowerCase() === 'negozio'
+  return isDaNegozio || order.stato === 'consegnato' || order.stato === 'accettato_con_riserva'
+}
+
+// Dato l'elenco COMPLETO degli ordini attivi di una busta, calcola in quale dei 2 stati
+// "materiali" la busta dovrebbe trovarsi. Ritorna null se non ci sono ordini attivi
+// (tutti annullati, o nessun ordine) — in quel caso non va tentata nessuna transizione
+// materiali_ordinati/materiali_arrivati qui; l'archiviazione per "tutti annullati" resta
+// gestita separatamente da areAllOrdersCancelled/syncBustaWorkflowWithOrdini.
+export const computeMaterialiWorkflowTarget = (
+  orders: OrdineProntoInput[]
+): 'materiali_ordinati' | 'materiali_arrivati' | null => {
+  const ordiniAttivi = filterOrdiniAttivi(orders)
+  if (ordiniAttivi.length === 0) return null
+  return ordiniAttivi.every(isOrdinePronto) ? 'materiali_arrivati' : 'materiali_ordinati'
+}
+
 export const shouldArchiveBusta = (
   busta: Pick<BustaRow, 'stato_attuale' | 'updated_at'> & {
     ordini_materiali?: (OrdineRow | null)[] | null

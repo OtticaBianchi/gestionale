@@ -30,6 +30,7 @@ import { Database } from '@/types/database.types'
 import { createBrowserClient } from '@supabase/ssr'
 import { getTreatmentLabel } from '@/lib/constants/lens-types'
 import { resolveFornitoreAttivo, CategoriaFornitoreKey } from '@/lib/fornitori/categorie'
+import { computeMaterialiWorkflowTarget, MANAGED_MATERIALI_WORKFLOW_STATES } from '@/lib/buste/archiveRules'
 
 // ===== TYPES =====
 type Cliente = {
@@ -301,8 +302,53 @@ export default function GestioneOrdiniPage() {
   }
 
   // Bulk operations
+  // Dopo aver aggiornato uno o più ordini da questa pagina, riallinea lo stato Kanban delle
+  // buste coinvolte con la stessa logica/endpoint usati da MaterialiTab.tsx
+  // (computeMaterialiWorkflowTarget + /api/buste/update-status). Senza questo, la busta resta
+  // ferma sulla colonna Kanban precedente finché qualcuno non apre la busta stessa.
+  const syncAffectedBuste = async (bustaIds: string[]) => {
+    const uniqueIds = Array.from(new Set(bustaIds))
+
+    await Promise.all(uniqueIds.map(async (bustaId) => {
+      try {
+        const { data: ordiniBusta, error: ordiniError } = await supabase
+          .from('ordini_materiali')
+          .select('stato, tipi_ordine(nome), buste!inner(stato_attuale)')
+          .eq('busta_id', bustaId)
+          .is('deleted_at', null)
+
+        if (ordiniError) {
+          console.error('❌ Sync Kanban: errore caricamento ordini busta', bustaId, ordiniError)
+          return
+        }
+        if (!ordiniBusta || ordiniBusta.length === 0) return
+
+        const currentState = (ordiniBusta[0].buste as any)?.stato_attuale as string | undefined
+        if (!currentState || !MANAGED_MATERIALI_WORKFLOW_STATES.includes(currentState as any)) {
+          return // busta già oltre materiali_arrivati (o non gestita qui): non toccare
+        }
+
+        const target = computeMaterialiWorkflowTarget(ordiniBusta as any)
+        if (!target || target === currentState) return // niente da avanzare
+
+        const response = await fetch('/api/buste/update-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bustaId, oldStatus: currentState, newStatus: target })
+        })
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}))
+          console.warn('⚠️ Sync Kanban busta non riuscito:', bustaId, payload?.error || response.status)
+        }
+      } catch (syncError) {
+        console.error('❌ Sync Kanban busta: errore imprevisto', bustaId, syncError)
+      }
+    }))
+  }
+
   const markSelectedAsOrdered = async () => {
-    if (selectedOrders.size === 0) return
+    if (selectedOrders.size === 0 || !user) return
 
     const confirmed = confirm(`Confermi di aver ordinato ${selectedOrders.size} materiali?`)
     if (!confirmed) return
@@ -324,7 +370,8 @@ export default function GestioneOrdiniPage() {
             stato: 'ordinato',
             data_ordine: ordineData,
             data_consegna_prevista: dataPrevista,
-            updated_at: updatedAt
+            updated_at: updatedAt,
+            updated_by: user.id
           })
           .eq('id', ordine.id)
 
@@ -334,6 +381,7 @@ export default function GestioneOrdiniPage() {
       })
 
       await Promise.all(updatePromises)
+      await syncAffectedBuste(ordiniToUpdate.map((ordine) => ordine.busta_id))
 
       await fetchOrdiniEnhanced()
       setSelectedOrders(new Set())
@@ -359,6 +407,7 @@ export default function GestioneOrdiniPage() {
   }
 
   const markArrivato = async (ordine: OrdineEnhanced) => {
+    if (!user) return
     try {
       console.log('🔄 Marking order as arrived:', ordine.id)
       const today = new Date().toISOString().slice(0,10)
@@ -368,7 +417,8 @@ export default function GestioneOrdiniPage() {
         .update({
           stato: 'consegnato',
           data_consegna_effettiva: today,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          updated_by: user.id
         })
         .eq('id', ordine.id)
         .select()
@@ -379,6 +429,7 @@ export default function GestioneOrdiniPage() {
       }
 
       console.log('✅ Order marked as arrived:', data)
+      await syncAffectedBuste([ordine.busta_id])
       await fetchOrdiniEnhanced()
 
       // Show success message (no import needed, it's already available)
