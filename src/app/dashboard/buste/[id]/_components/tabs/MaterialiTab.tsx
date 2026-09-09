@@ -98,6 +98,14 @@ const WORKFLOW_STATES: readonly WorkflowState[] = [
   'consegnato_pagato'
 ] as const;
 
+// Admin/gestionale che non lavora in negozio e non chiama mai i fornitori di persona,
+// quindi non è mai una risposta valida per "chi ha realmente piazzato l'ordine".
+// A differenza di SERVICE_ACCOUNT_IDS (account tecnici, esclusi ovunque nell'app),
+// questa esclusione vale solo qui: altrove Timoteo Pasquali resta un utente normale.
+const NON_ORDER_PLACING_STAFF_IDS = new Set<string>([
+  'ba647344-f9a2-4248-884e-b2590d3dd6f5', // Pasquali Timoteo
+]);
+
 const DISPONIBILITA_STATES = ['disponibile', 'riassortimento', 'esaurito'] as const;
 const DISPONIBILITA_PRIORITY: Record<typeof DISPONIBILITA_STATES[number], number> = {
   disponibile: 0,
@@ -842,7 +850,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           .select('id, full_name')
           .order('full_name');
         if (utentiOrdinabiliData) {
-          setUtentiOrdinabili(utentiOrdinabiliData.filter(u => !isServiceAccount(u.id)));
+          setUtentiOrdinabili(
+            utentiOrdinabiliData.filter(u => !isServiceAccount(u.id) && !NON_ORDER_PLACING_STAFF_IDS.has(u.id))
+          );
         }
 
         // ===== CARICA FORNITORI DALLE TABELLE SPECIALIZZATE =====
