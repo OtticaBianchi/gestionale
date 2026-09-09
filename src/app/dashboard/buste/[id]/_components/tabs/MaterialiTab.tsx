@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import type { WorkflowState } from '@/app/dashboard/_components/WorkflowLogic';
 import { areAllOrdersCancelled, filterOrdiniAttivi } from '@/lib/buste/archiveRules';
+import { isServiceAccount } from '@/lib/constants/serviceAccounts';
 import { useUser } from '@/context/UserContext';
 import { LENS_TREATMENTS, LENS_TREATMENTS_OPTIONS, getTreatmentLabel } from '@/lib/constants/lens-types';
 
@@ -319,8 +320,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const [fornitoriAssistenza, setFornitoriAssistenza] = useState<Fornitore[]>([]); // ✅ NUOVO: Assistenza (combined list)
   const [fornitoriRicambi, setFornitoriRicambi] = useState<Fornitore[]>([]); // ✅ NUOVO: Ricambi (filtered list)
 
-  // ✅ NUOVO: Utenti autorizzati (admin/manager, gli unici che possono piazzare ordini)
-  // per la correzione admin-only "ordinato realmente da"
+  // ✅ NUOVO: Staff (esclusi account di servizio) per la correzione admin-only "ordinato realmente da"
   const [utentiOrdinabili, setUtentiOrdinabili] = useState<{ id: string; full_name: string | null }[]>([]);
 
   const [showNuovoOrdineForm, setShowNuovoOrdineForm] = useState(false);
@@ -834,13 +834,16 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         if (tipiLentiData.data) setTipiLenti(tipiLentiData.data);
         if (classificazioneLentiData.data) setClassificazioneLenti(classificazioneLentiData.data);
 
-        // ✅ Utenti autorizzati (admin/manager) per il display e la correzione "ordinato realmente da"
+        // ✅ Utenti per il display e la correzione "ordinato realmente da": tutto lo staff,
+        // non solo admin/manager. Chi piazza davvero l'ordine per telefono può essere
+        // qualunque operatore (es. Anna) anche se non può toccare l'ordine a sistema.
         const { data: utentiOrdinabiliData } = await supabase
           .from('profiles')
           .select('id, full_name')
-          .in('role', ['admin', 'manager'])
           .order('full_name');
-        if (utentiOrdinabiliData) setUtentiOrdinabili(utentiOrdinabiliData);
+        if (utentiOrdinabiliData) {
+          setUtentiOrdinabili(utentiOrdinabiliData.filter(u => !isServiceAccount(u.id)));
+        }
 
         // ===== CARICA FORNITORI DALLE TABELLE SPECIALIZZATE =====
         const [fornitoriLentiData, fornitoriLacData, fornitoriMontaturaData, fornitoriLabEsternoData, fornitoriSportData, fornitoriAccessoriData] = await Promise.all([
