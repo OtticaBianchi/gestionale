@@ -311,6 +311,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
 
   const { user, profile } = useUser();
   const canEditOrder = !isReadOnly && profile?.role === 'admin';
+  // Correzione "ordinato realmente da": accessibile anche ai manager, non solo agli admin
+  // (a differenza di canEditOrder, che resta admin-only per la modifica dei dettagli ordine).
+  const canCorrectOrdinatoDa = !isReadOnly && (profile?.role === 'admin' || profile?.role === 'manager');
   const currentUserLabel = useMemo(() => {
     if (profile?.full_name) return profile.full_name;
     if (user?.email) return user.email.split('@')[0] || 'Utente';
@@ -333,7 +336,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
   const [fornitoriAssistenza, setFornitoriAssistenza] = useState<Fornitore[]>([]); // ✅ NUOVO: Assistenza (combined list)
   const [fornitoriRicambi, setFornitoriRicambi] = useState<Fornitore[]>([]); // ✅ NUOVO: Ricambi (filtered list)
 
-  // ✅ NUOVO: Staff (esclusi account di servizio) per la correzione admin-only "ordinato realmente da"
+  // ✅ NUOVO: Staff (esclusi account di servizio) per la correzione "ordinato realmente da" (admin e manager)
   const [utentiOrdinabili, setUtentiOrdinabili] = useState<{ id: string; full_name: string | null }[]>([]);
 
   const [showNuovoOrdineForm, setShowNuovoOrdineForm] = useState(false);
@@ -2203,9 +2206,9 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     }
   };
 
-  // ✅ NUOVO: correzione admin-only "ordinato realmente da" (add-on, non tocca updated_by)
+  // ✅ NUOVO: correzione "ordinato realmente da" (admin e manager, add-on, non tocca updated_by)
   const handleAggiornaOrdinatoDaEffettivo = async (ordineId: string, profileId: string) => {
-    if (!canEditOrder) return;
+    if (!canCorrectOrdinatoDa) return;
     try {
       const updates = { ordinato_da_effettivo: profileId || null };
       const ordineAggiornato = await patchOrdine(ordineId, updates);
@@ -3891,7 +3894,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             <span>
                               <strong>Ordinato realmente da:</strong>{' '}
                               {utentiOrdinabiliById.get(ordine.ordinato_da_effettivo) || 'Utente'}
-                              <span className="text-xs text-slate-400"> (correzione admin)</span>
+                              <span className="text-xs text-slate-400"> (correzione)</span>
                             </span>
                           </div>
                         )}
@@ -4069,7 +4072,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                             </div>
                           </div>
 
-                          {canEditOrder && !ordine.da_ordinare && (
+                          {canCorrectOrdinatoDa && !ordine.da_ordinare && (
                             <div className="rounded-lg border border-purple-200 bg-purple-50/60 p-2">
                               <label className="block text-[11px] text-purple-700 mb-1">
                                 Ordinato realmente da (correzione)
@@ -4079,7 +4082,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                                 onChange={(e) => handleAggiornaOrdinatoDaEffettivo(ordine.id, e.target.value)}
                                 className="w-full px-2 py-1 text-xs rounded border border-purple-300 focus:border-purple-500"
                                 disabled={isAnnullato}
-                                title="Solo per admin: correggi chi ha davvero piazzato l'ordine, se diverso da chi lo ha registrato a sistema"
+                                title="Correggi chi ha davvero piazzato l'ordine, se diverso da chi lo ha registrato a sistema"
                               >
                                 <option value="">— Nessuna correzione —</option>
                                 {utentiOrdinabili.map(u => (

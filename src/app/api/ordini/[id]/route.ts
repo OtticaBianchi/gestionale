@@ -21,7 +21,6 @@ const FORBIDDEN_FIELDS = [
   'giorni_consegna_medi',
   'giorni_ritardo',
   'creato_da',
-  'ordinato_da_effettivo',
   // Stamped server-side only (see below), never accepted directly from a client payload
   'ordinato_da_effettivo_impostato_da',
   'ordinato_da_effettivo_impostato_at',
@@ -41,6 +40,10 @@ const BASE_FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
   needs_action_done: (value) => Boolean(value),
   needs_action_due_date: (value) => value,
   cancel_reason: (value) => value,
+  // Correzione "chi ha realmente piazzato l'ordine" (add-on, non sostituisce updated_by).
+  // Accessibile ad admin E manager (decisione 2026-09-11); chi/quando l'ha impostata resta
+  // sempre stampato lato server, mai fidandosi del payload — vedi sotto.
+  ordinato_da_effettivo: (value) => value || null,
 }
 
 const ADMIN_FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
@@ -55,10 +58,6 @@ const ADMIN_FIELD_MAPPERS: Record<string, (value: unknown) => unknown> = {
   tipo_ordine_id: (value) => (value === null || value === '' ? null : Number(value)),
   descrizione_prodotto: (value) => (typeof value === 'string' ? value.trim() : value),
   giorni_consegna_medi: (value) => (value === null || value === '' ? null : Number(value)),
-  // Correzione admin-only di "chi ha realmente piazzato l'ordine" (add-on, non
-  // sostituisce updated_by). Il valore arriva dal client, ma chi/quando lo ha
-  // impostato viene sempre stampato lato server, mai fidandosi del payload.
-  ordinato_da_effettivo: (value) => value || null,
 }
 
 type AllowedPayload = Record<string, unknown>
