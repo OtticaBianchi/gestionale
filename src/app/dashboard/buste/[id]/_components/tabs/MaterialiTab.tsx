@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { Fragment, useState, useEffect, useMemo, useRef } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Database } from '@/types/database.types';
 import { mutate } from 'swr';
@@ -400,6 +400,19 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
     () => ordiniMateriali.map(ordine => `${ordine.id}|${ordine.stato || ''}|${ordine.data_consegna_prevista || ''}`).join(';'),
     [ordiniMateriali]
   );
+
+  // La domanda Scheda Focus (una per busta) sta sotto l'ordine che l'ha attivata: il primo ordine effettivamente ordinato.
+  // Se non c'è (ordine rimosso), viene mostrata in fondo alla lista.
+  const schedaFocusAnchorId = useMemo(() => {
+    const ordered = ordiniMateriali.filter(
+      o => o.da_ordinare !== true && ['ordinato', 'in_arrivo', 'in_ritardo', 'consegnato', 'accettato_con_riserva'].includes(o.stato || '')
+    );
+    if (ordered.length === 0) return null;
+    ordered.sort((x, y) =>
+      (x.data_ordine || '').localeCompare(y.data_ordine || '') || (x.created_at || '').localeCompare(y.created_at || '')
+    );
+    return ordered[0].id;
+  }, [ordiniMateriali]);
 
   const utentiOrdinabiliById = useMemo(() => {
     const map = new Map<string, string>();
@@ -3375,14 +3388,6 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
         </div>
       )}
 
-      <SchedaFocusSection
-        bustaId={busta.id}
-        initialDataOrdine={busta.scheda_focus_data_ordine ?? null}
-        initialFatta={busta.scheda_focus_fatta ?? false}
-        refreshKey={autoInArrivoSignature}
-        disabled={isReadOnly}
-      />
-
       {/* ✅ NUOVO: SEZIONE ACCONTO (DOWN PAYMENT) */}
       <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg shadow-sm border border-yellow-200 p-6">
         <div className="flex items-center justify-between">
@@ -3658,6 +3663,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
               const showGreenOrderStatus = ['da_ordinare', 'ordinato'].includes(statoOrdine);
 
               return (
+                <Fragment key={ordine.id}>
                 <div key={ordine.id} className={`group rounded-xl border shadow-sm transition-shadow ${cardBaseClasses}`}>
                   <div className="flex flex-col lg:flex-row">
                     <div className="flex-1 p-5">
@@ -4228,8 +4234,27 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                     )}
                   </div>
                 </div>
+                  {ordine.id === schedaFocusAnchorId && (
+                    <SchedaFocusSection
+                      bustaId={busta.id}
+                      initialDataOrdine={busta.scheda_focus_data_ordine ?? null}
+                      initialFatta={busta.scheda_focus_fatta ?? false}
+                      refreshKey={autoInArrivoSignature}
+                      disabled={isReadOnly}
+                    />
+                  )}
+                </Fragment>
               );
             })}
+            {schedaFocusAnchorId === null && (
+              <SchedaFocusSection
+                bustaId={busta.id}
+                initialDataOrdine={busta.scheda_focus_data_ordine ?? null}
+                initialFatta={busta.scheda_focus_fatta ?? false}
+                refreshKey={autoInArrivoSignature}
+                disabled={isReadOnly}
+              />
+            )}
           </div>
         )}
       </div>

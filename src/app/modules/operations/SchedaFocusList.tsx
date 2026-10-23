@@ -111,7 +111,7 @@ export default function SchedaFocusList() {
               <th className="px-4 py-2 font-semibold">Stato</th>
               <th className="px-4 py-2 font-semibold">Ordinata il</th>
               <th className="px-4 py-2 font-semibold">Situazione</th>
-              <th className="px-4 py-2" />
+              <th className="px-4 py-2 font-semibold text-right">Azione</th>
             </tr>
           </thead>
           <tbody>
@@ -147,7 +147,7 @@ export default function SchedaFocusList() {
                     className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                   >
                     {savingId === r.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                    Fatta
+                    Segna come fatta
                   </button>
                 </td>
               </tr>

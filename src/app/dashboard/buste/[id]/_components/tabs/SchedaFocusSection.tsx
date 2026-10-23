@@ -77,18 +77,18 @@ export default function SchedaFocusSection({
 
   return (
     <div
-      className={`rounded-lg border p-4 ${
-        scaduta ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white'
+      className={`rounded-lg border-2 border-l-8 p-4 shadow-sm ${
+        scaduta ? 'border-red-400 bg-red-100' : 'border-indigo-400 bg-indigo-100'
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <ClipboardCheck className={`h-5 w-5 ${scaduta ? 'text-red-600' : 'text-slate-500'}`} />
+          <ClipboardCheck className={`h-5 w-5 ${scaduta ? 'text-red-600' : 'text-indigo-600'}`} />
           <div>
-            <p className={`text-sm font-semibold ${scaduta ? 'text-red-700' : 'text-slate-900'}`}>
+            <p className={`text-base font-bold ${scaduta ? 'text-red-700' : 'text-indigo-900'}`}>
               Hai già fatto la Scheda Focus?
             </p>
-            <p className={`text-xs ${scaduta ? 'text-red-600' : 'text-slate-500'}`}>
+            <p className={`text-xs ${scaduta ? 'text-red-600' : 'text-indigo-700'}`}>
               {scaduta
                 ? `URGENTE - Fare Scheda Focus (ordine del ${dataLabel})`
                 : `Ordine del ${dataLabel}`}
@@ -96,7 +96,7 @@ export default function SchedaFocusSection({
           </div>
         </div>
         <div className="flex items-center gap-5">
-          <label className={`flex items-center gap-2 text-sm ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
+          <label className={`flex items-center gap-2 text-base font-medium ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
             <input
               type="checkbox"
               checked={fatta}
@@ -106,7 +106,7 @@ export default function SchedaFocusSection({
             />
             <span>Sì</span>
           </label>
-          <label className={`flex items-center gap-2 text-sm ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
+          <label className={`flex items-center gap-2 text-base font-medium ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
             <input
               type="checkbox"
               checked={!fatta}
