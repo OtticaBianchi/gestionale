@@ -38,6 +38,7 @@ import {
 } from '@/lib/buste/archiveRules';
 import { isServiceAccount } from '@/lib/constants/serviceAccounts';
 import { useUser } from '@/context/UserContext';
+import SchedaFocusSection from './SchedaFocusSection';
 import { LENS_TREATMENTS, LENS_TREATMENTS_OPTIONS, getTreatmentLabel } from '@/lib/constants/lens-types';
 
 // ===== TYPES LOCALI =====
@@ -3373,6 +3374,14 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
           )}
         </div>
       )}
+
+      <SchedaFocusSection
+        bustaId={busta.id}
+        initialDataOrdine={busta.scheda_focus_data_ordine ?? null}
+        initialFatta={busta.scheda_focus_fatta ?? false}
+        refreshKey={autoInArrivoSignature}
+        disabled={isReadOnly}
+      />
 
       {/* ✅ NUOVO: SEZIONE ACCONTO (DOWN PAYMENT) */}
       <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg shadow-sm border border-yellow-200 p-6">

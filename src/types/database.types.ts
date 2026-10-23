@@ -299,6 +299,10 @@ export type Database = {
           id: string
           is_suspended: boolean
           pinned_to_kanban: boolean
+          scheda_focus_data_ordine: string | null
+          scheda_focus_fatta: boolean
+          scheda_focus_fatta_da: string | null
+          scheda_focus_fatta_at: string | null
           metodo_consegna:
             | Database["public"]["Enums"]["metodo_consegna_enum"]
             | null
@@ -344,6 +348,10 @@ export type Database = {
           id?: string
           is_suspended?: boolean
           pinned_to_kanban?: boolean
+          scheda_focus_data_ordine?: string | null
+          scheda_focus_fatta?: boolean
+          scheda_focus_fatta_da?: string | null
+          scheda_focus_fatta_at?: string | null
           metodo_consegna?:
             | Database["public"]["Enums"]["metodo_consegna_enum"]
             | null
@@ -389,6 +397,10 @@ export type Database = {
           id?: string
           is_suspended?: boolean
           pinned_to_kanban?: boolean
+          scheda_focus_data_ordine?: string | null
+          scheda_focus_fatta?: boolean
+          scheda_focus_fatta_da?: string | null
+          scheda_focus_fatta_at?: string | null
           metodo_consegna?:
             | Database["public"]["Enums"]["metodo_consegna_enum"]
             | null

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Clock } from 'lucide-react';
+import { AlertTriangle, Clock, X } from 'lucide-react';
 
 type SuspendedBustaSummary = {
   id: string;
@@ -117,20 +117,27 @@ export default function SuspensionReminder({ buste }: { buste: SuspendedBustaSum
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="w-full max-w-2xl rounded-lg bg-white shadow-xl border border-yellow-200">
-        <div className="flex items-center gap-3 border-b border-gray-100 px-6 py-4">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-white shadow-xl border border-yellow-200">
+        <div className="flex flex-shrink-0 items-center gap-3 border-b border-gray-100 px-6 py-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-100">
             <AlertTriangle className="h-5 w-5 text-yellow-700" />
           </div>
-          <div>
+          <div className="flex-1">
             <h3 className="text-lg font-semibold text-gray-900">Buste sospese da oltre 3 giorni</h3>
             <p className="text-sm text-gray-500">
               Vuoi estendere la sospensione di altri 3 giorni?
             </p>
           </div>
+          <button
+            onClick={() => setDismissed(true)}
+            aria-label="Chiudi"
+            className="self-start rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        <div className="divide-y divide-gray-100">
+        <div className="min-h-0 flex-1 divide-y divide-gray-100 overflow-y-auto">
           {visibleBuste.map((busta) => {
             const reviewDate = resolveReviewDate(busta);
             const cliente = busta.clienti
@@ -164,7 +171,7 @@ export default function SuspensionReminder({ buste }: { buste: SuspendedBustaSum
           })}
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-gray-100 px-6 py-3">
+        <div className="flex flex-shrink-0 justify-end gap-2 border-t border-gray-100 px-6 py-3">
           <button
             onClick={() => setDismissed(true)}
             className="rounded-md px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"

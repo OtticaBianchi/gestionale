@@ -23,9 +23,11 @@ import {
   Loader2,
   Filter,
   CheckCircle2,
-  ArrowLeft
+  ArrowLeft,
+  ClipboardCheck
 } from 'lucide-react'
 import Link from 'next/link'
+import SchedaFocusList from './SchedaFocusList'
 import { Database } from '@/types/database.types'
 import { createBrowserClient } from '@supabase/ssr'
 import { getTreatmentLabel } from '@/lib/constants/lens-types'
@@ -98,6 +100,7 @@ const tabs = [
   { key: 'in_arrivo', label: 'In arrivo', icon: Truck, color: 'purple' },
   { key: 'in_ritardo', label: 'In ritardo', icon: AlertTriangle, color: 'red' },
   { key: 'all', label: 'Tutti', icon: Search, color: 'gray' },
+  { key: 'scheda_focus', label: 'Scheda Focus', icon: ClipboardCheck, color: 'red' },
 ] as const
 
 export default function GestioneOrdiniPage() {
@@ -126,6 +129,7 @@ export default function GestioneOrdiniPage() {
   }, [user, profile, isLoading, router])
 
   const fetchOrdiniEnhanced = async () => {
+    if (activeTab === 'scheda_focus') return // lista gestita da SchedaFocusList
     try {
       setLoading(true)
       setError('')
@@ -594,6 +598,7 @@ export default function GestioneOrdiniPage() {
 
       <div className="relative z-10 max-w-7xl mx-auto p-6">
         {/* Stats */}
+        {activeTab !== 'scheda_focus' && (
         <div className="grid grid-cols-4 gap-4 mb-6">
           <div className={`bg-${currentTab.color}-50/60 border border-${currentTab.color}-200/60 p-4 rounded-lg`}>
             <div className={`text-2xl font-bold text-${currentTab.color}-700/90`}>{stats.totalOrders}</div>
@@ -612,6 +617,8 @@ export default function GestioneOrdiniPage() {
             <div className="text-sm text-orange-700/70">In ritardo</div>
           </div>
         </div>
+
+        )}
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
@@ -678,7 +685,9 @@ export default function GestioneOrdiniPage() {
         )}
 
         {/* Content */}
-        {loading ? (
+        {activeTab === 'scheda_focus' ? (
+          <SchedaFocusList />
+        ) : loading ? (
           <div className="bg-white/90 rounded-lg shadow-sm border border-slate-200/70 p-12 text-center">
             <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-400" />
             <p className="text-slate-500 mt-4">Caricamento ordini...</p>

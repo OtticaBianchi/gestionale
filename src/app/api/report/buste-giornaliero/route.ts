@@ -3,6 +3,10 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { resolveSaldoUnicoMethod } from '@/lib/payments/saldoMethod'
+import { fetchSchedeFocusMancanti, type SchedaFocusMancanteRow } from '@/lib/scheda-focus/mancanti'
+
+export type { SchedaFocusMancanteRow }
 
 export interface BustaReportRow {
   id: string
@@ -12,6 +16,28 @@ export interface BustaReportRow {
   cliente_nome: string
   creato_da_nome: string
   note: NoteEntry[]
+}
+
+export interface BustaSospesaRow {
+  id: string
+  readable_id: string
+  tipo_lavorazione: string | null
+  cliente_nome: string
+  telefono: string | null
+  stato_attuale: string
+  data_sospensione: string | null
+  data_riesame_sospensione: string | null
+  note: NoteEntry[]
+}
+
+export interface BustaPagheroRow {
+  id: string
+  readable_id: string
+  tipo_lavorazione: string | null
+  cliente_nome: string
+  telefono: string | null
+  data_consegna: string | null
+  importo_da_incassare: number | null
 }
 
 export interface NoteEntry {
@@ -69,6 +95,117 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Errore nel caricamento dei dati' }, { status: 500 })
     }
 
+    // Snapshot dello stato attuale (non dipende dalla data selezionata)
+    const { data: sospeseRaw, error: sospeseError } = await supabase
+      .from('buste')
+      .select(`
+        id,
+        readable_id,
+        tipo_lavorazione,
+        stato_attuale,
+        data_sospensione,
+        data_riesame_sospensione,
+        note_generali,
+        clienti (nome, cognome, telefono)
+      `)
+      .eq('is_suspended', true)
+      .is('deleted_at', null)
+      .neq('stato_attuale', 'consegnato_pagato')
+      .order('data_sospensione', { ascending: true })
+
+    if (sospeseError) {
+      console.error('Report buste sospese error:', sospeseError)
+      return NextResponse.json({ error: 'Errore nel caricamento delle buste sospese' }, { status: 500 })
+    }
+
+    const { data: pagheroRaw, error: pagheroError } = await supabase
+      .from('buste')
+      .select(`
+        id,
+        readable_id,
+        tipo_lavorazione,
+        data_completamento_consegna,
+        updated_at,
+        clienti (nome, cognome, telefono),
+        info_pagamenti!inner (
+          is_saldato,
+          modalita_saldo,
+          note_pagamento,
+          prezzo_finale,
+          importo_acconto
+        ),
+        payment_plan:payment_plans (
+          is_completed,
+          total_amount,
+          acconto
+        )
+      `)
+      .eq('stato_attuale', 'consegnato_pagato')
+      .is('deleted_at', null)
+      .ilike('info_pagamenti.note_pagamento', '%SALDO_UNICO_METHOD=paghero%')
+      .order('updated_at', { ascending: true })
+
+    if (pagheroError) {
+      console.error('Report buste pagherò error:', pagheroError)
+      return NextResponse.json({ error: 'Errore nel caricamento dei pagherò' }, { status: 500 })
+    }
+
+    const { rows: schedaFocus, error: schedaFocusError } = await fetchSchedeFocusMancanti(supabase)
+    if (schedaFocusError) {
+      console.error('Report scheda focus error:', schedaFocusError)
+      return NextResponse.json({ error: 'Errore nel caricamento delle Schede Focus' }, { status: 500 })
+    }
+
+    const one = <T,>(v: T | T[] | null | undefined): T | null =>
+      Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
+
+    const sospese: BustaSospesaRow[] = (sospeseRaw || []).map((b: any) => {
+      const cliente = one<any>(b.clienti)
+      const note: NoteEntry[] = b.note_generali?.trim()
+        ? [{ label: 'Generali', text: b.note_generali.trim() }]
+        : []
+      return {
+        id: b.id,
+        readable_id: b.readable_id,
+        tipo_lavorazione: b.tipo_lavorazione || null,
+        cliente_nome: cliente ? `${cliente.cognome || ''} ${cliente.nome || ''}`.trim() : '—',
+        telefono: cliente?.telefono || null,
+        stato_attuale: b.stato_attuale,
+        data_sospensione: b.data_sospensione || null,
+        data_riesame_sospensione: b.data_riesame_sospensione || null,
+        note,
+      }
+    })
+
+    // Pagherò ancora da incassare (stessa regola del badge: il piano, se c'è, ha la precedenza su is_saldato)
+    const pagheroRows: BustaPagheroRow[] = (pagheroRaw || [])
+      .map((b: any) => {
+        const info = one<any>(b.info_pagamenti)
+        const plan = one<any>(b.payment_plan)
+        const method = resolveSaldoUnicoMethod({
+          modalitaSaldo: info?.modalita_saldo,
+          notePagamento: info?.note_pagamento,
+        })
+        const completed = plan?.is_completed ?? (info?.is_saldato === true)
+        if (method !== 'paghero' || completed) return null
+
+        const cliente = one<any>(b.clienti)
+        const totale = plan?.total_amount ?? info?.prezzo_finale ?? null
+        const acconto = plan?.acconto ?? info?.importo_acconto ?? 0
+        const residuo = totale != null ? Math.max(totale - Math.max(acconto, 0), 0) : null
+
+        return {
+          id: b.id,
+          readable_id: b.readable_id,
+          tipo_lavorazione: b.tipo_lavorazione || null,
+          cliente_nome: cliente ? `${cliente.cognome || ''} ${cliente.nome || ''}`.trim() : '—',
+          telefono: cliente?.telefono || null,
+          data_consegna: b.data_completamento_consegna || b.updated_at || null,
+          importo_da_incassare: residuo,
+        } as BustaPagheroRow
+      })
+      .filter((r): r is BustaPagheroRow => r !== null)
+
     const rows: BustaReportRow[] = (buste || []).map((b: any) => {
       const cliente = b.clienti
       const cliente_nome = cliente
@@ -113,7 +250,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ rows, date, total: rows.length })
+    return NextResponse.json({ rows, sospese, paghero: pagheroRows, schedaFocus, date, total: rows.length })
   } catch (err: any) {
     console.error('Report buste giornaliero unexpected error:', err)
     return NextResponse.json({ error: 'Errore interno' }, { status: 500 })
