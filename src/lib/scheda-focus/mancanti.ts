@@ -15,7 +15,7 @@ export interface SchedaFocusMancanteRow {
 }
 
 /**
- * Buste con ordine effettuato e Scheda Focus non ancora fatta.
+ * Buste con ordine effettuato e Scheda Focus non ancora fatta (né segnata n.n.).
  * Restano in lista anche se consegnate; escono se cancellate (soft delete o tutti gli ordini annullati).
  * Ordinate: scadute prima, poi per data ordine crescente.
  */
@@ -35,6 +35,7 @@ export async function fetchSchedeFocusMancanti(
     `)
     .not('scheda_focus_data_ordine', 'is', null)
     .eq('scheda_focus_fatta', false)
+    .eq('scheda_focus_non_necessaria', false)
     .is('deleted_at', null)
     .order('scheda_focus_data_ordine', { ascending: true })
 

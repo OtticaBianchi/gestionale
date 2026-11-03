@@ -301,6 +301,7 @@ export type Database = {
           pinned_to_kanban: boolean
           scheda_focus_data_ordine: string | null
           scheda_focus_fatta: boolean
+          scheda_focus_non_necessaria: boolean
           scheda_focus_fatta_da: string | null
           scheda_focus_fatta_at: string | null
           metodo_consegna:
@@ -350,6 +351,7 @@ export type Database = {
           pinned_to_kanban?: boolean
           scheda_focus_data_ordine?: string | null
           scheda_focus_fatta?: boolean
+          scheda_focus_non_necessaria?: boolean
           scheda_focus_fatta_da?: string | null
           scheda_focus_fatta_at?: string | null
           metodo_consegna?:
@@ -399,6 +401,7 @@ export type Database = {
           pinned_to_kanban?: boolean
           scheda_focus_data_ordine?: string | null
           scheda_focus_fatta?: boolean
+          scheda_focus_non_necessaria?: boolean
           scheda_focus_fatta_da?: string | null
           scheda_focus_fatta_at?: string | null
           metodo_consegna?:

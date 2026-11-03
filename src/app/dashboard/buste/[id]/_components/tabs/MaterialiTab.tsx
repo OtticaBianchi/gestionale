@@ -4239,6 +4239,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                       bustaId={busta.id}
                       initialDataOrdine={busta.scheda_focus_data_ordine ?? null}
                       initialFatta={busta.scheda_focus_fatta ?? false}
+                      initialNonNecessaria={busta.scheda_focus_non_necessaria ?? false}
                       refreshKey={autoInArrivoSignature}
                       disabled={isReadOnly}
                     />
@@ -4251,6 +4252,7 @@ export default function MaterialiTab({ busta, isReadOnly = false, canDelete = fa
                 bustaId={busta.id}
                 initialDataOrdine={busta.scheda_focus_data_ordine ?? null}
                 initialFatta={busta.scheda_focus_fatta ?? false}
+                initialNonNecessaria={busta.scheda_focus_non_necessaria ?? false}
                 refreshKey={autoInArrivoSignature}
                 disabled={isReadOnly}
               />

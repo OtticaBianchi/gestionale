@@ -22,7 +22,7 @@ export async function GET(
 
   const { data, error } = await adminClient()
     .from('buste')
-    .select('scheda_focus_data_ordine, scheda_focus_fatta')
+    .select('scheda_focus_data_ordine, scheda_focus_fatta, scheda_focus_non_necessaria')
     .eq('id', id)
     .single()
 
@@ -31,6 +31,7 @@ export async function GET(
   return NextResponse.json({
     scheda_focus_data_ordine: data.scheda_focus_data_ordine,
     scheda_focus_fatta: data.scheda_focus_fatta,
+    scheda_focus_non_necessaria: data.scheda_focus_non_necessaria,
   })
 }
 
@@ -46,16 +47,24 @@ export async function PATCH(
   }
 
   const body = await request.json().catch(() => null)
-  if (!body || typeof body.fatta !== 'boolean') {
+  // `stato` = 'si' | 'no' | 'nn'; `fatta` (boolean) resta supportato per compatibilità
+  const stato: 'si' | 'no' | 'nn' | null =
+    body && ['si', 'no', 'nn'].includes(body.stato)
+      ? body.stato
+      : body && typeof body.fatta === 'boolean'
+        ? (body.fatta ? 'si' : 'no')
+        : null
+  if (!stato) {
     return NextResponse.json({ error: 'Payload non valido' }, { status: 400 })
   }
-  const fatta: boolean = body.fatta
+  const fatta = stato === 'si'
+  const nonNecessaria = stato === 'nn'
 
   const admin = adminClient()
 
   const { data: current, error: readError } = await admin
     .from('buste')
-    .select('scheda_focus_data_ordine, scheda_focus_fatta')
+    .select('scheda_focus_data_ordine, scheda_focus_fatta, scheda_focus_non_necessaria')
     .eq('id', id)
     .is('deleted_at', null)
     .single()
@@ -71,8 +80,9 @@ export async function PATCH(
     .from('buste')
     .update({
       scheda_focus_fatta: fatta,
-      scheda_focus_fatta_da: fatta ? user.id : null,
-      scheda_focus_fatta_at: fatta ? new Date().toISOString() : null,
+      scheda_focus_non_necessaria: nonNecessaria,
+      scheda_focus_fatta_da: fatta || nonNecessaria ? user.id : null,
+      scheda_focus_fatta_at: fatta || nonNecessaria ? new Date().toISOString() : null,
       updated_by: user.id,
     })
     .eq('id', id)
@@ -83,9 +93,13 @@ export async function PATCH(
     'buste',
     id,
     user.id,
-    { scheda_focus_fatta: current.scheda_focus_fatta },
-    { scheda_focus_fatta: fatta },
-    fatta ? 'Scheda Focus segnata come fatta' : 'Scheda Focus segnata come non fatta'
+    { scheda_focus_fatta: current.scheda_focus_fatta, scheda_focus_non_necessaria: current.scheda_focus_non_necessaria },
+    { scheda_focus_fatta: fatta, scheda_focus_non_necessaria: nonNecessaria },
+    fatta
+      ? 'Scheda Focus segnata come fatta'
+      : nonNecessaria
+        ? 'Scheda Focus segnata come non necessaria (n.n.)'
+        : 'Scheda Focus segnata come non fatta'
   )
 
   return NextResponse.json({ success: true })

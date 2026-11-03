@@ -9,6 +9,7 @@ interface SchedaFocusSectionProps {
   bustaId: string
   initialDataOrdine: string | null
   initialFatta: boolean
+  initialNonNecessaria?: boolean
   // Cambia quando cambiano gli ordini: l'ordine può attivare la domanda (trigger DB) senza ricaricare la busta
   refreshKey: string
   disabled?: boolean
@@ -18,11 +19,13 @@ export default function SchedaFocusSection({
   bustaId,
   initialDataOrdine,
   initialFatta,
+  initialNonNecessaria = false,
   refreshKey,
   disabled = false,
 }: SchedaFocusSectionProps) {
   const [dataOrdine, setDataOrdine] = useState<string | null>(initialDataOrdine)
   const [fatta, setFatta] = useState(initialFatta)
+  const [nonNecessaria, setNonNecessaria] = useState(initialNonNecessaria)
   const [saving, setSaving] = useState(false)
   const isFirstRun = useRef(true)
 
@@ -32,7 +35,7 @@ export default function SchedaFocusSection({
       return
     }
     // Una volta attiva e fatta non serve rileggere; altrimenti il trigger potrebbe averla appena attivata
-    if (dataOrdine && fatta) return
+    if (dataOrdine && (fatta || nonNecessaria)) return
     let cancelled = false
     fetch(`/api/buste/${bustaId}/scheda-focus`)
       .then((res) => (res.ok ? res.json() : null))
@@ -40,6 +43,7 @@ export default function SchedaFocusSection({
         if (cancelled || !json) return
         setDataOrdine(json.scheda_focus_data_ordine ?? null)
         setFatta(Boolean(json.scheda_focus_fatta))
+        setNonNecessaria(Boolean(json.scheda_focus_non_necessaria))
       })
       .catch(() => {})
     return () => {
@@ -50,23 +54,27 @@ export default function SchedaFocusSection({
 
   if (!dataOrdine) return null
 
-  const scaduta = !fatta && isSchedaFocusScaduta(dataOrdine)
+  const scaduta = !fatta && !nonNecessaria && isSchedaFocusScaduta(dataOrdine)
 
-  const save = async (nuovoValore: boolean) => {
-    if (saving || disabled || nuovoValore === fatta) return
-    const precedente = fatta
-    setFatta(nuovoValore)
+  const stato: 'si' | 'no' | 'nn' = fatta ? 'si' : nonNecessaria ? 'nn' : 'no'
+
+  const save = async (nuovoStato: 'si' | 'no' | 'nn') => {
+    if (saving || disabled || nuovoStato === stato) return
+    const precedente = { fatta, nonNecessaria }
+    setFatta(nuovoStato === 'si')
+    setNonNecessaria(nuovoStato === 'nn')
     setSaving(true)
     try {
       const res = await fetch(`/api/buste/${bustaId}/scheda-focus`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fatta: nuovoValore }),
+        body: JSON.stringify({ stato: nuovoStato }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || 'Errore salvataggio')
     } catch (e: any) {
-      setFatta(precedente)
+      setFatta(precedente.fatta)
+      setNonNecessaria(precedente.nonNecessaria)
       toast.error(`Scheda Focus: ${e.message}`)
     } finally {
       setSaving(false)
@@ -99,9 +107,9 @@ export default function SchedaFocusSection({
           <label className={`flex items-center gap-2 text-base font-medium ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
             <input
               type="checkbox"
-              checked={fatta}
+              checked={stato === 'si'}
               disabled={disabled || saving}
-              onChange={() => save(true)}
+              onChange={() => save('si')}
               className="h-4 w-4 rounded border-slate-300"
             />
             <span>Sì</span>
@@ -109,12 +117,22 @@ export default function SchedaFocusSection({
           <label className={`flex items-center gap-2 text-base font-medium ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
             <input
               type="checkbox"
-              checked={!fatta}
+              checked={stato === 'no'}
               disabled={disabled || saving}
-              onChange={() => save(false)}
+              onChange={() => save('no')}
               className="h-4 w-4 rounded border-slate-300"
             />
             <span className={scaduta ? 'font-semibold text-red-700' : ''}>No</span>
+          </label>
+          <label className={`flex items-center gap-2 text-base font-medium ${disabled ? 'opacity-60' : 'cursor-pointer'}`}>
+            <input
+              type="checkbox"
+              checked={stato === 'nn'}
+              disabled={disabled || saving}
+              onChange={() => save('nn')}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            <span>n.n.</span>
           </label>
         </div>
       </div>
