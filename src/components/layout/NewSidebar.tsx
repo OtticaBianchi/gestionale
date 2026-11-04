@@ -34,7 +34,8 @@ import {
   GraduationCap,
   ClipboardPen,
   Trash2,
-  ListChecks
+  ListChecks,
+  FileText
 } from 'lucide-react';
 import AccordionSection from './AccordionSection';
 import SidebarItem from './SidebarItem';
@@ -410,6 +411,14 @@ export default function NewSidebar({ className = '' }: NewSidebarProps) {
 
         {/* Menu Content */}
         <div className="relative z-10 flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+
+          {/* Preventivi - modulo indipendente, sopra la Kanban Board */}
+          <SidebarItem
+            href="/dashboard/preventivi"
+            icon={FileText}
+            label="Preventivi"
+            isCollapsed={isCollapsed}
+          />
 
           {/* 2.A - Kanban Board (Homepage) */}
           <SidebarItem

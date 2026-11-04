@@ -222,12 +222,17 @@ function LoginForm() {
 
         <div className="mt-6 border-t border-slate-200 pt-6">
           <div className="mb-2 text-center text-xs text-slate-400">
-            Versione 4.6.1
+            Versione 4.7.0
           </div>
           <div className="text-xs text-slate-500">
             <div className="text-center font-medium text-slate-600">Ultimi aggiornamenti</div>
             <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3 text-left">
-              <div className="font-semibold text-slate-700">v4.6.1 - Ottobre 2026</div>
+              <div className="font-semibold text-slate-700">v4.7.0 - Novembre 2026</div>
+              <ul className="ml-2 list-disc list-inside space-y-1">
+                <li>Preventivi: nuova voce di menu, PDF con fino a 3 versioni affiancate, collegabile alla busta</li>
+                <li>Scheda Focus: nuova opzione &quot;n.n.&quot; (non necessaria)</li>
+              </ul>
+              <div className="mt-2 font-semibold text-slate-700">v4.6.1 - Ottobre 2026</div>
               <ul className="ml-2 list-disc list-inside space-y-1">
                 <li>Scheda Focus: domanda subito sotto l&apos;ordine, più visibile; bottone &quot;Segna come fatta&quot; nella lista</li>
               </ul>

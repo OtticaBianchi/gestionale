@@ -64,6 +64,7 @@ export default function WelcomePage() {
 
   // Aggiornamenti reali del sistema
   const changelog = [
+    { version: '4.7.0', date: '04/11/2026', description: 'Preventivi: nuova voce di menu per creare un preventivo (fino a 3 versioni Base/Advanced/Premium affiancate, garanzie a scelta, note per voce) ed esportarlo in PDF da stampare o inviare. Si può collegare alla busta quando viene aperta. Scheda Focus: nuova opzione "n.n." (non necessaria) accanto a Sì e No.' },
     { version: '4.6.1', date: '23/10/2026', description: 'Scheda Focus: la domanda compare ora subito sotto l\'ordine che l\'ha attivata, con sfondo colorato ben visibile (rosso quando scaduta). Gestione Ordini: il bottone nella lista Scheda Focus è ora "Segna come fatta".' },
     { version: '4.6.0', date: '23/10/2026', description: 'Scheda Focus: dopo l\'ordine di una busta compare nella tab Materiali la domanda "Hai già fatto la Scheda Focus?" (Sì/No, di default No). Dopo 2 giorni lavorativi (domeniche e festivi esclusi) la scritta diventa rossa e la busta risulta URGENTE. Nuovo menu "Scheda Focus" in Gestione Ordini con la lista delle buste da fare. Report: nuove sezioni buste sospese, pagherò da incassare e Scheda Focus mancante, con filtro per scegliere cosa stampare. Popup buste sospese: aggiunta X di chiusura e scroll della lista.' },
     { version: '4.5.0', date: '18/07/2026', description: 'Resi: nuova tabella dedicata per tracciare resi/cambi su busta (anche archiviata), con checklist motivazioni e apertura automatica di una segnalazione errore quando il motivo è "difetto di fabbricazione". Sicurezza: risolto un bug per cui il middleware di autenticazione non veniva mai caricato (file nella cartella sbagliata rispetto a src/) — impattava il controllo accessi su più pagine riservate agli admin; aggiornate le dipendenze critiche (Next.js, jspdf, nodemailer). Stampa busta: intestazione e note ora tutte nella metà sinistra del foglio, per la corretta piegatura. Fix: bottone "Salva nota" invisibile in Materiali & Ordini. Dashboard/ricerca: evidenza urgenze e anteprima note sulle card, esclusione account di servizio dalle statistiche.' },
@@ -215,7 +216,7 @@ export default function WelcomePage() {
               </div>
 
               <div className="mt-5 rounded-2xl bg-[var(--paper)] px-4 py-3 text-xs text-slate-500">
-                Supporto clienti e formazione inclusi. Versione attuale: <strong>4.6.1</strong>
+                Supporto clienti e formazione inclusi. Versione attuale: <strong>4.7.0</strong>
               </div>
             </div>
           </aside>
