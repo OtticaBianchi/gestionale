@@ -25,35 +25,25 @@ function LoginForm() {
     setIsLoading(true)
     
     try {
-      console.log('🔑 LOGIN - Calling signInWithPassword (should work now)...')
-      
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // Login via route server: imposta i cookie di sessione (di sessione, senza scadenza lunga)
+      // e il cookie di ultima attività usato dal middleware per la scadenza per inattività.
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       })
+      const json = await res.json().catch(() => ({}))
 
-      console.log('🔑 LOGIN - SignIn completed:', {
-        success: !error,
-        error: error?.message,
-        user: data?.user?.email
-      })
-      
-      if (error) {
-        console.log('🔑 LOGIN - Error occurred:', error.message)
-        setError(error.message === 'Invalid login credentials' ? 'Email o password non validi.' : error.message)
+      if (!res.ok || !json?.success) {
+        setError(json?.error || 'Login fallito')
         setIsLoading(false)
         return
       }
 
-      if (data?.user) {
-        console.log('🔑 LOGIN - Success! User authenticated, UserContext will handle redirect...')
-        // UserContext will load profile and redirect automatically
-        // Keep loading state until redirect happens
-      } else {
-        setError('Login fallito - nessun utente ricevuto')
-        setIsLoading(false)
-      }
-      
+      // Navigazione completa: il browser riparte con i cookie appena impostati dal server
+      const target = redirectTo.startsWith('/') && !redirectTo.startsWith('//') ? redirectTo : '/dashboard'
+      window.location.href = target
+      // Resta in stato di caricamento fino al cambio pagina
     } catch (e) {
       console.error('🔑 LOGIN - Unexpected error:', e)
       setError('Si è verificato un errore imprevisto.')
