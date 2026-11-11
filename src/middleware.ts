@@ -59,10 +59,11 @@ export async function middleware(request: NextRequest) {
 
   // ===== SCADENZA SESSIONE PER INATTIVITÀ =====
   // Se il PC viene spento senza logout, la sessione non deve passare a chi accende il giorno dopo.
-  // I flussi /auth/* (invito, reset password) creano la sessione lato client: li esentiamo.
+  // I flussi /auth/* (invito, reset password, magic link) creano la sessione lato client: li esentiamo,
+  // insieme all'heartbeat con cui il client avvia il cookie di ultima attività.
   if (user) {
     const lastSeen = request.cookies.get(LAST_SEEN_COOKIE)?.value
-    const isAuthFlow = pathname.startsWith('/auth/')
+    const isAuthFlow = pathname.startsWith('/auth/') || pathname === '/api/auth/heartbeat'
 
     if (!isAuthFlow && isSessionExpired(lastSeen)) {
       await supabase.auth.signOut({ scope: 'local' })

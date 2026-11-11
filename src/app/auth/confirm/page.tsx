@@ -154,6 +154,9 @@ async function handleAuthFlow(setError: (message: string | null) => void) {
       return
     }
 
+    // Sessione creata lato client: avvia il cookie di ultima attività prima di entrare nell'app
+    await fetch('/api/auth/heartbeat', { method: 'POST' }).catch(() => {})
+
     const redirectPath = await computeRedirectPath(user?.id || '', url.searchParams.get('next'))
     window.location.replace(`${url.origin}${redirectPath}`)
   } catch (error: any) {
