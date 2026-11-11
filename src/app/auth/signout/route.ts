@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { setSessionAwareCookie } from '@/lib/supabase/session-cookies'
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
             return cookieStore.get(name)?.value
           },
           set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options })
+            setSessionAwareCookie(cookieStore, name, value, options)
           },
           remove(name: string, options: any) {
             cookieStore.set({ name, value: '', ...options })
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
             return cookieStore.get(name)?.value
           },
           set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options })
+            setSessionAwareCookie(cookieStore, name, value, options)
           },
           remove(name: string, options: any) {
             cookieStore.set({ name, value: '', ...options })

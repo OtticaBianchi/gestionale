@@ -1,5 +1,11 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import {
+  LAST_SEEN_COOKIE,
+  isSessionExpired,
+  lastSeenCookieOptions,
+  toSessionCookieOptions,
+} from '@/lib/supabase/session-cookies'
 
 export async function middleware(request: NextRequest) {
   console.log('🔍 MIDDLEWARE START - URL:', request.nextUrl.pathname);
@@ -20,13 +26,13 @@ export async function middleware(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set({ name, value, ...options })
+            request.cookies.set({ name, value, ...toSessionCookieOptions(options) })
           })
           response = NextResponse.next({
             request,
           })
           cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set({ name, value, ...options })
+            response.cookies.set({ name, value, ...toSessionCookieOptions(options) })
           })
         },
       },
@@ -35,13 +41,38 @@ export async function middleware(request: NextRequest) {
 
   // Get user ONCE and reuse it
   console.log('🔍 MIDDLEWARE - Getting user via getUser...');
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  const { data: { user: authUser }, error: userError } = await supabase.auth.getUser()
+  let user = authUser
 
   if (userError) {
     console.warn('🔍 MIDDLEWARE - getUser error:', userError.message)
   }
 
   const { pathname } = request.nextUrl
+
+  // I redirect devono portarsi dietro i cookie scritti sulla response (refresh/chiusura sessione)
+  const redirectTo = (url: URL) => {
+    const redirectResponse = NextResponse.redirect(url)
+    response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
+    return redirectResponse
+  }
+
+  // ===== SCADENZA SESSIONE PER INATTIVITÀ =====
+  // Se il PC viene spento senza logout, la sessione non deve passare a chi accende il giorno dopo.
+  // I flussi /auth/* (invito, reset password) creano la sessione lato client: li esentiamo.
+  if (user) {
+    const lastSeen = request.cookies.get(LAST_SEEN_COOKIE)?.value
+    const isAuthFlow = pathname.startsWith('/auth/')
+
+    if (!isAuthFlow && isSessionExpired(lastSeen)) {
+      await supabase.auth.signOut({ scope: 'local' })
+      response.cookies.set({ name: LAST_SEEN_COOKIE, value: '', ...lastSeenCookieOptions(), maxAge: 0 })
+      user = null
+    } else if (!lastSeen) {
+      // Solo flussi /auth/*: la sessione nasce lato client, segniamo l'inizio attività
+      response.cookies.set({ name: LAST_SEEN_COOKIE, value: String(Date.now()), ...lastSeenCookieOptions() })
+    }
+  }
 
   // ===== PROTEZIONE ADMIN/MANAGER ROUTES =====
   // 🔐 Protezione per rotte admin (solo admin)
@@ -69,7 +100,7 @@ export async function middleware(request: NextRequest) {
       console.log('🔍 MIDDLEWARE - ADMIN PATH - No authenticated user, redirecting to login');
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirectTo', pathname)
-      return NextResponse.redirect(redirectUrl)
+      return redirectTo(redirectUrl)
     }
 
     // Check if user is admin
@@ -83,7 +114,7 @@ export async function middleware(request: NextRequest) {
 
     if (profileError || profile?.role !== 'admin') {
       console.log('🔍 MIDDLEWARE - ACCESS DENIED - User is not admin, redirecting to dashboard');
-      return NextResponse.redirect(new URL('/dashboard?error=admin_required', request.url))
+      return redirectTo(new URL('/dashboard?error=admin_required', request.url))
     }
 
     console.log('🔍 MIDDLEWARE - ADMIN ACCESS GRANTED');
@@ -102,7 +133,7 @@ export async function middleware(request: NextRequest) {
     if (!user) {
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirectTo', pathname)
-      return NextResponse.redirect(redirectUrl)
+      return redirectTo(redirectUrl)
     }
     const { data: profile } = await supabase
       .from('profiles')
@@ -110,7 +141,7 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .single()
     if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
-      return NextResponse.redirect(new URL('/dashboard?error=manager_required', request.url))
+      return redirectTo(new URL('/dashboard?error=manager_required', request.url))
     }
   }
 
@@ -127,7 +158,7 @@ export async function middleware(request: NextRequest) {
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirectTo', pathname)
       console.log('🔍 MIDDLEWARE - REDIRECTING TO LOGIN from protected path');
-      return NextResponse.redirect(redirectUrl)
+      return redirectTo(redirectUrl)
     }
 
     console.log('🔍 MIDDLEWARE - PROTECTED PATH - Session valid, allowing access');
@@ -152,7 +183,7 @@ export async function middleware(request: NextRequest) {
       const role = profile?.role || 'operatore'
       const home = '/dashboard' // Everyone goes to dashboard
       console.log('🔍 MIDDLEWARE - AUTH PATH - Redirecting to', home, 'for role:', role)
-      return NextResponse.redirect(new URL(home, request.url))
+      return redirectTo(new URL(home, request.url))
     } else {
       console.log('🔍 MIDDLEWARE - AUTH PATH - No authenticated user, allowing login page');
     }

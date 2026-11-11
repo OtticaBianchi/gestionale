@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { setSessionAwareCookie, touchLastSeen } from '@/lib/supabase/session-cookies'
 import { NextResponse } from 'next/server'
 
 const DEFAULT_REDIRECT = '/dashboard'
@@ -23,7 +24,7 @@ async function createSupabaseClientWithCookies(): Promise<SupabaseClient> {
           return cookieStore.get(name)?.value
         },
         set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options })
+          setSessionAwareCookie(cookieStore, name, value, options)
         },
         remove(name: string, options: any) {
           cookieStore.set({ name, value: '', ...options })
@@ -46,6 +47,7 @@ async function exchangeCodeForSession(
   }
 
   console.log('🔍 CALLBACK SUCCESS - User:', data.user?.email)
+  touchLastSeen(await cookies())
   return { user: data.user }
 }
 

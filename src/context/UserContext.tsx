@@ -1,6 +1,7 @@
 "use client"
 
 import { createClient } from '@/lib/supabase/client'
+import { IDLE_TIMEOUT_MS, HEARTBEAT_INTERVAL_MS } from '@/lib/supabase/session-cookies'
 import { User, Session } from '@supabase/supabase-js'
 import { createContext, useContext, useEffect, useState, ReactNode, useRef, useCallback } from 'react'
 
@@ -23,7 +24,11 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined)
 
 // Hook per il timer di inattività (FIXED per memory leaks)
-const useIdleTimer = (onIdle: () => void, idleTimeout: number) => {
+const useIdleTimer = (onIdle: () => void, idleTimeout: number, onActivity?: () => void) => {
+  const onActivityRef = useRef(onActivity)
+  useEffect(() => {
+    onActivityRef.current = onActivity
+  }, [onActivity])
   const timeoutId = useRef<NodeJS.Timeout | null>(null)
   const onIdleRef = useRef(onIdle)
   
@@ -41,7 +46,10 @@ const useIdleTimer = (onIdle: () => void, idleTimeout: number) => {
 
   useEffect(() => {
     const events = ['mousemove', 'keydown', 'mousedown', 'touchstart']
-    const handleActivity = resetTimer
+    const handleActivity = () => {
+      resetTimer()
+      onActivityRef.current?.()
+    }
 
     events.forEach(event => window.addEventListener(event, handleActivity, { passive: true }))
     resetTimer()
@@ -169,11 +177,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }
   
   // Attiva il timer di inattività
+  const lastHeartbeat = useRef(0)
   useIdleTimer(() => {
     if (user) {
       signOut('idle')
     }
-  }, 60 * 60 * 1000) // 60 minuti (1 ora)
+  }, IDLE_TIMEOUT_MS, () => {
+    // Heartbeat: informa il server dell'attività reale (il polling automatico non conta)
+    if (!user) return
+    const now = Date.now()
+    if (now - lastHeartbeat.current < HEARTBEAT_INTERVAL_MS) return
+    lastHeartbeat.current = now
+    fetch('/api/auth/heartbeat', { method: 'POST' }).catch(() => {})
+  }) // 10 minuti di inattività
 
   useEffect(() => {
     // Flag per prevenire state updates dopo unmount
