@@ -1,10 +1,11 @@
 import jsPDF from 'jspdf'
 import {
+  COLORE_VERSIONE_RGB,
   GARANZIE,
   PreventivoData,
   aggiungiGiorni,
   formatDataIt,
-  prezzoFinaleCella,
+  totaleListino,
   totaleVersione,
 } from './types'
 
@@ -24,8 +25,10 @@ const eur = (n: number) =>
 const GRIGIO_TESTO: [number, number, number] = [70, 70, 70]
 
 /**
- * Una versione: pagina A4 verticale, tabella voce / prezzo unitario / sconto / prezzo finale.
- * Due o tre versioni: pagina A4 orizzontale, matrice con una colonna-blocco per versione.
+ * Una versione: pagina A4 verticale, tabella voce / prezzo unitario.
+ * Due o tre versioni: pagina A4 orizzontale, matrice con una colonna per versione.
+ * Gli sconti non compaiono sulle singole righe: in fondo si vede solo lo sconto totale in euro
+ * rispetto al prezzo di partenza (mai la percentuale).
  */
 function render(data: PreventivoData, logoDataUrl: string | null, scale: number): { doc: jsPDF; endY: number; limit: number } {
   const multi = data.versioni.length > 1
@@ -81,17 +84,12 @@ function render(data: PreventivoData, logoDataUrl: string | null, scale: number)
   // ── Tabella ───────────────────────────────────────────────────
   const colDesc = MARGIN + 2
   const nV = data.versioni.length
-  const descW = multi ? CONTENT_W * 0.2 : CONTENT_W * 0.5
+  const descW = multi ? CONTENT_W * 0.28 : CONTENT_W * 0.7
   const blockW = multi ? (CONTENT_W - descW) / nV : 0
   const blockX = (i: number) => MARGIN + descW + i * blockW
-  // x (bordo destro) delle tre colonne numeriche di un blocco; in verticale c'è un solo blocco
-  const numCols = (i: number): [number, number, number] => {
-    if (multi) {
-      const x0 = blockX(i)
-      return [x0 + blockW * 0.38, x0 + blockW * 0.68, x0 + blockW - 2]
-    }
-    return [MARGIN + CONTENT_W * 0.68, MARGIN + CONTENT_W * 0.84, PAGE_W - MARGIN - 2]
-  }
+  // x (bordo destro) della colonna dei prezzi di un blocco; in verticale c'è un solo blocco
+  const priceX = (i: number) => (multi ? blockX(i) + blockW - 3 : PAGE_W - MARGIN - 2)
+  const tableTop = y
 
   // intestazione versioni: la targhetta del livello compare sempre, anche con una sola versione
   for (let i = 0; i < nV; i++) {
@@ -100,7 +98,7 @@ function render(data: PreventivoData, logoDataUrl: string | null, scale: number)
     const w = multi ? blockW - 1 : CONTENT_W
     doc.setFillColor(35, 35, 35).rect(x, y, w, lh(15), 'F')
     doc.setFont('helvetica', 'bold').setFontSize(fs(10.5)).setTextColor(255, 255, 255)
-    const titolo = `${v.nome.toUpperCase()}${v.consigliata ? '  (consigliata)' : ''}`
+    const titolo = `${v.nome.toUpperCase()}${multi && v.consigliata ? '  (consigliata)' : ''}`
     if (multi) doc.text(titolo, x + w / 2, y + lh(10.5), { align: 'center' })
     else doc.text(titolo, colDesc, y + lh(10.5))
   }
@@ -110,12 +108,7 @@ function render(data: PreventivoData, logoDataUrl: string | null, scale: number)
   doc.setFillColor(235, 235, 235).rect(MARGIN, y, CONTENT_W, lh(13), 'F')
   doc.setFont('helvetica', 'bold').setFontSize(fs(8)).setTextColor(40, 40, 40)
   doc.text('Voce', colDesc, y + lh(9))
-  for (let i = 0; i < nV; i++) {
-    const [cu, cs, cf] = numCols(i)
-    doc.text(multi ? 'Unitario' : 'Prezzo unitario', cu, y + lh(9), { align: 'right' })
-    doc.text('Sconto', cs, y + lh(9), { align: 'right' })
-    doc.text(multi ? 'Finale' : 'Prezzo finale', cf, y + lh(9), { align: 'right' })
-  }
+  for (let i = 0; i < nV; i++) doc.text('Prezzo', priceX(i), y + lh(9), { align: 'right' })
   y += lh(13)
 
   // righe
@@ -125,20 +118,15 @@ function render(data: PreventivoData, logoDataUrl: string | null, scale: number)
     doc.setTextColor(20, 20, 20).text(righeDesc, colDesc, y + lh(9))
     for (let i = 0; i < nV; i++) {
       const c = r.celle[i]
-      const [cu, cs, cf] = numCols(i)
       if (!c) {
-        doc.setTextColor(150, 150, 150).text('—', multi ? blockX(i) + blockW / 2 : cf, y + lh(9), { align: multi ? 'center' : 'right' })
+        doc.setTextColor(150, 150, 150).text('—', priceX(i), y + lh(9), { align: 'right' })
         continue
       }
-      doc.setTextColor(20, 20, 20)
-      doc.text(eur(c.prezzo_unitario), cu, y + lh(9), { align: 'right' })
-      doc.text(c.sconto > 0 ? `- ${eur(c.sconto)}` : '—', cs, y + lh(9), { align: 'right' })
-      doc.setFont('helvetica', 'bold').text(eur(prezzoFinaleCella(c)), cf, y + lh(9), { align: 'right' })
-      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(20, 20, 20).text(eur(c.prezzo_unitario), priceX(i), y + lh(9), { align: 'right' })
     }
     y += hRiga
 
-    // nota di riga, sotto prezzo / sconto / prezzo finale
+    // nota di riga
     if (r.nota) {
       doc.setFont('helvetica', 'italic').setFontSize(fs(8)).setTextColor(...GRIGIO_TESTO)
       const righeNota = doc.splitTextToSize(r.nota, CONTENT_W - 6) as string[]
@@ -148,15 +136,38 @@ function render(data: PreventivoData, logoDataUrl: string | null, scale: number)
     doc.setDrawColor(215, 215, 215).setLineWidth(0.15).line(MARGIN, y, PAGE_W - MARGIN, y)
   }
 
-  // totali
-  doc.setFont('helvetica', 'bold').setFontSize(fs(10.5)).setTextColor(20, 20, 20)
-  if (multi) doc.text('TOTALE', colDesc, y + lh(12))
-  for (let i = 0; i < nV; i++) {
-    const [cu, , cf] = numCols(i)
-    if (!multi) doc.text('TOTALE', cu, y + lh(12), { align: 'right' })
-    doc.text(eur(totaleVersione(data.righe, i)), cf, y + lh(12), { align: 'right' })
+  // totali: prezzo di partenza, sconto complessivo in euro (se c'è), totale da pagare
+  const listino = data.versioni.map((_, i) => totaleListino(data.righe, i))
+  const finale = data.versioni.map((_, i) => totaleVersione(data.righe, i))
+  const sconti = listino.map((l, i) => Math.round((l - finale[i]) * 100) / 100)
+  const haSconto = sconti.some((s) => s > 0)
+
+  doc.setFont('helvetica', 'normal').setFontSize(fs(9.5)).setTextColor(20, 20, 20)
+  if (haSconto) {
+    doc.text('Totale', colDesc, y + lh(10))
+    for (let i = 0; i < nV; i++) doc.text(eur(listino[i]), priceX(i), y + lh(10), { align: 'right' })
+    y += lh(13)
+    doc.text('Sconto', colDesc, y + lh(10))
+    for (let i = 0; i < nV; i++) {
+      doc.text(sconti[i] > 0 ? `- ${eur(sconti[i])}` : '—', priceX(i), y + lh(10), { align: 'right' })
+    }
+    y += lh(13)
+    doc.setDrawColor(40, 40, 40).setLineWidth(0.3).line(MARGIN, y, PAGE_W - MARGIN, y)
   }
-  y += lh(20)
+  doc.setFont('helvetica', 'bold').setFontSize(fs(10.5))
+  doc.text(haSconto ? 'TOTALE DA PAGARE' : 'TOTALE', colDesc, y + lh(12))
+  for (let i = 0; i < nV; i++) doc.text(eur(finale[i]), priceX(i), y + lh(12), { align: 'right' })
+  y += lh(17)
+
+  // cornice della versione consigliata, nel colore del suo pulsante
+  if (multi) {
+    data.versioni.forEach((v, i) => {
+      if (!v.consigliata) return
+      const [r, g, b] = COLORE_VERSIONE_RGB[v.nome] ?? [35, 35, 35]
+      doc.setDrawColor(r, g, b).setLineWidth(0.9).rect(blockX(i) + 0.5, tableTop, blockW - 1, y - tableTop)
+    })
+  }
+  y += lh(3)
 
   // ── Garanzie scelte (a due colonne in orizzontale) ────────────
   const garanzie = GARANZIE.filter((g) => data.garanzie.includes(g.id))
@@ -191,6 +202,18 @@ function render(data: PreventivoData, logoDataUrl: string | null, scale: number)
     doc.text('Perché le soluzioni differiscono', MARGIN, y + lh(7))
     doc.setFont('helvetica', 'normal').setFontSize(fs(8)).setTextColor(60, 60, 60)
     const righe = doc.splitTextToSize(data.note_differenze.trim(), CONTENT_W) as string[]
+    doc.text(righe, MARGIN, y + lh(7) + lh(10))
+    y += lh(7) + lh(10) + lh(9.5) * righe.length + lh(4)
+  }
+
+  // ── Perché consigliamo una versione ───────────────────────────
+  const consigliata = multi ? data.versioni.find((v) => v.consigliata && v.motivo_consigliata?.trim()) : undefined
+  if (consigliata) {
+    const [r, g, b] = COLORE_VERSIONE_RGB[consigliata.nome] ?? [35, 35, 35]
+    doc.setFont('helvetica', 'bold').setFontSize(fs(8.5)).setTextColor(r, g, b)
+    doc.text(`Perché consigliamo la versione ${consigliata.nome}`, MARGIN, y + lh(7))
+    doc.setFont('helvetica', 'normal').setFontSize(fs(8)).setTextColor(60, 60, 60)
+    const righe = doc.splitTextToSize(consigliata.motivo_consigliata!.trim(), CONTENT_W) as string[]
     doc.text(righe, MARGIN, y + lh(7) + lh(10))
     y += lh(7) + lh(10) + lh(9.5) * righe.length + lh(4)
   }

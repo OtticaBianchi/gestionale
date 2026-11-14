@@ -12,6 +12,8 @@ import {
   formatDataIt,
   formatEuro,
   prezzoFinaleCella,
+  round2,
+  scontoPercentuale,
   totaleVersione,
   type GaranziaId,
   type PreventivoData,
@@ -23,7 +25,8 @@ import {
 interface CellaUi {
   incluso: boolean
   prezzo: string
-  sconto: string
+  sconto: string // euro
+  scontoPerc: string // percentuale: calcolata dall'euro (o viceversa), solo per il form
 }
 interface RigaUi {
   descrizione: string
@@ -69,7 +72,30 @@ const num = (s: string) => {
 const celleToData = (celle: CellaUi[]) =>
   celle.map((c) => (c.incluso ? { prezzo_unitario: num(c.prezzo), sconto: num(c.sconto) } : null))
 
-const cellaDi = (prezzo: number | null): CellaUi => ({ incluso: true, prezzo: prezzo != null ? String(prezzo) : '', sconto: '' })
+const cellaDi = (prezzo: number | null): CellaUi => ({
+  incluso: true,
+  prezzo: prezzo != null ? String(prezzo) : '',
+  sconto: '',
+  scontoPerc: '',
+})
+
+const strNum = (n: number) => (n > 0 ? String(n) : '')
+
+/** Tiene allineati sconto in euro e in percentuale: l'ultimo campo toccato comanda sull'altro. */
+function sincronizzaSconto(c: CellaUi, patch: Partial<CellaUi>): CellaUi {
+  const next = { ...c, ...patch }
+  const prezzo = num(next.prezzo)
+  if ('scontoPerc' in patch) {
+    const perc = Math.min(100, num(next.scontoPerc))
+    next.sconto = strNum(round2((prezzo * perc) / 100))
+  } else if ('sconto' in patch) {
+    next.scontoPerc = strNum(scontoPercentuale(prezzo, num(next.sconto)))
+  } else if ('prezzo' in patch) {
+    // cambia il prezzo di partenza: lo sconto in euro resta, la percentuale si ricalcola
+    next.scontoPerc = strNum(scontoPercentuale(prezzo, num(next.sconto)))
+  }
+  return next
+}
 
 const toData = (row: PreventivoRow): PreventivoData => ({
   numero_label: row.numero_label,
@@ -110,6 +136,9 @@ const TIER_STILE: Record<string, { on: string; off: string }> = {
   Advanced: { on: 'border-amber-600 bg-amber-500 text-white', off: 'border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100' },
   Premium: { on: 'border-violet-700 bg-violet-600 text-white', off: 'border-violet-400 bg-violet-50 text-violet-800 hover:bg-violet-100' },
 }
+
+// Cornice della versione consigliata: stesso colore del pulsante del livello
+const TIER_CORNICE: Record<string, string> = { Base: 'border-sky-600', Advanced: 'border-amber-500', Premium: 'border-violet-600' }
 
 // Ogni area ha una tonalità di grigio diversa, dalla più chiara (in alto) alla più scura (in basso)
 const TONI_SEZIONE: Record<number, string> = {
@@ -256,7 +285,14 @@ export default function PreventivoForm() {
         descrizione: r.descrizione,
         nota: r.nota,
         celle: r.celle.map((c) =>
-          c ? { incluso: true, prezzo: String(c.prezzo_unitario), sconto: c.sconto ? String(c.sconto) : '' } : { incluso: false, prezzo: '', sconto: '' }
+          c
+            ? {
+                incluso: true,
+                prezzo: String(c.prezzo_unitario),
+                sconto: strNum(c.sconto),
+                scontoPerc: strNum(scontoPercentuale(c.prezzo_unitario, c.sconto)),
+              }
+            : { incluso: false, prezzo: '', sconto: '', scontoPerc: '' }
         ),
       }))
     )
@@ -286,7 +322,10 @@ export default function PreventivoForm() {
     const idx = versioni.findIndex((v) => v.nome === livello)
     if (idx >= 0) {
       if (versioni.length === 1) return // ne serve almeno uno
-      setVersioni((prev) => prev.filter((_, i) => i !== idx))
+      setVersioni((prev) => {
+        const resto = prev.filter((_, i) => i !== idx)
+        return resto.length === 1 ? [{ ...resto[0], consigliata: false, motivo_consigliata: '' }] : resto
+      })
       setRighe((prev) => prev.map((r) => ({ ...r, celle: r.celle.filter((_, i) => i !== idx) })))
       return
     }
@@ -303,7 +342,13 @@ export default function PreventivoForm() {
   }
 
   const aggiornaVersione = (i: number, patch: Partial<VersionePreventivo>) =>
-    setVersioni((prev) => prev.map((v, idx) => (idx === i ? { ...v, ...patch } : v)))
+    setVersioni((prev) =>
+      prev.map((v, idx) => {
+        if (idx === i) return { ...v, ...patch }
+        // una sola versione può essere consigliata
+        return patch.consigliata ? { ...v, consigliata: false, motivo_consigliata: '' } : v
+      })
+    )
 
   // ── Righe ───────────────────────────────────────────────────
   const nuovaRiga = (descrizione: string, prezzo: number | null): RigaUi => ({
@@ -322,7 +367,7 @@ export default function PreventivoForm() {
 
   const aggiornaCella = (i: number, v: number, patch: Partial<CellaUi>) =>
     setRighe((prev) =>
-      prev.map((r, idx) => (idx === i ? { ...r, celle: r.celle.map((c, k) => (k === v ? { ...c, ...patch } : c)) } : r))
+      prev.map((r, idx) => (idx === i ? { ...r, celle: r.celle.map((c, k) => (k === v ? sincronizzaSconto(c, patch) : c)) } : r))
     )
 
   const rimuoviRiga = (i: number) => setRighe((prev) => prev.filter((_, idx) => idx !== i))
@@ -330,7 +375,7 @@ export default function PreventivoForm() {
   const applicaPreset = (id: string) => {
     const preset = PRESET_PRODOTTI.find((p) => p.id === id)
     if (!preset) return
-    if (righe.length > 0 && !window.confirm('Sostituire le voci attuali con quelle del prodotto scelto?')) return
+    if (righe.length > 0 && !window.confirm('Sostituire le voci attuali con quelle del tipo scelto?')) return
     const nuove = preset.voci.map((nomeVoce) => {
       const c = catalogo.find((x) => x.nome.toLowerCase() === nomeVoce.toLowerCase())
       return nuovaRiga(c?.nome ?? nomeVoce, c?.prezzo_default ?? null)
@@ -350,7 +395,7 @@ export default function PreventivoForm() {
     cliente_nome: nome,
     cliente_telefono: telefono,
     validita_giorni: parseInt(validita, 10),
-    versioni,
+    versioni: versioni.map((v) => (v.consigliata ? v : { nome: v.nome, consigliata: false })),
     righe: righe.map((r) => ({ descrizione: r.descrizione, nota: r.nota, celle: celleToData(r.celle) })),
     garanzie,
     note_differenze: multi ? note : '',
@@ -450,7 +495,8 @@ export default function PreventivoForm() {
     righe.length > 0 &&
     righe.every((r) => r.descrizione.trim() !== '' && r.celle.every((c) => !c.incluso || c.prezzo.trim() !== '')) &&
     versioni.every((_, i) => righe.some((r) => r.celle[i]?.incluso))
-  const pronto = clienteOk && righeOk
+  const consiglioOk = versioni.every((v) => !v.consigliata || (v.motivo_consigliata ?? '').trim() !== '')
+  const pronto = clienteOk && righeOk && consiglioOk
 
   if (loading) {
     return (
@@ -576,8 +622,8 @@ export default function PreventivoForm() {
           </div>
         </Sezione>
 
-        <Sezione numero={2} titolo="Prodotto e garanzie">
-          <p className="mb-2 text-base font-semibold text-slate-800">Per quale prodotto? (precompila voci e garanzie)</p>
+        <Sezione numero={2} titolo="Tipo di preventivo e garanzie">
+          <p className="mb-2 text-base font-semibold text-slate-800">Che cosa preventivi? (precompila voci e garanzie)</p>
           <div className="flex flex-wrap gap-3">
             {PRESET_PRODOTTI.map((p) => (
               <button
@@ -639,13 +685,17 @@ export default function PreventivoForm() {
 
         <Sezione numero={4} titolo="Voci e prezzi">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse text-base">
+            <table className="w-full min-w-[960px] border-collapse text-base">
               <thead>
                 <tr>
                   <th className="w-[32%] min-w-[14rem] p-1 text-left text-sm font-semibold text-slate-700">Voce *</th>
                   {versioni.map((v, i) => (
-                    <th key={i} colSpan={3} className="border-l-2 border-slate-300 p-1">
-                      <div className="flex flex-wrap items-center justify-center gap-3">
+                    <th key={i} colSpan={4} className="border-l-2 border-slate-300 p-1">
+                      <div
+                        className={`flex flex-wrap items-center justify-center gap-3 rounded-xl border-4 p-1 ${
+                          multi && v.consigliata ? (TIER_CORNICE[v.nome] ?? 'border-slate-700') : 'border-transparent'
+                        }`}
+                      >
                         <span
                           className={`rounded-lg px-4 py-1.5 text-lg font-bold ${TIER_STILE[v.nome]?.on ?? 'border-slate-700 bg-slate-700 text-white'}`}
                         >
@@ -683,8 +733,8 @@ export default function PreventivoForm() {
                 ))}
                 {righe.length === 0 && (
                   <tr>
-                    <td colSpan={versioni.length * 3 + 2} className="rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 p-5 text-center text-base font-medium text-amber-900">
-                      Nessuna voce: scegli un prodotto sopra, una voce di base qui sotto, oppure aggiungi una voce.
+                    <td colSpan={versioni.length * 4 + 2} className="rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 p-5 text-center text-base font-medium text-amber-900">
+                      Nessuna voce: scegli il tipo di preventivo sopra, una voce di base qui sotto, oppure aggiungi una voce.
                     </td>
                   </tr>
                 )}
@@ -694,7 +744,7 @@ export default function PreventivoForm() {
                   <tr className="border-t-4 border-slate-400 text-lg font-bold">
                     <td className="p-2">Totale</td>
                     {versioni.map((_, i) => (
-                      <td key={i} colSpan={3} className="border-l-2 border-slate-300 p-2 text-right">
+                      <td key={i} colSpan={4} className="border-l-2 border-slate-300 p-2 text-right">
                         {formatEuro(totaleVersione(righe.map((r) => ({ celle: celleToData(r.celle) })), i))}
                       </td>
                     ))}
@@ -751,6 +801,25 @@ export default function PreventivoForm() {
               <textarea rows={3} className={`${input} w-full`} value={note} onChange={(e) => setNote(e.target.value)} />
             </label>
           )}
+
+          {multi &&
+            versioni.map((v, i) =>
+              v.consigliata ? (
+                <label key={i} className="mt-5 block">
+                  <span className="mb-1 block text-base font-semibold text-slate-800">
+                    Perché consigliamo la versione {v.nome} <span className="text-red-600">*</span>
+                    <span className="ml-2 text-sm font-normal text-slate-600">(compare in fondo al preventivo)</span>
+                  </span>
+                  <textarea
+                    rows={3}
+                    className={`${input} w-full${vuoto(v.motivo_consigliata ?? '')}`}
+                    placeholder="Spiega al cliente perché questa è la soluzione più adatta a lui"
+                    value={v.motivo_consigliata ?? ''}
+                    onChange={(e) => aggiornaVersione(i, { motivo_consigliata: e.target.value })}
+                  />
+                </label>
+              ) : null
+            )}
         </Sezione>
 
         <div className="mt-8 flex flex-wrap gap-3 border-t-2 border-slate-200 pt-5">
@@ -791,7 +860,7 @@ export default function PreventivoForm() {
         </div>
         {!pronto && (
           <p className="mt-3 text-base font-medium text-amber-800">
-            Per salvare servono: cognome, nome, cellulare e almeno una voce con il prezzo per ogni versione (i campi gialli sono ancora da compilare).
+            Per salvare servono: cognome, nome, cellulare, almeno una voce con il prezzo per ogni versione e, se c'è una versione consigliata, il motivo del consiglio (i campi gialli sono ancora da compilare).
           </p>
         )}
       </div>
@@ -855,6 +924,7 @@ function FragmentTh() {
     <>
       <th className="border-l-2 border-slate-300 p-1 text-right text-xs font-medium">Unitario €</th>
       <th className="p-1 text-right text-xs font-medium">Sconto €</th>
+      <th className="p-1 text-right text-xs font-medium">Sconto %</th>
       <th className="p-1 text-right text-xs font-medium">Finale</th>
     </>
   )
@@ -873,7 +943,7 @@ function RigaRows({
   onCella: (versione: number, patch: Partial<CellaUi>) => void
   onRemove: () => void
 }) {
-  const colonne = riga.celle.length * 3 + 2
+  const colonne = riga.celle.length * 4 + 2
   return (
     <>
       <tr className="border-t-2 border-slate-200 align-middle">
@@ -889,7 +959,7 @@ function RigaRows({
           c.incluso ? (
             <CellaInputs key={v} cella={c} multi={multi} onChange={(patch) => onCella(v, patch)} />
           ) : (
-            <td key={v} colSpan={3} className="border-l-2 border-slate-300 p-1 text-center text-sm text-slate-500">
+            <td key={v} colSpan={4} className="border-l-2 border-slate-300 p-1 text-center text-sm text-slate-500">
               non incluso{' '}
               <button type="button" onClick={() => onCella(v, { incluso: true })} className="font-semibold text-blue-700 underline">
                 includi
@@ -938,6 +1008,15 @@ function CellaInputs({ cella, multi, onChange }: { cella: CellaUi; multi: boolea
           placeholder="0"
           value={cella.sconto}
           onChange={(e) => onChange({ sconto: e.target.value })}
+        />
+      </td>
+      <td className="p-1">
+        <input
+          className={`${inputPrezzo} w-full min-w-[3.25rem] text-right`}
+          inputMode="decimal"
+          placeholder="0"
+          value={cella.scontoPerc}
+          onChange={(e) => onChange({ scontoPerc: e.target.value })}
         />
       </td>
       <td className="whitespace-nowrap p-1 text-right text-sm font-bold">

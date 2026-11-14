@@ -6,6 +6,8 @@ export interface CellaPreventivo {
 export interface VersionePreventivo {
   nome: string
   consigliata: boolean
+  /** Perché consigliamo questa versione (stampato in fondo al preventivo). Solo se consigliata. */
+  motivo_consigliata?: string
 }
 
 /** Una riga prodotto, comune a tutte le versioni. celle[i] = null: voce non inclusa nella versione i. */
@@ -89,26 +91,38 @@ export const NOTA_DIFFERENZE_DEFAULT =
 
 export const NOMI_VERSIONI = ['Base', 'Advanced', 'Premium']
 
-/** Preventivo precompilato in base al prodotto: nomi voci (dal catalogo) e garanzie suggerite. */
+/** Colore del livello (lo stesso dei pulsanti nel form), usato per la cornice della versione consigliata nel PDF. */
+export const COLORE_VERSIONE_RGB: Record<string, [number, number, number]> = {
+  Base: [2, 132, 199],
+  Advanced: [245, 158, 11],
+  Premium: [124, 58, 237],
+}
+
+/** I soli due casi di preventivo: voci precompilate (nomi dal catalogo) e garanzie suggerite. */
 export const PRESET_PRODOTTI: Array<{ id: string; label: string; voci: string[]; garanzie: GaranziaId[] }> = [
   {
-    id: 'vista',
-    label: 'Occhiale da vista',
-    voci: ['Controllo della vista', 'Montatura', 'Lenti oftalmiche monofocali'],
+    id: 'lenti_graduate',
+    label: 'Lenti graduate',
+    voci: ['Controllo della vista', 'Lente DX', 'Lente SX'],
     garanzie: ['assistenza_globale'],
   },
   {
-    id: 'progressivi',
-    label: 'Occhiale progressivo',
-    voci: ['Controllo della vista', 'Montatura', 'Lenti oftalmiche progressive'],
-    garanzie: ['assistenza_globale', 'adattamento'],
+    id: 'occhiali_completi',
+    label: 'Occhiali completi',
+    voci: ['Controllo della vista', 'Montatura', 'Lente DX', 'Lente SX'],
+    garanzie: ['assistenza_globale'],
   },
-  { id: 'sole', label: 'Occhiale da sole', voci: ['Occhiale da sole'], garanzie: [] },
-  { id: 'lac', label: 'Lenti a contatto', voci: ['Controllo della vista', 'Lenti a contatto'], garanzie: ['prova_lac'] },
 ]
 
 export const prezzoFinaleCella = (c: CellaPreventivo) =>
   Math.max(0, round2((Number(c.prezzo_unitario) || 0) - (Number(c.sconto) || 0)))
+
+/** Sconto % rispetto al prezzo di partenza (solo per il form: nel PDF non compare). */
+export const scontoPercentuale = (prezzo: number, sconto: number) =>
+  prezzo > 0 ? round2((sconto / prezzo) * 100) : 0
+
+export const totaleListino = (righe: Pick<RigaPreventivo, 'celle'>[], indice: number) =>
+  round2(righe.reduce((sum, r) => sum + (r.celle[indice] ? Math.max(0, Number(r.celle[indice]!.prezzo_unitario) || 0) : 0), 0))
 
 export const totaleVersione = (righe: Pick<RigaPreventivo, 'celle'>[], indice: number) =>
   round2(righe.reduce((sum, r) => sum + (r.celle[indice] ? prezzoFinaleCella(r.celle[indice]!) : 0), 0))

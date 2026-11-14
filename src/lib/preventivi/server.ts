@@ -59,7 +59,9 @@ export function parsePreventivoBody(body: any): { error: string } | { value: Pre
   const versioni: VersionePreventivo[] = body.versioni.map((v: any) => ({
     nome: String(v?.nome ?? '').trim() || 'Soluzione',
     consigliata: Boolean(v?.consigliata),
+    ...(v?.consigliata ? { motivo_consigliata: String(v?.motivo_consigliata ?? '').trim().slice(0, 600) } : {}),
   }))
+  if (versioni.filter((v) => v.consigliata).length > 1) return { error: 'Si può consigliare una sola versione' }
 
   if (!Array.isArray(body.righe) || body.righe.length < 1) return { error: 'Inserisci almeno una voce' }
   const righe: RigaPreventivo[] = []
