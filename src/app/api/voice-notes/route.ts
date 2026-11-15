@@ -13,7 +13,14 @@ export async function POST(request: NextRequest) {
   if (rateLimitResult) return rateLimitResult;
   
   try {
-    // Use service role client for anonymous inserts to bypass RLS
+    // Solo utenti autenticati. Il bot Telegram salva i vocali da /api/telegram/webhook (non passa da qui).
+    const sessionClient = await createServerSupabaseClient();
+    const { data: { user: sessionUser } } = await sessionClient.auth.getUser();
+    if (!sessionUser) {
+      return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
+    }
+
+    // Service role per l'inserimento (bypassa RLS) solo dopo il controllo di autenticazione
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
