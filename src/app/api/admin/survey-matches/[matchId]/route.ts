@@ -158,25 +158,28 @@ const getExternalReferenceBlockers = async (
 
   const tablesWithClienteId = await getClienteIdTables()
   const externalTables = tablesWithClienteId.filter((tableName) => !COVERED_AUTO_MERGE_TABLES.has(tableName))
-  const blockers: MergeBlocker[] = []
 
-  for (const tableName of externalTables) {
-    const { count, error } = await admin
-      .from(tableName)
-      .select('cliente_id', { count: 'exact', head: true })
-      .eq('cliente_id', clientId)
+  const results = await Promise.all(
+    externalTables.map(async (tableName) => {
+      const { count, error } = await admin
+        .from(tableName)
+        .select('cliente_id', { count: 'exact', head: true })
+        .eq('cliente_id', clientId)
 
-    if (error) {
-      if (isMissingTableError(error)) continue
-      blockers.push({ table: tableName, count: null, error: error.message })
-      continue
-    }
+      if (error) {
+        if (isMissingTableError(error)) return null
+        return { table: tableName, count: null, error: error.message } as MergeBlocker
+      }
 
-    const refs = count || 0
-    if (refs > 0) {
-      blockers.push({ table: tableName, count: refs, error: null })
-    }
-  }
+      const refs = count || 0
+      if (refs > 0) {
+        return { table: tableName, count: refs, error: null } as MergeBlocker
+      }
+      return null
+    })
+  )
+
+  const blockers = results.filter((entry): entry is MergeBlocker => entry !== null)
 
   cache.set(clientId, blockers)
   return blockers
@@ -268,17 +271,13 @@ const mergeOrthographicDuplicates = async ({
   const now = new Date().toISOString()
   const { winner, losers } = await chooseMergeWinner(admin, clients)
   const externalReferenceCache = new Map<string, MergeBlocker[]>()
-  const blockedLosers: Array<{ loserId: string; blockers: MergeBlocker[] }> = []
-
-  for (const loser of losers) {
-    const blockers = await getExternalReferenceBlockers(admin, loser.id, externalReferenceCache)
-    if (blockers.length > 0) {
-      blockedLosers.push({
-        loserId: loser.id,
-        blockers
-      })
-    }
-  }
+  const loserBlockers = await Promise.all(
+    losers.map(async (loser) => ({
+      loserId: loser.id,
+      blockers: await getExternalReferenceBlockers(admin, loser.id, externalReferenceCache)
+    }))
+  )
+  const blockedLosers = loserBlockers.filter((entry) => entry.blockers.length > 0)
 
   if (blockedLosers.length > 0) {
     return {
@@ -310,28 +309,32 @@ const mergeOrthographicDuplicates = async ({
   }
 
   for (const loser of losers) {
-    const { error: busteError } = await admin
-      .from('buste')
-      .update({ cliente_id: winner.id, updated_at: now, updated_by: reviewerId })
-      .eq('cliente_id', loser.id)
+    const [
+      { error: busteError },
+      { error: errorTrackingError },
+      { error: voiceNotesError },
+      { error: surveyMatchesError }
+    ] = await Promise.all([
+      admin
+        .from('buste')
+        .update({ cliente_id: winner.id, updated_at: now, updated_by: reviewerId })
+        .eq('cliente_id', loser.id),
+      admin
+        .from('error_tracking')
+        .update({ cliente_id: winner.id, updated_at: now })
+        .eq('cliente_id', loser.id),
+      admin
+        .from('voice_notes')
+        .update({ cliente_id: winner.id, updated_at: now })
+        .eq('cliente_id', loser.id),
+      admin
+        .from('survey_response_matches')
+        .update({ cliente_id: winner.id, updated_at: now })
+        .eq('cliente_id', loser.id)
+    ])
     if (busteError) throw new Error(`Failed moving buste ${loser.id}: ${busteError.message}`)
-
-    const { error: errorTrackingError } = await admin
-      .from('error_tracking')
-      .update({ cliente_id: winner.id, updated_at: now })
-      .eq('cliente_id', loser.id)
     if (errorTrackingError) throw new Error(`Failed moving error_tracking ${loser.id}: ${errorTrackingError.message}`)
-
-    const { error: voiceNotesError } = await admin
-      .from('voice_notes')
-      .update({ cliente_id: winner.id, updated_at: now })
-      .eq('cliente_id', loser.id)
     if (voiceNotesError) throw new Error(`Failed moving voice_notes ${loser.id}: ${voiceNotesError.message}`)
-
-    const { error: surveyMatchesError } = await admin
-      .from('survey_response_matches')
-      .update({ cliente_id: winner.id, updated_at: now })
-      .eq('cliente_id', loser.id)
     if (surveyMatchesError) throw new Error(`Failed moving survey matches ${loser.id}: ${surveyMatchesError.message}`)
 
     const { error: deleteError } = await admin

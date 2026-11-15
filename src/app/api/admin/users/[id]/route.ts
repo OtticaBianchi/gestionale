@@ -179,37 +179,31 @@ export async function DELETE(
       { table: 'voice_notes', columns: ['created_by', 'processed_by', 'assigned_to'], label: 'note vocali' },
     ]
 
-    const blockingActivity: Array<{ table: string; label: string; column: string; count: number }> = []
+    const checks = activityChecks.flatMap((target) =>
+      target.columns.map((column) => ({ table: target.table, label: target.label, column }))
+    )
 
-    for (const target of activityChecks) {
-      for (const column of target.columns) {
-        const { error: countError, count } = await (adminClient as any)
-          .from(target.table)
-          .select('id', { head: true, count: 'exact' })
-          .eq(column as string, id)
+    const checkResults = await Promise.all(checks.map(async (check) => {
+      const { error: countError, count } = await (adminClient as any)
+        .from(check.table)
+        .select('id', { head: true, count: 'exact' })
+        .eq(check.column, id)
 
-        if (countError) {
-          // Ignore missing tables in environments where they might not exist
-          if ((countError as any)?.code === '42P01') {
-            continue
-          }
-          console.error('Admin delete user activity check error:', target.table, column, countError)
-          return NextResponse.json({
-            error: 'Impossibile verificare le attività utente',
-            details: countError.message ?? countError,
-          }, { status: 500 })
-        }
+      return { ...check, countError, count }
+    }))
 
-        if ((count ?? 0) > 0) {
-          blockingActivity.push({
-            table: target.table,
-            label: target.label,
-            column,
-            count: count ?? 0
-          })
-        }
-      }
+    const fatalError = checkResults.find((r) => r.countError && (r.countError as any)?.code !== '42P01')
+    if (fatalError) {
+      console.error('Admin delete user activity check error:', fatalError.table, fatalError.column, fatalError.countError)
+      return NextResponse.json({
+        error: 'Impossibile verificare le attività utente',
+        details: fatalError.countError!.message ?? fatalError.countError,
+      }, { status: 500 })
     }
+
+    const blockingActivity: Array<{ table: string; label: string; column: string; count: number }> = checkResults
+      .filter((r) => !r.countError && (r.count ?? 0) > 0)
+      .map((r) => ({ table: r.table, label: r.label, column: r.column, count: r.count ?? 0 }))
 
     if (blockingActivity.length > 0) {
       return NextResponse.json({

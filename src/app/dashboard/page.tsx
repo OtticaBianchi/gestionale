@@ -11,6 +11,7 @@ import SuspensionReminder from './_components/SuspensionReminder';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { shouldArchiveBusta } from '@/lib/buste/archiveRules';
 import { DASHBOARD_BUSTE_SELECT } from '@/lib/buste/dashboardSelect';
+import { logger } from '@/lib/logger';
 
 // ✅ FIX: Forza il dynamic rendering e disabilita la cache
 export const dynamic = 'force-dynamic';
@@ -18,7 +19,7 @@ export const revalidate = 0;
 export const fetchCache = 'force-no-store';
 
 export default async function DashboardPage() {
-  console.log('🔍 Dashboard - Starting to load');
+  logger.debug('🔍 Dashboard - Starting to load');
   
   const cookieStore = await cookies();
   
@@ -44,18 +45,18 @@ export default async function DashboardPage() {
     }
   );
 
-  console.log('🔍 Dashboard - Supabase client created');
+  logger.debug('🔍 Dashboard - Supabase client created');
 
   // Verifica autenticazione
   const { data: { user }, error: userError } = await supabase.auth.getUser();
-  console.log('🔍 Dashboard - User check:', user ? `Logged in as ${user.email}` : 'No user');
+  logger.debug('🔍 Dashboard - User check:', user ? `Logged in as ${user.id.slice(0, 8)}` : 'No user');
   
   if (userError) {
     console.error('🔍 Dashboard - User error:', userError);
   }
 
   // ✅ FIX: Fetch delle buste con TUTTI i campi cliente necessari
-  console.log('🔍 Dashboard - Fetching buste...');
+  logger.debug('🔍 Dashboard - Fetching buste...');
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data: buste, error } = await supabase
     .from('buste')
@@ -82,8 +83,8 @@ export default async function DashboardPage() {
   const activeBuste = normalizedBuste.filter(busta => !shouldArchiveBusta(busta) && !busta.is_suspended);
   const suspendedBuste = normalizedBuste.filter(busta => busta.is_suspended && !shouldArchiveBusta(busta));
 
-  console.log('🔍 Dashboard - Buste fetch result:', `Success: ${normalizedBuste.length} totali, ${activeBuste.length} attive (${normalizedBuste.filter(b => b.is_suspended).length} sospese)`);
-  console.log('🔍 Dashboard - Stati delle buste attive:', activeBuste.map(b => ({ id: b.readable_id, stato: b.stato_attuale })));
+  logger.debug('🔍 Dashboard - Buste fetch result:', `Success: ${normalizedBuste.length} totali, ${activeBuste.length} attive (${normalizedBuste.filter(b => b.is_suspended).length} sospese)`);
+  logger.debug('🔍 Dashboard - Stati delle buste attive:', activeBuste.map(b => ({ id: b.readable_id, stato: b.stato_attuale })));
 
   return renderDashboard(activeBuste, suspendedBuste);
 }

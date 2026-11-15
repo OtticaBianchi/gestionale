@@ -5,18 +5,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { setSessionAwareCookie, touchLastSeen } from '@/lib/supabase/session-cookies'
+import { loginRateLimit } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
+    const rl = await loginRateLimit(request)
+    if (rl) return rl
+
     const { email, password } = await request.json()
 
     if (!email || !password) {
-      return NextResponse.json({ 
-        error: 'Email e password sono obbligatori' 
+      return NextResponse.json({
+        error: 'Email e password sono obbligatori'
       }, { status: 400 })
     }
 
-    console.log('🔐 SERVER LOGIN - Starting login for:', email)
+    logger.debug('🔐 SERVER LOGIN - Starting login attempt')
 
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -43,10 +48,10 @@ export async function POST(request: NextRequest) {
       password,
     })
 
-    console.log('🔐 SERVER LOGIN - Login result:', {
+    logger.debug('🔐 SERVER LOGIN - Login result:', {
       success: !loginError,
       error: loginError?.message,
-      user: loginData.user?.email
+      userId: loginData.user?.id
     })
 
     if (loginError) {
@@ -66,15 +71,15 @@ export async function POST(request: NextRequest) {
     touchLastSeen(cookieStore)
 
     // Fetch user profile for role
-    console.log('🔐 SERVER LOGIN - Fetching profile for:', loginData.user.id)
+    logger.debug('🔐 SERVER LOGIN - Fetching profile for:', loginData.user.id)
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', loginData.user.id)
       .single()
 
-    console.log('🔐 SERVER LOGIN - Profile result:', {
-      profile: profile ? { role: profile.role, full_name: profile.full_name } : null,
+    logger.debug('🔐 SERVER LOGIN - Profile result:', {
+      profile: profile ? { role: profile.role } : null,
       error: profileError?.message
     })
 
@@ -82,7 +87,7 @@ export async function POST(request: NextRequest) {
     const role = profile?.role || 'operatore'
     const redirectUrl = '/dashboard' // Everyone goes to dashboard
 
-    console.log('🔐 SERVER LOGIN - Success! Role:', role, 'Redirect:', redirectUrl)
+    logger.debug('🔐 SERVER LOGIN - Success! Role:', role, 'Redirect:', redirectUrl)
 
     return NextResponse.json({
       success: true,

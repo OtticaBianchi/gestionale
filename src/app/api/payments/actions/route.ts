@@ -313,8 +313,8 @@ async function handleCreatePlan(payload: any, userId: string, userRole: string |
 
     insertedInstallments = createdInstallments ?? []
 
-    for (const installment of insertedInstallments) {
-      await logInsert(
+    await Promise.all(insertedInstallments.map(installment =>
+      logInsert(
         'payment_installments',
         installment.id,
         userId,
@@ -327,7 +327,7 @@ async function handleCreatePlan(payload: any, userId: string, userRole: string |
         { bustaId },
         userRole
       )
-    }
+    ))
   }
 
   await upsertInfoPagamenti(
@@ -373,8 +373,8 @@ async function handleDeletePlan(payload: any, userId: string, userRole: string |
     .eq('payment_plan_id', paymentPlanId)
 
   if (installments) {
-    for (const installment of installments) {
-      await logDelete(
+    await Promise.all(installments.map(installment =>
+      logDelete(
         'payment_installments',
         installment.id,
         userId,
@@ -383,7 +383,7 @@ async function handleDeletePlan(payload: any, userId: string, userRole: string |
         { paymentPlanId },
         userRole
       )
-    }
+    ))
   }
 
   const { error: deletePlanError } = await admin
@@ -980,8 +980,8 @@ async function createImmediateLacReorderBusta(
     throw new Error('Errore creazione ordini LAC di riordino')
   }
 
-  for (const order of insertedOrders) {
-    await logInsert(
+  await Promise.all(insertedOrders.map(order =>
+    logInsert(
       'ordini_materiali',
       order.id,
       userId,
@@ -995,7 +995,7 @@ async function createImmediateLacReorderBusta(
       { bustaId: order.busta_id, sourceBustaId },
       userRole
     )
-  }
+  ))
 
   const { data: materialeLac, error: materialeLacError } = await admin
     .from('materiali')
@@ -1166,7 +1166,7 @@ async function handleRestructureInstallments(payload: any, userId: string, userR
     idx > currentInstallmentIndex && !inst.is_completed
   ) ?? []
 
-  for (const futureInst of futureInstallmentsToDelete) {
+  await Promise.all(futureInstallmentsToDelete.map(async (futureInst) => {
     await admin
       .from('payment_installments')
       .delete()
@@ -1181,7 +1181,7 @@ async function handleRestructureInstallments(payload: any, userId: string, userR
       { paymentPlanId: planId },
       userRole
     )
-  }
+  }))
 
   // 3. Create new installments for remaining balance
   const amountPerInstallment = Math.round((totalRemaining / newInstallmentsCount) * 100) / 100
@@ -1221,8 +1221,8 @@ async function handleRestructureInstallments(payload: any, userId: string, userR
     throw new Error('Errore creazione nuove rate')
   }
 
-  for (const newInst of createdInstallments ?? []) {
-    await logInsert(
+  await Promise.all((createdInstallments ?? []).map(newInst =>
+    logInsert(
       'payment_installments',
       newInst.id,
       userId,
@@ -1235,7 +1235,7 @@ async function handleRestructureInstallments(payload: any, userId: string, userR
       { paymentPlanId: planId },
       userRole
     )
-  }
+  ))
 
   return {
     message: 'Piano ristrutturato con successo',

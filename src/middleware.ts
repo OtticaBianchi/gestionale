@@ -1,5 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import type { User } from '@supabase/supabase-js'
+import { logger } from '@/lib/logger'
 import {
   LAST_SEEN_COOKIE,
   isSessionExpired,
@@ -7,8 +9,30 @@ import {
   toSessionCookieOptions,
 } from '@/lib/supabase/session-cookies'
 
+// Legge il ruolo dal JWT (app_metadata.role, popolato dal Custom Access Token
+// Hook Supabase se/quando configurato — vedi supabase/migrations/20260807_add_custom_access_token_hook.sql)
+// e interroga `profiles` solo come fallback, così il comportamento resta
+// identico a prima finché l'Auth Hook non viene abilitato da Dashboard.
+async function resolveUserRole(
+  supabase: ReturnType<typeof createServerClient>,
+  user: User
+): Promise<string | null> {
+  const claimRole = (user.app_metadata as Record<string, unknown> | undefined)?.role
+  if (typeof claimRole === 'string' && claimRole) {
+    return claimRole
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  return profile?.role ?? null
+}
+
 export async function middleware(request: NextRequest) {
-  console.log('🔍 MIDDLEWARE START - URL:', request.nextUrl.pathname);
+  logger.debug('🔍 MIDDLEWARE START - URL:', request.nextUrl.pathname);
 
   let response = NextResponse.next({
     request: {
@@ -40,7 +64,7 @@ export async function middleware(request: NextRequest) {
   )
 
   // Get user ONCE and reuse it
-  console.log('🔍 MIDDLEWARE - Getting user via getUser...');
+  logger.debug('🔍 MIDDLEWARE - Getting user via getUser...');
   const { data: { user: authUser }, error: userError } = await supabase.auth.getUser()
   let user = authUser
 
@@ -66,6 +90,7 @@ export async function middleware(request: NextRequest) {
     const isAuthFlow = pathname.startsWith('/auth/') || pathname === '/api/auth/heartbeat'
 
     if (!isAuthFlow && isSessionExpired(lastSeen)) {
+      logger.debug('🔍 MIDDLEWARE - Session idle/expired, signing out');
       await supabase.auth.signOut({ scope: 'local' })
       response.cookies.set({ name: LAST_SEEN_COOKIE, value: '', ...lastSeenCookieOptions(), maxAge: 0 })
       user = null
@@ -95,30 +120,26 @@ export async function middleware(request: NextRequest) {
   const isAdminPath = adminPaths.some(path => pathname.startsWith(path))
 
   if (isAdminPath) {
-    console.log('🔍 MIDDLEWARE - ADMIN PATH DETECTED:', pathname);
+    logger.debug('🔍 MIDDLEWARE - ADMIN PATH DETECTED:', pathname);
 
     if (!user) {
-      console.log('🔍 MIDDLEWARE - ADMIN PATH - No authenticated user, redirecting to login');
+      logger.debug('🔍 MIDDLEWARE - ADMIN PATH - No authenticated user, redirecting to login');
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirectTo', pathname)
       return redirectTo(redirectUrl)
     }
 
     // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    const adminRole = await resolveUserRole(supabase, user)
 
-    console.log('🔍 MIDDLEWARE - ADMIN CHECK - Profile role:', profile?.role);
+    logger.debug('🔍 MIDDLEWARE - ADMIN CHECK - Profile role:', adminRole);
 
-    if (profileError || profile?.role !== 'admin') {
-      console.log('🔍 MIDDLEWARE - ACCESS DENIED - User is not admin, redirecting to dashboard');
+    if (adminRole !== 'admin') {
+      logger.debug('🔍 MIDDLEWARE - ACCESS DENIED - User is not admin, redirecting to dashboard');
       return redirectTo(new URL('/dashboard?error=admin_required', request.url))
     }
 
-    console.log('🔍 MIDDLEWARE - ADMIN ACCESS GRANTED');
+    logger.debug('🔍 MIDDLEWARE - ADMIN ACCESS GRANTED');
   }
 
   // 🔐 Protezione per rotte manager-or-above (archive module)
@@ -130,18 +151,14 @@ export async function middleware(request: NextRequest) {
   const isManagerPath = managerPaths.some(path => pathname.startsWith(path))
 
   if (isManagerPath) {
-    console.log('🔍 MIDDLEWARE - MANAGER PATH DETECTED:', pathname);
+    logger.debug('🔍 MIDDLEWARE - MANAGER PATH DETECTED:', pathname);
     if (!user) {
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirectTo', pathname)
       return redirectTo(redirectUrl)
     }
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+    const managerRole = await resolveUserRole(supabase, user)
+    if (managerRole !== 'admin' && managerRole !== 'manager') {
       return redirectTo(new URL('/dashboard?error=manager_required', request.url))
     }
   }
@@ -150,47 +167,42 @@ export async function middleware(request: NextRequest) {
   const protectedPaths = ['/dashboard', '/buste', '/clienti', '/settings', '/onboarding', '/profilo', '/profile', '/modules']
   const isProtectedPath = protectedPaths.some(path => pathname.startsWith(path))
 
-  console.log('🔍 MIDDLEWARE - isProtectedPath:', isProtectedPath);
+  logger.debug('🔍 MIDDLEWARE - isProtectedPath:', isProtectedPath);
 
   if (isProtectedPath) {
-    console.log('🔍 MIDDLEWARE - PROTECTED PATH - User:', user ? `EXISTS (${user.email})` : 'MISSING');
+    logger.debug('🔍 MIDDLEWARE - PROTECTED PATH - User:', user ? `EXISTS (${user.id.slice(0, 8)})` : 'MISSING');
 
     if (!user) {
       const redirectUrl = new URL('/login', request.url)
       redirectUrl.searchParams.set('redirectTo', pathname)
-      console.log('🔍 MIDDLEWARE - REDIRECTING TO LOGIN from protected path');
+      logger.debug('🔍 MIDDLEWARE - REDIRECTING TO LOGIN from protected path');
       return redirectTo(redirectUrl)
     }
 
-    console.log('🔍 MIDDLEWARE - PROTECTED PATH - Session valid, allowing access');
+    logger.debug('🔍 MIDDLEWARE - PROTECTED PATH - Session valid, allowing access');
   }
 
   // Redirect authenticated users away from auth pages
   const authPaths = ['/login', '/signup']
   const isAuthPath = authPaths.includes(pathname)
 
-  console.log('🔍 MIDDLEWARE - isAuthPath:', isAuthPath);
+  logger.debug('🔍 MIDDLEWARE - isAuthPath:', isAuthPath);
 
   if (isAuthPath) {
-    console.log('🔍 MIDDLEWARE - AUTH PATH - User:', user ? `EXISTS (${user.email})` : 'MISSING');
+    logger.debug('🔍 MIDDLEWARE - AUTH PATH - User:', user ? `EXISTS (${user.id.slice(0, 8)})` : 'MISSING');
 
     if (user) {
       // Determine role to pick home destination
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single()
-      const role = profile?.role || 'operatore'
+      const role = (await resolveUserRole(supabase, user)) || 'operatore'
       const home = '/dashboard' // Everyone goes to dashboard
-      console.log('🔍 MIDDLEWARE - AUTH PATH - Redirecting to', home, 'for role:', role)
+      logger.debug('🔍 MIDDLEWARE - AUTH PATH - Redirecting to', home, 'for role:', role)
       return redirectTo(new URL(home, request.url))
     } else {
-      console.log('🔍 MIDDLEWARE - AUTH PATH - No authenticated user, allowing login page');
+      logger.debug('🔍 MIDDLEWARE - AUTH PATH - No authenticated user, allowing login page');
     }
   }
 
-  console.log('🔍 MIDDLEWARE - ALLOWING REQUEST TO CONTINUE');
+  logger.debug('🔍 MIDDLEWARE - ALLOWING REQUEST TO CONTINUE');
   return response
 }
 

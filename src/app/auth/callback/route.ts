@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { setSessionAwareCookie, touchLastSeen } from '@/lib/supabase/session-cookies'
 import { NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 
 const DEFAULT_REDIRECT = '/dashboard'
 const ALLOWED_ROLES = new Set(['admin', 'manager', 'operatore'])
@@ -46,7 +47,7 @@ async function exchangeCodeForSession(
     return { response: NextResponse.redirect(`${origin}/login?error=auth_error`) }
   }
 
-  console.log('🔍 CALLBACK SUCCESS - User:', data.user?.email)
+  logger.debug('🔍 CALLBACK SUCCESS - User:', data.user?.id)
   touchLastSeen(await cookies())
   return { user: data.user }
 }
@@ -94,7 +95,7 @@ async function ensureProfile(
       return { response: NextResponse.redirect(`${origin}/login?error=profile_creation_failed`) }
     }
 
-    console.log('🔍 CALLBACK - Profile created successfully:', newProfile)
+    logger.debug('🔍 CALLBACK - Profile created successfully:', { id: newProfile.id, role: newProfile.role })
     return { profile: newProfile }
   }
 
@@ -138,14 +139,14 @@ async function resolveNextPath(
 }
 
 export async function GET(request: Request) {
-  console.log('🔍 CALLBACK START')
+  logger.debug('🔍 CALLBACK START')
 
   const url = new URL(request.url)
   const code = url.searchParams.get('code')
   const origin = url.origin
 
   if (!code) {
-    console.log('🔍 CALLBACK - No code provided, redirecting to login')
+    logger.debug('🔍 CALLBACK - No code provided, redirecting to login')
     return NextResponse.redirect(`${origin}/login?error=no_code`)
   }
 
@@ -167,6 +168,6 @@ export async function GET(request: Request) {
   )
 
   const redirectUrl = `${origin}${nextPath}`
-  console.log('🔍 CALLBACK - Redirecting to:', redirectUrl)
+  logger.debug('🔍 CALLBACK - Redirecting to:', redirectUrl)
   return NextResponse.redirect(redirectUrl)
 }

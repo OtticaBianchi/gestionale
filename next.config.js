@@ -4,6 +4,9 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['@supabase/ssr', 'lucide-react', 'date-fns']
   },
+
+  // ✅ Non bundlare il binario Chromium: va servito da @sparticuz/chromium a runtime
+  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
   
   // ✅ PERFORMANCE: Compressione immagini
   images: {

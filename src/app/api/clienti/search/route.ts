@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { logger } from '@/lib/logger';
 
 const normalizeSearchValue = (value: string) =>
   value
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
     }
 
     const searchTerm = query.trim();
-    console.log('🔍 Searching for clients with term:', searchTerm);
+    logger.debug('🔍 Searching for clients, term length:', searchTerm.length);
 
     // Search for clients by cognome or nome
     const selectFields = 'id, nome, cognome, telefono, email, updated_at';
@@ -109,11 +110,11 @@ export async function GET(request: NextRequest) {
       .map(({ cliente }) => cliente);
 
     if (filteredClienti.length === 0) {
-      console.log('❌ No clients found for search term:', searchTerm);
+      logger.debug('❌ No clients found for search term');
       return NextResponse.json({ results: [] });
     }
 
-    console.log(`✅ Found ${filteredClienti.length} clients`);
+    logger.debug(`✅ Found ${filteredClienti.length} clients`);
 
     // ✅ FIXED N+1: Single query con JOIN per tutte le buste
     const clientIds = filteredClienti.map(c => c.id);
@@ -146,7 +147,7 @@ export async function GET(request: NextRequest) {
       buste: busteByCliente[cliente.id] || []
     }));
 
-    console.log(`📋 Returning ${results.length} client results with their buste`);
+    logger.debug(`📋 Returning ${results.length} client results with their buste`);
     return NextResponse.json({ results });
 
   } catch (error) {

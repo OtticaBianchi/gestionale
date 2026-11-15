@@ -5,10 +5,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { setSessionAwareCookie } from '@/lib/supabase/session-cookies'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔐 SERVER SIGNOUT - Starting signout process')
+    logger.debug('🔐 SERVER SIGNOUT - Starting signout process')
 
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('🔐 SERVER SIGNOUT - Success!')
+    logger.debug('🔐 SERVER SIGNOUT - Success!')
 
     return NextResponse.json({
       success: true,

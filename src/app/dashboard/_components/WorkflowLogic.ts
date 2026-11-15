@@ -1,6 +1,7 @@
 // app/dashboard/_components/WorkflowLogic.ts
 // Workflow Logic per Ottica Bianchi
 // Definisce quali transizioni sono permesse e perché
+import { logger } from '@/lib/logger'
 
 export type WorkflowState =
   | 'nuove'
@@ -118,26 +119,26 @@ export function hasSpecialWorkflow(tipoLavorazione: string | null): boolean {
 
 // Funzione per verificare se una transizione è permessa
 export function isTransitionAllowed(from: WorkflowState, to: WorkflowState, tipoLavorazione?: string | null | undefined): boolean {
-  console.log('🔍 CHECKING TRANSITION:', { from, to, tipoLavorazione });
+  logger.debug('🔍 CHECKING TRANSITION:', { from, to, tipoLavorazione });
   
   // Se è la stessa colonna, sempre permesso
   if (from === to) {
-    console.log('🔍 SAME COLUMN - ALLOWED');
+    logger.debug('🔍 SAME COLUMN - ALLOWED');
     return true;
   }
   
   const normalizedTipo = tipoLavorazione ?? null;
   const baseAllowed = ALLOWED_TRANSITIONS[from]?.includes(to) || false;
   
-  console.log('🔍 BASE ALLOWED:', baseAllowed);
+  logger.debug('🔍 BASE ALLOWED:', baseAllowed);
   
   // Per workflow speciali da "nuove" a "consegnato_pagato"
   if (from === 'nuove' && to === 'consegnato_pagato' && hasSpecialWorkflow(normalizedTipo)) {
-    console.log('🔍 SPECIAL WORKFLOW - ALLOWED');
+    logger.debug('🔍 SPECIAL WORKFLOW - ALLOWED');
     return true;
   }
   
-  console.log('🔍 FINAL RESULT:', baseAllowed);
+  logger.debug('🔍 FINAL RESULT:', baseAllowed);
   return baseAllowed;
 }
 

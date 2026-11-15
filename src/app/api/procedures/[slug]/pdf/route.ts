@@ -4,8 +4,36 @@ export const maxDuration = 60
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import puppeteer from 'puppeteer'
+import puppeteer from 'puppeteer-core'
+import chromium from '@sparticuz/chromium'
 import { marked } from 'marked'
+
+// puppeteer-core non porta con sé un Chromium: in produzione (Vercel) usa il
+// binario servito da @sparticuz/chromium, in locale punta al Chrome/Chromium
+// già installato sulla macchina (evita di scaricare un secondo browser in dev).
+async function launchBrowser() {
+  if (process.env.NODE_ENV === 'production') {
+    return puppeteer.launch({
+      args: chromium.args,
+      executablePath: await chromium.executablePath(),
+      headless: true,
+    })
+  }
+
+  const localExecutablePath =
+    process.env.PUPPETEER_EXECUTABLE_PATH ||
+    (process.platform === 'darwin'
+      ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+      : process.platform === 'win32'
+        ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
+        : '/usr/bin/google-chrome')
+
+  return puppeteer.launch({
+    executablePath: localExecutablePath,
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  })
+}
 
 // Configure marked for GFM (GitHub Flavored Markdown) with tables
 marked.setOptions({
@@ -295,13 +323,10 @@ export async function GET(
     `
 
     // Launch puppeteer and generate PDF
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    })
+    const browser = await launchBrowser()
 
     const page = await browser.newPage()
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' })
+    await page.setContent(htmlContent, { waitUntil: 'load' })
 
     const pdfBuffer = await page.pdf({
       format: 'A4',

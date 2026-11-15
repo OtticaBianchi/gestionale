@@ -1,25 +1,19 @@
 // src/lib/rate-limit.ts
-import { NextRequest, NextResponse } from 'next/server';
+//
+// Rate limiter condiviso via Postgres (Supabase), non più in-memory: lo store
+// in-memory veniva azzerato ad ogni cold start / istanza serverless diversa,
+// rendendo il limite protezione apparente. Il conteggio è incrementato
+// atomicamente lato DB (funzione rate_limit_hit, migrazione
+// 20260807_add_rate_limit_counters.sql) per evitare race condition tra
+// richieste concorrenti su istanze diverse.
+import { createClient } from '@supabase/supabase-js'
+import { NextRequest, NextResponse } from 'next/server'
 
-interface RateLimitStore {
-  [key: string]: {
-    count: number;
-    resetTime: number;
-  };
-}
-
-// In-memory store (per produzioni dovresti usare Redis)
-const store: RateLimitStore = {};
-
-// Cleanup vecchie entries ogni ora
-setInterval(() => {
-  const now = Date.now();
-  for (const key in store) {
-    if (store[key].resetTime < now) {
-      delete store[key];
-    }
-  }
-}, 3600000); // 1 ora
+const admin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { persistSession: false } }
+)
 
 export interface RateLimitOptions {
   windowMs?: number;  // Finestra temporale in ms (default: 15 minuti)
@@ -28,58 +22,63 @@ export interface RateLimitOptions {
   keyGenerator?: (req: NextRequest) => string;  // Generatore chiave custom
 }
 
+// IP + User-Agent + path: non solo IP, altrimenti in un negozio con un solo
+// IP pubblico tutti gli operatori condividerebbero lo stesso contatore e un
+// collega che sbaglia la password potrebbe bloccare il login di un altro.
+const defaultKeyGenerator = (req: NextRequest) => {
+  const forwarded = req.headers.get('x-forwarded-for')
+  const realIp = req.headers.get('x-real-ip')
+  const ip = forwarded ? forwarded.split(',')[0]?.trim() || 'unknown' : realIp || 'unknown'
+  const userAgent = req.headers.get('user-agent') || 'unknown'
+  return `${ip}:${userAgent}:${req.nextUrl.pathname}`
+}
+
 export function createRateLimit(options: RateLimitOptions = {}) {
   const {
     windowMs = 15 * 60 * 1000, // 15 minuti
     maxRequests = 100,
     message = 'Troppi tentativi. Riprova più tardi.',
-    keyGenerator = (req) => {
-      // Default: usa IP + User-Agent per identificare il client
-      const forwarded = req.headers.get('x-forwarded-for');
-      const realIp = req.headers.get('x-real-ip');
-      const ip = forwarded ? forwarded.split(',')[0]?.trim() || 'unknown' : realIp || 'unknown';
-      const userAgent = req.headers.get('user-agent') || 'unknown';
-      return `${ip}:${userAgent}`;
-    }
+    keyGenerator = defaultKeyGenerator
   } = options;
 
   return async function rateLimitMiddleware(req: NextRequest): Promise<NextResponse | null> {
     const key = keyGenerator(req);
-    const now = Date.now();
-    
-    // Inizializza o recupera dati per questa chiave
-    if (!store[key] || store[key].resetTime < now) {
-      store[key] = {
-        count: 0,
-        resetTime: now + windowMs
-      };
+
+    const { data, error } = await admin.rpc('rate_limit_hit', {
+      p_key: key,
+      p_window_ms: windowMs,
+      p_max_requests: maxRequests
+    })
+
+    if (error) {
+      // Fail-open: un problema infrastrutturale sul rate limiter non deve bloccare
+      // l'operatività del negozio, ma va tracciato.
+      console.error('❌ Rate limit check failed:', error.message)
+      return null
     }
-    
-    // Incrementa counter
-    store[key].count++;
-    
-    // Controlla se eccede il limite
-    if (store[key].count > maxRequests) {
-      const resetInSeconds = Math.ceil((store[key].resetTime - now) / 1000);
-      
+
+    const result = Array.isArray(data) ? data[0] : data
+    if (!result) return null
+
+    if (!result.allowed) {
+      const resetAt = new Date(result.reset_at)
+      const retryAfter = Math.max(0, Math.ceil((resetAt.getTime() - Date.now()) / 1000))
+
       return new NextResponse(JSON.stringify({
         error: message,
-        retryAfter: resetInSeconds
+        retryAfter
       }), {
         status: 429, // Too Many Requests
         headers: {
           'Content-Type': 'application/json',
-          'Retry-After': resetInSeconds.toString(),
+          'Retry-After': retryAfter.toString(),
           'X-RateLimit-Limit': maxRequests.toString(),
           'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': new Date(store[key].resetTime).toISOString()
+          'X-RateLimit-Reset': resetAt.toISOString()
         }
       });
     }
-    
-    // Aggiunge headers informativi
-    const remaining = Math.max(0, maxRequests - store[key].count);
-    
+
     return null; // Continua con la richiesta normale
   };
 }
@@ -97,7 +96,16 @@ export const apiRateLimit = createRateLimit({
 });
 
 export const authRateLimit = createRateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minuti  
+  windowMs: 15 * 60 * 1000, // 15 minuti
   maxRequests: 5,
   message: 'Troppi tentativi di accesso. Riprova tra 15 minuti.'
+});
+
+// Login: il negozio ha un solo IP pubblico e browser identici, quindi il contatore è
+// condiviso da tutti i PC; con scadenza sessione a 10 min i login sono frequenti.
+// Soglia larga: ferma un brute force automatico ma non blocca il personale.
+export const loginRateLimit = createRateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minuti
+  maxRequests: 40,
+  message: 'Troppi tentativi di accesso. Riprova tra qualche minuto.'
 });

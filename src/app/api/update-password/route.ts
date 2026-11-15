@@ -4,16 +4,38 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { authRateLimit } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
+
+function isPasswordStrong(password: string): { valid: boolean; reason?: string } {
+  if (password.length < 10) {
+    return { valid: false, reason: 'La password deve contenere almeno 10 caratteri' }
+  }
+  if (!/[0-9!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    return { valid: false, reason: 'La password deve contenere almeno un numero o simbolo' }
+  }
+  return { valid: true }
+}
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔐 API - Password update request received')
-    
+    const rl = await authRateLimit(request)
+    if (rl) return rl
+
+    logger.debug('🔐 API - Password update request received')
+
     const { password } = await request.json()
-    
-    if (!password || password.length < 6) {
-      return NextResponse.json({ 
-        error: 'Password must be at least 6 characters long' 
+
+    if (!password) {
+      return NextResponse.json({
+        error: 'Password obbligatoria'
+      }, { status: 400 })
+    }
+
+    const strength = isPasswordStrong(password)
+    if (!strength.valid) {
+      return NextResponse.json({
+        error: strength.reason
       }, { status: 400 })
     }
 
@@ -40,9 +62,9 @@ export async function POST(request: NextRequest) {
     // Get the authenticated user (validates token with Supabase Auth)
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     
-    console.log('🔐 API - User check:', {
+    logger.debug('🔐 API - User check:', {
       hasUser: !!user,
-      user: user?.email,
+      userId: user?.id,
       error: userError?.message
     })
 
@@ -53,15 +75,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the password
-    console.log('🔐 API - Updating password...')
+    logger.debug('🔐 API - Updating password...')
     const { data: updateData, error: updateError } = await supabase.auth.updateUser({
       password: password
     })
 
-    console.log('🔐 API - Update result:', {
+    logger.debug('🔐 API - Update result:', {
       success: !updateError,
       error: updateError?.message,
-      user: updateData.user?.email
+      userId: updateData.user?.id
     })
 
     if (updateError) {
@@ -70,7 +92,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    console.log('🔐 API - Password updated successfully')
+    logger.debug('🔐 API - Password updated successfully')
     return NextResponse.json({ 
       success: true,
       message: 'Password updated successfully'

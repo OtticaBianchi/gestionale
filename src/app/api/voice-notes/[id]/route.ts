@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import { logUpdate } from '@/lib/audit/auditLog'
+import { logger } from '@/lib/logger'
 
 type VoiceNote = {
   id: string
@@ -147,7 +148,7 @@ async function safeTranscribeIfRequested(supabase: SupabaseServiceClient, noteId
   }
 
   try {
-    console.log('🔄 Starting transcription with AssemblyAI...')
+    logger.debug('🔄 Starting transcription with AssemblyAI...')
     const { transcribeFromBase64 } = await import('@/lib/transcription/assemblyai')
     const path = (note.audio_file_path || '').toLowerCase()
     const inferredMime = path.endsWith('.webm')

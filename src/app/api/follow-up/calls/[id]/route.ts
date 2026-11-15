@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { logUpdate } from '@/lib/audit/auditLog'
 import { categorizeCustomer, type LivelloSoddisfazione } from '@/lib/fu2/categorizeCustomer'
 import { createClient } from '@supabase/supabase-js'
+import { logger } from '@/lib/logger'
 
 const pickFollowUpAuditFields = (row: any) => ({
   stato_chiamata: row?.stato_chiamata ?? null,
@@ -148,7 +149,7 @@ export async function PATCH(
       (updateData.livello_soddisfazione && finalStato === 'chiamato_completato') ||
       (updateData.stato_chiamata && terminalStates.includes(updateData.stato_chiamata));
 
-    console.log('🔍 FU2.0 Debug:', {
+    logger.debug('🔍 FU2.0 Debug:', {
       has_satisfaction: !!updateData.livello_soddisfazione,
       satisfaction_value: updateData.livello_soddisfazione,
       stato_in_update: updateData.stato_chiamata,
@@ -194,7 +195,7 @@ export async function PATCH(
 
         if (categoria) {
           patch.categoria_cliente = categoria
-          console.log(`✅ FU2.0: Customer categorized as "${categoria}" for follow-up ${id}`)
+          logger.debug(`✅ FU2.0: Customer categorized as "${categoria}" for follow-up ${id}`)
         }
       } catch (err) {
         console.error('Failed to categorize customer:', err)
@@ -280,7 +281,7 @@ export async function PATCH(
 
         const cliente = bustaWithCliente?.clienti as any
         if (cliente?.ambassador_code) {
-          console.log(`Cliente ${cliente.id} già ambassador (codice: ${cliente.ambassador_code})`)
+          logger.debug(`Cliente ${cliente.id} già ambassador (codice: ${cliente.ambassador_code})`)
           ambassadorResult = { alreadyAmbassador: true, code: cliente.ambassador_code }
         } else if (cliente && (updateData.livello_soddisfazione === 'molto_soddisfatto' || existingCall.livello_soddisfazione === 'molto_soddisfatto')) {
           const ambassadorCode = generateAmbassadorCode(cliente.cognome || 'CLIENTE')
@@ -315,7 +316,7 @@ export async function PATCH(
               },
               profile?.role ?? null
             )
-            console.log(`✅ Ambassador attivato: ${cliente.cognome} -> ${ambassadorCode}`)
+            logger.debug(`✅ Ambassador attivato: cliente ${cliente.id} -> ${ambassadorCode}`)
           }
         }
       } catch (ambassadorErr) {

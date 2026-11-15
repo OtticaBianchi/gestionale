@@ -87,6 +87,14 @@ export async function POST() {
     let movedToInRitardo = 0
     const failedOrderIds: string[] = []
 
+    type PlannedUpdate = {
+      ordineId: string
+      updates: Record<string, unknown>
+      toInArrivo: boolean
+      toInRitardo: boolean
+    }
+    const plannedUpdates: PlannedUpdate[] = []
+
     for (const ordine of (ordini || []) as OrdineForAutoSync[]) {
       const statoCorrente = ordine.stato || 'ordinato'
       let nextState = statoCorrente
@@ -133,31 +141,38 @@ export async function POST() {
         continue
       }
 
-      const updates: Record<string, unknown> = {
-        stato: nextState,
-        note: notePayload,
-        updated_at: nowIso,
-        updated_by: user.id
-      }
+      plannedUpdates.push({
+        ordineId: ordine.id,
+        updates: {
+          stato: nextState,
+          note: notePayload,
+          updated_at: nowIso,
+          updated_by: user.id
+        },
+        toInArrivo,
+        toInRitardo
+      })
+    }
 
+    await Promise.all(plannedUpdates.map(async (planned) => {
       const { error: updateError } = await admin
         .from('ordini_materiali')
-        .update(updates)
-        .eq('id', ordine.id)
+        .update(planned.updates)
+        .eq('id', planned.ordineId)
 
       if (updateError) {
-        console.error('ORDINI_AUTO_SYNC_UPDATE_ERROR', { ordineId: ordine.id, error: updateError })
-        failedOrderIds.push(ordine.id)
-        continue
+        console.error('ORDINI_AUTO_SYNC_UPDATE_ERROR', { ordineId: planned.ordineId, error: updateError })
+        failedOrderIds.push(planned.ordineId)
+        return
       }
 
       updatedCount += 1
-      if (toInRitardo) {
+      if (planned.toInRitardo) {
         movedToInRitardo += 1
-      } else if (toInArrivo) {
+      } else if (planned.toInArrivo) {
         movedToInArrivo += 1
       }
-    }
+    }))
 
     return NextResponse.json({
       success: true,

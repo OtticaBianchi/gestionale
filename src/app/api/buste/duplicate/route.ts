@@ -3,6 +3,7 @@ export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ID busta sorgente richiesto' }, { status: 400 });
     }
 
-    console.log(`🔄 Duplicating busta ${sourceId}, includeItems: ${includeItems}`);
+    logger.debug(`🔄 Duplicating busta ${sourceId}, includeItems: ${includeItems}`);
 
     // Get the source busta with all related data
     const { data: sourceBusta, error: bustaError } = await supabase
@@ -49,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Busta sorgente non trovata' }, { status: 404 });
     }
 
-    console.log('📋 Source busta found:', {
+    logger.debug('📋 Source busta found:', {
       id: sourceBusta.id,
       readable_id: sourceBusta.readable_id,
       cliente_id: sourceBusta.cliente_id,
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
       creato_da: user.id
     };
 
-    console.log('🆕 Attempting to create new busta with data:', newBustaData);
+    logger.debug('🆕 Attempting to create new busta with data:', newBustaData);
 
     const { data: newBusta, error: createError } = await supabase
       .from('buste')
@@ -90,11 +91,11 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log(`✅ Created new busta: ${newBusta.readable_id}`);
+    logger.debug(`✅ Created new busta: ${newBusta.readable_id}`);
 
     // If includeItems is true, copy materiali
     if (includeItems) {
-      console.log('📋 Copying materiali from source busta...');
+      logger.debug('📋 Copying materiali from source busta...');
       
       const { data: sourceMateriali, error: materialiError } = await supabase
         .from('ordini_materiali')
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
           console.error('Error copying materiali:', insertMatError);
           // Don't fail the whole operation, just log the error
         } else {
-          console.log(`✅ Copied ${newMateriali.length} materiali`);
+          logger.debug(`✅ Copied ${newMateriali.length} materiali`);
         }
       }
     }

@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createClient } from '@supabase/supabase-js';
 import { logInsert, logUpdate } from '@/lib/audit/auditLog';
@@ -303,7 +304,7 @@ export async function POST(
       profile.role
     );
 
-    console.log(
+    logger.debug(
       `✅ FU2.0: Error ${newError.id} created from follow-up ${followUpId}`
     );
 

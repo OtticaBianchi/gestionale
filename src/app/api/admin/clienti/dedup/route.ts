@@ -107,40 +107,39 @@ export async function GET(request: NextRequest) {
       auth: { persistSession: false }
     });
 
-    const clienti = await fetchAll<ClientRecord>(async (from, to) =>
-      admin
-        .from('clienti')
-        .select(
-          'id, nome, cognome, telefono, email, genere, data_nascita, note_cliente, created_at, updated_at, deleted_at'
-        )
-        .is('deleted_at', null)
-        .range(from, to)
-    );
-
-    const buste = await fetchAll<{ cliente_id: string | null }>(async (from, to) =>
-      admin
-        .from('buste')
-        .select('cliente_id')
-        .is('deleted_at', null)
-        .not('cliente_id', 'is', null)
-        .range(from, to)
-    );
-
-    const errorTracking = await fetchAll<{ cliente_id: string | null }>(async (from, to) =>
-      admin
-        .from('error_tracking')
-        .select('cliente_id')
-        .not('cliente_id', 'is', null)
-        .range(from, to)
-    );
-
-    const voiceNotes = await fetchAll<{ cliente_id: string | null }>(async (from, to) =>
-      admin
-        .from('voice_notes')
-        .select('cliente_id')
-        .not('cliente_id', 'is', null)
-        .range(from, to)
-    );
+    const [clienti, buste, errorTracking, voiceNotes] = await Promise.all([
+      fetchAll<ClientRecord>(async (from, to) =>
+        admin
+          .from('clienti')
+          .select(
+            'id, nome, cognome, telefono, email, genere, data_nascita, note_cliente, created_at, updated_at, deleted_at'
+          )
+          .is('deleted_at', null)
+          .range(from, to)
+      ),
+      fetchAll<{ cliente_id: string | null }>(async (from, to) =>
+        admin
+          .from('buste')
+          .select('cliente_id')
+          .is('deleted_at', null)
+          .not('cliente_id', 'is', null)
+          .range(from, to)
+      ),
+      fetchAll<{ cliente_id: string | null }>(async (from, to) =>
+        admin
+          .from('error_tracking')
+          .select('cliente_id')
+          .not('cliente_id', 'is', null)
+          .range(from, to)
+      ),
+      fetchAll<{ cliente_id: string | null }>(async (from, to) =>
+        admin
+          .from('voice_notes')
+          .select('cliente_id')
+          .not('cliente_id', 'is', null)
+          .range(from, to)
+      ),
+    ]);
 
     const busteCounts = new Map<string, number>();
     buste?.forEach((row) => {

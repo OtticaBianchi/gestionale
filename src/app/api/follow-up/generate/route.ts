@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { logger } from '@/lib/logger'
 
 // Tipi lavorazione eligibili per follow-up
 const FOLLOW_UP_ELIGIBLE_TYPES = ['OCV', 'OV', 'LAC', 'OS', 'LV', 'LS']
@@ -16,10 +17,10 @@ export async function POST() {
 
     // Query per generare lista follow-up - cerca buste consegnate da almeno 11 giorni
     // Evita i primi 11 giorni per dare tempo di risolvere eventuali problemi immediati
-    console.log('🔍 DEBUG: Starting follow-up generation...')
+    logger.debug('🔍 DEBUG: Starting follow-up generation...')
 
     const elevenDaysAgo = new Date(Date.now() - 11 * 24 * 60 * 60 * 1000).toISOString()
-    console.log('📅 DEBUG: Looking for buste delivered on or before:', elevenDaysAgo)
+    logger.debug('📅 DEBUG: Looking for buste delivered on or before:', elevenDaysAgo)
 
     let fallbackData: any[] | null = null
     let fallbackError: { message?: string } | null = null
@@ -94,8 +95,8 @@ export async function POST() {
       fallbackError = initialError
     }
 
-    console.log('📊 DEBUG: Query completed. Error:', fallbackError)
-    console.log('📊 DEBUG: Raw query results count:', fallbackData?.length || 0)
+    logger.debug('📊 DEBUG: Query completed. Error:', fallbackError)
+    logger.debug('📊 DEBUG: Raw query results count:', fallbackData?.length || 0)
 
     if (fallbackError) {
       console.error('❌ ERROR: Query failed:', fallbackError)
@@ -106,14 +107,19 @@ export async function POST() {
     }
 
     if (!fallbackData || fallbackData.length === 0) {
-      console.log('⚠️ DEBUG: No buste found matching criteria')
-      console.log('🔍 DEBUG: Search criteria:')
-      console.log('  - stato_attuale: consegnato_pagato')
-      console.log('  - data_completamento_consegna on or before ', elevenDaysAgo)
-      console.log('  - clienti.telefono is not null and not empty')
+      logger.debug('⚠️ DEBUG: No buste found matching criteria')
+      logger.debug('🔍 DEBUG: Search criteria:')
+      logger.debug('  - stato_attuale: consegnato_pagato')
+      logger.debug('  - data_completamento_consegna on or before ', elevenDaysAgo)
+      logger.debug('  - clienti.telefono is not null and not empty')
     } else {
-      console.log('✅ DEBUG: Found', fallbackData.length, 'potential buste')
-      console.log('📋 DEBUG: Sample busta:', JSON.stringify(fallbackData[0], null, 2))
+      logger.debug('✅ DEBUG: Found', fallbackData.length, 'potential buste')
+      logger.debug('📋 DEBUG: Sample busta (no PII):', {
+        id: fallbackData[0].id,
+        readable_id: fallbackData[0].readable_id,
+        tipo_lavorazione: fallbackData[0].tipo_lavorazione,
+        data_completamento_consegna: fallbackData[0].data_completamento_consegna
+      })
     }
 
     // Recupera le buste già in follow-up ATTIVE per escluderle dalla rigenerazione.
@@ -124,7 +130,7 @@ export async function POST() {
       .or('archiviato.is.null,archiviato.eq.false')
 
     const existingBusteIds = new Set(existingFollowUps?.map(f => f.busta_id) || [])
-    console.log('🚫 DEBUG: Found', existingBusteIds.size, 'active follow-up buste to exclude')
+    logger.debug('🚫 DEBUG: Found', existingBusteIds.size, 'active follow-up buste to exclude')
 
     // Processa i dati manualmente
     const safeData = Array.isArray(fallbackData) ? fallbackData : []
@@ -238,27 +244,24 @@ export async function POST() {
           insertMode = 'fallback'
           console.warn('Upsert non disponibile, fallback a insert controllata:', upsertError)
 
-          for (const row of insertsData) {
+          const fallbackResults = await Promise.all(insertsData.map(async (row) => {
             const { error: rowError } = await supabase
               .from('follow_up_chiamate')
               .insert(row)
 
-            if (!rowError) {
-              insertedCount += 1
-              continue
-            }
-
-            if (rowError.code === '23505') {
-              skippedDuplicateCount += 1
-              continue
-            }
+            if (!rowError) return 'inserted' as const
+            if (rowError.code === '23505') return 'duplicate' as const
 
             console.error('Errore insert singola follow-up:', rowError)
-          }
+            return 'error' as const
+          }))
+
+          insertedCount += fallbackResults.filter(r => r === 'inserted').length
+          skippedDuplicateCount += fallbackResults.filter(r => r === 'duplicate').length
         }
       }
 
-      console.log('📥 DEBUG: Insert result', {
+      logger.debug('📥 DEBUG: Insert result', {
         attempted: insertsData.length,
         inserted: insertedCount,
         skippedDuplicate: skippedDuplicateCount,
@@ -266,8 +269,8 @@ export async function POST() {
       })
     }
 
-    console.log('🎯 DEBUG: Final processed data count:', processedData.length)
-    console.log('📤 DEBUG: Returning response with', processedData.length, 'follow-up entries')
+    logger.debug('🎯 DEBUG: Final processed data count:', processedData.length)
+    logger.debug('📤 DEBUG: Returning response with', processedData.length, 'follow-up entries')
 
     return NextResponse.json({
       success: true,

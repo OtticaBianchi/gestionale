@@ -16,6 +16,7 @@ import {
   type AssegnazioneColpa,
 } from '@/lib/et2/assegnazioneColpa'
 import { shouldGenerateProcedureSuggestion } from '@/lib/et2/procedureSuggestions'
+import { logger } from '@/lib/logger'
 
 type ErrorTrackingRow = {
   id: string
@@ -482,7 +483,7 @@ export async function POST(request: NextRequest) {
             console.error('Failed to auto-create procedure suggestion:', suggestionError)
           } else {
             procedureSuggestionCreated = true
-            console.log(`✅ Auto-generated procedure suggestion for error ${newError.id}`)
+            logger.debug(`✅ Auto-generated procedure suggestion for error ${newError.id}`)
           }
         } catch (err) {
           console.error('Error creating procedure suggestion:', err)
@@ -492,10 +493,7 @@ export async function POST(request: NextRequest) {
 
     // Log per errori critici (come nel pattern esistente)
     if (error_category === 'critico') {
-      const employeeLabel = autore_sconosciuto
-        ? 'AUTORE_SCONOSCIUTO'
-        : ((newError.employee as any)?.full_name || 'N/D')
-      console.log(`🚨 ERRORE CRITICO registrato: ${newError.id} - €${cost_amount} - ${employeeLabel}`)
+      logger.debug(`🚨 ERRORE CRITICO registrato: ${newError.id} - €${cost_amount} - employee_id: ${newError.employee_id || 'N/D'}`)
     }
 
     return NextResponse.json({

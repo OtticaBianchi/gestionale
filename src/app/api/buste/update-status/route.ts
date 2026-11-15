@@ -555,7 +555,7 @@ export async function POST(request: NextRequest) {
         })
         followUpWarning = followUpError.message
       } else if (followUps && followUps.length > 0) {
-        for (const row of followUps) {
+        const archiveResults = await Promise.all(followUps.map(async (row) => {
           const updatedSnapshot = {
             ...row,
             archiviato: true,
@@ -579,8 +579,7 @@ export async function POST(request: NextRequest) {
               bustaId,
               error: archiveError.message
             })
-            followUpWarning = archiveError.message
-            continue
+            return { warning: archiveError.message }
           }
 
           const archiveFollowUpTrace = buildTrace(user.id, 'kanban_audit_archive_followup')
@@ -603,7 +602,12 @@ export async function POST(request: NextRequest) {
           if (!audit.success) {
             console.error('AUDIT_ARCHIVE_FOLLOWUP_FAILED', audit.error)
           }
-        }
+
+          return { warning: undefined }
+        }))
+
+        const lastWarning = archiveResults.map(r => r.warning).filter(Boolean).pop()
+        if (lastWarning) followUpWarning = lastWarning
       }
     }
 

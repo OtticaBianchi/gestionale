@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { logger } from '@/lib/logger'
 
 // BYPASS endpoint for testing follow-up generation with minimal filters
 export async function POST() {
@@ -27,10 +28,10 @@ export async function POST() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    console.log('🚀 BYPASS: Starting minimal follow-up generation...')
+    logger.debug('🚀 BYPASS: Starting minimal follow-up generation...')
 
     // STEP 1: Get ANY consegnato_pagato buste (no time filter)
-    console.log('📋 BYPASS: Step 1 - Get all consegnato_pagato buste...')
+    logger.debug('📋 BYPASS: Step 1 - Get all consegnato_pagato buste...')
     const { data: allConsegnato, error: step1Error } = await supabase
       .from('buste')
       .select(`
@@ -43,7 +44,7 @@ export async function POST() {
       .eq('stato_attuale', 'consegnato_pagato')
       .limit(10) // Limit to avoid overwhelming
 
-    console.log('📊 BYPASS: Step 1 results:', {
+    logger.debug('📊 BYPASS: Step 1 results:', {
       error: step1Error,
       count: allConsegnato?.length || 0,
       sample: allConsegnato?.[0]
@@ -62,7 +63,7 @@ export async function POST() {
     }
 
     // STEP 2: Get clienti data for these buste
-    console.log('📋 BYPASS: Step 2 - Get clienti data...')
+    logger.debug('📋 BYPASS: Step 2 - Get clienti data...')
     const busteIds = allConsegnato.map(b => b.id)
 
     const { data: busteWithClienti, error: step2Error } = await supabase
@@ -81,10 +82,10 @@ export async function POST() {
       `)
       .in('id', busteIds)
 
-    console.log('📊 BYPASS: Step 2 results:', {
+    logger.debug('📊 BYPASS: Step 2 results:', {
       error: step2Error,
       count: busteWithClienti?.length || 0,
-      sample: busteWithClienti?.[0]
+      sampleId: busteWithClienti?.[0]?.id
     })
 
     if (step2Error) {
@@ -92,25 +93,25 @@ export async function POST() {
     }
 
     // STEP 3: Filter for valid phone numbers
-    console.log('📋 BYPASS: Step 3 - Filter by valid phone numbers...')
+    logger.debug('📋 BYPASS: Step 3 - Filter by valid phone numbers...')
     const busteWithValidPhone = busteWithClienti?.filter(busta => {
       const cliente = Array.isArray(busta.clienti) ? busta.clienti[0] : busta.clienti
       const hasPhone = cliente?.telefono && cliente.telefono.trim() !== ''
 
       if (!hasPhone) {
-        console.log(`📞 BYPASS: Busta ${busta.readable_id} excluded - no valid phone`)
+        logger.debug(`📞 BYPASS: Busta ${busta.readable_id} excluded - no valid phone`)
       }
 
       return hasPhone
     }) || []
 
-    console.log('📊 BYPASS: Step 3 results:', {
+    logger.debug('📊 BYPASS: Step 3 results:', {
       count: busteWithValidPhone.length,
-      sample: busteWithValidPhone[0]
+      sampleId: busteWithValidPhone[0]?.id
     })
 
     // STEP 4: Get payment info
-    console.log('📋 BYPASS: Step 4 - Get payment info...')
+    logger.debug('📋 BYPASS: Step 4 - Get payment info...')
     const validBusteIds = busteWithValidPhone.map(b => b.id)
 
     const { data: busteWithPayments, error: step4Error } = await supabase
@@ -136,7 +137,7 @@ export async function POST() {
       `)
       .in('id', validBusteIds)
 
-    console.log('📊 BYPASS: Step 4 results:', {
+    logger.debug('📊 BYPASS: Step 4 results:', {
       error: step4Error,
       count: busteWithPayments?.length || 0
     })
@@ -146,7 +147,7 @@ export async function POST() {
     }
 
     // STEP 5: Process into follow-up format (minimal processing)
-    console.log('📋 BYPASS: Step 5 - Process data...')
+    logger.debug('📋 BYPASS: Step 5 - Process data...')
     const processedData = busteWithPayments?.map(busta => {
       const cliente = Array.isArray(busta.clienti) ? busta.clienti[0] : busta.clienti
       const infoPagamenti = Array.isArray(busta.info_pagamenti) ? busta.info_pagamenti[0] : busta.info_pagamenti
@@ -190,14 +191,14 @@ export async function POST() {
       }
     }) || []
 
-    console.log('📊 BYPASS: Step 5 results:', {
+    logger.debug('📊 BYPASS: Step 5 results:', {
       count: processedData.length,
-      sample: processedData[0]
+      sampleId: processedData[0]?.id
     })
 
     // STEP 6: Insert into follow_up_chiamate (if any results)
     if (processedData.length > 0) {
-      console.log('📋 BYPASS: Step 6 - Insert follow-up records...')
+      logger.debug('📋 BYPASS: Step 6 - Insert follow-up records...')
       const insertsData = processedData.slice(0, 3).map(item => ({ // Only insert first 3 for testing
         busta_id: item.id,
         data_generazione: new Date().toISOString().split('T')[0],
@@ -210,7 +211,7 @@ export async function POST() {
         .from('follow_up_chiamate')
         .insert(insertsData)
 
-      console.log('📊 BYPASS: Step 6 results:', {
+      logger.debug('📊 BYPASS: Step 6 results:', {
         error: insertError,
         insertCount: insertsData.length
       })
