@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import PrintBustaButton from 'src/app/dashboard/_components/PrintBustaButton'; // ✅ IMPORT AGGIUNTO
 import UnifiedNotesDisplay from '../UnifiedNotesDisplay';
+import PreventivoBustaCard from '../PreventivoBustaCard';
 
 // ===== TYPES LOCALI =====
 type BustaDettagliata = Database['public']['Tables']['buste']['Row'] & {
@@ -686,6 +687,9 @@ export default function AnagraficaTab({ busta, onBustaUpdate, isReadOnly = false
           <span className="font-medium">Modifiche salvate con successo!</span>
         </div>
       )}
+
+      {/* Preventivo collegato (se la busta nasce da un preventivo) */}
+      <PreventivoBustaCard bustaId={busta.id} />
 
       {/* Informazioni Cliente - ORA MODIFICABILI CON GENERE */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">

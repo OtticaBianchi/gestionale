@@ -17,7 +17,7 @@ export interface RigaPreventivo {
   celle: (CellaPreventivo | null)[]
 }
 
-export type GaranziaId = 'adattamento' | 'assistenza_globale' | 'prova_lac' | 'under14'
+export type GaranziaId = 'adattamento' | 'assistenza_globale' | 'under14'
 
 export interface GaranziaDef {
   id: GaranziaId
@@ -51,13 +51,6 @@ export const GARANZIE: GaranziaDef[] = [
       'Ogni 6 mesi controllo gratuito con serraggio e lubrificazione delle viti e pulizia a ultrasuoni; ogni 12 mesi sostituzione delle parti soggette a usura (viti, terminali, naselli).',
   },
   {
-    id: 'prova_lac',
-    label: 'Prova lenti a contatto',
-    titolo: 'Prova lenti a contatto (12 mesi)',
-    testo:
-      'Possibilità di provare in OMAGGIO per 2 ore una coppia di lenti a contatto con graduazione corrispondente a quella degli occhiali acquistati.',
-  },
-  {
     id: 'under14',
     label: 'Under 14',
     titolo: 'Under 14',
@@ -65,6 +58,37 @@ export const GARANZIE: GaranziaDef[] = [
       'Per i più piccoli, fino a 14 anni, per garantire sempre una visione ottimale, possibilità di sostituire le lenti a condizioni favorevoli.',
   },
 ]
+
+export type EsitoPreventivo = 'in_attesa' | 'rielaborato' | 'approvato' | 'respinto'
+export type TipoPreventivo = 'lenti_graduate' | 'occhiali_completi'
+
+export const ESITI: Record<EsitoPreventivo, { label: string; badge: string }> = {
+  in_attesa: { label: 'In attesa', badge: 'bg-amber-100 text-amber-800' },
+  rielaborato: { label: 'Rielaborato', badge: 'bg-slate-200 text-slate-700' },
+  approvato: { label: 'Approvato', badge: 'bg-emerald-100 text-emerald-800' },
+  respinto: { label: 'Respinto', badge: 'bg-red-100 text-red-800' },
+}
+
+export const MOTIVI_RESPINTO = [
+  { id: 'prezzo', label: 'Prezzo troppo alto' },
+  { id: 'altro_negozio', label: 'Ha comprato altrove' },
+  { id: 'non_interessato', label: 'Non più interessato' },
+  { id: 'altro', label: 'Altro' },
+]
+
+/** Riga del report "Preventivi in attesa" (da stampare per i solleciti). */
+export interface PreventivoAttesaRow {
+  id: string
+  numero_label: string
+  cliente_nome: string
+  telefono: string
+  tipo: TipoPreventivo | null
+  data_stipula: string
+  scadenza: string
+  giorni: number // giorni dalla data di stipula
+  scaduto: boolean
+  importo: string // totale, oppure "da X a Y" con più versioni
+}
 
 export interface PreventivoData {
   numero_label: string
@@ -140,3 +164,12 @@ export const formatEuro = (n: number) =>
 
 export const formatDataIt = (isoDate: string) =>
   new Date(isoDate.slice(0, 10) + 'T12:00:00').toLocaleDateString('it-IT')
+
+/** Importo da mostrare in elenco: il totale, oppure "da X a Y" con più versioni. */
+export function importoPreventivo(p: { versioni: unknown[]; righe: Pick<RigaPreventivo, 'celle'>[] }): string {
+  const totali = (p.versioni || []).map((_, i) => totaleVersione(p.righe || [], i))
+  if (totali.length === 0) return '—'
+  const min = Math.min(...totali)
+  const max = Math.max(...totali)
+  return min === max ? formatEuro(min) : `da ${formatEuro(min)} a ${formatEuro(max)}`
+}

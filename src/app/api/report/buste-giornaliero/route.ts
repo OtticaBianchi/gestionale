@@ -6,6 +6,8 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { resolveSaldoUnicoMethod } from '@/lib/payments/saldoMethod'
 import { fetchSchedeFocusMancanti, type SchedaFocusMancanteRow } from '@/lib/scheda-focus/mancanti'
 
+import { fetchPreventiviInAttesa } from '@/lib/preventivi/server'
+
 export type { SchedaFocusMancanteRow }
 
 export interface BustaReportRow {
@@ -156,6 +158,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Errore nel caricamento delle Schede Focus' }, { status: 500 })
     }
 
+    // Preventivi ancora in attesa (snapshot, tabelle accessibili solo con service role)
+    const { rows: preventivi, error: preventiviError } = await fetchPreventiviInAttesa()
+    if (preventiviError) {
+      console.error('Report preventivi in attesa error:', preventiviError)
+      return NextResponse.json({ error: 'Errore nel caricamento dei preventivi in attesa' }, { status: 500 })
+    }
+
     const one = <T,>(v: T | T[] | null | undefined): T | null =>
       Array.isArray(v) ? (v[0] ?? null) : (v ?? null)
 
@@ -250,7 +259,7 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ rows, sospese, paghero: pagheroRows, schedaFocus, date, total: rows.length })
+    return NextResponse.json({ rows, sospese, paghero: pagheroRows, schedaFocus, preventivi, date, total: rows.length })
   } catch (err: any) {
     console.error('Report buste giornaliero unexpected error:', err)
     return NextResponse.json({ error: 'Errore interno' }, { status: 500 })

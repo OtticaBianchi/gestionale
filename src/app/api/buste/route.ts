@@ -6,6 +6,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
 import { logInsert } from '@/lib/audit/auditLog'
+import { adminClient } from '@/lib/preventivi/server'
 import {
   PLACEHOLDER_PHONE,
   normalizePhone,
@@ -370,10 +371,36 @@ export async function POST(request: NextRequest) {
       console.error('Errore inserimento status_history:', statusInsert.error)
     }
 
+    // Preventivo di partenza (facoltativo): lo collega alla busta e lo porta ad "approvato".
+    // Un errore qui non deve far fallire la creazione della busta.
+    let preventivoCollegato = false
+    const preventivoId = typeof bustaInput.preventivo_id === 'string' ? bustaInput.preventivo_id : null
+    if (preventivoId) {
+      const { data: prev } = await adminClient()
+        .from('preventivi')
+        .update({
+          busta_id: newBusta.id,
+          cliente_id: clienteId,
+          esito: 'approvato',
+          esito_at: now,
+          esito_categoria: null,
+          updated_by: user.id,
+          updated_at: now
+        })
+        .eq('id', preventivoId)
+        .is('busta_id', null)
+        .in('esito', ['in_attesa', 'approvato'])
+        .select('id')
+        .maybeSingle()
+      preventivoCollegato = Boolean(prev)
+      if (!prev) console.error('Collegamento preventivo non riuscito:', preventivoId)
+    }
+
     return NextResponse.json({
       success: true,
       busta: newBusta,
-      cliente: clienteRecord
+      cliente: clienteRecord,
+      preventivo_collegato: preventivoCollegato
     })
 
   } catch (error: any) {

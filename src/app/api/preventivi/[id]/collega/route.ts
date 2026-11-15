@@ -29,6 +29,13 @@ export async function PATCH(
     if (!busta) return NextResponse.json({ error: 'Busta non trovata' }, { status: 404 })
     update.busta_id = busta.id
     if (busta.cliente_id) update.cliente_id = busta.cliente_id
+    // la busta esiste: il preventivo è andato a buon fine
+    const { data: attuale } = await admin.from('preventivi').select('esito').eq('id', id).maybeSingle()
+    if (attuale && attuale.esito !== 'approvato') {
+      update.esito = 'approvato'
+      update.esito_at = new Date().toISOString()
+      update.esito_categoria = null
+    }
   }
 
   const { error } = await admin.from('preventivi').update(update).eq('id', id)

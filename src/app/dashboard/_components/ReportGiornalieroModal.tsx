@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { X, FileText, Printer, Loader2, Calendar, Clock } from 'lucide-react';
+import type { PreventivoAttesaRow } from '@/lib/preventivi/types';
 import type { BustaReportRow, BustaSospesaRow, BustaPagheroRow, SchedaFocusMancanteRow } from '@/app/api/report/buste-giornaliero/route';
 
 const LAVORAZIONE_LABELS: Record<string, string> = {
@@ -16,6 +17,11 @@ function toItalianDate(isoString: string): string {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })
+}
+
+const TIPO_PREVENTIVO_LABELS: Record<string, string> = {
+  lenti_graduate: 'Lenti graduate',
+  occhiali_completi: 'Occhiali completi',
 }
 
 const STATO_LABELS: Record<string, string> = {
@@ -55,14 +61,16 @@ export default function ReportGiornalieroModal({ onClose }: Props) {
   const [allSospese, setSospese] = useState<BustaSospesaRow[]>([])
   const [allPaghero, setPaghero] = useState<BustaPagheroRow[]>([])
   const [allSchedaFocus, setSchedaFocus] = useState<SchedaFocusMancanteRow[]>([])
-  const [show, setShow] = useState({ aperte: true, sospese: true, paghero: true, scheda: true })
+  const [allPreventivi, setPreventivi] = useState<PreventivoAttesaRow[]>([])
+  const [show, setShow] = useState({ aperte: true, sospese: true, paghero: true, scheda: true, preventivi: true })
 
   const rows = show.aperte ? allRows : []
   const sospese = show.sospese ? allSospese : []
   const paghero = show.paghero ? allPaghero : []
   const schedaFocus = show.scheda ? allSchedaFocus : []
-  const hasData = allRows.length > 0 || allSospese.length > 0 || allPaghero.length > 0 || allSchedaFocus.length > 0
-  const hasVisibleData = rows.length > 0 || sospese.length > 0 || paghero.length > 0 || schedaFocus.length > 0
+  const preventivi = show.preventivi ? allPreventivi : []
+  const hasData = allRows.length > 0 || allSospese.length > 0 || allPaghero.length > 0 || allSchedaFocus.length > 0 || allPreventivi.length > 0
+  const hasVisibleData = rows.length > 0 || sospese.length > 0 || paghero.length > 0 || schedaFocus.length > 0 || preventivi.length > 0
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reportDate, setReportDate] = useState<string | null>(null)
@@ -74,6 +82,7 @@ export default function ReportGiornalieroModal({ onClose }: Props) {
     setSospese([])
     setPaghero([])
     setSchedaFocus([])
+    setPreventivi([])
     try {
       const res = await fetch(`/api/report/buste-giornaliero?date=${date}`)
       const json = await res.json()
@@ -82,6 +91,7 @@ export default function ReportGiornalieroModal({ onClose }: Props) {
       setSospese(json.sospese || [])
       setPaghero(json.paghero || [])
       setSchedaFocus(json.schedaFocus || [])
+      setPreventivi(json.preventivi || [])
       setReportDate(json.date)
     } catch (e: any) {
       setError(e.message)
@@ -177,6 +187,27 @@ export default function ReportGiornalieroModal({ onClose }: Props) {
     </table>
   </section>` : ''
 
+    const preventiviSection = preventivi.length ? `
+  <section>
+    <h2>Preventivi in attesa (${preventivi.length}${preventivi.some(r => r.scaduto) ? ` · ${preventivi.filter(r => r.scaduto).length} scaduti` : ''})</h2>
+    <table>
+      <thead><tr><th>Preventivo</th><th>Cliente</th><th>Telefono</th><th>Tipo</th><th>Del</th><th>Importo</th><th>Giorni</th><th>Assegnato a</th><th>Esito del sollecito</th></tr></thead>
+      <tbody>${preventivi.map(r => `
+        <tr${r.scaduto ? ' class="urgent"' : ''}>
+          <td class="cell-id">${escapeHtml(r.numero_label)}</td>
+          <td class="cell-cliente">${escapeHtml(r.cliente_nome)}</td>
+          <td class="cell-tel">${escapeHtml(r.telefono || '—')}</td>
+          <td>${r.tipo ? TIPO_PREVENTIVO_LABELS[r.tipo] : '—'}</td>
+          <td>${formatDay(r.data_stipula)}</td>
+          <td class="cell-importo">${escapeHtml(r.importo)}</td>
+          <td>${r.giorni}${r.scaduto ? ' <strong class="urgent-label">scaduto</strong>' : ''}</td>
+          <td class="cell-fill"></td>
+          <td class="cell-fill cell-fill-wide"></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </section>` : ''
+
     const apertureSection = rows.length ? `
   <section>
     <h2>Buste aperte (${rows.length})</h2>
@@ -217,6 +248,8 @@ export default function ReportGiornalieroModal({ onClose }: Props) {
     .cell-operatore { width: 120px; }
     .cell-note { }
     .cell-tel { white-space: nowrap; }
+    .cell-fill { min-width: 90px; height: 30px; border-left: 1px solid #d1d5db; }
+    .cell-fill-wide { min-width: 150px; }
     .cell-importo { white-space: nowrap; font-weight: 600; text-align: right; }
     tr.urgent { background: #fef2f2 !important; }
     .urgent-label { color: #b91c1c; }
@@ -241,12 +274,14 @@ export default function ReportGiornalieroModal({ onClose }: Props) {
       show.sospese ? `${sospese.length} sospes${sospese.length !== 1 ? 'e' : 'a'}` : '',
       show.paghero ? `${paghero.length} pagherò da incassare` : '',
       show.scheda ? `${schedaFocus.length} senza Scheda Focus` : '',
+      show.preventivi ? `${preventivi.length} preventivi in attesa` : '',
     ].filter(Boolean).join(' · ')}</p>
   </header>
   ${schedaFocusSection}
   ${apertureSection}
   ${sospeseSection}
   ${pagheroSection}
+  ${preventiviSection}
   <footer>Generato il ${new Date().toLocaleString('it-IT')} · Kiasma Gestionale</footer>
   <script>window.onload = () => { window.print(); }</script>
 </body>
@@ -327,6 +362,7 @@ export default function ReportGiornalieroModal({ onClose }: Props) {
             ['sospese', 'Buste sospese', allSospese.length],
             ['paghero', 'Pagherò da incassare', allPaghero.length],
             ['scheda', 'Scheda Focus mancante', allSchedaFocus.length],
+            ['preventivi', 'Preventivi in attesa', allPreventivi.length],
           ] as const).map(([key, label, count]) => (
             <label key={key} className="flex cursor-pointer items-center gap-2">
               <input
@@ -518,6 +554,45 @@ export default function ReportGiornalieroModal({ onClose }: Props) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {preventivi.length > 0 && (
+            <div className="mt-6 overflow-x-auto">
+              <h3 className="mb-2 text-sm font-semibold text-slate-800">
+                Preventivi in attesa ({preventivi.length}
+                {preventivi.some(r => r.scaduto) ? ` · ${preventivi.filter(r => r.scaduto).length} scaduti` : ''})
+              </h3>
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b-2 border-slate-200 text-left">
+                    <th className="pb-2 pr-4 font-semibold text-slate-700 whitespace-nowrap">Preventivo</th>
+                    <th className="pb-2 pr-4 font-semibold text-slate-700">Cliente</th>
+                    <th className="pb-2 pr-4 font-semibold text-slate-700">Telefono</th>
+                    <th className="pb-2 pr-4 font-semibold text-slate-700">Tipo</th>
+                    <th className="pb-2 pr-4 font-semibold text-slate-700">Del</th>
+                    <th className="pb-2 pr-4 font-semibold text-slate-700">Importo</th>
+                    <th className="pb-2 font-semibold text-slate-700">Giorni</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preventivi.map(r => (
+                    <tr key={r.id} className={`border-b border-slate-100 ${r.scaduto ? 'bg-red-50' : ''}`}>
+                      <td className="py-2.5 pr-4 font-semibold text-[var(--ink)] whitespace-nowrap">{r.numero_label}</td>
+                      <td className="py-2.5 pr-4 whitespace-nowrap">{r.cliente_nome}</td>
+                      <td className="py-2.5 pr-4 whitespace-nowrap text-slate-600">{r.telefono || '—'}</td>
+                      <td className="py-2.5 pr-4 text-slate-600">{r.tipo ? TIPO_PREVENTIVO_LABELS[r.tipo] : '—'}</td>
+                      <td className="py-2.5 pr-4 whitespace-nowrap">{formatDay(r.data_stipula)}</td>
+                      <td className="py-2.5 pr-4 whitespace-nowrap font-semibold">{r.importo}</td>
+                      <td className="py-2.5 whitespace-nowrap">
+                        {r.giorni}
+                        {r.scaduto && <span className="ml-2 font-semibold text-red-700">scaduto</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-xs text-slate-400">Nella stampa trovi anche le colonne «Assegnato a» e «Esito del sollecito» da compilare a mano.</p>
             </div>
           )}
         </div>

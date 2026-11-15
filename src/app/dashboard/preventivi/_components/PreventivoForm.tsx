@@ -1,23 +1,29 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Download, FileText, Link2, Loader2, Printer, Save, Search, Trash2, X } from 'lucide-react'
+import { Download, FilePlus2, FileText, Link2, Loader2, Printer, Save, Search, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { buildPreventivoPdf } from '@/lib/preventivi/pdfClient'
 import {
+  ESITI,
   GARANZIE,
+  MOTIVI_RESPINTO,
   NOMI_VERSIONI,
   NOTA_DIFFERENZE_DEFAULT,
   PRESET_PRODOTTI,
   aggiungiGiorni,
   formatDataIt,
   formatEuro,
+  importoPreventivo,
   prezzoFinaleCella,
   round2,
   scontoPercentuale,
   totaleVersione,
+  type EsitoPreventivo,
   type GaranziaId,
   type PreventivoData,
   type RigaPreventivo,
+  type TipoPreventivo,
   type VersionePreventivo,
   type VoceCatalogo,
 } from '@/lib/preventivi/types'
@@ -62,7 +68,21 @@ interface PreventivoRow {
   righe: RigaPreventivo[]
   garanzie: GaranziaId[] | null
   note_differenze: string | null
+  tipo: TipoPreventivo | null
+  esito: EsitoPreventivo
+  esito_at: string | null
+  esito_categoria: string | null
+  esito_motivo: string | null
+  sostituito_da: string | null
 }
+
+type Filtro = 'in_attesa' | 'da_aprire' | 'respinto' | 'tutti'
+const FILTRI: Array<{ id: Filtro; label: string }> = [
+  { id: 'in_attesa', label: 'In attesa' },
+  { id: 'da_aprire', label: 'Approvati da aprire' },
+  { id: 'respinto', label: 'Respinti' },
+  { id: 'tutti', label: 'Tutti' },
+]
 
 const num = (s: string) => {
   const n = parseFloat(s.replace(',', '.'))
@@ -95,32 +115,6 @@ function sincronizzaSconto(c: CellaUi, patch: Partial<CellaUi>): CellaUi {
     next.scontoPerc = strNum(scontoPercentuale(prezzo, num(next.sconto)))
   }
   return next
-}
-
-const toData = (row: PreventivoRow): PreventivoData => ({
-  numero_label: row.numero_label,
-  cliente_nome: `${row.cliente_nome} ${row.cliente_cognome}`.trim(),
-  cliente_telefono: row.cliente_telefono,
-  data_stipula: row.data_stipula,
-  validita_giorni: row.validita_giorni,
-  versioni: row.versioni,
-  righe: row.righe,
-  garanzie: row.garanzie || [],
-  note_differenze: row.note_differenze || '',
-})
-
-async function logoDataUrl(): Promise<string | null> {
-  try {
-    const blob = await (await fetch('/ob-logo.png')).blob()
-    return await new Promise((resolve) => {
-      const reader = new FileReader()
-      reader.onloadend = () => resolve(typeof reader.result === 'string' ? reader.result : null)
-      reader.onerror = () => resolve(null)
-      reader.readAsDataURL(blob)
-    })
-  } catch {
-    return null
-  }
 }
 
 const input =
@@ -167,6 +161,11 @@ export default function PreventivoForm() {
   const [catalogo, setCatalogo] = useState<VoceCatalogo[]>([])
   const [recenti, setRecenti] = useState<PreventivoRow[]>([])
   const [ricercaRecenti, setRicercaRecenti] = useState('')
+  const [filtro, setFiltro] = useState<Filtro>('in_attesa')
+  const [conteggi, setConteggi] = useState<{ in_attesa: number; da_aprire: number; respinto: number }>({ in_attesa: 0, da_aprire: 0, respinto: 0 })
+  const [esitoRow, setEsitoRow] = useState<{ row: PreventivoRow; esito: 'approvato' | 'respinto' } | null>(null)
+  const [tipo, setTipo] = useState<TipoPreventivo | null>(null)
+  const [esitoCorrente, setEsitoCorrente] = useState<EsitoPreventivo | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
 
@@ -181,7 +180,6 @@ export default function PreventivoForm() {
   const [clienteId, setClienteId] = useState<string | null>(null)
   const [ricercaCliente, setRicercaCliente] = useState('')
   const [hits, setHits] = useState<ClienteHit[]>([])
-  const [buste, setBuste] = useState<BustaHit[]>([])
   const [bustaId, setBustaId] = useState<string | null>(null)
 
   // Contenuto
@@ -195,11 +193,21 @@ export default function PreventivoForm() {
 
   const multi = versioni.length > 1
   const vociDiBase = catalogo.filter((c) => c.prezzo_default != null)
+  // cornice colorata su tutta la colonna della versione consigliata
+  const cornici = versioni.map((v) => (multi && v.consigliata ? (TIER_CORNICE[v.nome] ?? 'border-slate-700') : null))
 
-  const caricaRecenti = useCallback(async (q = '') => {
-    const res = await fetch(`/api/preventivi${q ? `?q=${encodeURIComponent(q)}` : ''}`)
-    if (res.ok) setRecenti((await res.json()).preventivi || [])
-  }, [])
+  const caricaRecenti = useCallback(
+    async (q = '') => {
+      const qs = new URLSearchParams({ stato: filtro })
+      if (q) qs.set('q', q)
+      const res = await fetch(`/api/preventivi?${qs.toString()}`)
+      if (!res.ok) return
+      const json = await res.json()
+      setRecenti(json.preventivi || [])
+      if (json.conteggi) setConteggi(json.conteggi)
+    },
+    [filtro]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -235,22 +243,6 @@ export default function PreventivoForm() {
     }
   }, [ricercaCliente, clienteId])
 
-  // Buste del cliente scelto, per proporre il collegamento
-  useEffect(() => {
-    if (!clienteId) {
-      setBuste([])
-      return
-    }
-    let cancelled = false
-    fetch(`/api/preventivi/buste?cliente_id=${clienteId}`)
-      .then((r) => (r.ok ? r.json() : { buste: [] }))
-      .then((j) => !cancelled && setBuste(j.buste || []))
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [clienteId])
-
   const reset = () => {
     setPreventivoId(null)
     setNumeroLabel(null)
@@ -261,6 +253,8 @@ export default function PreventivoForm() {
     setClienteId(null)
     setRicercaCliente('')
     setBustaId(null)
+    setTipo(null)
+    setEsitoCorrente(null)
     setValidita('30')
     setVersioni([{ nome: 'Base', consigliata: false }])
     setRighe([])
@@ -278,6 +272,8 @@ export default function PreventivoForm() {
     setClienteId(p.cliente_id)
     setRicercaCliente('')
     setBustaId(p.busta_id)
+    setTipo(p.tipo)
+    setEsitoCorrente(p.esito)
     setValidita(String(p.validita_giorni))
     setVersioni(p.versioni)
     setRighe(
@@ -382,6 +378,7 @@ export default function PreventivoForm() {
     })
     setRighe(nuove)
     setGaranzie(preset.garanzie)
+    setTipo(preset.id as TipoPreventivo)
   }
 
   const toggleGaranzia = (id: GaranziaId) =>
@@ -394,6 +391,7 @@ export default function PreventivoForm() {
     cliente_cognome: cognome,
     cliente_nome: nome,
     cliente_telefono: telefono,
+    tipo,
     validita_giorni: parseInt(validita, 10),
     versioni: versioni.map((v) => (v.consigliata ? v : { nome: v.nome, consigliata: false })),
     righe: righe.map((r) => ({ descrizione: r.descrizione, nota: r.nota, celle: celleToData(r.celle) })),
@@ -401,12 +399,17 @@ export default function PreventivoForm() {
     note_differenze: multi ? note : '',
   })
 
-  const salva = async (comeNuovo = false): Promise<PreventivoRow | null> => {
+  const salva = async (comeNuovo = false, rielabora = false): Promise<PreventivoRow | null> => {
     const update = preventivoId && !comeNuovo
     const res = await fetch(update ? `/api/preventivi/${preventivoId}` : '/api/preventivi', {
       method: update ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload()),
+      // bustaId non si copia in un nuovo preventivo
+      body: JSON.stringify({
+        ...payload(),
+        ...(comeNuovo ? { busta_id: null } : {}),
+        ...(rielabora && preventivoId ? { sostituisce_id: preventivoId } : {}),
+      }),
     })
     const json = await res.json().catch(() => ({}))
     if (!res.ok) {
@@ -417,6 +420,8 @@ export default function PreventivoForm() {
     setPreventivoId(p.id)
     setNumeroLabel(p.numero_label)
     setDataStipula(p.data_stipula)
+    setEsitoCorrente(p.esito ?? 'in_attesa')
+    if (comeNuovo) setBustaId(null)
     await caricaRecenti(ricercaRecenti.trim())
     return p
   }
@@ -433,17 +438,31 @@ export default function PreventivoForm() {
     }
   }
 
-  const buildPdf = async (p: PreventivoRow) => {
-    const { generaPreventivoPdf, nomeFilePreventivo } = await import('@/lib/preventivi/pdf')
-    const data = toData(p)
-    return { doc: generaPreventivoPdf(data, await logoDataUrl()), nomeFile: nomeFilePreventivo(data) }
-  }
+  const buildPdf = (p: PreventivoRow) => buildPreventivoPdf(p)
 
-  const salvaSolo = (comeNuovo: boolean) =>
+  const salvaSolo = (comeNuovo: boolean, rielabora = false) =>
     run(async () => {
-      const p = await salva(comeNuovo)
+      const p = await salva(comeNuovo, rielabora)
       if (p) toast.success(`Preventivo ${p.numero_label} salvato`)
     })
+
+  const impostaEsito = async (p: PreventivoRow, esito: EsitoPreventivo, categoria?: string, motivo?: string) => {
+    const res = await fetch(`/api/preventivi/${p.id}/esito`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ esito, categoria, motivo }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      toast.error(json.error || 'Errore salvataggio esito')
+      return false
+    }
+    toast.success(esito === 'in_attesa' ? 'Preventivo riaperto' : esito === 'approvato' ? 'Preventivo approvato' : 'Preventivo respinto')
+    setEsitoRow(null)
+    if (preventivoId === p.id) setEsitoCorrente(esito)
+    await caricaRecenti(ricercaRecenti.trim())
+    return true
+  }
 
   const scarica = () =>
     run(async () => {
@@ -484,6 +503,8 @@ export default function PreventivoForm() {
     if (preventivoId === p.id) setBustaId(nuovaBustaId)
     await caricaRecenti(ricercaRecenti.trim())
   }
+
+  const oggiIso = useMemo(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date()), [])
 
   const scadenza = useMemo(() => {
     const giorni = parseInt(validita, 10)
@@ -582,33 +603,6 @@ export default function PreventivoForm() {
             </p>
           )}
 
-          {clienteId && buste.length > 0 && (
-            <div className="mt-4 rounded-lg border-2 border-slate-300 bg-white p-3">
-              <p className="mb-2 text-base font-semibold text-slate-800">
-                Collegare il preventivo a una busta di questo cliente? (facoltativo)
-              </p>
-              <ul className="space-y-2">
-                {buste.map((b) => (
-                  <li key={b.id}>
-                    <label className="flex cursor-pointer items-center gap-3 text-base">
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5"
-                        checked={bustaId === b.id}
-                        onChange={() => setBustaId(bustaId === b.id ? null : b.id)}
-                      />
-                      <span>
-                        {descBusta(b)}{' '}
-                        {b.aperta ? <em className="text-emerald-700">(aperta)</em> : <em className="text-slate-500">(chiusa)</em>}
-                      </span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-2 text-sm text-slate-600">Se riguarda un altro lavoro, lascia tutto non spuntato.</p>
-            </div>
-          )}
-
           <div className="mt-4 flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-3 text-base font-semibold text-slate-800">
               Validità (giorni)
@@ -673,7 +667,7 @@ export default function PreventivoForm() {
                   type="button"
                   onClick={() => toggleLivello(livello)}
                   aria-pressed={on}
-                  className={`min-w-[10rem] rounded-xl border-2 px-6 py-4 text-xl font-bold transition-colors ${on ? stile.on : stile.off}`}
+                  className={`min-w-[7rem] rounded-lg border-2 px-4 py-2 text-base font-bold transition-colors ${on ? stile.on : stile.off}`}
                 >
                   {on ? '✓ ' : ''}
                   {livello}
@@ -690,14 +684,14 @@ export default function PreventivoForm() {
                 <tr>
                   <th className="w-[32%] min-w-[14rem] p-1 text-left text-sm font-semibold text-slate-700">Voce *</th>
                   {versioni.map((v, i) => (
-                    <th key={i} colSpan={4} className="border-l-2 border-slate-300 p-1">
-                      <div
-                        className={`flex flex-wrap items-center justify-center gap-3 rounded-xl border-4 p-1 ${
-                          multi && v.consigliata ? (TIER_CORNICE[v.nome] ?? 'border-slate-700') : 'border-transparent'
-                        }`}
-                      >
+                    <th
+                      key={i}
+                      colSpan={4}
+                      className={`p-1 ${cornici[i] ? `border-x-4 border-t-4 ${cornici[i]}` : 'border-l-2 border-slate-300'}`}
+                    >
+                      <div className="flex flex-wrap items-center justify-center gap-3">
                         <span
-                          className={`rounded-lg px-4 py-1.5 text-lg font-bold ${TIER_STILE[v.nome]?.on ?? 'border-slate-700 bg-slate-700 text-white'}`}
+                          className={`rounded-md px-3 py-0.5 text-sm font-bold ${TIER_STILE[v.nome]?.on ?? 'border-slate-700 bg-slate-700 text-white'}`}
                         >
                           {v.nome}
                         </span>
@@ -715,7 +709,7 @@ export default function PreventivoForm() {
                 <tr className="text-sm text-slate-600">
                   <th />
                   {versioni.map((_, i) => (
-                    <FragmentTh key={i} />
+                    <FragmentTh key={i} cornice={cornici[i]} />
                   ))}
                   <th />
                 </tr>
@@ -726,6 +720,7 @@ export default function PreventivoForm() {
                     key={i}
                     riga={r}
                     multi={multi}
+                    cornici={cornici}
                     onChange={(patch) => aggiornaRiga(i, patch)}
                     onCella={(v, patch) => aggiornaCella(i, v, patch)}
                     onRemove={() => rimuoviRiga(i)}
@@ -744,7 +739,11 @@ export default function PreventivoForm() {
                   <tr className="border-t-4 border-slate-400 text-lg font-bold">
                     <td className="p-2">Totale</td>
                     {versioni.map((_, i) => (
-                      <td key={i} colSpan={4} className="border-l-2 border-slate-300 p-2 text-right">
+                      <td
+                        key={i}
+                        colSpan={4}
+                        className={`p-2 text-right ${cornici[i] ? `border-x-4 border-b-4 ${cornici[i]}` : 'border-l-2 border-slate-300'}`}
+                      >
                         {formatEuro(totaleVersione(righe.map((r) => ({ celle: celleToData(r.celle) })), i))}
                       </td>
                     ))}
@@ -857,6 +856,17 @@ export default function PreventivoForm() {
               Salva come nuovo preventivo
             </button>
           )}
+          {preventivoId && esitoCorrente === 'in_attesa' && !bustaId && (
+            <button
+              type="button"
+              disabled={busy || !pronto}
+              onClick={() => salvaSolo(true, true)}
+              title="Crea un nuovo preventivo e segna questo come rielaborato"
+              className="rounded-lg border-2 border-slate-400 bg-white px-6 py-3 text-base font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-40"
+            >
+              Salva come rielaborazione (il vecchio passa a «Rielaborato»)
+            </button>
+          )}
         </div>
         {!pronto && (
           <p className="mt-3 text-base font-medium text-amber-800">
@@ -865,67 +875,215 @@ export default function PreventivoForm() {
         )}
       </div>
 
-      {/* Preventivi recenti */}
+      {/* Elenco preventivi con esito */}
       <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-            <FileText className="h-4 w-4" /> Preventivi recenti
+            <FileText className="h-4 w-4" /> Preventivi
           </h3>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2 top-2 h-4 w-4 text-slate-400" />
             <input className={`${input} pl-8`} placeholder="Cerca per nome" value={ricercaRecenti} onChange={(e) => setRicercaRecenti(e.target.value)} />
           </div>
         </div>
+
+        <div className="mb-3 flex flex-wrap gap-2">
+          {FILTRI.map((f) => {
+            const n = f.id === 'tutti' ? null : conteggi[f.id]
+            const on = filtro === f.id
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFiltro(f.id)}
+                aria-pressed={on}
+                className={`rounded-full border-2 px-4 py-1.5 text-sm font-semibold ${
+                  on ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {f.label}
+                {n != null ? ` (${n})` : ''}
+              </button>
+            )
+          })}
+        </div>
+
         {recenti.length === 0 ? (
-          <p className="py-3 text-sm text-slate-500">Nessun preventivo.</p>
+          <p className="py-3 text-sm text-slate-500">Nessun preventivo in questo elenco.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {recenti.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                <span>
-                  <strong>{p.numero_label}</strong> · {p.cliente_cognome} {p.cliente_nome} · {formatDataIt(p.data_stipula)} ·{' '}
-                  {p.versioni.length > 1 ? `${p.versioni.length} versioni` : formatEuro(totaleVersione(p.righe, 0))}
-                  {p.busta_readable_id && (
-                    <span className="ml-2 rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                      busta {p.busta_readable_id}
+            {recenti.map((p) => {
+              const scaduto = p.esito === 'in_attesa' && aggiungiGiorni(p.data_stipula.slice(0, 10), p.validita_giorni) < oggiIso
+              const daAprire = p.esito === 'approvato' && !p.busta_id
+              return (
+                <li key={p.id} className="py-2.5 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span>
+                      <strong>{p.numero_label}</strong> · {p.cliente_cognome} {p.cliente_nome} · {formatDataIt(p.data_stipula)} · {importoPreventivo(p)}
+                      <span className={`ml-2 rounded px-2 py-0.5 text-xs font-medium ${ESITI[p.esito]?.badge ?? ''}`}>{ESITI[p.esito]?.label ?? p.esito}</span>
+                      {scaduto && <span className="ml-1 rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">scaduto</span>}
+                      {p.busta_readable_id && (
+                        <span className="ml-2 rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">busta {p.busta_readable_id}</span>
+                      )}
                     </span>
+                    <span className="flex flex-wrap items-center gap-3">
+                      {p.esito === 'in_attesa' && !p.busta_id && (
+                        <>
+                          <button type="button" onClick={() => setEsitoRow({ row: p, esito: 'approvato' })} className="rounded border border-emerald-600 px-2 py-0.5 font-semibold text-emerald-700 hover:bg-emerald-50">
+                            Approvato
+                          </button>
+                          <button type="button" onClick={() => setEsitoRow({ row: p, esito: 'respinto' })} className="rounded border border-red-500 px-2 py-0.5 font-semibold text-red-700 hover:bg-red-50">
+                            Respinto
+                          </button>
+                        </>
+                      )}
+                      {daAprire && (
+                        <a href={`/dashboard/buste/new?preventivo=${p.id}`} className="flex items-center gap-1 rounded bg-emerald-600 px-3 py-1 font-semibold text-white hover:bg-emerald-700">
+                          <FilePlus2 className="h-3.5 w-3.5" /> Crea busta
+                        </a>
+                      )}
+                      <button type="button" onClick={() => carica(p)} className="text-blue-600 hover:underline">
+                        Apri / modifica
+                      </button>
+                      <button type="button" onClick={() => scaricaSalvato(p)} className="text-blue-600 hover:underline">
+                        PDF
+                      </button>
+                      {(p.esito === 'respinto' || daAprire) && (
+                        <button type="button" onClick={() => impostaEsito(p, 'in_attesa')} className="text-slate-500 hover:underline">
+                          Riapri
+                        </button>
+                      )}
+                      {p.busta_id ? (
+                        <button type="button" onClick={() => collega(p, null)} className="text-slate-500 hover:underline">
+                          Scollega
+                        </button>
+                      ) : (
+                        p.esito !== 'rielaborato' &&
+                        p.esito !== 'respinto' && (
+                          <button type="button" onClick={() => setLinkRow(p)} className="flex items-center gap-1 text-blue-600 hover:underline">
+                            <Link2 className="h-3.5 w-3.5" /> Collega a busta esistente
+                          </button>
+                        )
+                      )}
+                    </span>
+                  </div>
+                  {(p.esito === 'respinto' || p.esito === 'approvato') && (p.esito_categoria || p.esito_motivo) && (
+                    <p className="mt-1 text-xs text-slate-600">
+                      {p.esito_at ? `${formatDataIt(p.esito_at)} · ` : ''}
+                      {MOTIVI_RESPINTO.find((m) => m.id === p.esito_categoria)?.label}
+                      {p.esito_categoria && p.esito_motivo ? ' — ' : ''}
+                      {p.esito_motivo}
+                    </p>
                   )}
-                </span>
-                <span className="flex flex-wrap gap-3">
-                  <button type="button" onClick={() => carica(p)} className="text-blue-600 hover:underline">
-                    Apri / modifica
-                  </button>
-                  <button type="button" onClick={() => scaricaSalvato(p)} className="text-blue-600 hover:underline">
-                    PDF
-                  </button>
-                  {p.busta_id ? (
-                    <button type="button" onClick={() => collega(p, null)} className="text-slate-500 hover:underline">
-                      Scollega
-                    </button>
-                  ) : (
-                    <button type="button" onClick={() => setLinkRow(p)} className="flex items-center gap-1 text-blue-600 hover:underline">
-                      <Link2 className="h-3.5 w-3.5" /> Collega a busta
-                    </button>
-                  )}
-                </span>
-              </li>
-            ))}
+                  {p.esito === 'rielaborato' && <p className="mt-1 text-xs text-slate-500">Sostituito da un preventivo successivo.</p>}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>
+
+      {esitoRow && (
+        <EsitoDialog
+          row={esitoRow.row}
+          esito={esitoRow.esito}
+          onClose={() => setEsitoRow(null)}
+          onConferma={(categoria, motivo) => impostaEsito(esitoRow.row, esitoRow.esito, categoria, motivo)}
+        />
+      )}
 
       {linkRow && <CollegaDialog preventivo={linkRow} onClose={() => setLinkRow(null)} onScegli={(bustaId) => collega(linkRow, bustaId)} />}
     </div>
   )
 }
 
-function FragmentTh() {
+function EsitoDialog({
+  row,
+  esito,
+  onClose,
+  onConferma,
+}: {
+  row: PreventivoRow
+  esito: 'approvato' | 'respinto'
+  onClose: () => void
+  onConferma: (categoria: string | undefined, motivo: string) => Promise<boolean>
+}) {
+  const [categoria, setCategoria] = useState<string>('')
+  const [motivo, setMotivo] = useState('')
+  const [busy, setBusy] = useState(false)
+  const respinto = esito === 'respinto'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-lg font-semibold">
+            {respinto ? 'Preventivo respinto' : 'Preventivo approvato'} · {row.numero_label}
+          </h3>
+          <button type="button" onClick={onClose} className="text-slate-500 hover:text-slate-800">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="mb-3 text-sm text-slate-600">
+          {row.cliente_cognome} {row.cliente_nome}
+        </p>
+
+        {respinto && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {MOTIVI_RESPINTO.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setCategoria(m.id)}
+                aria-pressed={categoria === m.id}
+                className={`rounded-lg border-2 px-4 py-2 text-sm font-semibold ${
+                  categoria === m.id ? 'border-red-600 bg-red-600 text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold text-slate-800">
+            {respinto ? 'Note sul rifiuto (facoltative)' : 'Note sull’approvazione (facoltative)'}
+          </span>
+          <textarea rows={3} className={`${input} w-full`} value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={500} />
+        </label>
+
+        {!respinto && <p className="mt-2 text-sm text-slate-600">Poi potrai aprire la busta con «Crea busta» dalla lista.</p>}
+
+        <div className="mt-4 flex justify-end gap-3">
+          <button type="button" onClick={onClose} className="rounded-lg border-2 border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            Annulla
+          </button>
+          <button
+            type="button"
+            disabled={busy || (respinto && !categoria)}
+            onClick={async () => {
+              setBusy(true)
+              await onConferma(respinto ? categoria : undefined, motivo)
+              setBusy(false)
+            }}
+            className={`rounded-lg px-5 py-2 text-sm font-bold text-white disabled:opacity-40 ${respinto ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}
+          >
+            Conferma
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function FragmentTh({ cornice }: { cornice: string | null }) {
   return (
     <>
-      <th className="border-l-2 border-slate-300 p-1 text-right text-xs font-medium">Unitario €</th>
+      <th className={`p-1 text-right text-xs font-medium ${cornice ? `border-l-4 ${cornice}` : 'border-l-2 border-slate-300'}`}>Unitario €</th>
       <th className="p-1 text-right text-xs font-medium">Sconto €</th>
       <th className="p-1 text-right text-xs font-medium">Sconto %</th>
-      <th className="p-1 text-right text-xs font-medium">Finale</th>
+      <th className={`p-1 text-right text-xs font-medium ${cornice ? `border-r-4 ${cornice}` : ''}`}>Finale</th>
     </>
   )
 }
@@ -933,66 +1091,65 @@ function FragmentTh() {
 function RigaRows({
   riga,
   multi,
+  cornici,
   onChange,
   onCella,
   onRemove,
 }: {
   riga: RigaUi
   multi: boolean
+  cornici: (string | null)[]
   onChange: (patch: Partial<RigaUi>) => void
   onCella: (versione: number, patch: Partial<CellaUi>) => void
   onRemove: () => void
 }) {
-  const colonne = riga.celle.length * 4 + 2
   return (
-    <>
-      <tr className="border-t-2 border-slate-200 align-middle">
-        <td className="p-1">
-          <input
-            className={`${input} w-full font-semibold${vuoto(riga.descrizione)}`}
-            placeholder="Nome della voce"
-            value={riga.descrizione}
-            onChange={(e) => onChange({ descrizione: e.target.value })}
-          />
-        </td>
-        {riga.celle.map((c, v) =>
-          c.incluso ? (
-            <CellaInputs key={v} cella={c} multi={multi} onChange={(patch) => onCella(v, patch)} />
-          ) : (
-            <td key={v} colSpan={4} className="border-l-2 border-slate-300 p-1 text-center text-sm text-slate-500">
-              non incluso{' '}
-              <button type="button" onClick={() => onCella(v, { incluso: true })} className="font-semibold text-blue-700 underline">
-                includi
-              </button>
-            </td>
-          )
-        )}
-        <td className="p-1 text-center">
-          <button type="button" onClick={onRemove} className="text-red-600 hover:text-red-800" title="Rimuovi voce">
-            <Trash2 className="h-4 w-4" />
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td colSpan={colonne} className="px-1 pb-2">
-          <input
-            className={`${input} w-full text-sm italic`}
-            placeholder="Nota descrittiva sotto la voce (facoltativa)"
-            maxLength={300}
-            value={riga.nota}
-            onChange={(e) => onChange({ nota: e.target.value })}
-          />
-        </td>
-      </tr>
-    </>
+    <tr className="border-t-2 border-slate-200 align-middle">
+      <td className="p-1">
+        <input
+          className={`${input} w-full font-semibold${vuoto(riga.descrizione)}`}
+          placeholder="Nome della voce"
+          value={riga.descrizione}
+          onChange={(e) => onChange({ descrizione: e.target.value })}
+        />
+        <input
+          className={`${input} mt-1 w-full text-sm italic`}
+          placeholder="Nota descrittiva sotto la voce (facoltativa)"
+          maxLength={300}
+          value={riga.nota}
+          onChange={(e) => onChange({ nota: e.target.value })}
+        />
+      </td>
+      {riga.celle.map((c, v) =>
+        c.incluso ? (
+          <CellaInputs key={v} cella={c} multi={multi} cornice={cornici[v]} onChange={(patch) => onCella(v, patch)} />
+        ) : (
+          <td
+            key={v}
+            colSpan={4}
+            className={`p-1 text-center text-sm text-slate-500 ${cornici[v] ? `border-x-4 ${cornici[v]}` : 'border-l-2 border-slate-300'}`}
+          >
+            non incluso{' '}
+            <button type="button" onClick={() => onCella(v, { incluso: true })} className="font-semibold text-blue-700 underline">
+              includi
+            </button>
+          </td>
+        )
+      )}
+      <td className="p-1 text-center">
+        <button type="button" onClick={onRemove} className="text-red-600 hover:text-red-800" title="Rimuovi voce">
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </td>
+    </tr>
   )
 }
 
-function CellaInputs({ cella, multi, onChange }: { cella: CellaUi; multi: boolean; onChange: (patch: Partial<CellaUi>) => void }) {
+function CellaInputs({ cella, multi, cornice, onChange }: { cella: CellaUi; multi: boolean; cornice: string | null; onChange: (patch: Partial<CellaUi>) => void }) {
   const finale = prezzoFinaleCella({ prezzo_unitario: num(cella.prezzo), sconto: num(cella.sconto) })
   return (
     <>
-      <td className="border-l-2 border-slate-300 p-1">
+      <td className={`p-1 ${cornice ? `border-l-4 ${cornice}` : 'border-l-2 border-slate-300'}`}>
         <input
           className={`${inputPrezzo} w-full min-w-[3.75rem] text-right font-semibold${vuoto(cella.prezzo)}`}
           inputMode="decimal"
@@ -1019,7 +1176,7 @@ function CellaInputs({ cella, multi, onChange }: { cella: CellaUi; multi: boolea
           onChange={(e) => onChange({ scontoPerc: e.target.value })}
         />
       </td>
-      <td className="whitespace-nowrap p-1 text-right text-sm font-bold">
+      <td className={`whitespace-nowrap p-1 text-right text-sm font-bold ${cornice ? `border-r-4 ${cornice}` : ''}`}>
         {formatEuro(finale)}
         {multi && (
           <button type="button" onClick={() => onChange({ incluso: false })} className="ml-1 align-middle text-slate-400 hover:text-red-600" title="Non incluso in questa versione">

@@ -1,7 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { GARANZIE, type GaranziaId, type RigaPreventivo, type VersionePreventivo } from './types'
+import {
+  GARANZIE,
+  aggiungiGiorni,
+  importoPreventivo,
+  type GaranziaId,
+  type PreventivoAttesaRow,
+  type RigaPreventivo,
+  type TipoPreventivo,
+  type VersionePreventivo,
+} from './types'
 
 export const adminClient = () =>
   createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
@@ -36,6 +45,7 @@ export interface PreventivoInput {
   righe: RigaPreventivo[]
   garanzie: GaranziaId[]
   note_differenze: string | null
+  tipo: TipoPreventivo | null
 }
 
 /** Valida e normalizza il payload di un preventivo. Ritorna `error` oppure `value`. */
@@ -105,6 +115,55 @@ export function parsePreventivoBody(body: any): { error: string } | { value: Pre
       righe,
       garanzie,
       note_differenze: String(body.note_differenze ?? '').trim() || null,
+      tipo: body.tipo === 'lenti_graduate' || body.tipo === 'occhiali_completi' ? body.tipo : null,
     },
   }
+}
+
+const cifre = (t: string | null | undefined) => (t || '').replace(/\D/g, '')
+
+/** Stesso cliente? Per id, per cellulare (ultime 9 cifre) o per cognome+nome: il preventivo non crea il cliente in anagrafica. */
+export function stessoCliente(
+  p: { cliente_id: string | null; cliente_telefono: string; cliente_cognome: string; cliente_nome: string },
+  q: { cliente_id?: string | null; telefono?: string | null; cognome?: string | null; nome?: string | null }
+): boolean {
+  if (q.cliente_id && p.cliente_id === q.cliente_id) return true
+  const t1 = cifre(p.cliente_telefono)
+  const t2 = cifre(q.telefono)
+  if (t1.length >= 7 && t2.length >= 7 && t1.slice(-9) === t2.slice(-9)) return true
+  const norm = (x: string | null | undefined) => (x || '').trim().toLowerCase()
+  return Boolean(norm(q.cognome) && norm(q.nome) && norm(p.cliente_cognome) === norm(q.cognome) && norm(p.cliente_nome) === norm(q.nome))
+}
+
+/** Elenco dei preventivi ancora in attesa, dal più vecchio, per il report da stampare. */
+export async function fetchPreventiviInAttesa(): Promise<{ rows: PreventivoAttesaRow[]; error: string | null }> {
+  const { data, error } = await adminClient()
+    .from('preventivi')
+    .select('id, numero_label, cliente_cognome, cliente_nome, cliente_telefono, tipo, data_stipula, validita_giorni, versioni, righe')
+    .eq('esito', 'in_attesa')
+    .is('busta_id', null)
+    .order('data_stipula', { ascending: true })
+    .limit(500)
+  if (error) return { rows: [], error: error.message }
+
+  const oggi = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date())
+  const giorniTra = (da: string, a: string) =>
+    Math.round((new Date(a + 'T12:00:00').getTime() - new Date(da.slice(0, 10) + 'T12:00:00').getTime()) / 86400000)
+
+  const rows = (data || []).map((p: any): PreventivoAttesaRow => {
+    const scadenza = aggiungiGiorni(String(p.data_stipula).slice(0, 10), p.validita_giorni)
+    return {
+      id: p.id,
+      numero_label: p.numero_label,
+      cliente_nome: `${p.cliente_cognome} ${p.cliente_nome}`.trim(),
+      telefono: p.cliente_telefono,
+      tipo: p.tipo,
+      data_stipula: String(p.data_stipula).slice(0, 10),
+      scadenza,
+      giorni: giorniTra(p.data_stipula, oggi),
+      scaduto: scadenza < oggi,
+      importo: importoPreventivo(p),
+    }
+  })
+  return { rows, error: null }
 }

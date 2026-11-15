@@ -1,7 +1,7 @@
 // app/dashboard/_components/MultiStepBustaForm.tsx
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
 import { Database } from '@/types/database.types';
@@ -13,6 +13,7 @@ import {
   isShopPhone,
   isOtticaBianchiName
 } from '@/lib/clients/phoneRules';
+import { ESITI, formatDataIt, importoPreventivo } from '@/lib/preventivi/types';
 import {
   User,
   Package,
@@ -102,6 +103,12 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
   const [selectedConflictResolution, setSelectedConflictResolution] = useState<'new' | 'existing' | null>(null);
   const [isCheckingPhone, setIsCheckingPhone] = useState(false);
 
+  // ✅ PREVENTIVO DI PARTENZA (facoltativo): scelto dall'elenco o arrivato da "Crea busta"
+  const [preventivoId, setPreventivoId] = useState<string | null>(null);
+  const [preventivoUrl, setPreventivoUrl] = useState<any | null>(null);
+  const [candidati, setCandidati] = useState<any[]>([]);
+  const TIPI_CON_PREVENTIVO = ['OCV', 'LV', 'OV', 'LS'];
+
   // Prevent double submit
   const isSubmittingRef = useRef(false);
   
@@ -110,6 +117,66 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
+  // "Crea busta" dalla lista preventivi: /dashboard/buste/new?preventivo=<id> precompila cliente e tipo
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('preventivo');
+    if (!id) return;
+    let cancelled = false;
+    fetch(`/api/preventivi/${id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        const p = j?.preventivo;
+        if (cancelled || !p || p.busta_id) return;
+        setPreventivoUrl(p);
+        setPreventivoId(p.id);
+        setNoPhone(isPlaceholderPhone(p.cliente_telefono));
+        setFormData((prev) => ({
+          ...prev,
+          cliente_id: p.cliente_id || null,
+          cliente_cognome: p.cliente_cognome || '',
+          cliente_nome: p.cliente_nome || '',
+          cliente_telefono: p.cliente_telefono || '',
+          tipo_lavorazione: p.tipo === 'occhiali_completi' ? 'OCV' : p.tipo === 'lenti_graduate' ? 'LV' : prev.tipo_lavorazione,
+        }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Preventivi dello stesso cliente non ancora collegati (solo per vendita di lenti / occhiali completi)
+  useEffect(() => {
+    const phoneDigits = formData.cliente_telefono.replace(/\D/g, '');
+    if (!TIPI_CON_PREVENTIVO.includes(formData.tipo_lavorazione) || (formData.cliente_cognome.trim().length < 2 && phoneDigits.length < 7)) {
+      setCandidati([]);
+      return;
+    }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const qs = new URLSearchParams({
+        cognome: formData.cliente_cognome.trim(),
+        nome: formData.cliente_nome.trim(),
+        telefono: formData.cliente_telefono,
+      });
+      if (formData.cliente_id) qs.set('cliente_id', formData.cliente_id);
+      try {
+        const res = await fetch(`/api/preventivi/candidati?${qs.toString()}`);
+        if (!cancelled && res.ok) setCandidati((await res.json()).preventivi || []);
+      } catch {}
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.cliente_id, formData.cliente_cognome, formData.cliente_nome, formData.cliente_telefono, formData.tipo_lavorazione]);
+
+  const preventiviMostrati = [
+    ...(preventivoUrl && !candidati.some((c) => c.id === preventivoUrl.id) ? [preventivoUrl] : []),
+    ...candidati,
+  ];
 
   // Validation function
   const validateForm = () => {
@@ -426,7 +493,8 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
             priorita: formData.priorita,
             note_generali: formData.note_generali?.trim() || null,
             stato_attuale: 'nuove',
-            anno_precedente: formData.anno_precedente  // ✅ PASSA FLAG ANNO PRECEDENTE
+            anno_precedente: formData.anno_precedente,  // ✅ PASSA FLAG ANNO PRECEDENTE
+            preventivo_id: preventivoId
           }
         })
       });
@@ -474,6 +542,9 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
     setNoPhone(false);
     setErrors({});
     setFormError(null);
+    setPreventivoId(null);
+    setPreventivoUrl(null);
+    setCandidati([]);
   };
 
   // Success screen
@@ -999,6 +1070,39 @@ export default function MultiStepBustaForm({ onSuccess, onCancel }: MultiStepBus
                   ))}
                 </div>
               </div>
+
+              {/* Preventivo di partenza */}
+              {preventiviMostrati.length > 0 && (
+                <div className="md:col-span-2 rounded-lg border-2 border-emerald-300 bg-emerald-50/60 p-3">
+                  <p className="mb-2 text-sm font-semibold text-slate-900">
+                    Questa busta nasce da un preventivo? <span className="font-normal text-slate-600">(facoltativo)</span>
+                  </p>
+                  <ul className="space-y-2">
+                    {preventiviMostrati.map((p) => (
+                      <li key={p.id}>
+                        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-emerald-200 bg-white p-2 text-sm">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 h-4 w-4"
+                            checked={preventivoId === p.id}
+                            onChange={() => setPreventivoId(preventivoId === p.id ? null : p.id)}
+                          />
+                          <span>
+                            <strong>{p.numero_label}</strong> · {p.cliente_cognome} {p.cliente_nome} · {formatDataIt(p.data_stipula)} ·{' '}
+                            {importoPreventivo(p)}{' '}
+                            <span className={`ml-1 rounded px-1.5 py-0.5 text-xs font-medium ${ESITI[p.esito as keyof typeof ESITI]?.badge ?? ''}`}>
+                              {ESITI[p.esito as keyof typeof ESITI]?.label ?? p.esito}
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-slate-600">
+                    Spuntandolo, il preventivo viene collegato alla busta e segnato come approvato.
+                  </p>
+                </div>
+              )}
 
               {/* ✅ ANNO BUSTA */}
               <div className="md:col-span-2">
