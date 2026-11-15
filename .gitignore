@@ -11,3 +11,8 @@ vscode/
 .npm
 *.md
 *.sql
+
+# Generati localmente (graphify, CLI Supabase, cache TypeScript)
+graphify-out/
+supabase/.temp/
+tsconfig.tsbuildinfo
