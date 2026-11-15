@@ -6,7 +6,6 @@ import { Database } from '@/types/database.types'
 import { Loader2 } from 'lucide-react'
 
 const DEFAULT_REDIRECT = '/dashboard'
-const ALLOWED_ROLES = new Set(['admin', 'manager', 'operatore'])
 
 const supabase = createBrowserClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -75,8 +74,6 @@ function resolveFullName(user: SupabaseUser) {
 async function ensureProfile(user: SupabaseUser) {
   if (!user) return
 
-  const invitedRole = user.user_metadata?.role
-  const targetRole = ALLOWED_ROLES.has(invitedRole) ? invitedRole : 'operatore'
   const fullName = resolveFullName(user)
 
   const { data: profile, error } = await supabase
@@ -93,7 +90,7 @@ async function ensureProfile(user: SupabaseUser) {
   if (!profile) {
     const { error: insertError } = await supabase
       .from('profiles')
-      .insert({ id: user.id, full_name: fullName, role: targetRole })
+      .insert({ id: user.id, full_name: fullName, role: 'operatore' })
     if (insertError) {
       console.error('🔍 CALLBACK ERROR - Profile creation failed:', insertError)
       throw new Error('Creazione profilo non riuscita')
@@ -101,14 +98,6 @@ async function ensureProfile(user: SupabaseUser) {
     return
   }
 
-  if (targetRole && profile.role !== targetRole) {
-    if (ALLOWED_ROLES.has(targetRole)) {
-      await supabase
-        .from('profiles')
-        .update({ role: targetRole, updated_at: new Date().toISOString() })
-        .eq('id', user.id)
-    }
-  }
 }
 
 async function computeRedirectPath(userId: string, requestedNext: string | null) {

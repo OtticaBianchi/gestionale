@@ -5,7 +5,6 @@ import { NextResponse } from 'next/server'
 import { logger } from '@/lib/logger'
 
 const DEFAULT_REDIRECT = '/dashboard'
-const ALLOWED_ROLES = new Set(['admin', 'manager', 'operatore'])
 
 type SupabaseClient = ReturnType<typeof createServerClient>
 
@@ -79,7 +78,7 @@ async function ensureProfile(
   }
 
   if (!profile) {
-    const initialRole = ALLOWED_ROLES.has(user.user_metadata?.role) ? user.user_metadata.role : 'operatore'
+    const initialRole = 'operatore'
     const { data: newProfile, error: insertError } = await supabase
       .from('profiles')
       .insert({
@@ -97,20 +96,6 @@ async function ensureProfile(
 
     logger.debug('🔍 CALLBACK - Profile created successfully:', { id: newProfile.id, role: newProfile.role })
     return { profile: newProfile }
-  }
-
-  const invitedRole = user.user_metadata?.role
-  if (invitedRole && ALLOWED_ROLES.has(invitedRole) && profile.role !== invitedRole) {
-    const { data: synced, error: syncError } = await supabase
-      .from('profiles')
-      .update({ role: invitedRole, updated_at: new Date().toISOString() })
-      .eq('id', user.id)
-      .select('*')
-      .single()
-
-    if (!syncError && synced) {
-      return { profile: synced }
-    }
   }
 
   return { profile }

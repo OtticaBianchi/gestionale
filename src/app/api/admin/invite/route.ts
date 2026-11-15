@@ -66,6 +66,16 @@ export async function POST(request: NextRequest) {
     })
     if (error) throw error
 
+    // Il trigger on_auth_user_created ha già creato il profilo con ruolo 'operatore'.
+    // Il ruolo scelto dall'admin lo imposta qui il server (service role): i client non scrivono su profiles.
+    if (data?.user?.id) {
+      const { error: profileError } = await adminClient
+        .from('profiles')
+        .update({ role, ...(full_name ? { full_name } : {}), updated_at: new Date().toISOString() })
+        .eq('id', data.user.id)
+      if (profileError) throw profileError
+    }
+
     return NextResponse.json({ success: true, invited: { email, role } })
   } catch (error: any) {
     console.error('Admin invite error:', error)
