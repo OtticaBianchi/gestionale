@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { shouldArchiveBusta } from '@/lib/buste/archiveRules'
+import { userRateLimit } from '@/lib/rate-limit'
 
 type SearchType = 'all' | 'cliente' | 'prodotto' | 'fornitore'
 
@@ -507,6 +508,9 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
+
+    const rl = await userRateLimit(user.id, 'search-advanced', 60)
+    if (rl) return rl
 
     const { searchParams } = new URL(request.url)
 

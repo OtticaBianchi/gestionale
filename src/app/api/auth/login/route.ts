@@ -5,20 +5,31 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { setSessionAwareCookie, touchLastSeen } from '@/lib/supabase/session-cookies'
-import { loginRateLimit } from '@/lib/rate-limit'
+import { loginRateLimit, loginIpRateLimit, isLoginLocked, registerLoginFailure, clearLoginFailures } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
     const rl = await loginRateLimit(request)
     if (rl) return rl
+    const rlIp = await loginIpRateLimit(request)
+    if (rlIp) return rlIp
 
     const { email, password } = await request.json()
 
-    if (!email || !password) {
+    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
       return NextResponse.json({
         error: 'Email e password sono obbligatori'
       }, { status: 400 })
+    }
+
+    // Blocco per singolo account dopo troppi tentativi falliti (indipendente da IP/browser)
+    const lock = await isLoginLocked(email)
+    if (lock.locked) {
+      return NextResponse.json(
+        { error: 'Troppi tentativi falliti per questo account. Riprova tra qualche minuto.', retryAfter: lock.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(lock.retryAfter) } }
+      )
     }
 
     logger.debug('🔐 SERVER LOGIN - Starting login attempt')
@@ -55,6 +66,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (loginError) {
+      await registerLoginFailure(email)
       return NextResponse.json({
         error: loginError.message === 'Invalid login credentials' 
           ? 'Email o password non validi' 
@@ -68,6 +80,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    await clearLoginFailures(email)
     touchLastSeen(cookieStore)
 
     // Fetch user profile for role

@@ -11,6 +11,7 @@ import {
   type InfoPagamenti
 } from '@/lib/buste/archiveRules'
 import { resolveSaldoUnicoMethod } from '@/lib/payments/saldoMethod'
+import { userRateLimit } from '@/lib/rate-limit'
 
 export type IncassoCategoria =
   | 'bonifico'
@@ -64,6 +65,9 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
     }
+
+    const rl = await userRateLimit(user.id, 'report-incassi', 20)
+    if (rl) return rl
 
     const { data: profile } = await supabase
       .from('profiles')

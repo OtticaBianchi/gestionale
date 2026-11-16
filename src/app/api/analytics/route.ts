@@ -12,6 +12,7 @@ import { Database } from '@/types/database.types';
 import { LENS_TREATMENTS } from '@/lib/constants/lens-types';
 import { getPaymentCompletedAt, resolvePaymentPlanType } from '@/lib/buste/archiveRules';
 import { resolveFornitoreAttivo } from '@/lib/fornitori/categorie';
+import { userRateLimit } from '@/lib/rate-limit';
 
 export async function GET(request: NextRequest) {
   try {
@@ -42,6 +43,9 @@ export async function GET(request: NextRequest) {
         error: 'Non autenticato',
       }, { status: 401 });
     }
+
+    const rl = await userRateLimit(user.id, 'analytics', 30);
+    if (rl) return rl;
 
     // Check if user is admin
     const { data: profile } = await userSupabase

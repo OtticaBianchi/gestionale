@@ -4,6 +4,7 @@ export const runtime = 'nodejs'
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
+import { userRateLimit } from '@/lib/rate-limit';
 
 const normalizeSearchValue = (value: string) =>
   value
@@ -51,6 +52,9 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
     }
+
+    const rl = await userRateLimit(user.id, 'clienti-search', 120);
+    if (rl) return rl;
 
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');

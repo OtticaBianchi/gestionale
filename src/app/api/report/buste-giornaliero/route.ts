@@ -7,6 +7,7 @@ import { resolveSaldoUnicoMethod } from '@/lib/payments/saldoMethod'
 import { fetchSchedeFocusMancanti, type SchedaFocusMancanteRow } from '@/lib/scheda-focus/mancanti'
 
 import { fetchPreventiviInAttesa } from '@/lib/preventivi/server'
+import { userRateLimit } from '@/lib/rate-limit'
 
 export type { SchedaFocusMancanteRow }
 
@@ -52,6 +53,8 @@ export async function GET(request: NextRequest) {
     const supabase = await createServerSupabaseClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 })
+    const rl = await userRateLimit(user.id, 'report-buste', 20)
+    if (rl) return rl
 
     const { data: profile } = await supabase
       .from('profiles')
