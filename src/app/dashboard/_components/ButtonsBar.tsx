@@ -81,8 +81,8 @@ export default function ButtonsBar() {
           </Link>
         )}
 
-        {/* Report Giornaliero - admin only */}
-        {isAdmin && (
+        {/* Report Giornaliero - all authenticated users */}
+        {userRole && (
           <button
             onClick={() => setShowReport(true)}
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700 transition-colors hover:border-slate-300 hover:bg-white"

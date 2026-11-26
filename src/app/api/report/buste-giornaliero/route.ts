@@ -56,16 +56,6 @@ export async function GET(request: NextRequest) {
     const rl = await userRateLimit(user.id, 'report-buste', 20)
     if (rl) return rl
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Accesso negato' }, { status: 403 })
-    }
-
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date')
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
